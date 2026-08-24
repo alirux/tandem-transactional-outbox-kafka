@@ -39,8 +39,8 @@ diverges permanently on partial failure. Tandem removes the dual-write:
 
 ```
 BEGIN TX
-  UPDATE aggregate SET version = version + 1 WHERE id = ? FOR UPDATE
-  INSERT INTO tandem_outbox (aggregate_id, type, seq, payload, ...)
+  UPDATE aggregate SET status = ? WHERE id = ?
+  INSERT INTO tandem_outbox (aggregate_id, type, payload, ...)
 COMMIT TX                  ← both or neither, guaranteed by the DB
 ```
 
@@ -310,7 +310,8 @@ public Order placeOrder(Order order) {
         .aggregateId(order.id())
         .aggregateType("Order")
         .type("com.acme.order.placed")
-        .seq(order.version())          // your aggregate owns the sequence number
+        .unsequenced()                 // one of three modes, and one is required — this one
+                                       // asks nothing of your domain; see below
         .payload(serialize(order))     // plain write-side takes bytes; the Spring producer tiers accept an object
         .contentType("application/json")
         .build());
@@ -318,16 +319,32 @@ public Order placeOrder(Order order) {
 }
 ```
 
-`order.version()` above is illustrative, not a safe default: a JPA `@Version` only advances at
-*flush*, so a write-side tier running inside the caller's transaction reads the pre-increment value
-— two mutations in one transaction then collide on `UNIQUE(aggregate_id, seq)`. Build the outbox row
-after an explicit flush, or use `managedSeq()` to let Tandem assign the number instead.
+**That line is a choice, and one of the three is required.** `unsequenced()` above stores no sequence
+number: consumers deduplicate on the event id, which is unique by construction and always present.
+It is the fastest mode to adopt — it asks nothing of your domain — and the one that keeps its options
+open, since adding a number later is additive for consumers while taking one away is not.
 
-The explicit flush also does a second job: it's what makes the aggregate's write lock **serialize
-concurrent writers** — without it the lock is taken too late to order anything. It doesn't cover
-writers that only touch *children* of the aggregate (no shared row to lock); `lockedWrite()` asks
-Tandem to take its own advisory lock instead. Details and measurements:
+The alternatives, when you want a number on the event. `managedSeq()` has a database sequence assign
+one, for consumers that want *a* monotonic counter with no domain meaning. `seq(...)` supplies your
+aggregate's own version, and is the only mode that buys the **strongest ordering detection**: a number
+*you* assigned is an order independent of the one rows were inserted in, so the relay can check the
+published order against it. A message stating none of the three fails to build, because the choice
+fixes what consumers read and cannot be changed later without breaking them:
+[HLD-managed-seq §4.6](docs/HLD-managed-seq.md#46-choosing-a-mode).
+
+**Whichever mode you pick, concurrent writers to one aggregate must be serialized.** Tandem preserves
+the order your write side established; it does not create one. With an ORM this turns on flush timing:
+the domain `UPDATE` — and the row lock that comes with it — is deferred to flush, while the outbox
+insert happens earlier, so by default the lock is taken too late to order anything. Build the outbox
+row after an explicit flush, and it does its job. That still doesn't cover writers that only touch
+*children* of the aggregate, where there is no shared row to lock; `lockedWrite()` asks Tandem to take
+its own advisory lock on the aggregate id instead. Details and measurements:
 [HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time), [HLD-managed-seq.md](docs/HLD-managed-seq.md).
+
+**If you pick `seq(...)`, that same flush timing is a second trap.** A JPA `@Version` only advances at
+flush, so a write-side tier running inside the caller's transaction reads the pre-increment value —
+two mutations in one transaction then collide on `UNIQUE(aggregate_id, seq)`. The explicit flush above
+fixes this too; a mode that asks nothing of your domain avoids it entirely.
 
 **Relay** — wire it directly (no Spring required); it polls the outbox and publishes to Kafka,
 preserving per-aggregate order:
