@@ -3,6 +3,7 @@ package com.codingful.tandem.jdbc;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.OutboxStatus;
+import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
@@ -27,7 +28,7 @@ final class OutboxRowMapper {
      * Read back by the labels {@code id, aggregate_id, …} ({@code payload}/{@code headers} aliased).
      */
     static final String COLUMNS =
-            "o.id, o.aggregate_id, o.aggregate_type, o.type, o.seq, o.payload::text AS payload, "
+            "o.id, o.aggregate_id, o.aggregate_type, o.type, o.seq, o.seq_source, o.payload::text AS payload, "
                     + "o.headers::text AS headers, o.status, o.locked_by, o.locked_until, o.attempts, "
                     + "o.last_error, o.next_attempt_at, o.created_at";
 
@@ -39,9 +40,16 @@ final class OutboxRowMapper {
                 .aggregateId(rs.getString("aggregate_id"))
                 .aggregateType(rs.getString("aggregate_type"))
                 .type(rs.getString("type"))
-                .seq(rs.getLong("seq"))
                 .payload(payload == null ? new byte[0] : payload.getBytes(StandardCharsets.UTF_8))
                 .headers(headers);
+        // getLong reports 0 for SQL NULL, so wasNull is the only thing separating "no number" from a
+        // legitimate seq of 0 — reading it as 0 would put a fiction on the wire as ce_seq.
+        long seq = rs.getLong("seq");
+        if (rs.wasNull()) {
+            message.unsequenced();
+        } else {
+            message.seq(seq);
+        }
         String contentType = headers.get(TandemHeaders.CONTENT_TYPE);
         if (contentType != null) {
             message.contentType(contentType);
@@ -50,6 +58,10 @@ final class OutboxRowMapper {
         return OutboxRecord.builder()
                 .id(rs.getLong("id"))
                 .message(message.build())
+                // From the column, not from the rebuilt message: a resolved MANAGED number is
+                // indistinguishable from an application-assigned one once stored, and the relay's
+                // ordering detector keys on exactly that difference (HLD-managed-seq §6.1).
+                .seqSource(SeqSource.fromCode(rs.getInt("seq_source")))
                 .status(OutboxStatus.fromCode(rs.getInt("status")))
                 .attempts(rs.getInt("attempts"))
                 .lockedBy(rs.getString("locked_by"))

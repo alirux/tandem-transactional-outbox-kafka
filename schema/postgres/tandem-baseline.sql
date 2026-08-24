@@ -30,7 +30,21 @@ CREATE TABLE tandem_outbox (
     aggregate_type  VARCHAR(255) NOT NULL,
     type            VARCHAR(255),            -- CloudEvents `type`, e.g. com.acme.order.placed; nullable (Q20)
     bucket          SMALLINT     NOT NULL,   -- virtual bucket = Math.floorMod(fnv1a64(aggregate_id), B); computed in Java by tandem-jdbc at insert (HLD §4.3)
-    seq             BIGINT       NOT NULL,
+    seq             BIGINT,                  -- optional (HLD §4.2): app-assigned from the aggregate's version, supplied by the tandem_seq DEFAULT (managed), or absent
+    seq_source      SMALLINT     NOT NULL,   -- where `seq` came from, which decides what the relay's ordering detector can check with it (HLD §8)
+    -- 0 = APPLICATION, 1 = MANAGED, 2 = NONE
+    -- Only an APPLICATION value carries information the row's `id` does not: it is the order the
+    -- application DECLARED, so publishing out of that order is a violation of the write-side
+    -- contract even when `id` order was respected. A MANAGED value comes from tandem_seq at INSERT
+    -- and therefore IS insert order, and a NONE row declares nothing — for both, the detector keys
+    -- on `id`. The column exists because a persisted row cannot otherwise tell the three apart:
+    -- an APPLICATION and a MANAGED `seq` are both just a BIGINT.
+    --
+    -- Deliberately NOT range-constrained to 0-2: a CHECK would make adding a fourth source a
+    -- BREAKING schema change, against the additive-only rule (HLD §1.4). Readers must instead
+    -- tolerate a value they do not know, and degrade to the `id` key — which under-reports and never
+    -- invents a violation. The CHECK below constrains only what a reader cannot recover on its own:
+    -- whether the row has a `seq` at all.
     payload         JSONB        NOT NULL,   -- JSONB by default; switch to BYTEA only if a binary serializer (Avro/Protobuf) is used (HLD §5.2)
     headers         JSONB,
     status          SMALLINT     NOT NULL DEFAULT 0,
@@ -44,7 +58,11 @@ CREATE TABLE tandem_outbox (
     discard_reason  TEXT,                    -- operator-supplied reason when the Admin API discards a FAILED row (HLD-admin-api §6.1); distinct from last_error, which stays the original delivery failure
     correlation_id  VARCHAR(255),            -- searchable copy of headers['correlation-id'] (HLD-tracing §4); headers stay the source of truth for what reaches Kafka. Bounded length: the value typically arrives from OUTSIDE this application (an inbound HTTP header, a consumed message), so it is untrusted input and must not widen an index without limit
 
-    UNIQUE (aggregate_id, seq)               -- per-aggregate ordering safety net (HLD §4.2)
+    UNIQUE (aggregate_id, seq),              -- per-aggregate ordering safety net (HLD §4.2). Inert for a row with no seq: PostgreSQL treats NULLs as distinct, so such rows never collide here — and cannot, since the duplicate it guards against is a stale application version
+
+    -- seq_source = NONE and a NULL seq are the same fact stated twice, so the database enforces the
+    -- agreement rather than trusting every writer to keep it.
+    CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))
 );
 
 -- Changeset v1-baseline.sql::v1-create-tandem-meta::tandem
@@ -185,9 +203,14 @@ ALTER TABLE tandem_outbox
 --
 -- CACHE 1 is a correctness constraint, not a performance default, and is stated explicitly rather
 -- than inherited: with a per-session cache two sessions pre-allocate disjoint ranges (1-100,
--- 101-200), so a later-committing session can emit a LOWER `seq` for the same aggregate — which the
--- relay's seq-regression detector (HLD §7, §8) reports as a write-side ordering violation that never
--- happened.
+-- 101-200), so a session holding the higher range can insert first and emit a LOWER `seq` for the
+-- same aggregate than the one that follows it.
+--
+-- What that breaks is the published wire contract: HLD-managed-seq §7 promises a consumer may treat
+-- ce_seq as an opaque MONOTONIC counter, and a cached range makes it move backwards. It is not the
+-- relay's ordering detector that depends on this — a managed row carries seq_source = MANAGED and is
+-- checked on `id` instead (HLD §8), so a cached range could not produce a phantom violation there.
+-- The constraint did not weaken when the detector stopped reading it; its beneficiary changed.
 --
 -- The sequence is deliberately NOT tied to the column with OWNED BY: its lifecycle stays independent
 -- of `tandem_outbox`.

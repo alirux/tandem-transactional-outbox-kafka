@@ -176,4 +176,53 @@ class OutboxRecordTest {
         assertThatThrownBy(() -> OutboxRecord.builder().id(1).message(unassigned).createdAt(NOW).build())
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void GIVEN_a_provenance_that_contradicts_whether_the_row_has_a_number_WHEN_built_THEN_it_is_rejected() {
+        OutboxMessage numbered = OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").seq(7)
+                .payload(new byte[]{1}).build();
+        OutboxMessage unnumbered = OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").unsequenced()
+                .payload(new byte[]{1}).build();
+
+        // The in-memory mirror of the row's own CHECK: NONE and a present number cannot both be true.
+        assertThatThrownBy(() -> OutboxRecord.builder()
+                .id(1).message(numbered).seqSource(SeqSource.NONE).createdAt(NOW).build())
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> OutboxRecord.builder()
+                .id(1).message(unnumbered).seqSource(SeqSource.APPLICATION).createdAt(NOW).build())
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void GIVEN_a_row_written_by_a_newer_version_WHEN_a_record_is_built_from_it_THEN_neither_pairing_is_refused() {
+        OutboxMessage numbered = OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").seq(7)
+                .payload(new byte[]{1}).build();
+        OutboxMessage unnumbered = OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").unsequenced()
+                .payload(new byte[]{1}).build();
+
+        // A provenance this build does not know says nothing about whether the row carries a number,
+        // so the agreement rule has to stand down rather than reject a row it cannot judge.
+        assertThat(OutboxRecord.builder()
+                .id(1).message(numbered).seqSource(SeqSource.UNKNOWN).createdAt(NOW).build().hasSeq()).isTrue();
+        assertThat(OutboxRecord.builder()
+                .id(2).message(unnumbered).seqSource(SeqSource.UNKNOWN).createdAt(NOW).build().hasSeq()).isFalse();
+    }
+
+    @Test
+    void GIVEN_a_row_with_no_number_WHEN_rendered_for_a_log_THEN_it_says_so_instead_of_throwing() {
+        OutboxRecord record = OutboxRecord.builder()
+                .id(3)
+                .message(OutboxMessage.builder()
+                        .aggregateId("order-1").aggregateType("Order").unsequenced()
+                        .payload(new byte[]{1}).build())
+                .createdAt(NOW)
+                .build();
+
+        // toString is reachable from a log statement, so it must survive a row that has no seq.
+        assertThat(record.toString()).contains("seq=none").contains("seqSource=NONE");
+    }
 }

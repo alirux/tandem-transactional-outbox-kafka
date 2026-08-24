@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
 import com.codingful.tandem.test.RecordingMetrics;
 import java.lang.System.Logger;
@@ -77,8 +78,8 @@ class BucketLeaseManagerIT extends AbstractPostgresIT {
     private static void insertPending(int bucket) {
         try (Connection conn = DATA_SOURCE.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, bucket, seq, payload)"
-                             + " VALUES (?, 'Order', ?, 1, '{}')")) {
+                     "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, bucket, seq, seq_source, payload)"
+                             + " VALUES (?, 'Order', ?, 1, " + SeqSource.APPLICATION.code() + ", '{}')")) {
             ps.setString(1, "order-bucket-" + bucket);
             ps.setInt(2, bucket);
             ps.executeUpdate();

@@ -160,6 +160,30 @@ class JdbcOutboxQueryIT extends AbstractPostgresIT {
         assertThat(rows).singleElement().extracting(OutboxRowView::correlationId).isNull();
     }
 
+    @Test
+    void GIVEN_a_row_written_without_a_sequence_number_WHEN_searched_THEN_its_view_carries_none_rather_than_zero() {
+        repository.insert(OutboxMessage.builder()
+                .aggregateId("order-no-seq").aggregateType("Order").unsequenced().payload("{}".getBytes()).build());
+
+        List<OutboxRowView> rows = query.search(
+                OutboxSearchCriteria.builder().aggregateId(AggregateId.of("order-no-seq")).build());
+
+        // A primitive read would report 0 here — a number belonging to no event, and indistinguishable
+        // from a row whose sequence genuinely starts at zero.
+        assertThat(rows).singleElement().extracting(OutboxRowView::seq).isNull();
+    }
+
+    @Test
+    void GIVEN_a_row_written_without_a_sequence_number_WHEN_fetched_by_id_THEN_the_detail_carries_none_either() {
+        repository.insert(OutboxMessage.builder()
+                .aggregateId("order-no-seq-detail").aggregateType("Order").unsequenced().payload("{}".getBytes()).build());
+
+        assertThat(query.findById(lastInsertedId()))
+                .get()
+                .extracting(OutboxRowDetail::seq)
+                .isNull();
+    }
+
     private long insertWithCorrelationId(String aggregateId, long seq, String correlationId) {
         repository.insert(OutboxMessage.builder()
                 .aggregateId(aggregateId).aggregateType("Order").seq(seq).payload("{}".getBytes())

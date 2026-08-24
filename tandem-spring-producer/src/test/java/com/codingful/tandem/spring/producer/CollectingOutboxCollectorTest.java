@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
+import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.exception.PayloadSerializationException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ class CollectingOutboxCollectorTest {
     }
 
     @Test
-    void GIVEN_an_aggregate_with_no_version_WHEN_recorded_without_a_number_THEN_the_message_leaves_it_to_tandem()
+    void GIVEN_an_aggregate_with_no_version_WHEN_recorded_without_a_number_THEN_the_message_carries_none()
             throws Exception {
         OrderPlaced payload = new OrderPlaced("order-5");
         CollectingOutboxCollector collector = new CollectingOutboxCollector(serializer);
@@ -74,7 +75,8 @@ class CollectingOutboxCollectorTest {
         collector.record("Order", "order-5", payload);
 
         assertThat(collector.collected()).singleElement().satisfies(message -> {
-            assertThat(message.managedSeq()).isTrue();
+            assertThat(message.seqSource()).isEqualTo(SeqSource.NONE);
+            assertThat(message.hasSeq()).isFalse();
             assertThat(message.aggregateId().value()).isEqualTo("order-5");
             assertThat(message.contentType()).isEqualTo(serializer.contentType());
             assertThat(objectMapper.readValue(message.payload(), OrderPlaced.class)).isEqualTo(payload);

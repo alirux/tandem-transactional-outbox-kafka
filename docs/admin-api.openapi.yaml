@@ -600,7 +600,6 @@ components:
         - id
         - aggregateId
         - aggregateType
-        - seq
         - status
         - attempts
         - createdAt
@@ -619,6 +618,12 @@ components:
         seq:
           type: integer
           format: int64
+          nullable: true
+          description: >
+            The aggregate's sequence number, absent when the message was written without one.
+            A producer chooses per message whether to supply a number, let Tandem assign one, or
+            store none at all; only the first two put a value here. Absent is not zero - a client
+            must not substitute one, because a plausible number is worse than a missing field.
         status:
           $ref: '#/components/schemas/OutboxStatus'
         attempts:

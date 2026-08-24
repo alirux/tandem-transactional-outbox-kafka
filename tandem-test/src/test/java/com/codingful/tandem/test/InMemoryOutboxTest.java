@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
+import com.codingful.tandem.core.OutboxSearchCriteria;
 import com.codingful.tandem.core.OutboxStatus;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
@@ -51,8 +52,36 @@ class InMemoryOutboxTest {
                 .build();
     }
 
+    /** An event whose aggregate publishes no sequence number at all — the row stores none. */
+    private static OutboxMessage unsequencedMessage(String aggregateId) {
+        return OutboxMessage.builder()
+                .aggregateId(aggregateId)
+                .aggregateType("Order")
+                .unsequenced()
+                .payload(("payload-" + aggregateId).getBytes())
+                .build();
+    }
+
     private List<OutboxRecord> claimAll(int batchSize) {
         return outbox.claimBatch(outbox.allBuckets(), WORKER, LEASE, batchSize);
+    }
+
+    @Test
+    void GIVEN_events_of_an_aggregate_that_publishes_no_sequence_number_WHEN_several_are_inserted_THEN_none_collides_with_another() {
+        outbox.insert(unsequencedMessage("order-1"));
+        outbox.insert(unsequencedMessage("order-1"));
+        outbox.insert(unsequencedMessage("order-1"));
+
+        assertThat(outbox.all()).hasSize(3).allSatisfy(r -> assertThat(r.hasSeq()).isFalse());
+    }
+
+    @Test
+    void GIVEN_an_event_with_no_sequence_number_WHEN_read_back_through_the_admin_view_THEN_the_number_is_absent_rather_than_zero() {
+        outbox.insert(unsequencedMessage("order-1"));
+
+        assertThat(outbox.search(OutboxSearchCriteria.builder().build()))
+                .singleElement()
+                .satisfies(row -> assertThat(row.seq()).isNull());
     }
 
     @Test

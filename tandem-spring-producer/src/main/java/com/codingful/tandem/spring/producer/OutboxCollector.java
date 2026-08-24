@@ -44,10 +44,15 @@ public interface OutboxCollector {
     void record(String aggregateType, String aggregateId, long seq, Object payload);
 
     /**
-     * Record a row whose sequence number <b>Tandem assigns</b>, for an aggregate with no version to
-     * take it from (HLD-managed-seq §4.1). The database supplies the number at insert, at no cost on
-     * this transaction; in exchange the {@code seq} a consumer reads is Tandem's counter rather than
-     * the aggregate's version, which is a contract change for a stream that already has consumers.
+     * Record a row with <b>no sequence number</b> ({@code unsequenced()}, HLD-managed-seq §4.5): no
+     * {@code ce_seq} reaches consumers, who deduplicate on the event id instead. The usual choice
+     * when nothing downstream reads the aggregate's version (§4.6).
+     *
+     * <p>The third mode — letting Tandem draw the number from its own sequence ({@code managedSeq()})
+     * — has no overload here and is reached by building the message and passing it to
+     * {@link #add(OutboxMessage)}, as {@code lockedWrite()} already is. A third pair of overloads
+     * would double this method's surface again for a mode most callers never reach for (Pareto,
+     * HLD §1.1).
      *
      * @param aggregateType the aggregate type (topic routing, CloudEvents {@code type} fallback)
      * @param aggregateId   the aggregate the row belongs to

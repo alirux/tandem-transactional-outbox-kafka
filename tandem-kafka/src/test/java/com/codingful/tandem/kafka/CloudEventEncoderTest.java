@@ -51,6 +51,20 @@ class CloudEventEncoderTest {
     }
 
     @Test
+    void GIVEN_an_event_written_without_a_sequence_number_WHEN_encoded_THEN_the_seq_extension_is_absent_rather_than_zero() {
+        OutboxRecord record = recordOf(OutboxMessage.builder()
+                .aggregateId("order-8").aggregateType("Order").unsequenced()
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build()).build();
+
+        ProducerRecord<String, byte[]> encoded = encoder.encode(record);
+
+        assertThat(header(encoded, CloudEventsHeaders.CE_SEQ)).isNull();
+        // Everything a consumer still needs is there: ce_id is what they deduplicate on.
+        assertThat(header(encoded, "ce_id")).isEqualTo("42");
+        assertThat(header(encoded, CloudEventsHeaders.CE_PARTITION_KEY)).isEqualTo("order-8");
+    }
+
+    @Test
     void GIVEN_a_record_without_a_type_WHEN_encoded_THEN_the_cloudevent_type_falls_back_to_the_aggregate_type() {
         OutboxRecord record = recordOf(OutboxMessage.builder()
                 .aggregateId("order-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build()).build();

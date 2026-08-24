@@ -47,7 +47,13 @@ final class CloudEventEncoder {
             builder.withData(contentType, record.payload());
         }
 
-        builder.withExtension(CloudEventsHeaders.EXT_SEQ, record.seq());            // always present → ce_seq
+        // ce_seq only for a row that has a number: omitted for one written unsequenced
+        // (HLD-managed-seq §4.5). Consumers deduplicate on ce_id, unique by construction, so the
+        // extension's absence costs them nothing — while emitting a 0 in its place would be a
+        // sequence number that belongs to no event.
+        if (record.hasSeq()) {
+            builder.withExtension(CloudEventsHeaders.EXT_SEQ, record.seq());
+        }
         builder.withExtension(CloudEventsHeaders.EXT_PARTITION_KEY, key);           // always = key → ce_partitionkey
 
         CloudEvent event = builder.build();

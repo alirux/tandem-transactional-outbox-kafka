@@ -40,7 +40,7 @@ final class CollectingOutboxCollector implements OutboxCollector {
 
     @Override
     public void record(String aggregateType, AggregateId aggregateId, Object payload) {
-        messages.add(serialized(aggregateType, aggregateId, payload).managedSeq().build());
+        messages.add(serialized(aggregateType, aggregateId, payload).unsequenced().build());
     }
 
     @Override

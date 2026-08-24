@@ -2,6 +2,7 @@ package com.codingful.tandem.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codingful.tandem.core.SeqSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,11 +32,15 @@ class ManagedSeqSchemaIT extends AbstractPostgresIT {
         }
     }
 
-    /** Omits the {@code seq} column entirely — the column default is the whole mechanism. */
+    /**
+     * Omits the {@code seq} column entirely — the column default is the whole mechanism. {@code
+     * seq_source} is still bound: it has no default, precisely so a row cannot claim a provenance
+     * nobody stated.
+     */
     private static long insertLettingTandemAssignSeq(Connection conn, String aggregateId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, bucket, payload)"
-                        + " VALUES (?, 'Order', 0, '{}'::jsonb) RETURNING seq")) {
+                "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, bucket, seq_source, payload)"
+                        + " VALUES (?, 'Order', 0, " + SeqSource.MANAGED.code() + ", '{}'::jsonb) RETURNING seq")) {
             ps.setString(1, aggregateId);
             try (ResultSet rs = ps.executeQuery()) {
                 assertThat(rs.next()).isTrue();

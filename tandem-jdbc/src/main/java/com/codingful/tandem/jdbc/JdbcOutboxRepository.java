@@ -2,6 +2,7 @@ package com.codingful.tandem.jdbc;
 
 import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.OutboxMessage;
+import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.exception.OutboxInsertException;
@@ -52,9 +53,15 @@ import javax.sql.DataSource;
  */
 public final class JdbcOutboxRepository implements OutboxRepository {
 
+    /**
+     * Carries {@code seq} explicitly, for an application-assigned number and for an
+     * {@link OutboxMessage.Builder#unsequenced()} row alike — the latter binds SQL {@code NULL}.
+     * Binding is what distinguishes them from a managed row: the column has a {@code DEFAULT}, so
+     * <b>omitting</b> it would silently draw a managed number instead of storing none.
+     */
     private static final String INSERT_SQL =
-            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, headers, correlation_id) "
-                    + "VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
+            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_source, payload, headers, correlation_id) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
 
     /**
      * The same insert with {@code seq} left out, for a message that leaves the number to Tandem
@@ -63,8 +70,8 @@ public final class JdbcOutboxRepository implements OutboxRepository {
      * trip and no lock inside the caller's transaction (HLD-managed-seq §4.1).
      */
     private static final String INSERT_MANAGED_SEQ_SQL =
-            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, payload, headers, correlation_id) "
-                    + "VALUES (?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
+            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source, payload, headers, correlation_id) "
+                    + "VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
 
     /** PostgreSQL {@code unique_violation} SQLSTATE (LLD-jdbc §2 → DuplicateSeqException). */
     private static final String SQLSTATE_UNIQUE_VIOLATION = "23505";
@@ -158,7 +165,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             // collection's order, and grouping all managed messages together would reorder them.
             List<OutboxMessage> run = new ArrayList<>();
             for (OutboxMessage message : messages) {
-                if (!run.isEmpty() && message.managedSeq() != run.get(0).managedSeq()) {
+                if (!run.isEmpty() && isManaged(message) != isManaged(run.get(0))) {
                     insertBatch(conn, run, current);
                     run.clear();
                 }
@@ -181,7 +188,15 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     }
 
     private static String sqlFor(OutboxMessage message) {
-        return message.managedSeq() ? INSERT_MANAGED_SEQ_SQL : INSERT_SQL;
+        return isManaged(message) ? INSERT_MANAGED_SEQ_SQL : INSERT_SQL;
+    }
+
+    /**
+     * The only mode needing the other column list, and so the only split a batch has to make: an
+     * application-assigned and an unsequenced row share one statement and batch together freely.
+     */
+    private static boolean isManaged(OutboxMessage message) {
+        return message.seqSource() == SeqSource.MANAGED;
     }
 
     /**
@@ -210,6 +225,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
 
     /** Parameter positions are walked rather than fixed: a managed-{@code seq} insert has one fewer. */
     private void bind(PreparedStatement ps, OutboxMessage message) throws SQLException {
+        SeqSource seqSource = message.seqSource();
         int index = 1;
         ps.setString(index++, message.aggregateId().value());
         ps.setString(index++, message.aggregateType());
@@ -219,9 +235,16 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             ps.setString(index++, message.type());
         }
         ps.setInt(index++, BucketHash.bucketFor(message.aggregateId().value(), bucketCount));
-        if (!message.managedSeq()) {
-            ps.setLong(index++, message.seq());
+        // A managed row omits the column so its DEFAULT can fire; the other two bind it, an
+        // unsequenced row to NULL — which the column's CHECK ties to seq_source = NONE.
+        if (seqSource != SeqSource.MANAGED) {
+            if (message.hasSeq()) {
+                ps.setLong(index++, message.seq());
+            } else {
+                ps.setNull(index++, Types.BIGINT);
+            }
         }
+        ps.setInt(index++, seqSource.code());
         ps.setString(index++, new String(message.payload(), StandardCharsets.UTF_8));
         Map<String, String> headers = effectiveHeaders(message);
         ps.setString(index++, MiniJson.writeObject(headers));
@@ -267,8 +290,11 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private static OutboxInsertException translate(SQLException e, OutboxMessage message) {
         String aggregate = message == null ? "?" : message.aggregateId().toString();
         // Never a number for a managed message: it has none until this insert succeeds, and printing
-        // one would send whoever reads the failure looking for a row that does not exist.
-        String seq = message == null ? "?" : message.managedSeq() ? "managed" : Long.toString(message.seq());
+        // one would send whoever reads the failure looking for a row that does not exist. An
+        // unsequenced row renders as "none" for the same reason — there is nothing to point at.
+        String seq = message == null ? "?" : message.hasSeq()
+                ? Long.toString(message.seq())
+                : message.seqSource().toString();
         if (SQLSTATE_UNIQUE_VIOLATION.equals(e.getSQLState())) {
             return new DuplicateSeqException(
                     "duplicate (aggregate_id, seq) = (" + aggregate + ", " + seq + ')', e);

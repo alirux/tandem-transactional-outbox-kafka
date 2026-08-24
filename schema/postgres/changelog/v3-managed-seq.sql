@@ -14,9 +14,14 @@
 --
 -- CACHE 1 is a correctness constraint, not a performance default, and is stated explicitly rather
 -- than inherited: with a per-session cache two sessions pre-allocate disjoint ranges (1-100,
--- 101-200), so a later-committing session can emit a LOWER `seq` for the same aggregate — which the
--- relay's seq-regression detector (HLD §7, §8) reports as a write-side ordering violation that never
--- happened.
+-- 101-200), so a session holding the higher range can insert first and emit a LOWER `seq` for the
+-- same aggregate than the one that follows it.
+--
+-- What that breaks is the published wire contract: HLD-managed-seq §7 promises a consumer may treat
+-- ce_seq as an opaque MONOTONIC counter, and a cached range makes it move backwards. It is not the
+-- relay's ordering detector that depends on this — a managed row carries seq_source = MANAGED and is
+-- checked on `id` instead (HLD §8), so a cached range could not produce a phantom violation there.
+-- The constraint did not weaken when the detector stopped reading it; its beneficiary changed.
 --
 -- The sequence is deliberately NOT tied to the column with OWNED BY: its lifecycle stays independent
 -- of `tandem_outbox`.

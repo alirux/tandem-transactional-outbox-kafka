@@ -44,7 +44,8 @@ public record OutboxRowDetail(OutboxRowView view, byte[] payload, Map<String, St
         return view.type();
     }
 
-    public long seq() {
+    /** {@code null} for a row written without a sequence number — see {@link OutboxRowView#seq()}. */
+    public Long seq() {
         return view.seq();
     }
 

@@ -10,6 +10,7 @@ import com.codingful.tandem.core.OutboxSearchCriteria;
 import com.codingful.tandem.core.OutboxStatus;
 import com.codingful.tandem.core.ReplayCriteria;
 import com.codingful.tandem.core.ReplayResult;
+import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.port.DiscardService;
@@ -43,9 +44,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * computed with the <b>same core {@link BucketHash}</b> the DB path uses, {@code claimBatch} returns
  * the <b>head of each aggregate's pending chain</b> (the head-of-chain predicate that subsumes the
  * poison gate), the lease reclaim <b>counts as an attempt</b> and quarantines to {@code FAILED} at
- * {@code maxAttempts}, {@code content-type} is folded into {@code headers} at insert, and a message
- * that leaves {@code seq} to Tandem ({@code managedSeq()}) is numbered from an outbox-wide counter,
- * as the {@code tandem_seq} sequence numbers it in the database (HLD-managed-seq §4.1).
+ * {@code maxAttempts}, {@code content-type} is folded into {@code headers} at insert, and all three
+ * {@code seq} modes behave as they do in the database (HLD-managed-seq §4.5): a {@code managedSeq()}
+ * message is numbered from an outbox-wide counter as {@code tandem_seq} numbers it, and an
+ * {@code unsequenced()} one stores no number and stays outside the uniqueness check, mirroring
+ * PostgreSQL treating NULLs as distinct in {@code UNIQUE (aggregate_id, seq)}.
  *
  * <p>The {@link Clock} is injectable so backoff/lease/retention are deterministic.
  *
@@ -143,17 +146,25 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
     }
 
     private void doInsert(OutboxMessage message) {
+        SeqSource seqSource = message.seqSource();
         OutboxMessage stored = asPersisted(message);
-        String uniqueKey = stored.aggregateId().value() + '\0' + stored.seq();
-        if (!uniqueKeys.add(uniqueKey)) {
-            throw new DuplicateSeqException(
-                    "duplicate (aggregate_id, seq) = (" + stored.aggregateId() + ", " + stored.seq() + ')');
+        // An unsequenced row stays out of the uniqueness check, mirroring PostgreSQL's NULLS DISTINCT:
+        // UNIQUE (aggregate_id, seq) rejects a duplicate number, and such a row has none.
+        if (stored.hasSeq()) {
+            String uniqueKey = stored.aggregateId().value() + '\0' + stored.seq();
+            if (!uniqueKeys.add(uniqueKey)) {
+                throw new DuplicateSeqException(
+                        "duplicate (aggregate_id, seq) = (" + stored.aggregateId() + ", " + stored.seq() + ')');
+            }
         }
         long id = idSeq.incrementAndGet();
         int bucket = BucketHash.bucketFor(stored.aggregateId().value(), bucketCount);
         OutboxRecord record = OutboxRecord.builder()
                 .id(id)
                 .message(stored)
+                // The mode the caller stated, not the rebuilt message's: a managed message has had its
+                // number resolved above and now looks application-assigned, exactly as a stored row does.
+                .seqSource(seqSource)
                 .status(OutboxStatus.PENDING)
                 .createdAt(clock.instant())
                 .build();
@@ -173,17 +184,24 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
      * (LLD-jdbc §2).
      */
     private OutboxMessage asPersisted(OutboxMessage message) {
-        if (message.contentType() == null && !message.managedSeq()) {
+        boolean managed = message.seqSource() == SeqSource.MANAGED;
+        if (message.contentType() == null && !managed) {
             return message;
         }
         OutboxMessage.Builder b = OutboxMessage.builder()
                 .aggregateId(message.aggregateId())
                 .aggregateType(message.aggregateType())
                 .type(message.type())
-                .seq(message.managedSeq() ? managedSeq.incrementAndGet() : message.seq())
                 .payload(message.payload())
                 .contentType(message.contentType())
                 .headers(message.headers());
+        if (managed) {
+            b.seq(managedSeq.incrementAndGet());
+        } else if (message.hasSeq()) {
+            b.seq(message.seq());
+        } else {
+            b.unsequenced();
+        }
         if (message.contentType() != null) {
             b.header(TandemHeaders.CONTENT_TYPE, message.contentType());
         }
@@ -321,7 +339,8 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
             }
             for (Long id : toDelete) {
                 Entry removed = rows.remove(id);
-                if (removed != null) {
+                // An unsequenced row never entered uniqueKeys, so there is nothing to release for it.
+                if (removed != null && removed.record.hasSeq()) {
                     String key = removed.record.aggregateId().value() + '\0' + removed.record.seq();
                     uniqueKeys.remove(key);
                 }
@@ -539,8 +558,11 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     private static OutboxRowView toRowView(Entry e) {
         OutboxRecord r = e.record;
+        // null rather than 0 for an unsequenced row, matching JdbcOutboxQuery's wasNull handling — the
+        // read model must not invent a number the row does not have.
         return new OutboxRowView(
-                r.id(), r.aggregateId(), r.aggregateType(), r.type(), r.seq(), r.status(), r.attempts(),
+                r.id(), r.aggregateId(), r.aggregateType(), r.type(), r.hasSeq() ? r.seq() : null,
+                r.status(), r.attempts(),
                 e.replays, r.lastError(), r.discardReason(), r.nextAttemptAt(), r.lockedBy(), r.lockedUntil(),
                 r.createdAt(), correlationIdOf(r));
     }

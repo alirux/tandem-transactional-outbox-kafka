@@ -148,7 +148,7 @@ public final class JdbcOutboxQuery implements OutboxQuery {
                 AggregateId.of(rs.getString("aggregate_id")),
                 rs.getString("aggregate_type"),
                 rs.getString("type"),
-                rs.getLong("seq"),
+                longOrNull(rs, "seq"),
                 OutboxStatus.fromCode(rs.getInt("status")),
                 rs.getInt("attempts"),
                 rs.getInt("replays"),
@@ -159,6 +159,17 @@ public final class JdbcOutboxQuery implements OutboxQuery {
                 instantOrNull(rs, "locked_until"),
                 instantOrNull(rs, "created_at"),
                 rs.getString("correlation_id"));
+    }
+
+    /**
+     * {@code getLong} reports {@code 0} for SQL {@code NULL}, so {@code wasNull} is the only thing
+     * separating a row written without a sequence number from one whose number is genuinely zero.
+     * Reading it as {@code 0} would put an authoritative-looking number in the Admin API for a row
+     * that has none.
+     */
+    private static Long longOrNull(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : value;
     }
 
     private static Instant instantOrNull(ResultSet rs, String column) throws SQLException {

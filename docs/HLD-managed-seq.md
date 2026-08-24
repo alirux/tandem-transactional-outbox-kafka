@@ -1,22 +1,24 @@
 # Tandem — Managed `seq` (Design Note)
 
-**Version:** 1.5  
-**Status:** **Both halves are built and shipped.** §4.1 (the number) and §4.2 (the lock) are
-independent, opt-in per message, and combine freely. Read §0 first.  
-**Companion to:** [HLD.md](HLD.md) §4.2 (Ordering Established at Write Time)
+**Version:** 1.6  
+**Status:** §4.1 (the number) and §4.2 (the lock) are built and shipped. §4.5 (`seq` becomes
+optional) and §6.1 (which ordering key the detector uses) are designed, with the schema applied.
+All are independent, chosen per message, and combine freely. Read §0 first.  
+**Companion to:** [HLD.md](HLD.md) §4.2 (Ordering Established at Write Time)  
+**Execution:** [IMPLEMENTATION-PLAN-optional-seq.md](IMPLEMENTATION-PLAN-optional-seq.md)
 
-**This document is the design.** [HLD §4.2](HLD.md) states the shipped **default** — `seq` is
-app-assigned, from the aggregate's `version`, and per-aggregate writes are the caller's own
-responsibility to serialise — and that default is unchanged by anything written here. This note
-records what that default costs an existing application, the measurements behind that claim, and the
-two **opt-in** mechanisms this design adds on top: Tandem assigns `seq` itself (§4.1), and/or Tandem
-serialises concurrent writers to one aggregate (§4.2).
+**This document is the design.** It records what an app-assigned `seq` costs an existing
+application, the measurements behind that claim, and the mechanisms built on top: Tandem assigns
+`seq` itself (§4.1), Tandem serialises concurrent writers to one aggregate (§4.2), and `seq` can be
+omitted altogether (§4.5). §4.6 is how a caller chooses between the three, and §6 is what the
+relay's ordering detector can see under each.
 
 ---
 
 ## 0. Implementation status — read this first
 
-**§4 is two deliveries** (§4.3 explains the split), and both are built:
+**§4 is three deliveries.** The first two (§4.3 explains their split) are built; the third is
+designed, with its schema applied:
 
 - **§4.1 — Tandem assigns `seq`. Built.** Schema v3 carries the `tandem_seq` sequence and the column
   default; `OutboxMessage.Builder.managedSeq()` is how a caller opts in, per message, with
@@ -39,8 +41,17 @@ serialises concurrent writers to one aggregate (§4.2).
   serialises under one internal lock — but keeps the flag on the stored message rather than silently
   dropping it, matching what a caller who reads it back would expect.
 
-Two sections describe measurements informing the design rather than the mechanisms themselves: §3
-records measurements, and §6 the write-side ordering detector, which bears on §4.2 only.
+- **§4.5 — `seq` becomes optional. Built, except the detector.** `OutboxMessage.Builder.unsequenced()`
+  is how a caller opts out of a sequence number entirely, making three mutually exclusive modes with
+  no default: `seq(long)`, `managedSeq()`, `unsequenced()`. It closes what §1's two costs share — an
+  obligation on the client write path that most adopters have no use for — by removing the
+  obligation rather than relocating it. The column is nullable and carries a `seq_source`
+  discriminator (§6.1); the write side, the wire and the Admin API's read model all carry the absence
+  through rather than substituting a zero. **What remains is §6.1's detector**, which still keys every
+  row on its `seq` and so has yet to read `seq_source` at all.
+
+§3 records measurements informing the design rather than the mechanisms themselves. §6 covers the
+write-side ordering detector: what it can see, and which ordering key it reads under each mode.
 
 ---
 
@@ -64,14 +75,22 @@ The second cost is the severe one, because its failure mode is silent. §3.1 mea
 
 `seq` is **not** the relay's ordering key. The claim (`JdbcOutboxStore`, LLD-jdbc §3.3) selects
 `ORDER BY o.id` and gates on a head-of-chain `NOT EXISTS` over earlier rows of the same aggregate;
-`seq` appears in no dispatch query. It has exactly two jobs:
+`seq` appears in no dispatch query. It has three jobs:
 
 1. **`UNIQUE (aggregate_id, seq)`** — the safety net against a write-side bug, as HLD §4.2 says.
 2. **The `seq` CloudEvents extension** (`ce_seq`), for consumers that want the aggregate's own
    sequence number alongside the event.
+3. **The write-side ordering detector's watermark** — the relay compares the `seq` order it publishes
+   per aggregate against the order the application declared, and reports a backwards step (§6).
 
 Job 2 is replaceable: consumers already receive `ce_id` (the outbox `id`), unique by construction and
 sufficient for deduplication.
+
+**Job 3 is the substantial one, and the least obvious.** It is easy to read jobs 1 and 2 and conclude
+`seq` earns little — job 1 catches a narrow failure (below) and job 2 duplicates `ce_id`. That
+conclusion is wrong, and §6.1 is why: a `seq` the *application* assigned is the only record of the
+order the application intended, independent of the order rows were physically inserted. Nothing else
+in the row carries it, so nothing else can check it.
 
 **Job 1 is worth looking at precisely, because what the constraint actually catches is narrower than
 "ordering defects".** `UNIQUE (aggregate_id, seq)` fires only on a **duplicate** `seq` — and §3.1
@@ -253,21 +272,24 @@ relay-restart causes already noted in [HLD.md](HLD.md) §7 — a zero reading is
 
 ---
 
-## 4. The design: two halves, both built
+## 4. The design: three independent mechanisms
 
 §1 lists two costs. They are **separate problems** with separate mechanisms, separate audiences and
-separate cost profiles — so they are two independent flags, each opted into on its own:
+separate cost profiles, so each is opted into on its own — and a third mechanism removes what both
+costs share, the obligation itself:
 
 | | Problem it closes | Mechanism | Hot-path cost | Persistent state | Status |
 |---|---|---|---|---|---|
-| **4.1** | §1's first cost: the aggregate has no `version` to take `seq` from | a `SEQUENCE` as the column default | **none** | one catalog row, fixed | **built** — `managedSeq()` |
+| **4.1** | §1's first cost: the aggregate has no `version` to take `seq` from | a `SEQUENCE` as the column default | **none** *(asserted, not measured — the sequence is global and pinned to `CACHE 1`)* | one catalog row, fixed | **built** — `managedSeq()` |
 | **4.2** | §1's second cost: concurrent writers to one aggregate are not serialised | `pg_advisory_xact_lock` in the caller's transaction | one statement | **none** — released at commit | **built** — `lockedWrite()` |
+| **4.5** | what both costs share: `seq` is required of the client at all | a nullable column, plus `seq_source` so the detector still knows what it is looking at | **none** | none | **designed; schema applied** — `unsequenced()` |
 
 **§4.1 is the one that closes the adoption gap**, and it is nearly free: no extra statement, no lock,
 no behavioural change for concurrent writers, and every failure mode in §3.2 disappears by
 construction. **§4.2 changes how the application behaves** — concurrent writers to one aggregate
 become waiters — which is a decision an adopter has to make deliberately, and §4.3 explains why its
-audience is narrower than it looks. Opting into one does not opt into the other.
+audience is narrower than it looks. **§4.5 changes what the caller must produce**, and §4.6 is how to
+choose among all three. Opting into any one does not opt into the others.
 
 > **§4.4 records the obvious alternative and why it is rejected** — a `tandem_aggregate_seq` table
 > holding one counter row per aggregate, solving both halves with a single `INSERT … ON CONFLICT`
@@ -442,6 +464,103 @@ and unprunably, in the adopter's production database.
 Since §4.1 + §4.2 deliver the same two guarantees with fixed state and no state respectively, the
 table is dominated: it costs a permanent unprunable table and buys only the denseness of `seq`.
 
+### 4.5 No number at all: `unsequenced()`
+
+§4.1 removes the *source* of the obligation — an aggregate with no version can still produce a
+`seq`. It does not remove the obligation itself: every row still carries a number, on the wire and in
+the table, for an adopter whose consumers deduplicate on `ce_id` and never look at `ce_seq`.
+
+`OutboxMessage.Builder.unsequenced()` removes it. The write side binds `NULL`, the row carries no
+sequence number, and `ce_seq` is absent from the published event.
+
+```sql
+seq             BIGINT,                  -- nullable: NULL means the row declares no ordering
+seq_source      SMALLINT     NOT NULL,   -- 0 = APPLICATION, 1 = MANAGED, 2 = NONE
+CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))
+```
+
+Three consequences worth stating rather than discovering:
+
+- **`UNIQUE (aggregate_id, seq)` goes inert for such a row**, since PostgreSQL treats NULLs as
+  distinct — and loses nothing by it. That constraint catches only a *duplicate* `seq`, which is the
+  stale-`@Version` family of §3.2: a failure that cannot arise when the application supplies no
+  version. The guard is not bypassed, the case it guards is gone.
+- **`NULL` must be bound explicitly, not omitted.** §4.1 put a `DEFAULT nextval('tandem_seq')` on the
+  column, so an INSERT that leaves the column out gets a *managed* number. Omission means managed;
+  absence has to be stated.
+- **`seq_source` exists for the detector, not for the row.** A persisted `seq` cannot otherwise say
+  where it came from — an application-assigned and a managed value are both a `BIGINT` — and §6.1
+  needs that distinction. The `CHECK` keeps it from disagreeing with the column it describes.
+
+**The column is deliberately not range-constrained, and readers must be tolerant.** A
+`CHECK (seq_source BETWEEN 0 AND 2)` would make adding a fourth source a breaking schema change,
+against the additive-only rule (HLD §1.4) — so the constraint is absent on purpose, not by omission.
+The obligation moves to the reader: an unrecognised value maps to `UNKNOWN` rather than throwing, and
+`UNKNOWN` takes the `id` key (§6.1), which under-reports and can never invent a violation. This is a
+real forward-compatibility case, not a hypothetical one: the split topology runs client, relay and
+admin at possibly-different versions against one database (HLD §1.4), so a relay meeting a value
+newer than itself is an ordinary event. Note that `UNKNOWN` is never *written* — it is only what a
+reader reports about a value it does not know — and it does not affect `ce_seq`, which follows the
+column's nullness and not its source.
+
+**Three modes, mutually exclusive, and none of them the default:** `seq(long)`, `managedSeq()`,
+`unsequenced()`. Building a message that states none of them fails. §4.6 is how to choose, and why
+there is no default to fall back on.
+
+### 4.6 Choosing a mode
+
+| | `seq(long)` | `managedSeq()` | `unsequenced()` |
+|---|---|---|---|
+| **The application must supply** | a monotonic per-aggregate number, usually a `version` field, plumbed to the call site | nothing | nothing |
+| **Ordering detection** | **strongest** — catches both a commit-order reorder and a numbering that disagrees with insert order (§6.1) | commit-order reorder only | commit-order reorder only |
+| **What a consumer reads in `ce_seq`** | the aggregate's own version — joinable against the domain | a large, sparse, globally-drawn counter; monotonic per aggregate but carrying no domain meaning | nothing; consumers deduplicate on `ce_id` |
+| **`UNIQUE (aggregate_id, seq)`** | active, and meaningful: rejects a duplicate number | active, but can only catch a bug in Tandem's own assignment | inert (§4.5) |
+| **Cost on the caller's transaction** | none beyond producing the number | none — the column is omitted and the `DEFAULT` fires | none |
+| **What can go wrong** | the ORM staleness family (§3.2): a pre-flush `@Version` gives two events the same number and aborts the business transaction; a mutation that dirties no persistent field advances no version, so the next transaction reuses the number. Needs an explicit flush before the outbox row is built | converting an aggregate type that already emitted app-assigned values needs `ALTER SEQUENCE tandem_seq RESTART` above that type's maximum (§4.1), and the change of `ce_seq`'s meaning is a contract change for an existing stream | nothing specific |
+
+**The choice collapses to two questions**, because `managedSeq()` and `unsequenced()` have *identical*
+detection strength — they differ only in whether a number reaches the consumer:
+
+1. **Do consumers need the aggregate's domain version?** → `seq(long)`.
+2. **Otherwise, do they need *any* sequence number at all?** → `managedSeq()` if yes,
+   `unsequenced()` if no.
+
+**The tension worth naming:** `seq(long)` also buys the stronger detection, so an application that
+*can* supply a version has a reason to even when no consumer reads it. But it is simultaneously the
+mode most likely to be got wrong — the §3.2 failures are real, one of them is data-dependent enough
+to survive a test suite, and the explicit flush that avoids them is easy to omit. Stronger detection
+in exchange for a hazard the other two modes do not have is a genuine trade, not a free upgrade.
+
+**Why no default.** The mode fixes what consumers see in `ce_seq`, and changing it later for an
+aggregate type that already has consumers is a contract change (§5) — a sticky decision, taken once
+per aggregate type, worth one deliberate call. The decisive argument is what a default would make
+*invisible*: an application that could have supplied `seq` would silently receive the weaker
+detection, and nothing would ever surface that. A missing `ce_seq` is noticed the first time a
+consumer looks for it; detection that is quietly weaker than it could have been is noticed by no one.
+The failure therefore states the choice rather than merely refusing — the message names all three
+modes and what each is for, because this is the moment the decision is actually being made.
+
+**When undecided: `unsequenced()`.** This does not undo the paragraph above, and the two answer
+different people: a *default* serves a caller who never considered the question, silently; a
+*recommendation* serves one who considered it and is unsure, and who has therefore already learned
+that `seq(long)` buys stronger detection and that `ce_seq` is a consumer contract. The recommendation
+is reached through the decision, not instead of it — which is exactly why it belongs in this document
+and in the failure message, and not in the builder.
+
+Beyond requiring nothing of the domain and being the only mode with no hazard of its own, it is the
+one starting point whose door stays open — moving *away* from it is the cheap direction:
+
+| From → to | Effect on consumers |
+|---|---|
+| `unsequenced()` → either other mode | **additive** — an extension appears where there was none; a consumer not reading it is unaffected |
+| `managedSeq()` → `seq(long)` | **the worst case** — same field, different meaning, no signal that anything changed |
+| either mode → `unsequenced()` | breaking — a field a consumer may read disappears |
+
+The one thing starting unsequenced gives up permanently is retrofitting domain versions onto events
+already published — but `managedSeq()` gives that up too, since its counter was never the version.
+Only `seq(long)` from the first event preserves it, and only for an application that has versions to
+give.
+
 ---
 
 ## 5. Costs
@@ -475,14 +594,29 @@ writers, and the DDL is strictly additive.
   transaction, who is responsible for the same ordering. (PostgreSQL detects and breaks a deadlock
   that does occur, so the failure is loud, not a hang.)
 
-**Not on either list, deliberately:** unbounded storage growth. §4.1 holds one catalog row and §4.2
-holds nothing at all — which is the whole reason the counter table is rejected (§4.4).
+**§4.5, no number at all — two costs, both contractual:**
 
-The default stays app-assigned `seq`: no sequence, no lock, no added latency — Pareto (HLD §1.1).
+- **`ce_seq` is absent**, so a consumer that reads it must fall back to `ce_id` for deduplication —
+  sufficient by construction, but a change for an existing stream, and the one direction that is not
+  additive (§4.6).
+- **Domain versions cannot be retrofitted** onto events already published unsequenced. `managedSeq()`
+  gives that up equally, since its counter was never the version; only `seq(long)` from the first
+  event preserves it.
+
+Detection is deliberately *not* on this list as a cost of §4.5 specifically: an unsequenced row keeps
+the commit-order detection every row has, and only an `APPLICATION` row ever had more (§6.1).
+
+**Not on any list, deliberately:** unbounded storage growth. §4.1 holds one catalog row, §4.2 holds
+nothing at all, and §4.5 holds less than either — which is the whole reason the counter table is
+rejected (§4.4).
+
+No mode is the default (§4.6): the choice is stated per message, and stating it is what keeps the
+weaker detection from being inherited silently — Pareto applies to what a caller must *think about*,
+not only to what they must type (HLD §1.1).
 
 ---
 
-## 6. Detection is shipped, and it bears on §4.2 only
+## 6. Detection: what it sees, and what it reads to see it
 
 Managed `seq` would *prevent* the §3.1 defect for applications that adopt it. **Detecting** the same
 defect is cheap, independent of everything above, and helps every deployment rather than only adopters
@@ -497,8 +631,113 @@ violation. Operator replays are excluded at the source via the row's `replays` c
 value always means writers to one aggregate are not serialised.
 
 **It under-reports and never over-reports.** The watermarks are bounded (an LRU per worker) and live
-only in memory, so a relay restart or an eviction loses them. A non-zero reading is therefore always
-a real violation, while zero is not proof of absence.
+only in memory, so a non-zero reading is always a real violation, while zero is not proof of absence.
+
+**Exactly when the memory is lost — and when it is not.** The negatives matter as much as the
+positives here, because the obvious worry is the wrong one:
+
+| Lost | Survives |
+|---|---|
+| **LRU eviction** past `CAPACITY` aggregates per worker | **A worker thread dying and being restarted.** The supervisor replaces the `Thread`, not the `RelayWorker`, so the watermark object outlives the crash |
+| **Relay process restart** | **Buckets moving between workers of one instance** — impossible: an aggregate hashes to a fixed bucket, and the bucket-to-worker split is `bucket % workerCount`, decided once at pool construction |
+| **A `LEASE` rebalance moving a bucket to another instance** — scale up or down, a deploy, a peer crashing | |
+| **`SINGLE` coordination with more than one relay instance**, where the watermark is not lost but permanently *split* | |
+
+The last two are the ones an operator has to know about, and they differ in an important way. A
+`LEASE` rebalance is **already visible**: `BucketLeaseManager` logs bucket release and acquisition at
+`INFO`, so an investigation can correlate a cold watermark with the moment it went cold. `SINGLE`
+with several instances has **no signal at all** — every instance polls every bucket, so one
+aggregate's history is divided among peers with nothing marking the division, and no instance can
+even detect the situation (knowing whether peers exist would require the lease table that `SINGLE`
+by definition does not use). That deployment is already documented as a misconfiguration for other
+reasons (HLD §3.2); degraded detection is one more, and the one that hides the others.
+
+**Persisting or sharing the watermarks is not the answer**, though not for the reason §4.4 rejects a
+counter table — that argument does not transfer, since losing a watermark has no correctness cliff
+(the next row is simply a first sighting, exactly as an eviction already makes it). The real
+objections are that it would put a write on the relay's path for every published row, and that it
+would turn an alerting signal into an audit log, which is precisely what this mechanism declines to
+be.
+
+**The correlation worth knowing about is specific to the embedded topology.** With a standalone
+relay, scaling it changes nothing about the application's write-side concurrency — different
+processes. With an **embedded** relay they are the same process: adding application instances both
+increases the number of concurrent writers to an aggregate *and* triggers the `LEASE` rebalance that
+resets the watermarks. Detection is therefore at its coldest in the one topology where the hazard it
+watches for is simultaneously at its most likely.
+
+### 6.1 Which ordering key the watermark holds
+
+The contract in HLD §4.2 is that three orderings coincide: **commit order = `seq` order = `id`
+order**. The detector compares the order rows were *published* against one of them, so which key it
+holds decides which violations it can see.
+
+Publication order is `id` order: the claim selects `ORDER BY o.id`, and the head-of-chain gate
+(`e.id < o.id AND e.status IN (0,1,3)`) holds a row back while an earlier one of the same aggregate
+is unfinished. One divergence from that order is **measured** — the MVCC window of §3.1, in which an
+earlier, still-uncommitted row is invisible to the claim's snapshot, pinned by `CommitOrderReorderIT`.
+
+The other paths have been **reasoned through, not measured**, and the distinction matters when
+weighing what follows: retry (a due-later row still holds status 0, so the gate blocks its
+successors), redelivery after a crashed relay (the row stays non-`DONE`, so the gate blocks again and
+the republication is a `DUPLICATE` on either key), bucket reassignment under `LEASE`, an operator
+replay (suppressed via the row's `replays`, keyed on `id` regardless), and a `DISCARDED` predecessor
+(never published, so it set no watermark) all appear to leave both candidate keys silent or to yield
+the same verdict. None of them has an executable test today. Writing those tests is the way to
+promote this paragraph from argument to evidence.
+
+| Violation | watermark on `seq` | watermark on `id` |
+|---|---|---|
+| `commit ≠ id` — the MVCC reorder of §3.1 | detects | detects |
+| `seq ≠ id` — the application's numbering diverges from its own INSERT order | detects | **cannot see it** |
+
+The second row is not a corner case. A watermark on `id` compares publication order against the order
+rows were *inserted* — an internal invariant, and one derived from the same column the publisher
+orders by. A watermark on `seq` compares it against the order the *application declared*, which is
+what HLD §4.2 actually promises. With `seq` taken from a committed-read `@Version` the two are hard
+to pull apart, but `seq(long)` accepts any value: an application counter, a backfill's numbering, an
+event store's revisions, two services numbering one aggregate independently. For those sources the
+divergence is ordinary, and it is precisely the defect this detector exists to report.
+
+**So `seq` is the stronger key — but only when the application assigned it.** A managed `seq` (§4.1)
+is drawn from `tandem_seq` at INSERT, so it *is* insert order and says nothing `id` does not; keying
+on it would only import the sequence's own hazards — a cached range, a botched `RESTART` — as
+violations that never happened. An unsequenced row (§4.5) declares no order at all. For both, `id` is
+the right key, and `seq_source` is what lets the relay tell which case it is holding:
+
+| `seq_source` | Set by | Ordering key | Reasoning |
+|---|---|---|---|
+| `APPLICATION` | `seq(long)` | **`seq`** | the order the application declared — the only independent witness |
+| `MANAGED` | `managedSeq()` | **`id`** | the `seq` is insert order already; using it adds only the sequence's hazards |
+| `NONE` | `unsequenced()` | **`id`** | nothing was declared |
+| `UNKNOWN` | never written — a value this reader predates (§4.5) | **`id`** | the safe reading: under-reports, never invents |
+
+**The weaker key licenses the stronger conclusion**, which is worth stating because it inverts the
+intuition and decides what the relay is entitled to say when it reports:
+
+- **`id` key, violation observed.** Publication order diverged from insert order. The head-of-chain
+  gate makes the MVCC window of §3.1 the only way that can happen, and that window requires two
+  overlapping transactions on one aggregate committing in inverted order. The conclusion *"writers to
+  this aggregate are not serialised"* follows by construction.
+- **`seq` key, violation observed.** Publication order diverged from the order the application
+  declared. That admits the MVCC window **or** an application whose numbering simply disagrees with
+  its own insert order — a bug in how the number is produced, with no concurrency involved. The
+  observation is a *disagreement*; which of the two orders was the right one, the detector does not
+  establish.
+
+So an `APPLICATION` row detects more (§6.1's table) but concludes less. The relay must report the two
+cases differently rather than asserting the stronger cause in both — the second is a real finding
+that needs investigation, not a diagnosis.
+
+Two properties follow from holding two kinds of key in one map. A watermark records *which* key it
+holds, and **a key change resets the entry** rather than comparing a `seq` against an `id` — so the
+row on which an aggregate switches modes is unverifiable, and an aggregate that alternates modes
+frequently detects close to nothing. Switching mid-stream is already a consumer contract change (§5),
+so it should be rare. And an aggregate that legitimately mixes `APPLICATION` with `MANAGED` rows no
+longer produces false violations, because the two are never compared with each other — which is what
+`CACHE 1` (§4.1) previously existed to prevent. That constraint did not weaken when the detector
+stopped reading a managed `seq`; **its beneficiary changed**, from the detector to the wire contract,
+where §7 promises a consumer may treat `ce_seq` as an opaque *monotonic* counter.
 
 **This weakens one argument for §4.2, and only one.** The strongest argument for the lock would be
 §1's — that the second cost is severe *because its failure mode is silent*. That argument is not

@@ -41,7 +41,7 @@ public record OutboxEntryResponse(
         String aggregateId,
         String aggregateType,
         String type,
-        long seq,
+        Long seq,
         String status,
         int attempts,
         int replays,

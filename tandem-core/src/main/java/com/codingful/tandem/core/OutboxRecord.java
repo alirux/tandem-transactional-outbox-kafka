@@ -17,6 +17,7 @@ public final class OutboxRecord {
 
     private final long id;
     private final OutboxMessage message;
+    private final SeqSource seqSource;    // from the row's seq_source column — see seqSource()
     private final OutboxStatus status;
     private final int attempts;
     private final String lockedBy;        // nullable
@@ -30,10 +31,16 @@ public final class OutboxRecord {
     private OutboxRecord(Builder b) {
         this.id = b.id;
         this.message = Objects.requireNonNull(b.message, "message");
-        if (this.message.managedSeq()) {
+        if (this.message.seqSource() == SeqSource.MANAGED) {
             throw new IllegalStateException(
                     "a record describes a persisted row, so its seq is already assigned — resolve the "
                             + "number the insert produced before building one");
+        }
+        this.seqSource = b.seqSource == null ? this.message.seqSource() : b.seqSource;
+        if (this.seqSource != SeqSource.UNKNOWN && (this.seqSource == SeqSource.NONE) != !this.message.hasSeq()) {
+            throw new IllegalStateException(
+                    "seqSource disagrees with whether the row has a seq, seqSource:" + this.seqSource
+                            + ", hasSeq:" + this.message.hasSeq());
         }
         this.status = Objects.requireNonNull(b.status, "status");
         this.attempts = b.attempts;
@@ -50,8 +57,25 @@ public final class OutboxRecord {
         return id;
     }
 
+    /**
+     * The stored message.
+     *
+     * <p>Its {@link OutboxMessage#seqSource()} describes how the <i>message</i> was built, which for a
+     * row read back from storage is not the same question as where the row's number came from — a
+     * mapper rebuilding a {@code MANAGED} row supplies the resolved number, so the message reports
+     * {@code APPLICATION}. For a persisted row {@link OutboxRecord#seqSource()} is the authority.
+     */
     public OutboxMessage message() {
         return message;
+    }
+
+    /**
+     * Where this row's {@code seq} came from, read from the {@code seq_source} column — the value the
+     * relay's ordering detector keys on (HLD-managed-seq §6.1). May be {@link SeqSource#UNKNOWN} if
+     * the row was written by a newer version than this one.
+     */
+    public SeqSource seqSource() {
+        return seqSource;
     }
 
     public OutboxStatus status() {
@@ -113,8 +137,17 @@ public final class OutboxRecord {
         return message.type();
     }
 
+    /**
+     * @throws IllegalStateException if the row has no sequence number ({@link SeqSource#NONE});
+     *                               guard with {@link #hasSeq()}
+     */
     public long seq() {
         return message.seq();
+    }
+
+    /** Whether {@link #seq()} returns a value rather than throwing. */
+    public boolean hasSeq() {
+        return message.hasSeq();
     }
 
     public byte[] payload() {
@@ -138,7 +171,8 @@ public final class OutboxRecord {
         return "OutboxRecord{id=" + id
                 + ", aggregateType=" + aggregateType()
                 + ", aggregateId=" + aggregateId()
-                + ", seq=" + seq()
+                + ", seq=" + message.renderSeq()
+                + ", seqSource=" + seqSource
                 + ", status=" + status
                 + ", attempts=" + attempts + '}';
     }
@@ -148,6 +182,7 @@ public final class OutboxRecord {
         return new Builder()
                 .id(id)
                 .message(message)
+                .seqSource(seqSource)
                 .status(status)
                 .attempts(attempts)
                 .lockedBy(lockedBy)
@@ -162,6 +197,7 @@ public final class OutboxRecord {
     public static final class Builder {
         private long id;
         private OutboxMessage message;
+        private SeqSource seqSource;
         private OutboxStatus status = OutboxStatus.PENDING;
         private int attempts;
         private String lockedBy;
@@ -182,6 +218,17 @@ public final class OutboxRecord {
 
         public Builder message(OutboxMessage message) {
             this.message = message;
+            return this;
+        }
+
+        /**
+         * The row's {@code seq_source}. Defaults to the message's own mode, which is right for a
+         * record built from a message that was never persisted; a mapper reading a stored row must
+         * set it explicitly, since a resolved {@code MANAGED} number is indistinguishable from an
+         * application-assigned one once it is in the column (HLD-managed-seq §6.1).
+         */
+        public Builder seqSource(SeqSource seqSource) {
+            this.seqSource = seqSource;
             return this;
         }
 
@@ -234,7 +281,9 @@ public final class OutboxRecord {
         /**
          * @throws NullPointerException  if {@code message}, {@code status} or {@code createdAt} is unset
          * @throws IllegalStateException if the message still leaves {@code seq} to Tandem
-         *                               ({@link OutboxMessage.Builder#managedSeq()})
+         *                               ({@link OutboxMessage.Builder#managedSeq()}), or if
+         *                               {@code seqSource} disagrees with whether the message carries a
+         *                               number — the in-memory mirror of the row's own {@code CHECK}
          */
         public OutboxRecord build() {
             return new OutboxRecord(this);

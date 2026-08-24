@@ -15,13 +15,18 @@ import java.util.Objects;
  *
  * <p>{@code replays} counts operator replays for the lifetime of the row, where {@code attempts} is
  * only the delivery budget of the current round and a replay resets it (HLD §8).
+ *
+ * <p>{@code seq} is a boxed {@link Long} and is {@code null} for a row written without a sequence
+ * number ({@code unsequenced()}, HLD-managed-seq §4.5). A primitive would render that row as
+ * {@code 0} — a number that looks authoritative and belongs to no one — which is the same reason
+ * {@link OutboxMessage#seq()} throws rather than returning a default.
  */
 public record OutboxRowView(
         long id,
         AggregateId aggregateId,
         String aggregateType,
         String type,
-        long seq,
+        Long seq,
         OutboxStatus status,
         int attempts,
         int replays,
