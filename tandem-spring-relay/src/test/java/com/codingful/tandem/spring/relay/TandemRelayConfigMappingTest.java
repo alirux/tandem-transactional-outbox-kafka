@@ -29,7 +29,7 @@ class TandemRelayConfigMappingTest {
         assertThat(config.cleanupInterval()).isEqualTo(defaults.cleanupInterval());
         assertThat(config.metricsInterval()).isEqualTo(defaults.metricsInterval());
         assertThat(config.logEveryRows()).isEqualTo(defaults.logEveryRows());
-        assertThat(config.seqRegressionDetection()).isEqualTo(defaults.seqRegressionDetection());
+        assertThat(config.orderViolationDetection()).isEqualTo(defaults.orderViolationDetection());
         assertThat(config.bucketCount()).isEqualTo(256);
     }
 
@@ -56,6 +56,6 @@ class TandemRelayConfigMappingTest {
         assertThat(config.cleanupInterval()).isEqualTo(Duration.ofMinutes(30));
         assertThat(config.metricsInterval()).isEqualTo(Duration.ofSeconds(30));
         assertThat(config.logEveryRows()).isEqualTo(5_000L);
-        assertThat(config.seqRegressionDetection()).isFalse();
+        assertThat(config.orderViolationDetection()).isFalse();
     }
 }

@@ -426,7 +426,7 @@ all could put rows in the state lease reclaim needs to see:
 (`reclaimed > 0`) had never fired across runs, because a dispatch that merely fails releases its row
 long before any crash. A dispatch that hangs does not.
 
-**`seq_regression.count` is the one phase that provokes nothing at all — it stages a real bug.**
+**`order_violation.count` is the one phase that provokes nothing at all — it stages a real bug.**
 `OutOfOrderWriter` writes two events for one aggregate from two concurrent transactions and commits the
 later `seq` first, holding the earlier one open while the relay publishes. No fault injector is
 involved and nothing is simulated: both events go through the real `JdbcOutboxRepository`, and the

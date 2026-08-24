@@ -94,7 +94,7 @@ final class FaultInjectingOutboxStore implements OutboxStore {
     }
 
     // Must be forwarded like every other optional reading above: the port's default answers "unknown",
-    // and the relay reads unknown as "cannot rule out a replay", which switches seq-regression detection
+    // and the relay reads unknown as "cannot rule out a replay", which switches ordering detection
     // off entirely for anything running behind this decorator.
     @Override
     public OptionalInt replaysOf(long id) {

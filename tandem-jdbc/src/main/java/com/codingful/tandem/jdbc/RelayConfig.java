@@ -43,7 +43,7 @@ public final class RelayConfig {
     private final Duration metricsInterval;
     private final long deliveryTimeoutMs;
     private final long logEveryRows;
-    private final boolean seqRegressionDetection;
+    private final boolean orderViolationDetection;
 
     private RelayConfig(Builder b) {
         this.bucketCount = b.bucketCount;
@@ -62,7 +62,7 @@ public final class RelayConfig {
         this.metricsInterval = b.metricsInterval;
         this.deliveryTimeoutMs = b.deliveryTimeoutMs;
         this.logEveryRows = b.logEveryRows;
-        this.seqRegressionDetection = b.seqRegressionDetection;
+        this.orderViolationDetection = b.orderViolationDetection;
     }
 
     public int bucketCount() {
@@ -139,8 +139,8 @@ public final class RelayConfig {
     }
 
     /** Whether the relay watches for a write-side ordering violation as it publishes (§3.9). Default {@code true}. */
-    public boolean seqRegressionDetection() {
-        return seqRegressionDetection;
+    public boolean orderViolationDetection() {
+        return orderViolationDetection;
     }
 
     /** The §6 defaults. */
@@ -245,7 +245,7 @@ public final class RelayConfig {
         private Duration metricsInterval = Duration.ofSeconds(10);
         private long deliveryTimeoutMs = 30_000;   // Kafka producer default (LLD-kafka §1)
         private long logEveryRows = 10_000;
-        private boolean seqRegressionDetection = true;
+        private boolean orderViolationDetection = true;
 
         private Builder() {
         }
@@ -401,8 +401,8 @@ public final class RelayConfig {
          * and it holds one entry per tracked aggregate per worker. Disabled, no watermark map is
          * allocated at all.
          */
-        public Builder seqRegressionDetection(boolean seqRegressionDetection) {
-            this.seqRegressionDetection = seqRegressionDetection;
+        public Builder orderViolationDetection(boolean orderViolationDetection) {
+            this.orderViolationDetection = orderViolationDetection;
             return this;
         }
 

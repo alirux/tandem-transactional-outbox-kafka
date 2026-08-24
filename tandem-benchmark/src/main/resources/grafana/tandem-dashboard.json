@@ -388,7 +388,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "Events published out of order",
-      "description": "tandem.outbox.seq_regression.count \u2014 the relay published an aggregate's events with a seq lower than one it had already sent, so writers to that aggregate are not serialised (HLD \u00a74.2). Operator replays are excluded, so anything above zero is a write-side bug, not a recovery action. This is the only place the violation is ever visible: the rows are left in perfect order in the table, so no query finds it afterwards \u2014 only the relay, as it publishes.",
+      "description": "tandem.outbox.order_violation.count \u2014 the relay published an aggregate's events out of the order they were meant to go in: a row the application numbered is judged on that number, one written without a number on the order it was written in (HLD \u00a74.2). Operator replays are excluded, so anything above zero is a write-side bug, not a recovery action. This is the only place the violation is ever visible: the rows are left in perfect order in the table, so no query finds it afterwards \u2014 only the relay, as it publishes.",
       "datasource": {
         "type": "prometheus",
         "uid": "tandem-prometheus"
@@ -437,7 +437,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(tandem_outbox_seq_regression_count_total)",
+          "expr": "sum(tandem_outbox_order_violation_count_total)",
           "legendFormat": "out of order"
         }
       ]

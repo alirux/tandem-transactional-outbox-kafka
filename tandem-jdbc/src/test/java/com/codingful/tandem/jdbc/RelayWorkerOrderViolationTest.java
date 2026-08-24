@@ -14,6 +14,7 @@ import com.codingful.tandem.test.InMemoryOutbox;
 import com.codingful.tandem.test.RecordingDispatcher;
 import com.codingful.tandem.test.RecordingMetrics;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.OptionalInt;
@@ -31,7 +32,7 @@ import org.junit.jupiter.api.Test;
  * the visibility race replaced by something a unit test can control; {@code CommitOrderReorderIT} pins
  * the genuine mechanism against a real database.
  */
-class RelayWorkerSeqRegressionTest {
+class RelayWorkerOrderViolationTest {
 
     private static final int BUCKETS = 256;
     private static final AggregateId ORDER_1 = AggregateId.of("order-1");
@@ -58,7 +59,7 @@ class RelayWorkerSeqRegressionTest {
         drain(worker(outbox));
 
         assertThat(publishedSeqs()).containsExactly(1L, 2L, 3L);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
     }
 
     @Test
@@ -69,7 +70,7 @@ class RelayWorkerSeqRegressionTest {
         drain(worker(outbox));
 
         assertThat(publishedSeqs()).containsExactly(2L, 1L);
-        assertThat(metrics.seqRegressions()).isEqualTo(1);
+        assertThat(metrics.orderViolations()).isEqualTo(1);
     }
 
     /**
@@ -90,7 +91,7 @@ class RelayWorkerSeqRegressionTest {
         drain(worker);
 
         assertThat(publishedSeqs()).containsExactly(1L, 2L, 3L, 1L);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
     }
 
     /**
@@ -110,7 +111,7 @@ class RelayWorkerSeqRegressionTest {
         drain(worker);
 
         assertThat(publishedSeqs()).containsExactly(5L, 6L, 5L, 4L);
-        assertThat(metrics.seqRegressions()).isEqualTo(1);
+        assertThat(metrics.orderViolations()).isEqualTo(1);
     }
 
     /**
@@ -133,7 +134,7 @@ class RelayWorkerSeqRegressionTest {
 
         assertThat(publishedSeqs()).containsExactly(1L, 1L);
         assertThat(outbox.replaysOf(1L)).hasValue(0);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
     }
 
     /**
@@ -148,7 +149,7 @@ class RelayWorkerSeqRegressionTest {
         drain(worker(new ReplayAgnosticStore(outbox)));
 
         assertThat(publishedSeqs()).containsExactly(2L, 1L);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
     }
 
     /**
@@ -175,14 +176,92 @@ class RelayWorkerSeqRegressionTest {
         insert(ORDER_1, 1);
 
         drain(worker(outbox, RelayConfig.builder()
-                .bucketCount(BUCKETS).maxAttempts(3).seqRegressionDetection(false).build()));
+                .bucketCount(BUCKETS).maxAttempts(3).orderViolationDetection(false).build()));
 
         assertThat(publishedSeqs()).containsExactly(2L, 1L);
         assertThat(outbox.byStatus(OutboxStatus.DONE)).hasSize(2);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
+    }
+
+    @Test
+    void GIVEN_an_aggregate_that_publishes_no_sequence_numbers_WHEN_its_events_go_out_in_write_order_THEN_nothing_is_suspected() {
+        // Such rows are judged on the order they were written, which is the order this outbox hands
+        // them over in — so the quiet case is the one reachable here. Publishing them genuinely out of
+        // order needs the commit-order race against a real database (CommitOrderReorderIT).
+        insertUnsequenced(ORDER_1);
+        insertUnsequenced(ORDER_1);
+        insertUnsequenced(ORDER_1);
+
+        drain(worker(outbox));
+
+        assertThat(dispatcher.dispatched()).hasSize(3).allSatisfy(r -> assertThat(r.hasSeq()).isFalse());
+        assertThat(metrics.orderViolations()).isZero();
+    }
+
+    @Test
+    void GIVEN_a_violation_on_a_row_the_application_numbered_WHEN_it_is_reported_THEN_the_report_claims_only_a_disagreement() {
+        OutboxRecord record = numberedRecord(7, 100);
+
+        String report = RelayWorker.violationReport(
+                record, new PublishOrderWatermarks.Watermark(PublishOrderWatermarks.Key.SEQ, 41), "worker-1");
+
+        // An application can number its events inconsistently with its own insert order without any
+        // concurrency involved, so this case must not assert unserialised writers.
+        assertThat(report)
+                .contains("disagrees with the order the application declared")
+                .doesNotContain("not serialised")
+                .contains("key:SEQ", "observed:7", "lastPublished:41", "rowId:100");
+    }
+
+    @Test
+    void GIVEN_a_violation_on_a_row_that_declared_no_order_WHEN_it_is_reported_THEN_the_report_names_unserialised_writers() {
+        OutboxRecord record = unsequencedRecord(100);
+
+        String report = RelayWorker.violationReport(
+                record, new PublishOrderWatermarks.Watermark(PublishOrderWatermarks.Key.ID, 101), "worker-1");
+
+        // Here the head-of-chain gate leaves the commit-order race as the only way the order can
+        // invert, so the stronger claim is earned.
+        assertThat(report)
+                .contains("out of insert order", "not serialised")
+                .contains("key:ID", "observed:100", "lastPublished:101");
+    }
+
+    @Test
+    void GIVEN_the_watermark_was_evicted_before_the_report_WHEN_it_is_written_THEN_it_says_so_instead_of_inventing_a_value() {
+        // Reachable when one drain spans more aggregates than the LRU holds: the verdict is decided
+        // before the report is written, and the entry can be gone by then. The report must still name
+        // the row, which is what an operator needs to find it.
+        String report = RelayWorker.violationReport(numberedRecord(7, 100), null, "worker-1");
+
+        assertThat(report).contains("lastPublished:?").contains("rowId:100", "observed:7");
     }
 
     // --- fixture ---
+
+    private static OutboxRecord numberedRecord(long seq, long id) {
+        return OutboxRecord.builder()
+                .id(id)
+                .message(OutboxMessage.builder()
+                        .aggregateId(ORDER_1).aggregateType("Order").seq(seq).payload(new byte[] {1}).build())
+                .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .build();
+    }
+
+    private static OutboxRecord unsequencedRecord(long id) {
+        return OutboxRecord.builder()
+                .id(id)
+                .message(OutboxMessage.builder()
+                        .aggregateId(ORDER_1).aggregateType("Order").unsequenced().payload(new byte[] {1}).build())
+                .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .build();
+    }
+
+    private void insertUnsequenced(AggregateId aggregateId) {
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId(aggregateId.value()).aggregateType("Order").unsequenced()
+                .payload("p".getBytes()).build());
+    }
 
     private RelayWorker worker(OutboxStore store) {
         return worker(store, RelayConfig.builder().bucketCount(BUCKETS).maxAttempts(3).build());

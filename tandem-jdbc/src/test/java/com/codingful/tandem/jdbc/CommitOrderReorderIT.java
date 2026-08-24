@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
@@ -135,11 +136,49 @@ class CommitOrderReorderIT extends AbstractPostgresIT {
         }
 
         assertThat(seqs(dispatcher.dispatched())).containsExactly(2L, 1L);
-        assertThat(metrics.seqRegressions()).isEqualTo(1);
+        assertThat(metrics.orderViolations()).isEqualTo(1);
         // The evidence the detector had to work without: the persisted rows are in perfect order.
         assertThat(intColumn("SELECT count(*) FROM tandem_outbox o WHERE EXISTS ("
                 + " SELECT 1 FROM tandem_outbox e WHERE e.aggregate_id = o.aggregate_id"
                 + " AND e.id < o.id AND e.seq > o.seq)")).isZero();
+    }
+
+    /**
+     * The same race on an aggregate that publishes no sequence number at all. There is no declared
+     * ordering to compare against here, so the detector falls back to the order the rows were written
+     * — and that is enough, because this defect *is* a divergence between write order and commit order
+     * (HLD-managed-seq §6.1).
+     */
+    @Test
+    void GIVEN_two_concurrent_writes_with_no_sequence_numbers_WHEN_the_later_one_commits_first_THEN_the_violation_is_still_reported()
+            throws Exception {
+        JdbcOutboxStore store = new JdbcOutboxStore(DATA_SOURCE, 10);
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RecordingMetrics metrics = new RecordingMetrics();
+        RelayWorker worker = workerOver(store, dispatcher, metrics);
+
+        try (Connection earlier = DATA_SOURCE.getConnection();
+             Connection later = DATA_SOURCE.getConnection()) {
+            earlier.setAutoCommit(false);
+            later.setAutoCommit(false);
+
+            repositoryOn(earlier, 256).insert(unsequencedMessage());
+            repositoryOn(later, 256).insert(unsequencedMessage());
+            later.commit();
+
+            worker.claimAndDispatch();          // only the later-written row is visible
+            worker.flushDone();
+
+            earlier.commit();
+
+            worker.claimAndDispatch();          // the earlier row, behind an already-published later one
+            worker.flushDone();
+        }
+
+        assertThat(dispatcher.dispatched()).hasSize(2).allSatisfy(r -> assertThat(r.hasSeq()).isFalse());
+        // Descending: the row written second went out first, which is the reorder itself.
+        assertThat(ids(dispatcher.dispatched())).isSortedAccordingTo(Comparator.reverseOrder());
+        assertThat(metrics.orderViolations()).isEqualTo(1);
     }
 
     /**
@@ -164,7 +203,7 @@ class CommitOrderReorderIT extends AbstractPostgresIT {
 
         assertThat(seqs(dispatcher.dispatched())).containsExactly(1L, 2L, 1L);
         assertThat(intColumn("SELECT replays FROM tandem_outbox WHERE id = 1")).isEqualTo(1);
-        assertThat(metrics.seqRegressions()).isZero();
+        assertThat(metrics.orderViolations()).isZero();
     }
 
     private static RelayWorker workerOver(JdbcOutboxStore store, RecordingDispatcher dispatcher,
@@ -199,6 +238,22 @@ class CommitOrderReorderIT extends AbstractPostgresIT {
 
     private static List<Long> seqs(List<OutboxRecord> records) {
         return records.stream().map(OutboxRecord::seq).toList();
+    }
+
+    private static List<Long> ids(List<OutboxRecord> records) {
+        return records.stream().map(OutboxRecord::id).toList();
+    }
+
+    /** The same aggregate, written with no sequence number — judged on the order it was written in. */
+    private static OutboxMessage unsequencedMessage() {
+        return OutboxMessage.builder()
+                .aggregateId(AGGREGATE_ID)
+                .aggregateType("Order")
+                .type("OrderChanged")
+                .unsequenced()
+                .payload("{}".getBytes(StandardCharsets.UTF_8))
+                .contentType("application/json")
+                .build();
     }
 
     private static Set<Integer> buckets(int bucketCount) {

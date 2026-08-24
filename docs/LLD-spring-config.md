@@ -318,9 +318,9 @@ programmatic builder never drift:
 | `tandem.relay.cleanup-interval` | Duration | `15m` |
 | `tandem.relay.metrics-interval` | Duration | `10s` |
 | `tandem.relay.log-every-rows` | long | `10000` |
-| `tandem.relay.seq-regression-detection` | boolean | `true` |
+| `tandem.relay.order-violation-detection` | boolean | `true` |
 
-`seq-regression-detection` is the only opt-*out* in the table: on by default because a violated
+`order-violation-detection` is the only opt-*out* in the table: on by default because a violated
 write-side ordering precondition is otherwise completely silent (LLD-jdbc §3.9), and switchable off
 where writers to one aggregate are serialised by construction — the detection is bounded and therefore
 partial, and costs one tracked entry per recently-published aggregate per worker.

@@ -583,11 +583,25 @@ very first claim reports an ageing timestamp from start time rather than an abse
 either absolute number, since a died thread is restarted automatically (§3.1) and a transient deficit
 during that restart is normal — a persistent one is a worker dying in a loop.
 
-### 3.9 Write-side ordering detection (`SeqWatermarks`)
+### 3.9 Write-side ordering detection (`PublishOrderWatermarks`)
 
 HLD §4.2 makes "writers to one aggregate are serialised" a precondition Tandem depends on and cannot
-enforce. When it is violated the relay publishes an aggregate's events out of `seq` order, and this is
-where that becomes visible — the only place it ever is.
+enforce. When it is violated the relay publishes an aggregate's events out of the order they were
+meant to go in, and this is where that becomes visible — the only place it ever is.
+
+**Which ordering each row is judged on comes from its `seq_source`** (HLD-managed-seq §6.1). A row the
+application numbered is checked against that number, the one ordering independent of the order rows
+were physically inserted. Every other row — one Tandem numbered, one written `unsequenced()`, one whose
+provenance this build predates — is checked on its `id`, the only ordering it has. A watermark records
+which of the two it holds, and a change resets the entry rather than comparing a `seq` against an `id`,
+so the row on which an aggregate switches modes is not judged at all.
+
+**The two reports differ in what they may conclude.** On the `id` key the head-of-chain gate leaves the
+commit-order race below as the only way the order can invert, so *"writers are not serialised"* follows
+by construction. On the `seq` key the same observation also admits an application numbering its events
+inconsistently with its own insert order — a defect, but not a concurrency one — so that message states
+the disagreement and stops there. One counter serves both: the metric is the alert, the message is the
+diagnosis.
 
 **Why it cannot be found afterwards.** The hazard is a commit-order inversion: `id` is assigned at
 INSERT, visibility is decided at COMMIT, so a row inserted first but committed second is invisible to
@@ -613,7 +627,7 @@ the watermark; **equal** is an at-least-once redelivery after a lease reclaim, n
 **Disambiguating a suspicion.** A replayed row and a reordered one are byte-identical on every field
 except `replays` (HLD §8), so a suspicion triggers a single primary-key `OutboxStore.replaysOf(id)`
 lookup — `replays > 0` suppresses it, `0` reports it (`ERROR` with the row and aggregate identifiers,
-plus `TandemMetrics.incrementSeqRegression()`). Two rules that are easy to get wrong and are pinned by
+plus `TandemMetrics.incrementOrderViolation()`). Two rules that are easy to get wrong and are pinned by
 tests: a suppressed row **never lowers the watermark** (it would mask the next genuine regression), and
 an **unknown** count — the port's default, which is what any `OutboxStore` decorator that forgets to
 forward the method returns — suppresses too, since a replay cannot be ruled out. The lookup stays off
@@ -621,11 +635,15 @@ the hot path by construction: it runs only in the already-rare backwards branch,
 deliberately **not** in `claimBatch`'s projection, which is also what lets a relay older than the column
 run against a migrated database (HLD §1.4).
 
-**Bounded, and knowingly partial.** `SeqWatermarks` is an LRU capped at **4096 aggregates per worker** —
+**Bounded, and knowingly partial.** `PublishOrderWatermarks` is an LRU capped at **4096 aggregates per worker** —
 a fixed constant, not a knob. Unbounded tracking would leak one entry per distinct aggregate for the
 life of the process. Eviction degrades detection exactly as a relay restart already does, which the
-design accepts: this under-reports and never over-reports. Set `RelayConfig.seqRegressionDetection` to
-`false` (Spring: `tandem.relay.seq-regression-detection`) where writers are serialised by construction
+design accepts: this under-reports and never over-reports. A `LEASE` rebalance moving buckets to
+another instance loses the watermarks for their aggregates the same way, and `SINGLE` with several
+instances splits one aggregate's history across peers with nothing marking the division — the full list
+of when the memory is lost, and when it survives, is in HLD-managed-seq §6. Set
+`RelayConfig.orderViolationDetection` to
+`false` (Spring: `tandem.relay.order-violation-detection`) where writers are serialised by construction
 and the signal is not wanted — nothing is then allocated at all.
 
 ---

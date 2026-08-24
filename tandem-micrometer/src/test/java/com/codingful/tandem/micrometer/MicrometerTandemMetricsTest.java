@@ -72,10 +72,10 @@ class MicrometerTandemMetricsTest {
 
     @Test
     void GIVEN_out_of_order_publishes_detected_WHEN_read_THEN_the_counter_accumulates_them() {
-        metrics.incrementSeqRegression();
-        metrics.incrementSeqRegression();
+        metrics.incrementOrderViolation();
+        metrics.incrementOrderViolation();
 
-        assertThat(registry.get("tandem.outbox.seq_regression.count").counter().count()).isEqualTo(2);
+        assertThat(registry.get("tandem.outbox.order_violation.count").counter().count()).isEqualTo(2);
     }
 
     @Test

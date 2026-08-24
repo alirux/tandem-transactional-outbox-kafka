@@ -1,9 +1,9 @@
 # Tandem — Managed `seq` (Design Note)
 
 **Version:** 1.6  
-**Status:** §4.1 (the number) and §4.2 (the lock) are built and shipped. §4.5 (`seq` becomes
-optional) and §6.1 (which ordering key the detector uses) are designed, with the schema applied.
-All are independent, chosen per message, and combine freely. Read §0 first.  
+**Status:** All built. §4.1 (the number), §4.2 (the lock) and §4.5 (`seq` becomes optional) are
+independent, chosen per message, and combine freely; §6.1 (which ordering key the detector holds)
+follows from the mode each row was written in. Read §0 first.  
 **Companion to:** [HLD.md](HLD.md) §4.2 (Ordering Established at Write Time)  
 **Execution:** [IMPLEMENTATION-PLAN-optional-seq.md](IMPLEMENTATION-PLAN-optional-seq.md)
 
@@ -17,8 +17,7 @@ relay's ordering detector can see under each.
 
 ## 0. Implementation status — read this first
 
-**§4 is three deliveries.** The first two (§4.3 explains their split) are built; the third is
-designed, with its schema applied:
+**§4 is three deliveries** (§4.3 explains the first two's split), and all are built:
 
 - **§4.1 — Tandem assigns `seq`. Built.** Schema v3 carries the `tandem_seq` sequence and the column
   default; `OutboxMessage.Builder.managedSeq()` is how a caller opts in, per message, with
@@ -41,14 +40,14 @@ designed, with its schema applied:
   serialises under one internal lock — but keeps the flag on the stored message rather than silently
   dropping it, matching what a caller who reads it back would expect.
 
-- **§4.5 — `seq` becomes optional. Built, except the detector.** `OutboxMessage.Builder.unsequenced()`
-  is how a caller opts out of a sequence number entirely, making three mutually exclusive modes with
-  no default: `seq(long)`, `managedSeq()`, `unsequenced()`. It closes what §1's two costs share — an
-  obligation on the client write path that most adopters have no use for — by removing the
-  obligation rather than relocating it. The column is nullable and carries a `seq_source`
-  discriminator (§6.1); the write side, the wire and the Admin API's read model all carry the absence
-  through rather than substituting a zero. **What remains is §6.1's detector**, which still keys every
-  row on its `seq` and so has yet to read `seq_source` at all.
+- **§4.5 — `seq` becomes optional. Built.** `OutboxMessage.Builder.unsequenced()` is how a caller opts
+  out of a sequence number entirely, making three mutually exclusive modes with no default:
+  `seq(long)`, `managedSeq()`, `unsequenced()`. It closes what §1's two costs share — an obligation on
+  the client write path that most adopters have no use for — by removing the obligation rather than
+  relocating it. The column is nullable and carries a `seq_source` discriminator; the write side, the
+  wire and the Admin API's read model all carry the absence through rather than substituting a zero,
+  and `PublishOrderWatermarks` reads `seq_source` to decide which ordering each row is judged on
+  (§6.1).
 
 §3 records measurements informing the design rather than the mechanisms themselves. §6 covers the
 write-side ordering detector: what it can see, and which ordering key it reads under each mode.
@@ -625,7 +624,7 @@ of this feature — which is why it is what got built.
 The relay knows the last `seq` it published per aggregate; a `seq` that goes **backwards** is never
 legitimate. (A *gap* may be legitimate — not every event of an aggregate necessarily passes through
 the outbox — so only the backwards case is a sound signal.) That is
-`tandem.outbox.seq_regression.count`, specified in [HLD.md](HLD.md) §7 and §8: an in-process check at
+`tandem.outbox.order_violation.count`, specified in [HLD.md](HLD.md) §7 and §8: an in-process check at
 publish time, because the rows are left in the table in perfect order and no later query can find the
 violation. Operator replays are excluded at the source via the row's `replays` count, so a non-zero
 value always means writers to one aggregate are not serialised.

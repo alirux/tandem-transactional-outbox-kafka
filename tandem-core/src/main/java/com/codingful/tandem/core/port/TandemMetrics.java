@@ -59,7 +59,7 @@ public interface TandemMetrics {
      * excluded by the relay before this is called, so a non-zero value means the writers to one
      * aggregate were not serialised.
      */
-    default void incrementSeqRegression() {
+    default void incrementOrderViolation() {
     }
 
     /**

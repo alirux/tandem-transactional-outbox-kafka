@@ -111,7 +111,7 @@ each record the `seq_source` they used.
 > repeated container churn, passing on retry. Worth knowing before either is mistaken for a
 > regression.
 
-## 4. Phase 4 — Detector
+## 4. Phase 4 — Detector · **done**
 
 | File | Change |
 |---|---|
@@ -185,7 +185,20 @@ metric, the config key and the prose finally agree.
   reaches the tail. `RecordingMetrics` counts one violation in each case, since the split is in the
   log and not in the metric.
 
-**Done-ness:** `./gradlew check` still green, with `CommitOrderReorderIT` unmodified.
+**Done-ness:** `./gradlew check` green, with `CommitOrderReorderIT`'s existing tests **unmodified** —
+the signal this phase was built to produce.
+
+Two things the file list above did not anticipate:
+
+- **An `ID`-keyed violation cannot be staged against `InMemoryOutbox`.** Publication order there *is*
+  id order, so the divergence has nowhere to come from. The seq-keyed tests stage a reorder by giving
+  a lower `seq` a higher `id`; the id-keyed one has no such lever and belongs in
+  `CommitOrderReorderIT`, where two real uncommitted transactions produce the race. The in-memory test
+  covers the quiet case and says why.
+- **`violationReport` was extracted as a package-private pure function.** Asserting the two messages
+  otherwise needs a `System.LoggerFinder` harness, which the repo has no precedent for and which is a
+  lot of machinery to pin two strings. Extracting the function is the seam AGENTS.md names first, and
+  it keeps the claim each key licenses under test rather than only under review.
 
 ## 5. Phase 5 — Documentation
 

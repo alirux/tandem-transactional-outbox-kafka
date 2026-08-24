@@ -25,7 +25,7 @@ public final class RecordingMetrics implements TandemMetrics {
     private final AtomicLong published = new AtomicLong();
     private final List<Duration> publishLatencies = new CopyOnWriteArrayList<>();
     private final AtomicLong retries = new AtomicLong();
-    private final AtomicLong seqRegressions = new AtomicLong();
+    private final AtomicLong orderViolations = new AtomicLong();
     private final AtomicLong failed = new AtomicLong(-1);
     private final AtomicLong blocked = new AtomicLong(-1);
     private final AtomicLong leaseExpired = new AtomicLong();
@@ -76,8 +76,8 @@ public final class RecordingMetrics implements TandemMetrics {
     }
 
     @Override
-    public void incrementSeqRegression() {
-        seqRegressions.incrementAndGet();
+    public void incrementOrderViolation() {
+        orderViolations.incrementAndGet();
     }
 
     @Override
@@ -119,8 +119,8 @@ public final class RecordingMetrics implements TandemMetrics {
     }
 
     /** How many out-of-order publishes the relay attributed to an unserialised write-side (HLD §8). */
-    public long seqRegressions() {
-        return seqRegressions.get();
+    public long orderViolations() {
+        return orderViolations.get();
     }
 
     /** The latest live count of {@code FAILED} rows, or {@code -1} if the gauge was never recorded. */

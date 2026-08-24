@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * completion handler only enqueues — acks into {@code acked}, failures into {@code failures} — and
  * both queues are drained by the worker's own loop ({@link #flushDone()} / {@link #flushFailures()}),
  * where the JDBC writes happen. A slow store can then never stall the dispatcher's I/O thread and,
- * with it, every other in-flight send. The seq-regression detector (§3.9) lives on the same side of
+ * with it, every other in-flight send. The ordering detector (§3.9) lives on the same side of
  * that line, which is what lets it issue a database lookup and keeps its watermarks unsynchronized.
  */
 final class RelayWorker {
@@ -53,10 +53,10 @@ final class RelayWorker {
     private final ConcurrentLinkedQueue<OutboxRecord> acked = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<FailedDispatch> failures = new ConcurrentLinkedQueue<>();
 
-    // Null when seq-regression detection is off (RelayConfig.seqRegressionDetection) — nothing is
+    // Null when ordering detection is off (RelayConfig.orderViolationDetection) — nothing is
     // allocated in that case. Otherwise touched only from this worker's own loop, never from a
     // completion thread, so it needs no synchronization (§3.9).
-    private final SeqWatermarks watermarks;
+    private final PublishOrderWatermarks watermarks;
 
     // Coarse-grained throughput visibility independent of any metrics adapter — see recordProgress().
     private final AtomicLong outcomeCount = new AtomicLong();
@@ -80,7 +80,7 @@ final class RelayWorker {
         this.clock = clock;
         this.workerId = workerId;
         this.ownedBuckets = ownedBuckets;
-        this.watermarks = cfg.seqRegressionDetection() ? new SeqWatermarks() : null;
+        this.watermarks = cfg.orderViolationDetection() ? new PublishOrderWatermarks() : null;
     }
 
     /**
@@ -196,7 +196,7 @@ final class RelayWorker {
         OutboxRecord record;
         while ((record = acked.poll()) != null) {
             batch.add(record.id());
-            if (watermarks != null && watermarks.record(record.aggregateId(), record.seq()) == SeqWatermarks.Verdict.REGRESSED) {
+            if (watermarks != null && watermarks.record(record) == PublishOrderWatermarks.Verdict.REGRESSED) {
                 suspected.add(record);
             }
         }
@@ -211,21 +211,45 @@ final class RelayWorker {
     }
 
     /**
-     * Disambiguate a {@code seq} that went backwards: a row an operator replayed and one reordered by
+     * Disambiguate an ordering that went backwards: a row an operator replayed and one reordered by
      * unserialised writers are otherwise byte-identical, and only {@code replays} tells them apart
      * (HLD §8). Unknown counts as replayed — an unreportable case is better than a false incident.
+     *
+     * <p><b>The two reports differ in what they are entitled to conclude</b> (HLD-managed-seq §6.1).
+     * On the {@code id} key the head-of-chain gate leaves the commit-order race of §3.1 as the only
+     * way the order can invert, so unserialised writers follow by construction. On the {@code seq} key
+     * the same observation also admits an application numbering its events inconsistently with its own
+     * insert order, which is a defect but not a concurrency one — so that message states the
+     * disagreement and stops there. One counter serves both: the metric is the alert, the message is
+     * the diagnosis.
      */
     private void reportIfRegression(OutboxRecord record) {
         if (store.replaysOf(record.id()).orElse(1) > 0) {
             return;
         }
-        LOG.log(Level.ERROR, "Published an aggregate's events out of seq order, so writers to it are not"
-                + " serialised (HLD 4.2) workerId:" + workerId + ", rowId:" + record.id()
-                + ", aggregateType:" + record.aggregateType() + ", aggregateId:" + record.aggregateId()
-                + ", seq:" + record.seq());
+        PublishOrderWatermarks.Watermark against = watermarks.lastPublished(record.aggregateId());
+        LOG.log(Level.ERROR, violationReport(record, against, workerId));
         if (metrics.isEnabled()) {
-            metrics.incrementSeqRegression();
+            metrics.incrementOrderViolation();
         }
+    }
+
+    /**
+     * The `ERROR` text for a violation, extracted so the claim each key licenses is pinned by a test
+     * rather than only by reading. Fixed message, then the flat {@code name:value} tail — including
+     * the value the row was judged against, which the watermark still holds because a {@code
+     * REGRESSED} verdict does not lower it.
+     */
+    static String violationReport(OutboxRecord record, PublishOrderWatermarks.Watermark against, String workerId) {
+        PublishOrderWatermarks.Key key = PublishOrderWatermarks.keyFor(record);
+        String message = key == PublishOrderWatermarks.Key.ID
+                ? "Published an aggregate's events out of insert order, so writers to it are not serialised (HLD 4.2)"
+                : "Published an aggregate's events in an order that disagrees with the order the application declared (HLD 4.2)";
+        return message + " workerId:" + workerId + ", rowId:" + record.id()
+                + ", aggregateType:" + record.aggregateType() + ", aggregateId:" + record.aggregateId()
+                + ", key:" + key
+                + ", observed:" + PublishOrderWatermarks.valueFor(record)
+                + ", lastPublished:" + (against == null ? "?" : against.value());
     }
 
     /**
