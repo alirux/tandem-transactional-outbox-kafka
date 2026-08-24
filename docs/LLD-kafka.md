@@ -95,7 +95,7 @@ var b = CloudEventBuilder.v1()
     .withDataContentType(contentType(record))       // §3.2
     .withDataSchema(dataSchema(record))             // §3.2 — optional, from stored header / config
     .withData(record.payload())                     // raw bytes
-    .withExtension("seq", record.seq())             // always present
+    .withExtension("seq", record.seq())             // only when record.hasSeq() — see below
     .withExtension("partitionkey", record.aggregateId().value());  // always = key
 // trace extensions (traceparent/tracestate) copied from stored headers when present (§7.1)
 // no `logicalclock` extension: causal ordering is unbuilt and gets no code on this path

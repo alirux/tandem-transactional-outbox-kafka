@@ -138,7 +138,7 @@ BEGIN TX
 COMMIT TX                        ← both or neither, guaranteed by DB ACID
 ```
 
-A separate **relay** process reads committed outbox rows and publishes them to Kafka. If the relay crashes after publishing but before marking the row `DONE`, it republishes on restart — a **duplicate**, not a divergence. Consumers handle duplicates (idempotent processing or deduplication on `(aggregate_id, seq)`).
+A separate **relay** process reads committed outbox rows and publishes them to Kafka. If the relay crashes after publishing but before marking the row `DONE`, it republishes on restart — a **duplicate**, not a divergence. Consumers handle duplicates (idempotent processing, or deduplication on the event id — `ce_id`, unique by construction and present on every event, unlike `seq`).
 
 ### 2.4 Why the pattern is under-adopted (and where Tandem fits)
 
@@ -283,7 +283,7 @@ Because the database is Tandem's coordination point, only one thing *must* run i
 | **Split + `LEASE`** | The standalone relay scaled out to multiple processes for outbox throughput. |
 | **Split + `SINGLE`** | A single dedicated relay process (isolation without horizontal scale). |
 
-> **Running more than one relay instance without `LEASE` is a misconfiguration, not a corruption.** Per-aggregate ordering and single-claim exclusivity are carried by `status = IN_FLIGHT` + `FOR UPDATE SKIP LOCKED` at the row (§4.3, §6), *not* by bucket ownership, so multiple `SINGLE` instances never reorder or double-claim a row — they merely all poll every bucket, multiplying DB work for no gain. `LEASE` is the correct answer whenever more than one relay instance runs.
+> **Running more than one relay instance without `LEASE` is a misconfiguration, not a corruption.** Per-aggregate ordering and single-claim exclusivity are carried by `status = IN_FLIGHT` + `FOR UPDATE SKIP LOCKED` at the row (§4.3, §6), *not* by bucket ownership, so multiple `SINGLE` instances never reorder or double-claim a row — they merely all poll every bucket, multiplying DB work for no gain. **It does cost one thing beyond wasted work:** every instance keeps its own in-memory ordering watermarks, so one aggregate's history is split across peers and the write-side ordering detector (§8) goes largely blind — with no event marking the division and no way for an instance to notice. The signal that would tell you your write side is broken is the one this configuration degrades. `LEASE` is the correct answer whenever more than one relay instance runs.
 
 The relay is **fully domain-agnostic**: it reads rows (`aggregate_id`, `aggregate_type`, serialized `payload`, `headers`) and ships them to Kafka (topic from `aggregate_type`, key = `aggregate_id`, value = payload bytes, headers copied). It never deserializes domain types, so it needs nothing from the client's code.
 
@@ -315,9 +315,11 @@ Ordering and all delivery guarantees are **identical regardless of topology** �
 
 **Rationale:** The relay cannot reconstruct an order that was never imposed at the source. The only correct place to serialize per-aggregate writes is where the aggregate mutation happens.
 
-**`seq` is a per-aggregate monotonic sequence number**, equivalent to an event-sourcing stream revision or a Kafka per-partition offset. It is monotonically increasing within a single aggregate and has no defined relationship across aggregates. The aggregate owns and advances it — Tandem reads and preserves it. The `UNIQUE(aggregate_id, seq)` constraint is a safety net against bugs, not the source of ordering.
+**`seq` is a per-aggregate sequence number, and it is optional.** Where present it is monotonically increasing within a single aggregate and has no defined relationship across aggregates. It is **not** the relay's ordering key — the claim orders by `id` (§6) — and the `UNIQUE(aggregate_id, seq)` constraint is a safety net against a write-side bug, not the source of ordering.
 
-**Opt-in, per message: Tandem assigns the number instead**, for an aggregate that has no version to take it from — adoption otherwise reaches into the domain schema rather than only adding the `tandem_*` tables. A message built with `managedSeq()` omits the column and a database sequence supplies the value ([HLD-managed-seq.md](HLD-managed-seq.md) §4.1): no extra statement, no lock, nothing added to the caller's transaction. It changes no guarantee — `seq` is not the relay's ordering key, and everything below about commit order applies unchanged — only what `seq` *means* to a consumer, which becomes Tandem's counter rather than the aggregate's version. The default stays app-assigned.
+**A message states which of three modes it uses, and there is no default** ([HLD-managed-seq.md](HLD-managed-seq.md) §4.5, §4.6). `seq(long)` supplies the aggregate's own number, usually its version. `managedSeq()` leaves it to a database sequence: the column is omitted and its default supplies the value, adding no statement and no lock to the caller's transaction. `unsequenced()` gives the row no number at all, publishes no `ce_seq`, and leaves consumers to deduplicate on the event id, which is unique by construction. Building a message that states none of the three fails.
+
+**Supplying the number is what buys the strongest ordering detection, and that is the honest reason to.** Only an application-assigned `seq` is an ordering the application *declared*, independent of the order rows were physically inserted, so it is the only one the relay can check a published order against; every other row is checked on its `id` (§8, [HLD-managed-seq.md](HLD-managed-seq.md) §6.1). It also carries the hazards of keeping a version in step with an ORM's flush (the note below). When nothing downstream reads the aggregate's version, `unsequenced()` is the usual answer.
 
 **Opt-in, per message, independent of the above: Tandem can also serialize the writers instead of relying on the domain's own lock.** A message built with `lockedWrite()` makes the write-side adapter take a transaction-scoped `pg_advisory_xact_lock` on the aggregate before its insert ([HLD-managed-seq.md](HLD-managed-seq.md) §4.2): a concurrent writer to the same aggregate blocks until the first commits, turning the precondition below from something the application must satisfy unverified into something Tandem enforces. It costs one statement on the write and makes concurrent writers to one aggregate wait — a real behavioral change, opted into explicitly. Neither `seq` form requires it and neither excludes it.
 
@@ -431,14 +433,17 @@ CREATE TABLE tandem_outbox (
     aggregate_id    VARCHAR(255) NOT NULL,   -- Kafka message key; the ordering scope
     aggregate_type  VARCHAR(255) NOT NULL,   -- routes to the Kafka topic (§5.2)
     bucket          SMALLINT     NOT NULL,   -- Math.floorMod(fnv1a64(aggregate_id), B), computed in Java; §4.3
-    seq             BIGINT       NOT NULL,   -- per-aggregate causal sequence
+    seq             BIGINT,                  -- per-aggregate causal sequence; NULL when the row declares none (§4.2)
+    seq_source      SMALLINT     NOT NULL,   -- 0 = APPLICATION, 1 = MANAGED, 2 = NONE — which mode wrote the row
     payload         JSONB        NOT NULL,   -- BYTEA when a binary serializer is used (§5.2)
     status          SMALLINT     NOT NULL DEFAULT 0,
     -- 0 = PENDING, 1 = IN_FLIGHT, 2 = DONE, 3 = FAILED, 4 = DISCARDED
     -- … plus type, headers, the delivery-state columns (locked_by, locked_until, attempts,
     -- replays, last_error, next_attempt_at, created_at) and the operator-facing
     -- discard_reason / correlation_id — all of them described in §5.2
-    UNIQUE (aggregate_id, seq)               -- the per-aggregate ordering safety net (§4.2)
+    UNIQUE (aggregate_id, seq),              -- the per-aggregate ordering safety net (§4.2); inert for a
+                                             -- row with no seq, since PostgreSQL treats NULLs as distinct
+    CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))
 );
 ```
 
@@ -468,7 +473,8 @@ would need a generated-column workaround (§5.4, LLD-jdbc §5).
 | `aggregate_type` | Routes to Kafka topic — `kebab-case(aggregate_type)` + suffix `-topic` by default (e.g. `Order` → `order-topic`); see LLD-kafka §5 |
 | `type` | CloudEvents `type` — the event type (e.g. `com.acme.order.placed`); captured at produce time, mapped to the CloudEvent at publish (§4.8) |
 | `bucket` | Virtual bucket `Math.floorMod(fnv1a64(aggregate_id), B)`, computed **in Java** by `tandem-jdbc` at insert (engine-independent; §4.3); the unit of worker ownership. All events of an aggregate share a bucket |
-| `seq` | Per-aggregate causal sequence number; enforced by `UNIQUE(aggregate_id, seq)` |
+| `seq` | Per-aggregate causal sequence number, or `NULL` where the row declares none (§4.2); enforced by `UNIQUE(aggregate_id, seq)`, which a `NULL` sits outside |
+| `seq_source` | Which of the three modes wrote the row — `0` APPLICATION, `1` MANAGED, `2` NONE. A stored number cannot otherwise say where it came from, and only an application-assigned one is an ordering the relay can check a published order against (§8). Deliberately not range-constrained: a `CHECK` would make a fourth source a breaking change, so readers tolerate an unknown value and fall back to `id` |
 | `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` by default (readable/inspectable); `BYTEA` when a binary serializer (Avro/Protobuf) is used. Becomes CloudEvents `data`. |
 | `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers |
 | `status` | State machine: `PENDING → IN_FLIGHT → DONE` / `FAILED`; `FAILED → DISCARDED` (admin only). See §5.3 |
@@ -665,7 +671,7 @@ the client write-side never inherits Micrometer (§1.3). The measurements below 
 | `tandem.outbox.publish.latency` | Timer (histogram) | Time from a row's `created_at` to its Kafka ack, one sample per successfully published row — the runtime-verifiable approximation of the §10 NFR "relay latency" KPI (`COMMIT` → ack, p50 < 200 ms / p99 < 1 s at normal load). Approximation, not exact: `created_at` is set at `INSERT`, not `COMMIT` (a caller transaction that does more work after the outbox insert makes this an upper bound, never an underestimate), and the two ends are read from different clocks — the database's and the relay's — so a persistent skew between them shows up as a constant offset, not noise. Published as a **percentile histogram**, not a client-computed percentile: percentiles cannot be averaged across relay instances, but a TSDB (e.g. Prometheus `histogram_quantile()`) derives a correct multi-instance p95/p99 from the published buckets | **Critical** |
 | `tandem.outbox.failed.count` | Gauge | Rows with `status=FAILED` **right now** — a live count, read the same way as `lag.count`, not a tally of failure events (a row can leave `FAILED` via an operator's `DISCARDED` transition, and this must reflect that) | High |
 | `tandem.outbox.blocked.count` | Gauge | PENDING rows sitting behind a `FAILED` row of the same aggregate — waiting, but unclaimable until an operator resolves the head. Counted by `lag.count` as well, deliberately: they are undelivered events, and a backlog gauge that hid them would read healthy while an aggregate is entirely stalled. Reported separately because the two situations demand opposite responses — see the alerting rules below | High |
-| `tandem.outbox.order_violation.count` | Counter | Cumulative events published with a `seq` **lower** than one already published for the same aggregate — the symptom of a violated write-side ordering precondition (§4.2, §8). Operator replays are excluded at the source (the relay checks the row's `replays`), so a non-zero value always means writers to one aggregate are not serialised, never that someone ran a recovery action. **It under-reports heavily: a zero reading is not evidence the precondition held** — see the note below the table before relying on it. Opt out with `orderViolationDetection = false` | **Critical** |
+| `tandem.outbox.order_violation.count` | Counter | Cumulative events published **behind** one already published for the same aggregate — the symptom of a violated write-side ordering precondition (§4.2, §8). Each row is judged on the ordering it declares: the number the application supplied, or the row's `id` where it supplied none. Operator replays are excluded at the source (the relay checks the row's `replays`), so a non-zero value always means writers to one aggregate are not serialised, never that someone ran a recovery action. **It under-reports heavily: a zero reading is not evidence the precondition held** — see the note below the table before relying on it. Opt out with `orderViolationDetection = false` | **Critical** |
 | `tandem.outbox.retry.count` | Counter | Cumulative retry attempts | Medium |
 | `tandem.outbox.lease_expired.count` | Counter | Rows reclaimed from expired leases (proxy for worker crashes) | Medium |
 | `tandem.outbox.workers.active` | Gauge | Number of active relay workers (thread alive; does **not** imply making progress — pair with `workers.cycle_age_seconds`) | Medium |
@@ -675,8 +681,8 @@ the client write-side never inherits Micrometer (§1.3). The measurements below 
 
 > **What `order_violation.count` can and cannot tell an operator.** It is detected in-process at
 > publish time because it is undetectable afterwards: a violation leaves the rows in the table in
-> perfect order, `id` ascending with `seq`, so no query over `tandem_outbox` can find it later. That
-> also bounds what the counter sees, in three ways — the first of which is the most common and is not
+> perfect order, so no query over `tandem_outbox` can find it later. That
+> also bounds what the counter sees, in five ways — the first of which is the most common and is not
 > a matter of lost state:
 > 1. **Both commits inside one poll cycle → invisible by construction.** If the next claim finds both
 >    rows already committed, the head-of-chain gate publishes them in ascending `id` order regardless
@@ -687,6 +693,18 @@ the client write-side never inherits Micrometer (§1.3). The measurements below 
 > 2. **A relay restart** loses every watermark, since they live only in memory.
 > 3. **LRU eviction** past the 4096 most-recently-published aggregates of a worker loses that
 >    aggregate's watermark.
+> 4. **A `LEASE` rebalance** moving buckets to another instance — a scale-up, a deploy, a peer
+>    crashing — leaves the aggregates in those buckets tracked by nobody until they publish again.
+>    Unlike the two above this one leaves a trace: bucket release and acquisition are logged at
+>    `INFO`, so an investigation can date the gap.
+> 5. **`SINGLE` coordination with more than one relay instance** splits an aggregate's history across
+>    peers, since every instance polls every bucket. Nothing marks the division and no instance can
+>    detect the situation, which makes this the one cause with no signal at all. It is already a
+>    misconfiguration for other reasons (§3.2); degraded detection is the one that hides the others.
+>
+> A worker thread dying and being restarted does **not** lose its watermarks, nor does anything move
+> an aggregate between workers of one instance — the bucket-to-worker split is fixed at pool
+> construction. [HLD-managed-seq.md](HLD-managed-seq.md) §6 has the full table.
 >
 > So the counter **under-reports and never over-reports**: a non-zero reading is always a real
 > violation, worth an incident; a zero reading proves nothing. **There is no runtime signal that
@@ -932,7 +950,7 @@ Everything else — the merge mechanism, the consumer's buffering burden, the en
 - **The clock lives in a `tandem_*` table**, never on the client's aggregate row (design §3.1). A `lamport_clock` column on a domain table was rejected: it would intrude on the client's schema *and* force Tandem to write tables it does not own. The boundary holds — Tandem writes only `tandem_outbox`, `tandem_aggregate_clock`, `tandem_bucket_lease`, `tandem_meta`.
 - **Ship (a) clock + propagation and (b) the engine adapters together** (design §7). (a) alone writes a number into a Kafka header that no consumer can act on, so it delivers nothing on its own — "implement causal ordering" therefore includes two new modules, `tandem-kafka-streams` and `tandem-flink`.
 - **Tandem supplies the ordering key, never the reordering engine** (§1.1). No mainstream stream processor does *causal* reordering from an application clock; they do *event-time* reordering, and the adapters simply feed them the Lamport value in place of a timestamp. That is correct for ordering but breaks every time-based semantic of those engines — windows, grace periods, retention.
-- **Delivery semantics are unchanged.** At-least-once still holds and consumers must still deduplicate on `(aggregate_id, seq)`; a causal clock orders events, it does not deliver them.
+- **Delivery semantics are unchanged.** At-least-once still holds and consumers must still deduplicate on the event id; a causal clock orders events, it does not deliver them.
 
 ## 10. Non-Functional Requirements
 

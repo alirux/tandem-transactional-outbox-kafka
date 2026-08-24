@@ -18,11 +18,13 @@ A faithful in-memory implementation of **both** `OutboxRepository` (write-side) 
 
 - `insert` / `insertAll`: assign `id` (atomic counter), compute `bucket` via the **same core
   `BucketHash.bucketFor`** the JDBC adapter uses (LLD-core §4) so in-memory and real-DB buckets match,
-  store as `PENDING`; enforce `UNIQUE(aggregate_id, seq)` → `DuplicateSeqException`. A message that
-  leaves `seq` to Tandem (`managedSeq()`, [HLD-managed-seq](HLD-managed-seq.md) §4.1) is numbered
-  from an **outbox-wide counter**, standing in for the `tandem_seq` sequence — one counter for the
-  whole outbox, not one per aggregate, so the numbers are sparse per aggregate exactly as the
-  database's are. `lockedWrite()` (`HLD-managed-seq` §4.2) needs no mechanism here: every insert
+  store as `PENDING`; enforce `UNIQUE(aggregate_id, seq)` → `DuplicateSeqException`. All three `seq`
+  modes behave as they do in the database ([HLD-managed-seq](HLD-managed-seq.md) §4.5). A
+  `managedSeq()` message is numbered from an **outbox-wide counter**, standing in for the `tandem_seq`
+  sequence — one counter for the whole outbox, not one per aggregate, so the numbers are sparse per
+  aggregate exactly as the database's are. An `unsequenced()` message stores no number and stays
+  **outside** the uniqueness check, mirroring PostgreSQL treating NULLs as distinct; its row view
+  reports `seq` as `null`, never `0`. `lockedWrite()` (`HLD-managed-seq` §4.2) needs no mechanism here: every insert
   already serialises under one internal lock, stricter than the advisory lock asks for — the flag is
   carried through onto the stored message rather than acted on.
 - `claimBatch(buckets, worker, lease, n)`: return the **head of each aggregate's pending chain** in the

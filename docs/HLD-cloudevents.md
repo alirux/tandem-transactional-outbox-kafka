@@ -51,7 +51,7 @@ Tandem-specific extensions, and where the dependency lives.
 | `data` | — | `payload` | the serialized event body |
 | `partitionkey` | extension | `aggregate_id` | = Kafka record key; preserves ordering |
 | `traceparent` / `tracestate` | extension (Distributed Tracing) | from `headers` (§7.1) | |
-| `seq`, `logicalclock`, `causationid` | extension (Tandem) | outbox columns / `headers` (the `logicalclock` extension carries the `lamport` value) | optional, present only when the relevant feature is on; binary-mode headers `ce_seq` / `ce_logicalclock` / `ce_causationid` |
+| `seq`, `logicalclock`, `causationid` | extension (Tandem) | outbox columns / `headers` (the `logicalclock` extension carries the `lamport` value) | optional; binary-mode headers `ce_seq` / `ce_logicalclock` / `ce_causationid`. **`ce_seq` is present only when the row carries a number** — a row written `unsequenced()` publishes none, and consumers deduplicate on `ce_id`, which is unique by construction and always present (HLD-managed-seq §4.5) |
 
 The **Kafka record key remains `aggregate_id`** (= `partitionkey`), so the full ordering
 chain (DB lock → `seq` → worker shard → Kafka partition) is unchanged.

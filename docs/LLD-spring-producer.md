@@ -82,7 +82,7 @@ public interface OutboxCollector {
     /** As record(...), with a String aggregate id. */
     void record(String aggregateType, String aggregateId, long seq, Object payload);
 
-    /** Same, for an aggregate with no version: Tandem assigns seq at insert (HLD-managed-seq §4.1). */
+    /** Same, for an aggregate that publishes no sequence number: the row stores none (HLD-managed-seq §4.5). */
     void record(String aggregateType, AggregateId aggregateId, Object payload);
     void record(String aggregateType, String aggregateId, Object payload);
 }
@@ -284,18 +284,22 @@ call site (§2), so the tiers wire fine without it.
 
 ## 7. The `seq` = version invariant (all tiers)
 
-One rule, stated once: **`seq` is the aggregate's `version` and originates in the domain.** The Template
-takes it as an explicit `record(..., seq, ...)` argument; the annotation tier reads it from the messages
-the aggregate built; the events tier reads it from the mapper's output (carried on the event). No tier
-generates or mutates `seq`. The `UNIQUE(aggregate_id, seq)` constraint remains the safety net (HLD §4.2),
-surfaced as `DuplicateSeqException` if a bug produces a collision.
+One rule, stated once: **no tier generates or mutates `seq`.** Where a message carries the aggregate's
+own number, the Template takes it as an explicit `record(..., seq, ...)` argument; the annotation tier
+reads it from the messages the aggregate built; the events tier reads it from the mapper's output. The
+`UNIQUE(aggregate_id, seq)` constraint remains the safety net (HLD §4.2), surfaced as
+`DuplicateSeqException` if a bug produces a collision.
 
-**The one way out is explicit at the call site**, for an aggregate that has no version to begin with:
-the `record(...)` overloads without `seq`, and `OutboxMessage.Builder.managedSeq()` on the two tiers
-that build messages themselves, hand the number to Tandem ([HLD-managed-seq](HLD-managed-seq.md) §4.1).
-It stays per message — one aggregate type can be managed while the rest keep their version — and it is
-never inferred from a missing argument, because a `seq` a caller merely *forgot* must keep failing
-loudly instead of silently changing what consumers read.
+**The alternatives are explicit at the call site**, never inferred from a missing argument. The
+`record(...)` overloads *without* `seq` mean **`unsequenced()`** — the row stores no number and no
+`ce_seq` reaches consumers, which is the usual answer when nothing downstream reads the aggregate's
+version ([HLD-managed-seq](HLD-managed-seq.md) §4.6). `managedSeq()`, where Tandem draws the number
+from its own sequence, has no overload here and is reached by building the message and passing it to
+`add(OutboxMessage)`, as `lockedWrite()` already is: a third pair would double this method's
+already-doubled surface for a mode most callers never reach for (Pareto). All of it stays per message
+— one aggregate type can differ from the rest — and a message stating no mode at all fails to build,
+so a caller who merely *forgot* keeps failing loudly instead of silently changing what consumers
+read.
 
 **A caller can also ask Tandem to serialise concurrent writers, independent of where `seq` comes
 from** ([HLD-managed-seq](HLD-managed-seq.md) §4.2): `OutboxMessage.Builder.lockedWrite()`. The

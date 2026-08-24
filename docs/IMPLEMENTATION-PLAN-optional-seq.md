@@ -1,7 +1,8 @@
 # Tandem — Implementation Plan: Optional `seq`
 
-**Version:** 2.0
-**Status:** Active — Phase 1 (schema) done
+**Version:** 2.1
+**Status:** Implemented — all five phases done. The user-facing entry points (`README.md`, any
+brownfield adoption guide) are outstanding and tracked in §5.
 **Scope:** make `seq` one of three explicit per-message modes, and generalise the write-side ordering
 detector to key on whichever ordering the row declares. Spans `tandem-core`, `tandem-jdbc`,
 `tandem-kafka`, `tandem-test`, `tandem-spring-producer`, `tandem-admin`, `tandem-micrometer` and the
@@ -200,10 +201,10 @@ Two things the file list above did not anticipate:
   lot of machinery to pin two strings. Extracting the function is the seam AGENTS.md names first, and
   it keeps the claim each key licenses under test rather than only under review.
 
-## 5. Phase 5 — Documentation
+## 5. Phase 5 — Documentation · **done**
 
-The design already lives in [HLD-managed-seq.md](HLD-managed-seq.md) (§4.5, §4.6, §6.1) and does not
-need re-deriving. What remains is propagating it to the documents that cite the old behaviour:
+The design already lives in [HLD-managed-seq.md](HLD-managed-seq.md) (§4.5, §4.6, §6.1) and did not
+need re-deriving. What this phase propagated to the documents that cited the old behaviour:
 
 | Document | What changes |
 |---|---|
@@ -212,8 +213,17 @@ need re-deriving. What remains is propagating it to the documents that cite the 
 | [LLD-core.md](LLD-core.md) · [LLD-test.md](LLD-test.md) · [LLD-spring-producer.md](LLD-spring-producer.md) · [LLD-kafka.md](LLD-kafka.md) · [LLD-micrometer.md](LLD-micrometer.md) | `SeqSource`, `OutboxMessage`/`OutboxRecord` contract, `InMemoryOutbox` parity, collector overloads, encoder, metric name |
 | [LLD-spring-config.md](LLD-spring-config.md) | the renamed relay property |
 | [HLD-cloudevents.md](HLD-cloudevents.md) | `ce_seq` is now conditional |
-| `README.md` | lines 313 and 465 — the quickstart teaches `.seq(order.version())` and the constraint's role; point at HLD-managed-seq §4.6 for the mode choice |
-| `docs/ADOPTION.md` | uncommitted in the working tree; audit before it lands |
+
+**Two findings worth keeping.** The `README` quickstart and the Grafana dashboard were both stale in
+ways no test could catch: the quickstart taught `.seq(order.version())` as *the* way with no hint that
+a choice now exists, and the dashboard queried `tandem_outbox_seq_regression_count_total`, which would
+have rendered an empty panel against a relay emitting the renamed metric. A published dashboard is a
+consumer of the metric contract; it belongs on the rename checklist beside the code.
+
+**Still outstanding: `README.md` and any brownfield adoption guide.** Both describe the write side to
+someone meeting it for the first time, and both must state that a `seq` mode is chosen rather than
+inherited. They are tracked separately from this plan because they are entangled with other in-flight
+documentation work.
 
 ## 6. Verification gate
 
