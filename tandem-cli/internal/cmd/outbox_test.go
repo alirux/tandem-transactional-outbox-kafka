@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/alirux/tandem/tandem-cli/internal/client"
 )
 
 func TestOutboxSummary_humanRendersCountsAndLag(t *testing.T) {
@@ -220,6 +222,50 @@ func TestOutboxGet_omitsReplaysWhenTheServerDoesNotReportIt(t *testing.T) {
 	}
 	if strings.Contains(stdout, "replays") {
 		t.Errorf("stdout = %q, must not report replays when the response carries none", stdout)
+	}
+}
+
+// A message can be written with no sequence number at all, in which case the server sends no seq
+// field. Absent is not zero: a rendered 0 would be a sequence number belonging to no event.
+func TestEntryPairs_omitsSeqForAMessageWrittenWithoutOne(t *testing.T) {
+	pairs := entryPairs(appWithColor(false), client.OutboxEntry{
+		Id: 1, AggregateId: "order-1", AggregateType: "Order", Status: "PENDING", Attempts: 0,
+	})
+	for _, p := range pairs {
+		if p[0] == "seq" {
+			t.Errorf("pairs contain seq = %q, want it omitted when the message carries none", p[1])
+		}
+	}
+}
+
+func TestEntryPairs_includesSeqWhenTheMessageCarriesOne(t *testing.T) {
+	seq := int64(7)
+	pairs := entryPairs(appWithColor(false), client.OutboxEntry{
+		Id: 1, AggregateId: "order-1", AggregateType: "Order", Status: "PENDING", Attempts: 0, Seq: &seq,
+	})
+	found := false
+	for _, p := range pairs {
+		if p[0] == "seq" {
+			found = true
+			if p[1] != "7" {
+				t.Errorf("pairs[seq] = %q, want %q", p[1], "7")
+			}
+		}
+	}
+	if !found {
+		t.Error("pairs are missing seq, want it rendered when the message carries one")
+	}
+}
+
+// The table keeps its SEQ column whatever the rows hold, so absence shows as an empty cell rather
+// than the omitted line the detail view uses.
+func TestEntryRow_leavesTheSeqCellEmptyForAMessageWrittenWithoutOne(t *testing.T) {
+	row := entryRow(appWithColor(false), client.OutboxEntry{
+		Id: 1, AggregateId: "order-1", AggregateType: "Order", Status: "PENDING", Attempts: 0,
+	})
+	const seqCell = 3
+	if row[seqCell] != "" {
+		t.Errorf("row[seq] = %q, want an empty cell when the message carries none", row[seqCell])
 	}
 }
 

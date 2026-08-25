@@ -163,7 +163,8 @@ func newOutboxSearchCmd() *cobra.Command {
 
 func entryRow(_ *App, e client.OutboxEntry) []string {
 	return []string{
-		fmt.Sprint(e.Id), e.AggregateId, e.AggregateType, fmt.Sprint(e.Seq),
+		fmt.Sprint(e.Id), e.AggregateId, e.AggregateType,
+		optional(e.Seq, func(v int64) string { return fmt.Sprint(v) }),
 		string(e.Status), fmt.Sprint(e.Attempts), e.CreatedAt.Format(time.RFC3339),
 	}
 }
@@ -193,10 +194,14 @@ func entryPairs(_ *App, e client.OutboxEntry) [][2]string {
 		{"id", fmt.Sprint(e.Id)},
 		{"aggregateId", e.AggregateId},
 		{"aggregateType", e.AggregateType},
-		{"seq", fmt.Sprint(e.Seq)},
 		{"status", string(e.Status)},
 		{"attempts", fmt.Sprint(e.Attempts)},
 		{"createdAt", e.CreatedAt.Format(time.RFC3339)},
+	}
+	// Absent for a message written with no sequence number at all, and absent is not zero: printing
+	// a 0 would show a sequence number that belongs to no event.
+	if e.Seq != nil {
+		pairs = append(pairs, [2]string{"seq", fmt.Sprint(*e.Seq)})
 	}
 	// Shown whenever the server reports it, zero included: "replays 0" means this message was never
 	// replayed, while the line being absent means the admin instance predates the field.
