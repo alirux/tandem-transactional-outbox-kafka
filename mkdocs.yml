@@ -1,0 +1,25 @@
+site_name: Tandem — User Guide
+site_description: Adopting and operating Tandem — task-oriented guides, separate from the HLD/LLD design documents
+docs_dir: guide
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+  features:
+    - navigation.tabs
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Adoption Guide: ADOPTION.md
