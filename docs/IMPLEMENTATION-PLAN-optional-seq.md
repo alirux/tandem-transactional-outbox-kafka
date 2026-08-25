@@ -240,12 +240,66 @@ green `check`, and Phase 4 can follow separately on top of it.
 
 ## 7. Release notes
 
-A single breaking release: the renamed metric, config key and Spring property; the three-way `seq`
-mode with no default; `SeqSource` and the `seq_source` column; `OutboxRecord.seq()` becoming
-conditional on `hasSeq()`; `ce_seq` becoming conditional; the `OutboxCollector` overloads changing
-meaning; the schema rewrite.
+A single breaking release. `v0.8.0`: a breaking change in `0.x` is signalled by the minor bump
+([AGENTS.md](../AGENTS.md) — Releases). The body below is the annotated tag's message verbatim — the
+release workflow reads `%(contents:body)`, so it is never written by hand on the release page.
 
-The overloads and the schema are the two a reader must act on — an overload that silently changed
-meaning is exactly what release notes exist for. Worth stating positively too: supplying `seq` is now
-a choice and buys the stronger form of ordering detection, and the answer for the undecided is
-`unsequenced()` (HLD-managed-seq §4.6).
+Three renames fail *silently* rather than at compile time, which is what earns them the top of the
+Breaking section: the Spring property (an unknown key is ignored, so an explicit `false` becomes
+`true`), `TandemMetrics.incrementSeqRegression()` (a `default` method, so an existing override simply
+stops being called), and the `OutboxCollector` overload (same signature, different wire contract).
+
+```
+tandem v0.8.0 — seq becomes a choice: three explicit per-message modes
+
+New
+- Three per-message seq modes, one required and none default: seq(long) supplies
+  the aggregate's own version, managedSeq() draws Tandem's, unsequenced() stores
+  no number at all. unsequenced() asks nothing of the domain and is the answer
+  when undecided; seq(long) is the only mode that buys the stronger ordering
+  detection.
+- The choice costs nothing on the write path: the three modes land within 0.8%
+  of each other, and managedSeq()'s shared sequence runs at 2.6% of its own
+  ceiling at the highest row rate measured. HLD-managed-seq 3.4 has the numbers.
+- The ordering-violation detector now judges each row on the ordering it
+  declares — an app-assigned number where there is one, insert order otherwise —
+  instead of always reading seq.
+- SeqSource and the seq_source column make the three modes tellable apart on a
+  persisted row.
+
+Breaking
+- tandem-spring-producer: OutboxCollector.record(aggregateType, aggregateId,
+  payload) keeps its signature but now records unsequenced() where it recorded
+  managedSeq(). Events published through it carry no ce_seq. A consumer that
+  reads one must move the call to add(OutboxMessage) with managedSeq().
+- tandem-spring-relay: tandem.relay.seq-regression-detection ->
+  tandem.relay.order-violation-detection, and TandemRelayProperties's canonical
+  constructor with it. An unknown property is ignored, so an explicit false
+  silently becomes true on upgrade.
+- tandem-core: TandemMetrics.incrementSeqRegression() ->
+  incrementOrderViolation(). It is a default method, so an existing
+  implementation still compiles and its override simply stops being called.
+- tandem-micrometer: the meter tandem.outbox.seq_regression.count ->
+  tandem.outbox.order_violation.count, and the adapter method that feeds it ->
+  incrementOrderViolation(). Dashboards and alerts on the old meter name go
+  quiet rather than error.
+- tandem-jdbc: RelayConfig.seqRegressionDetection() and its builder setter ->
+  orderViolationDetection().
+- tandem-test: RecordingMetrics.incrementSeqRegression()/seqRegressions() ->
+  incrementOrderViolation()/orderViolations().
+- tandem-core: OutboxMessage.seq() and OutboxRecord.seq() throw unless the
+  message was built with seq(long) — guard with hasSeq(). The managedSeq()
+  accessor is replaced by seqSource(). OutboxRowView and OutboxRowDetail retype
+  seq from long to Long, changing their canonical constructors.
+- tandem-admin: OutboxEntryResponse retypes seq from long to Long.
+- Kafka wire contract: ce_seq is omitted for an unsequenced message rather than
+  always present. Consumers must tolerate its absence and deduplicate on ce_id.
+- Admin API: seq is no longer required in OutboxEntry. Absent is not zero — a
+  client must not substitute one.
+- DB schema: seq becomes nullable and seq_source SMALLINT NOT NULL is added, by
+  rewriting the v1 changeset rather than appending a v4. A database created by
+  v0.7.0 cannot be migrated: Liquibase fails the checksum on
+  v1-create-tandem-outbox, and because v1 is already recorded as applied it
+  never gains seq_source, which every insert now requires. Recreate the schema
+  from the v0.8.0 baseline.
+```
