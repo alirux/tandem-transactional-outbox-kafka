@@ -142,12 +142,13 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [LLD-relay.md](docs/LLD-relay.md) | `tandem-relay` — the prebuilt standalone relay deployable (image + jar); designed, not implemented |
 | [HLD-load-testing.md](docs/HLD-load-testing.md) · [LLD-benchmark.md](docs/LLD-benchmark.md) | Throughput/latency verification plan + the `tandem-benchmark` harness that implements it |
 | [HLD-causal-ordering.md](docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |
-| [HLD-managed-seq.md](docs/HLD-managed-seq.md) | Managed `seq` — the opt-in Tandem-assigned sequence number (`managedSeq()`) and the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of each other. Also records what the app-assigned `seq` default costs today (measured) |
+| [HLD-managed-seq.md](docs/HLD-managed-seq.md) | The three per-message `seq` modes — `seq(long)` (the aggregate's own version), `managedSeq()` (Tandem-assigned) and `unsequenced()` (no number at all) — what each one costs and detects, and how to choose. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
 | [dispatch-latency.md](docs/dispatch-latency.md) | Commit-to-publish latency: where it comes from, and the post-commit wakeup options (analysis) |
 | [comparison.md](docs/comparison.md) | Comparison with Debezium, Eventuate Tram, Spring Modulith, a hand-rolled outbox, and the stream processors (Kafka Streams, Flink) |
 | [open-questions-lld.md](docs/open-questions-lld.md) | Tracked gaps to resolve before the LLDs |
 | [IMPLEMENTATION-PLAN-basic-round.md](docs/IMPLEMENTATION-PLAN-basic-round.md) | Execution plan, scope fence, and per-module done-ness for the first milestone |
 | [IMPLEMENTATION-PLAN-embedded-lease.md](docs/IMPLEMENTATION-PLAN-embedded-lease.md) | Plan for the `LEASE` multi-instance coordination opt-in (embedded-multi-replica or standalone) |
+| [IMPLEMENTATION-PLAN-optional-seq.md](docs/IMPLEMENTATION-PLAN-optional-seq.md) | Plan for making `seq` one of three explicit per-message modes, and for judging each row on the ordering it declares |
 
 ## Making a change
 
