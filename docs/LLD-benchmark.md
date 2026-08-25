@@ -63,6 +63,7 @@ tandem-benchmark/
     MetricsExporter.java                // §6.3 — one relay instance's Prometheus /metrics endpoint
     ObservabilityStack.java             // §6.3 — Prometheus + Grafana containers, provisioned
     MetricsDashboardDemo.java           // §6.3 — the scripted run behind metricsDashboardDemo
+    ManagedSeqCostProbe.java            // §6.5 — prices managedSeq() against the other two seq modes
     RampController.java                 // §7   — adaptive lag-feedback rate controller (S1)
     BenchmarkEnvironment.java           // §3   — containers + Hikari + relay wiring
     RelayInstance.java                  // §3   — one simulated relay instance (pool + BucketSource + producer), S8
@@ -620,6 +621,35 @@ pairing is interchangeable with the plausible-looking alternative (discovery 14 
 annotation mechanics (§6.3's hard-won `dashboardUID` lesson) apply here: a trace list has no timeline to
 paint a vertical line on.
 
+### 6.5 `ManagedSeqCostProbe` — what managed `seq` costs the caller's transaction
+
+Neither a scenario nor a demo: a measurement of one mechanism, written to answer whether
+`OutboxMessage.Builder.managedSeq()` costs the write path anything (HLD-managed-seq §3.4, §4.1 — the
+results live there). It starts **PostgreSQL alone** — nothing measured here leaves the write side, and
+an idle broker on the same host is only noise — and drives the real `JdbcOutboxRepository` through
+`TransactionalUnitOfWork` (§4.1), in one arrangement per phase: per-mode saturation over a sweep of
+writer counts, the same durable, one offered rate below saturation, batches of N rows per transaction
+(the `insertAll` path the Spring collector flushes through), and `nextval` alone, driven server-side
+over `generate_series` so no client round trip is in the way.
+
+**The arrangement that carries the result is the interleaved one:** every writer rotates through
+`seq(long)`/`managedSeq()`/`unsequenced()` operation by operation, into one histogram per mode. Two
+consecutive 15s windows on a developer machine drift further apart than the effect being looked for —
+the per-mode runs here span ±20% between rounds while the modes themselves sit within 1% of each
+other — so an interleaved, paired comparison is the only arrangement in which a per-insert cost of
+this size could show up at all. Rate is equal by construction there; the latency columns are the
+measurement.
+
+**It owns the durability knob rather than inheriting it.** Testcontainers starts PostgreSQL with
+`-c fsync=off` on the command line, and a command-line setting outranks `postgresql.auto.conf`, so
+`ALTER SYSTEM SET fsync` could never take effect. The container is therefore started with no setting
+of its own and the probe switches `fsync` per phase (a `sighup` reload, no restart), verifying the
+new value took before it measures anything.
+
+Each run also prints what was actually written, grouped by `seq_source`, and a `pg_stat_activity`
+wait-event sample taken through every measurement window — the first proves each mode did what its
+builder call claims, the second is the direct evidence for or against sequence-page contention.
+
 ---
 
 ## 7. `RampController` — adaptive rate search (S1)
@@ -885,6 +915,11 @@ no measurable time. No product code involved.
   (§6.4). Same status — out of `test`/`check` and out of `loadTest`. ~40s of live traffic, then holds
   the Grafana traces view open until Enter; `--args="--hold=<seconds>"` for a non-interactive run.
   Needs Docker for three containers beyond the usual Postgres/Kafka pair (Prometheus + Grafana + Tempo).
+- **Managed-`seq` cost probe:** `./gradlew :tandem-benchmark:managedSeqCostProbe` →
+  `ManagedSeqCostProbe.main` (§6.5). Same status as the demos — out of `test`/`check` and out of
+  `loadTest`. ~25 minutes for every phase at the defaults, one Postgres container and no Kafka;
+  `--args="--phases=4"` runs just the sequence-ceiling sweep (~4 minutes), `--phases=5,6,7` just the
+  interleaved comparisons. Results: HLD-managed-seq.md §3.4.
 - **`--duration=<seconds>`** overrides whichever base config's `duration` (applied after
   `--smoke`/`--demo`) — for a run longer than `--demo`'s 20s but far short of the 10-minute full-run
   default. S3 is safe to include regardless: its own drive phase and drain timeout are both capped

@@ -139,3 +139,15 @@ tasks.register<JavaExec>("tracingDashboardDemo") {
     standardOutput = System.out
     errorOutput = System.err
 }
+
+// Prices the managed-`seq` mechanism against the other two modes on the caller's write path
+// (LLD-benchmark §6.5): the three modes saturated, durable, paced, batched and interleaved, plus the
+// CACHE 1 sequence's own server-side ceiling. Measures; gates nothing.
+tasks.register<JavaExec>("managedSeqCostProbe") {
+    description = "Measures what managedSeq() costs the caller's transaction (ManagedSeqCostProbe). Requires Docker."
+    group = "verification"
+    mainClass.set("com.codingful.tandem.benchmark.ManagedSeqCostProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardOutput = System.out
+    errorOutput = System.err
+}

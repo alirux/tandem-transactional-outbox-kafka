@@ -115,8 +115,9 @@ separate problems with separate mechanisms, and §4 treats them separately.
 
 ## 3. Measurements
 
-Both sets of results were established by experiment against a real PostgreSQL 16 and a real Spring
-Data JPA / Hibernate domain.
+Every result here was established by experiment: §3.1–§3.3 against a real PostgreSQL 16 and a real
+Spring Data JPA / Hibernate domain, §3.4 against the same PostgreSQL through the shipped write-side
+adapter.
 
 ### 3.1 Commit order, not `seq`, decides publication order
 
@@ -269,6 +270,63 @@ so a race that resolves faster than that is invisible **by construction**, not b
 watermark. This is in addition to, and structurally more common than, the watermark-eviction and
 relay-restart causes already noted in [HLD.md](HLD.md) §7 — a zero reading is evidence of nothing.
 
+### 3.4 What the managed number costs the caller's transaction
+
+§4.1's mechanism adds no statement — the `DEFAULT` fires inside the INSERT — but that is not where a
+cost would sit. `tandem_seq` is a **single global sequence, pinned to `CACHE 1` and touched by every
+managed insert of every aggregate**, so every managed writer takes an exclusive lock on the same
+sequence page. That is a shared serialisation point: "none" is a claim about its size, not about its
+existence. Measured by `ManagedSeqCostProbe` ([LLD-benchmark.md](LLD-benchmark.md) §6.5) against
+PostgreSQL 16 on a 6-core laptop under Docker — a host whose *absolute* numbers are not KPI figures
+([HLD-load-testing.md](HLD-load-testing.md) §5.1), which is why what follows is a ratio and a ceiling
+rather than a throughput.
+
+**The sequence on its own**, `nextval` driven server-side over `generate_series` so no client round
+trip is in the way:
+
+| concurrent sessions | 8 | 32 | 64 | 96 |
+|---|---|---|---|---|
+| `tandem_seq` (`CACHE 1`) | 1.46M/s | 1.55M/s | 1.44M/s | 1.36M/s |
+| the same shape at `CACHE 32` | 6.3M/s | 4.7M/s | 4.3M/s | 4.0M/s |
+| the loop alone, calling nothing | 16.5M/s | 19.1M/s | 14.9M/s | 21.7M/s |
+
+≈ **0.65 µs per call**, and — the part that decides this — **flat from 8 to 96 concurrent sessions**
+(−6% across that range). The shared page serialises writers, but it is a capacity ceiling rather than
+a contention point that degrades as writers are added.
+
+**On the write path the difference does not resolve.** Run-to-run drift on a developer machine is
+larger than the effect, so the modes are interleaved: every writer rotates through all three
+operation by operation, into one histogram each, so they see the same host, the same table and the
+same instant. Mean latency per insert:
+
+| | `seq(long)` | `managedSeq()` | `unsequenced()` |
+|---|---|---|---|
+| 8 writers saturated, `fsync=off` | 2,614 µs | 2,610 µs | 2,598 µs |
+| 32 writers saturated, `fsync=off` | 11,769 µs | 11,860 µs | 11,849 µs |
+| 64 writers saturated, `fsync=off` | 23,784 µs | 23,788 µs | 23,793 µs |
+| 32 writers saturated, durable | 13,057 µs | 13,088 µs | 13,138 µs |
+| paced at 1,258 writes/s, durable | 2,080 µs | 2,068 µs | 2,083 µs |
+| batches of 50 rows per transaction, durable | 43,139 µs | 43,358 µs | 43,307 µs |
+
+Every pair sits within ±0.8%, the sign alternates, and `managedSeq()` repeatedly lands **below**
+`unsequenced()` — the mode that touches no sequence at all. There is no systematic difference to
+find: the expected effect is 0.005–0.03% of an insert, an order of magnitude under what this
+arrangement resolves. The `pg_stat_activity` samples agree — `LWLock:BufferContent` is never higher
+for the managed mode than for the two that never call `nextval`.
+
+**The ceiling, stated as a rate.** At the highest row rate this host reached — ~37k rows/s, batched
+and durable — `tandem_seq` runs at **2.6% of its own ceiling**; on the single-row path, at 0.3%. For
+the sequence to become the binding constraint, one database would have to sustain on the order of
+10⁶ outbox inserts per second, which its WAL and the insert itself cap two to three orders of
+magnitude below. The ceiling is per-database and scales with single-core speed rather than with core
+count, so larger hardware narrows the ratio — never to the point where the row's own commit is not
+the limit first.
+
+**This settles the `CACHE 1` constraint as well** (§4.1). The standard mitigation for sequence
+contention is a larger `CACHE`, which the wire contract forbids (§7: a cached range makes `ce_seq`
+move backwards per aggregate). The measurement prices that forgone mitigation at ~3× on a ceiling
+already ~40× above the peak rate reached — so the contract costs nothing an adopter can arrive at.
+
 ---
 
 ## 4. The design: three independent mechanisms
@@ -279,7 +337,7 @@ costs share, the obligation itself:
 
 | | Problem it closes | Mechanism | Hot-path cost | Persistent state | Status |
 |---|---|---|---|---|---|
-| **4.1** | §1's first cost: the aggregate has no `version` to take `seq` from | a `SEQUENCE` as the column default | **none** *(asserted, not measured — the sequence is global and pinned to `CACHE 1`)* | one catalog row, fixed | **built** — `managedSeq()` |
+| **4.1** | §1's first cost: the aggregate has no `version` to take `seq` from | a `SEQUENCE` as the column default | **none** *(measured, §3.4: ≈0.65 µs on a shared sequence page, 2.6% of its ceiling at peak)* | one catalog row, fixed | **built** — `managedSeq()` |
 | **4.2** | §1's second cost: concurrent writers to one aggregate are not serialised | `pg_advisory_xact_lock` in the caller's transaction | one statement | **none** — released at commit | **built** — `lockedWrite()` |
 | **4.5** | what both costs share: `seq` is required of the client at all | a nullable column, plus `seq_source` so the detector still knows what it is looking at | **none** | none | **designed; schema applied** — `unsequenced()` |
 
@@ -332,9 +390,13 @@ Two consequences the implementation carries:
 Two constraints on it:
 
 - **`CACHE` must stay 1.** With a per-session cache, session A pre-allocates 1–100 and session B
-  101–200; if B inserts first, `seq` moves backwards for that aggregate and the §6 detector reports
-  false regressions. PostgreSQL's default is `CACHE 1`; it must be pinned in the changelog, not left
-  to whoever creates the sequence.
+  101–200; if B inserts first, `seq` moves backwards for that aggregate. What that breaks is the
+  published wire contract — §7 promises a consumer may read `ce_seq` as an opaque *monotonic* counter
+  — not the §6 detector, which keys a managed row on `id` and could not report a phantom violation
+  from a cached range. PostgreSQL's default is `CACHE 1`; it must be pinned in the changelog, not
+  left to whoever creates the sequence. §3.4 measures what pinning it costs: nothing reachable, since
+  the larger cache would raise a ceiling already far above the rate any single database can insert
+  at.
 - **Switching an *existing* aggregate type over needs the sequence moved above the `seq` values that
   type has already emitted**, or the next event collides with `UNIQUE (aggregate_id, seq)` — or, if
   those rows were already retired by cleanup, publishes a `seq` below history consumers have seen.
@@ -576,8 +638,11 @@ delivery, because a caller chooses each independently (§4.3).
   switched on silently under an existing stream**. §4.1's per-write granularity is what makes this
   manageable: turn it on for a new aggregate type rather than for everything at once.
 
-Nothing else. No extra statement, no lock, no added latency, no behavioural change for concurrent
-writers, and the DDL is strictly additive.
+Nothing else on the caller's transaction: no extra statement, no lock, no behavioural change for
+concurrent writers, and the DDL is strictly additive. **"No added latency" is measured rather than
+assumed** — §3.4 prices the one shared resource the mechanism does touch, `tandem_seq`'s page, at
+≈0.65 µs per insert against a ceiling ~40× the highest row rate reached, flat from 8 to 96 concurrent
+writers.
 
 **§4.2, the lock — three costs, all of them real:**
 
