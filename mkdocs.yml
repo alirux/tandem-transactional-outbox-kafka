@@ -22,4 +22,4 @@ markdown_extensions:
   - pymdownx.superfences
 
 nav:
-  - Adoption Guide: ADOPTION.md
+  - Adoption Guide: index.md
