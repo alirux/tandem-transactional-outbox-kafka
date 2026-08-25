@@ -22,16 +22,26 @@ change must fail visibly, never silently alter what a caller already expresses.
 
 ## 1. Phase 1 — Schema · **done**
 
-`v1-baseline.sql` rewritten in place rather than extended with a `v4`: an append-only changelog is a
-discipline for protecting deployed databases, and there are none.
+Appended as `v4-optional-seq.sql`, leaving every shipped changeset byte-identical. `v0.7.0` published
+`v1`–`v3`, so their checksums are recorded in whatever `DATABASECHANGELOG` an adopter already has —
+including `v3`, where `stripComments:false` puts the prose itself inside the checksum, so even a
+comment-only edit there would break an existing database.
 
-- `seq BIGINT` — the `NOT NULL` gone at its source.
-- `seq_source SMALLINT NOT NULL` — the discriminator of HLD-managed-seq §6.1, with its value
-  enumeration and rationale in the column comment, in the same idiom as the existing `status`.
+- `ALTER COLUMN seq DROP NOT NULL` — a message may now carry no number at all.
+- `seq_source SMALLINT` added, backfilled, then `SET NOT NULL` — three steps because the column must
+  end with no `DEFAULT`, so an INSERT that forgets it cannot silently claim `APPLICATION`. The
+  discriminator of HLD-managed-seq §6.1, with its value enumeration and rationale in the changeset
+  comment, in the same idiom as the existing `status`.
 - `CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))`.
-- `UNIQUE (aggregate_id, seq)` unchanged, with a comment recording that it is inert for a row with no
-  `seq`.
-- `v3-managed-seq.sql` — `CACHE 1` comment re-attributed to the wire contract (HLD-managed-seq §6.1).
+- `UNIQUE (aggregate_id, seq)` untouched — it simply becomes inert for a row with no `seq`, which the
+  changeset records.
+
+**Existing rows are backfilled as `APPLICATION`.** Their real provenance is unrecoverable — the
+reason `seq_source` exists at all — and `APPLICATION` is the likelier one, since `managedSeq()` first
+shipped in `v0.7.0`. The cost of guessing wrong is bounded: a genuinely managed row is judged on its
+number rather than on `id`, and because `id` and `tandem_seq` are separate sequences that concurrent
+inserts can interleave, such a row can raise an ordering violation that never happened. It reaches
+only rows still awaiting delivery, so it drains with the backlog.
 
 **Done-ness:** `./gradlew generateBaselineSql` propagates into the flat baseline and
 `:tandem-jdbc:checkBaselineSql` is green. ✅
@@ -244,13 +254,20 @@ A single breaking release. `v0.8.0`: a breaking change in `0.x` is signalled by 
 ([AGENTS.md](../AGENTS.md) — Releases). The body below is the annotated tag's message verbatim — the
 release workflow reads `%(contents:body)`, so it is never written by hand on the release page.
 
-Three renames fail *silently* rather than at compile time, which is what earns them the top of the
-Breaking section: the Spring property (an unknown key is ignored, so an explicit `false` becomes
-`true`), `TandemMetrics.incrementSeqRegression()` (a `default` method, so an existing override simply
-stops being called), and the `OutboxCollector` overload (same signature, different wire contract).
+The body opens on the upgrade rather than on the feature, because two of these cost a reader real
+time to discover: the schema cannot be migrated from `v0.7.0` in place, and three changes fail
+*silently* rather than at compile time — the Spring property (an unknown key is ignored, so an
+explicit `false` becomes `true`), `TandemMetrics.incrementSeqRegression()` (a `default` method, so an
+existing override simply stops being called), and the `OutboxCollector` overload (same signature,
+different wire contract). Those three also lead the Breaking section.
 
 ```
 tandem v0.8.0 — seq becomes a choice: three explicit per-message modes
+
+Upgrading from v0.7.0 is not a drop-in — read Breaking before you take it. Two
+things make it awkward. The schema needs its v4 migration applied before a
+v0.8.0 relay starts. And three of the changes are silent: they neither fail to
+compile nor throw, they quietly alter what a caller already expresses.
 
 New
 - Three per-message seq modes, one required and none default: seq(long) supplies
@@ -296,10 +313,11 @@ Breaking
   always present. Consumers must tolerate its absence and deduplicate on ce_id.
 - Admin API: seq is no longer required in OutboxEntry. Absent is not zero — a
   client must not substitute one.
-- DB schema: seq becomes nullable and seq_source SMALLINT NOT NULL is added, by
-  rewriting the v1 changeset rather than appending a v4. A database created by
-  v0.7.0 cannot be migrated: Liquibase fails the checksum on
-  v1-create-tandem-outbox, and because v1 is already recorded as applied it
-  never gains seq_source, which every insert now requires. Recreate the schema
-  from the v0.8.0 baseline.
+- DB schema: seq becomes nullable and seq_source SMALLINT NOT NULL is added, in
+  a new v4 changeset. Apply it before a v0.8.0 relay starts, since every insert
+  now requires the column. Existing rows are backfilled as APPLICATION — the
+  likelier provenance, but not a recoverable one: a row that actually took its
+  number from managedSeq() is then judged on that number rather than on id,
+  which can report an ordering violation that never happened. Only rows still
+  awaiting delivery are affected, so it drains with the backlog.
 ```
