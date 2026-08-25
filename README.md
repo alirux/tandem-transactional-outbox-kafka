@@ -45,7 +45,7 @@ COMMIT TX                  ← both or neither, guaranteed by the DB
 ```
 
 If the relay crashes after publishing but before marking the row done, it republishes — a
-**duplicate** (manageable), never a **divergence**.
+**duplicate** (manageable, provided consumers are idempotent), never a **divergence**.
 
 ## Try it
 
@@ -176,7 +176,7 @@ consumer.
 ## Key features
 
 - **Per-aggregate happens-before ordering** — strict order within an `aggregate_id`, full
-  parallelism across aggregates (the Kafka partition-key model, enforced end to end).
+  parallelism across aggregates (the Kafka partition-key model, preserved end to end).
 - **At-least-once relay** with sharded `SKIP LOCKED` polling, lease-based failover, exponential
   backoff, and poison-message isolation (a stuck event blocks only its aggregate).
 - **CloudEvents by default** — messages are published using the CNCF CloudEvents envelope
@@ -469,20 +469,20 @@ Behaviours of what **is** shipped that can surprise you in production. Each one 
 trade-off or a tracked gap — none is a bug report. (For what is *not yet* shipped, see
 [Future work](#future-work) below.)
 
-- **PostgreSQL only today.** No MySQL baseline DDL or engine variant ships yet — running Tandem
-  against MySQL isn't possible.
-
 - **A permanently failed event stops its aggregate.** A row that exhausts `maxAttempts` (default
   10) blocks every later event of that aggregate; other aggregates are unaffected. `blocked.count`
   makes the blast radius observable. **Resolution:** the Admin API's replay/discard endpoints
   unblock it — see [Try it](#try-it).
 
-- **Ordering within an aggregate is only as good as your write-side.** Tandem relays in `id` order
-  and rejects a duplicate `seq`, but doesn't create order — writers to one aggregate must be
-  serialized (a row lock, an optimistic check, or `lockedWrite()`). See [HLD §4.2](docs/HLD.md).
-
-- **Duplicates are expected, reordering is not.** At-least-once means a crash between the Kafka ack
-  and the mark-DONE republishes the event. Consumers must be idempotent.
+- **Tandem preserves ordering, it doesn't create it.** Concurrent writers to one aggregate must be
+  serialized by your write side — a row lock, an explicit flush before the outbox insert, or
+  `lockedWrite()`. The relay reports the violations it sees (`tandem.outbox.order_violation.count`),
+  but the check is in-memory, per-worker and bounded: it is lost on a restart, on a `LEASE` rebalance,
+  and past 4096 aggregates per worker, so a non-zero reading is always real while zero is never proof
+  of absence. Its reach also depends on the mode — `seq(...)` is the only one that additionally catches
+  a numbering that disagrees with insert order, since `unsequenced()` and `managedSeq()` rows are
+  judged on `id`. See [Usage](#usage), [HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time)
+  and [HLD-managed-seq §6](docs/HLD-managed-seq.md#6-detection-what-it-sees-and-what-it-reads-to-see-it).
 
 - **A reclaimed row has a brief double-ownership window.** A late write from a previous owner can
   still land on a row another instance now owns after a lease reclaim — bounded to a duplicate
@@ -495,10 +495,6 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
 
 - **`bucketCount` is immutable after the first deploy.** Re-sharding an existing outbox isn't
   supported — pick `B` once (default 256).
-
-- **Cleanup and lease reclaim are not bucket-scoped.** Every instance scans the whole outbox table
-  — safe (idempotent) but redundant under `LEASE` with N instances
-  ([LLD-jdbc §3.2/§3.7](docs/LLD-jdbc.md)).
 
 - **Configuration is read once, at startup.** The relay (or a single `LEASE` bucket) can be
   paused/resumed at runtime, but tunables like `pollInterval` need a restart to change.
@@ -521,11 +517,11 @@ Not yet shipped, in no particular order:
   names — published so that building the feature stays an additive change. The exact inventory of
   what exists versus what is missing is [HLD-causal-ordering.md §0](docs/HLD-causal-ordering.md).
 - **MySQL support.** Fully specified and verified against MySQL 8.4
-  ([LLD-jdbc §5](docs/LLD-jdbc.md)), but **not built** — PostgreSQL remains the only supported
-  database. It is more than a dialect swap: MySQL has no `UPDATE ... RETURNING`, so the claim becomes
-  a two-step transaction, and the relay has to run at `READ COMMITTED` — under MySQL's
-  `REPEATABLE READ` default, four relay workers are measurably *slower* than one, with nothing in the
-  logs to say why.
+  ([LLD-jdbc §5](docs/LLD-jdbc.md)), but **not built** — no MySQL baseline DDL and no engine variant
+  ship, so PostgreSQL remains the only supported database. It is more than a dialect swap: MySQL
+  has no `UPDATE ... RETURNING`, so the claim becomes a two-step transaction, and the relay has to
+  run at `READ COMMITTED` — under MySQL's `REPEATABLE READ` default, four relay workers are
+  measurably *slower* than one, with nothing in the logs to say why.
 - **Attempt-level forensic history** — a timeline of every delivery attempt per message
   (when it ran, how long it took, which worker, which error), for forensic debugging. Fully
   designed in [HLD-attempt-archive.md](docs/HLD-attempt-archive.md) but **not built**: no port,
