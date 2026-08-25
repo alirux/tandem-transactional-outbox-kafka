@@ -25,6 +25,11 @@ write is atomic by your database's ACID guarantees, with no dual-write and no di
 transaction. A separate **relay** then polls the outbox and publishes to Kafka, at-least-once,
 preserving per-aggregate ordering.
 
+<img src="docs/tandem-message-flow.svg" alt="Three outbox events moving through commit, tandem_outbox, relay claim and Kafka publish; one of them fails at the relay stage and stays blocked while the other two, sharing its bucket, keep flowing" width="100%" />
+
+*A live, interactive version of this same flow — pause, step back/forward through each stage — is
+available at [tandem.codingful.com/how-it-works](https://tandem.codingful.com/how-it-works/).*
+
 <img src="docs/tandem-architecture.png" alt="Tandem architecture: your application writes the domain change and the outbox row in one transaction to PostgreSQL; the Tandem relay polls tandem_outbox, publishes to Apache Kafka keyed by aggregate_id, and marks the row done — no CDC, no Kafka Connect, no extra infrastructure" width="100%" />
 
 It targets the gap between a **hand-rolled outbox** (correct, but every subtle trap is yours to

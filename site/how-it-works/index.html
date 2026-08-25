@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a message moves through Tandem</title>
+<meta name="description" content="An interactive walkthrough of Tandem's message flow: commit, bucket claim, relay publish, and how a poison message is isolated to just its own aggregate.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="How a message moves through Tandem">
+<meta property="og:description" content="An interactive walkthrough of Tandem's message flow — commit, bucket claim, relay publish, and poison-message isolation.">
+<meta property="og:image" content="https://tandem.codingful.com/assets/social-preview.png">
+<meta property="og:url" content="https://tandem.codingful.com/how-it-works/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/assets/logo.png">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/message-flow.js" defer></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/assets/logo.png" alt="">Tandem</a>
+    <nav>
+      <a href="/#quickstart">Quickstart</a>
+      <a href="/how-it-works/">How it works</a>
+      <a href="/#install">Install</a>
+      <a href="https://github.com/alirux/tandem/blob/main/docs/HLD.md">Design</a>
+      <a href="https://javadoc.io/doc/com.codingful/tandem-core/latest/index.html">Javadoc</a>
+      <a href="https://github.com/alirux/tandem">GitHub</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">Message flow</p>
+    <h1>How a message moves through Tandem</h1>
+    <p class="lede">One committed row becomes one Kafka message. Below, three aggregates make that
+      trip at once — each keeps its own order, at its own pace, and a failure on one never touches
+      the others.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <tandem-message-flow></tandem-message-flow>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap">
+    <p class="kicker">What the picture is hiding</p>
+    <div class="cards">
+
+      <div class="card">
+        <h3>One commit, no dual write</h3>
+        <pre><span class="k">BEGIN TX</span>
+  UPDATE aggregate SET version = version + 1 WHERE id = ?
+  INSERT INTO tandem_outbox (aggregate_id, bucket, seq, payload)
+<span class="k">COMMIT TX</span></pre>
+        <p>The domain change and the outbox row are one commit. Nothing publishes yet (stage 1 is
+          just a row becoming durable).</p>
+      </div>
+
+      <div class="card">
+        <h3>Bucketed, not locked</h3>
+        <p><code>bucket = hash(aggregate_id) mod B</code>, computed once at insert. Every event of
+          an aggregate lands in the same bucket, and each bucket is owned by exactly one worker
+          (ordering is structural, not a lock that a race can lose).</p>
+      </div>
+
+      <div class="card">
+        <h3>SKIP LOCKED, then a lease</h3>
+        <p>A worker claims its bucket's <code>PENDING</code> rows in <code>id</code> order with
+          <code>FOR UPDATE SKIP LOCKED</code> and marks them <code>IN_FLIGHT</code> under a lease.
+          If the worker dies mid-publish, the lease expires and another worker reclaims the row.</p>
+      </div>
+
+      <div class="card">
+        <h3>CloudEvents, keyed by aggregate</h3>
+        <p>The row is wrapped in a CloudEvents envelope and published with
+          <code>key = aggregate_id</code>. Only a Kafka ack marks the row <code>DONE</code> (a
+          crash between the two produces a duplicate, never a gap).</p>
+      </div>
+
+      <div class="card warn">
+        <h3>One poison row, one blocked aggregate</h3>
+        <p>After its retries are exhausted, a row is marked <code>FAILED</code> and the relay stops
+          advancing <em>that aggregate</em> (its later events queue behind it). Every other
+          aggregate, including ones sharing its bucket, keeps flowing: <code>SKIP LOCKED</code>
+          steps around the stuck row instead of stalling on it.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/alirux/tandem">GitHub</a>
+      <a href="https://central.sonatype.com/artifact/com.codingful/tandem-core">Maven Central</a>
+      <a href="https://github.com/alirux/tandem/releases">Releases</a>
+      <a href="https://github.com/alirux/tandem/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="/problems/">Problem types</a>
+      <a href="/privacy/">Privacy</a>
+    </div>
+    <p><a href="https://github.com/alirux/tandem/blob/main/LICENSE">Apache License 2.0</a> · Java
+      17+ · currently 0.x, the API is still evolving ·
+      <a href="https://github.com/alirux/tandem/blob/main/THIRD-PARTY-NOTICES.md">third-party
+        notices</a></p>
+    <p>Maintained by
+      <a class="li-link" href="https://www.linkedin.com/in/alberto-lirussi/">
+        Alberto Lirussi
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect width="24" height="24" rx="5" fill="#0A66C2"/>
+          <path fill="#FFFFFF" d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.03-1.85-3.03-1.86 0-2.15 1.45-2.15 2.94v5.66H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45zM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56z"/>
+        </svg>
+      </a></p>
+  </div>
+</footer>
+
+</body>
+</html>

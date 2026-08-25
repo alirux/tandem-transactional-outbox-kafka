@@ -11,11 +11,13 @@ toolchain here would be a second thing to maintain for no reader benefit.
 | Path | What it is |
 |---|---|
 | `index.html` | The landing page. |
+| `how-it-works/index.html` | Standalone page for `<tandem-message-flow>` — the animated diagram plus the "what the picture is hiding" explanation, linked from the topbar and the landing page. |
 | `problems/index.html` | Index of every RFC 9457 problem type the Admin API returns. |
 | `problems/<slug>/index.html` | One page per problem type — the `type` URI resolves here. |
 | `privacy/index.html` | Privacy notice — linked from every page's footer. |
 | `404.html` | Served by GitHub Pages for unknown paths. |
 | `assets/style.css` | The whole stylesheet. Palette taken from the brand SVGs in `docs/`. |
+| `assets/message-flow.js` | `<tandem-message-flow>` — the animated "how a message moves" panel, as a self-contained custom element. Shadow DOM, so it carries its own markup/CSS/behaviour; drop the tag in and include the script, nothing else. Reads the page's palette through the same custom properties `style.css` sets on `:root` (falls back to hardcoded values if a host page doesn't define them). |
 | `CNAME` | The custom domain. Removing it moves the site to `alirux.github.io/tandem`. |
 | `build.sh` | Assembles `site/_build` (gitignored) — copies this directory, then the images. |
 

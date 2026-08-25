@@ -13,6 +13,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/logo.png">
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/message-flow.js" defer></script>
 </head>
 <body>
 
@@ -21,6 +22,7 @@
     <a class="brand" href="/"><img src="assets/logo.png" alt="">Tandem</a>
     <nav>
       <a href="#quickstart">Quickstart</a>
+      <a href="/how-it-works/">How it works</a>
       <a href="#install">Install</a>
       <a href="https://github.com/alirux/tandem/blob/main/docs/HLD.md">Design</a>
       <a href="https://javadoc.io/doc/com.codingful/tandem-core/latest/index.html">Javadoc</a>
@@ -51,6 +53,14 @@
       <figcaption>The write and the outbox row commit together. A separate relay polls, publishes,
         and marks the row done — at-least-once, in per-aggregate order.</figcaption>
     </figure>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap">
+    <p class="kicker">Zoomed in</p>
+    <h2>Same flow, message by message</h2>
+    <tandem-message-flow></tandem-message-flow>
   </div>
 </section>
 
@@ -225,6 +235,10 @@ cd tandem
       <div class="card">
         <h3><a href="problems/">Problem types</a></h3>
         <p>Every RFC 9457 error the Admin API can return, and what to do about it.</p>
+      </div>
+      <div class="card">
+        <h3><a href="how-it-works/">How it works</a></h3>
+        <p>The message-flow diagram above, on its own page — pause it, step through each stage.</p>
       </div>
     </div>
   </div>
