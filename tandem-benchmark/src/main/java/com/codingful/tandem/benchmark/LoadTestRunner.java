@@ -39,6 +39,12 @@ import java.util.Set;
  *   <li>neither flag — the full-run default ({@code BenchmarkConfig.defaults()}, 10 min/scenario).</li>
  * </ul>
  * The scenario list defaults to all six.
+ *
+ * <p>Scenarios are isolated from one another: an exception thrown by one (an assertion failure inside
+ * it, or a bounded wait — e.g. draining the backlog — timing out) is caught, reported as a {@code FAIL}
+ * line, and counted into the run's overall correctness like any other failure — it does not abort the
+ * remaining scenarios or the process. Each {@link Scenario} implementation stops its own relay pool in
+ * a {@code finally} block, so the shared {@link BenchmarkEnvironment} stays usable for the next one.
  */
 public final class LoadTestRunner {
 
@@ -74,9 +80,14 @@ public final class LoadTestRunner {
                     continue;
                 }
                 System.out.println("--- Running " + id + " ---");
-                ScenarioResult result = scenario.run(ctx);
-                System.out.println((result.passed() ? "PASS " : "FAIL ") + result.scenarioId() + ": " + result.summary());
-                allPassed &= result.passed();
+                try {
+                    ScenarioResult result = scenario.run(ctx);
+                    System.out.println((result.passed() ? "PASS " : "FAIL ") + result.scenarioId() + ": " + result.summary());
+                    allPassed &= result.passed();
+                } catch (Exception e) {
+                    System.out.println("FAIL " + id + ": threw " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    allPassed = false;
+                }
             }
             System.out.println(allPassed ? "All scenarios passed correctness." : "One or more scenarios FAILED correctness.");
             if (!allPassed) {
