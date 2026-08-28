@@ -31,5 +31,8 @@ cp "$repo_root/docs/tandem-architecture.svg"       "$out/assets/architecture.svg
 cp "$repo_root/docs/tandem-cli-status-watch.png"   "$out/assets/cli-status-watch.png"
 cp "$repo_root/docs/tandem-metrics-dashboard.png"  "$out/assets/metrics-dashboard.png"
 cp "$repo_root/docs/tandem-social-preview.png"     "$out/assets/social-preview.png"
+cp "$repo_root/docs/tandem-benchmark-resources.svg" "$out/assets/benchmark-resources.svg"
+cp "$repo_root/docs/tandem-benchmark-latency.svg"   "$out/assets/benchmark-latency.svg"
+cp "$repo_root/docs/tandem-benchmark-throughput.svg" "$out/assets/benchmark-throughput.svg"
 
 echo "Built $(find "$out" -type f | wc -l | tr -d ' ') files into $out"

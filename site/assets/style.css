@@ -237,12 +237,15 @@ img {
 
 /* ── sections ────────────────────────────────────────────────────────── */
 
+/* Two adjacent sections contribute a padding each, so these values are half the gap the reader
+   sees: 72px between sections against the 26px that holds a figure to its own paragraph. Enough
+   to read as a change of subject, without the page falling apart into islands. */
 section {
-    padding: 56px 0;
+    padding: 36px 0;
 }
 
 section.tight {
-    padding: 32px 0;
+    padding: 22px 0;
 }
 
 .kicker {
@@ -262,6 +265,14 @@ section.tight {
     border-radius: 12px;
     display: block;
     width: 100%;
+}
+
+/* A chart that belongs to the paragraph right above it, rather than standing on its own: enough
+   air to separate the two, never the full section gap — that reads as a change of subject. Scoped
+   to the adjacent case so a figure opening a section of its own keeps the section's spacing. */
+p + .figure,
+h2 + .figure {
+    margin-top: 26px;
 }
 
 .figure.framed img {
@@ -375,6 +386,17 @@ td code {
 
 .status.s5 {
     color: var(--red);
+}
+
+/* Not HTTP statuses: the same pill shape reused for scenario outcomes on the performance
+   page. A scenario that only missed a deadline because the host is small is .warn, never
+   .s5 — a red FAIL there reads as a defect in Tandem rather than a limit of the machine. */
+.status.ok {
+    color: var(--green);
+}
+
+.status.warn {
+    color: var(--yellow);
 }
 
 .note {

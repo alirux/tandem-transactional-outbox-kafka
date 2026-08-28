@@ -23,6 +23,7 @@
     <nav>
       <a href="#quickstart">Quickstart</a>
       <a href="/how-it-works/">How it works</a>
+      <a href="/performance/">Performance</a>
       <a href="#install">Install</a>
       <a href="https://github.com/alirux/tandem/blob/main/docs/HLD.md">Design</a>
       <a href="https://javadoc.io/doc/com.codingful/tandem-core/latest/index.html">Javadoc</a>
@@ -33,10 +34,10 @@
 
 <header class="hero">
   <div class="wrap">
-    <h1>Your database already committed it. Kafka should have it too.</h1>
+    <h1>Events reliably delivered</h1>
     <p class="lede">Tandem is a Java library implementing the <strong>Transactional Outbox
-      Pattern</strong>: reliable, strictly-ordered event delivery from PostgreSQL to
-      Apache Kafka.</p>
+      Pattern</strong>: the domain change and the event commit together in PostgreSQL, and a
+      relay publishes them to Apache Kafka in per-aggregate order.</p>
     <p class="sub">No CDC. No Kafka Connect. No two-phase commit. Just your relational database
       and your broker — with the correctness traps already handled.</p>
     <div class="cta">
@@ -240,6 +241,20 @@ cd tandem
         <h3><a href="how-it-works/">How it works</a></h3>
         <p>The message-flow diagram above, on its own page — pause it, step through each stage.</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap">
+    <div class="prose note">
+      <p><strong>On the name.</strong> A tandem is a bicycle whose riders share one frame and one
+        drivetrain: they cannot pedal off to different destinations, and neither of them arrives
+        without the other. The domain change and the event announcing it ride the same way — one
+        transaction, committed or rolled back together.</p>
+      <p>The word is Latin for <em>at length</em>, borrowed into English as a pun about horses
+        harnessed one behind the other rather than side by side. That sense is in here too: events
+        for one aggregate leave single file, in the order they were committed.</p>
     </div>
   </div>
 </section>

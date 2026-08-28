@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measured performance</title>
+<meta name="description" content="Measured throughput, latency and resource use for the Tandem relay: p99 148 ms COMMIT to ack at 600 events/s, up to 1450 events/s sustained, zero lost or reordered events.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Measured performance">
+<meta property="og:description" content="p99 148 ms COMMIT to ack at 600 events/s, up to 1450 events/s sustained, zero lost or reordered events — on a 2 vCPU VM.">
+<meta property="og:image" content="https://tandem.codingful.com/assets/social-preview.png">
+<meta property="og:url" content="https://tandem.codingful.com/performance/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/assets/logo.png">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/assets/logo.png" alt="">Tandem</a>
+    <nav>
+      <a href="/#quickstart">Quickstart</a>
+      <a href="/how-it-works/">How it works</a>
+      <a href="/performance/">Performance</a>
+      <a href="/#install">Install</a>
+      <a href="https://github.com/alirux/tandem/blob/main/docs/HLD.md">Design</a>
+      <a href="https://javadoc.io/doc/com.codingful/tandem-core/latest/index.html">Javadoc</a>
+      <a href="https://github.com/alirux/tandem">GitHub</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">Performance</p>
+    <h1>Measured performance</h1>
+    <p class="lede">On a 2&nbsp;vCPU / 8&nbsp;GB cloud VM shared with PostgreSQL, Kafka and the load
+      driver, Tandem delivers COMMIT&nbsp;→&nbsp;ack at a <strong>p99 of 148&nbsp;ms</strong> while
+      carrying 600 events a second, and sustains up to <strong>1450 events/s</strong>.</p>
+    <p class="sub">Zero lost events and zero ordering violations in every scenario, at every rate —
+      including the rates the host could not keep up with.</p>
+  </div>
+</header>
+
+<section class="tight">
+  <div class="wrap">
+    <div class="cards">
+
+      <div class="card">
+        <h3>p99 148 ms</h3>
+        <p>COMMIT&nbsp;→&nbsp;ack at 600 events/s. p50 54&nbsp;ms, p95 111&nbsp;ms,
+          p99.9 208&nbsp;ms.</p>
+      </div>
+
+      <div class="card">
+        <h3>1450 events/s</h3>
+        <p>Highest rate delivered with the backlog flat, bracketed below 1500/s on two cores
+          shared with the database and the broker.</p>
+      </div>
+
+      <div class="card">
+        <h3>0 lost, 0 reordered</h3>
+        <p>Across all seven scenarios — saturation past the ceiling, a relay killed mid-flight, an
+          undeliverable event, three instances with one killed outright.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Latency</p>
+    <h2>Delivery time at 600 events/s</h2>
+    <p>The clock starts when the producing transaction commits and stops when Kafka acknowledges the
+      publish, both read on the same machine — which is why the database and the broker share this
+      host.</p>
+
+    <figure class="figure">
+      <img src="/assets/benchmark-latency.svg"
+           alt="COMMIT to ack latency at 600 events per second: p50 54.3, p95 111.1, p99 148.4 and p99.9 207.9 milliseconds, with the spread between three runs shown as a whisker.">
+      <figcaption>600 events/s is roughly 40% of this host&rsquo;s ceiling, so the relay is not
+        idling at these figures.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Throughput</p>
+    <h2>Past the ceiling nothing is lost</h2>
+    <p>Up to the ceiling the relay delivers one event for every event offered and the backlog stays
+      flat — a handful of rows pending at any moment, whatever the rate. Past it nothing fails and
+      nothing is dropped: the excess accumulates in the outbox and drains once the offered rate falls
+      back.</p>
+
+    <figure class="figure">
+      <img src="/assets/benchmark-throughput.svg"
+           alt="Delivered throughput against offered rate. Delivery tracks the offered rate one for one up to 1450 events per second, then flattens at that ceiling while the offered rate keeps rising, the gap accumulating as backlog.">
+      <figcaption>Two runs on this host produced the same ladder: every rate up to 1450 events/s held
+        its backlog flat, 1500 and 1600 did not.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">What sets the limit</p>
+    <h2>On this host the ceiling is the cores, not the disk</h2>
+    <p>What runs out at the ceiling is CPU: it reaches <strong>87% of both cores</strong> while disk
+      utilisation sits at <strong>7%</strong> and the relay waits on I/O for well under one percent
+      of its time. The bottleneck here is computation — encoding, publishing and polling — not the
+      rate at which the database writes to disk.</p>
+
+    <figure class="figure">
+      <img src="/assets/benchmark-resources.svg"
+           alt="CPU and disk utilisation by offered rate. CPU rises with the rate to 87 percent where the ceiling sits and 90 percent at the rate that failed, while disk utilisation stays below 14 percent throughout.">
+      <figcaption>Even at the two rates the relay could not hold, it is CPU that is exhausted —
+        90% and 92% of both cores — while the disk stays close to idle.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Scenarios</p>
+    <h2>Correctness under stress</h2>
+    <p>A pass means zero ordering violations and zero lost events — never a throughput threshold.
+      One row is marked <span class="status warn">HOST</span>: the scenario hit a limit of this
+      two-core VM, not of Tandem.</p>
+
+    <table>
+      <thead>
+        <tr><th>Scenario</th><th>What it does</th><th>Result</th><th>Observed</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sustained throughput</td>
+          <td>Finds the highest rate the relay holds</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>1450 events/s, ceiling bracketed below 1500/s</td>
+        </tr>
+        <tr>
+          <td>Latency at normal load</td>
+          <td>Holds 600 events/s and times every event</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>p50 54.1 ms, p99 145.5 ms</td>
+        </tr>
+        <tr>
+          <td>Hot partition</td>
+          <td>Sends 80% of traffic to one aggregate</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>1480 rows queued behind the hot bucket; the rest kept flowing</td>
+        </tr>
+        <tr>
+          <td>Saturation</td>
+          <td>Drives deliberately past the ceiling, then stops</td>
+          <td><span class="status warn">HOST</span></td>
+          <td>Backlog drained, but two cores need longer than the 9-minute window; nothing lost or
+            reordered meanwhile</td>
+        </tr>
+        <tr>
+          <td>Worker failover</td>
+          <td>Kills the relay mid-flight and restarts it</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>0 duplicates against a bound of 800</td>
+        </tr>
+        <tr>
+          <td>Poison message</td>
+          <td>Injects an event that can never be delivered</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>Its aggregate blocked; every other aggregate unaffected</td>
+        </tr>
+        <tr>
+          <td>Multi-instance coordination</td>
+          <td>Runs three relays and kills one outright</td>
+          <td><span class="status ok">PASS</span></td>
+          <td>Survivors re-took its 84 buckets, 256 of 256 covered, no duplicates</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="wrap prose">
+    <p class="kicker">Test environment</p>
+    <h2>What produced these numbers</h2>
+
+    <table>
+      <tbody>
+        <tr>
+          <td>Host</td>
+          <td>AWS <code>m7i-flex.large</code> — 2 vCPU, 8 GB, Ubuntu 24.04, native Docker,
+            eu-central-1</td>
+        </tr>
+        <tr>
+          <td>Topology</td>
+          <td>PostgreSQL, Kafka, the relay and the load driver on one machine, so
+            COMMIT&nbsp;→&nbsp;ack is measured against a single clock</td>
+        </tr>
+        <tr>
+          <td>Relay</td>
+          <td>8 workers, batches of 100, 256 buckets</td>
+        </tr>
+        <tr>
+          <td>Events</td>
+          <td>1&nbsp;KB payloads</td>
+        </tr>
+        <tr>
+          <td>Producer</td>
+          <td><code>acks=all</code>, <code>enable.idempotence=true</code> — the production-mandated
+            settings, never a faster configuration for the sake of a number</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:26px"><strong>Treat these as a floor.</strong> Latency is stable on this
+      host; sustained throughput is not: this is a burstable instance, whose capacity moves with recent
+      CPU use, and its ceiling ranges from 725 to 1450 events/s. Those two cores also carry
+      PostgreSQL, Kafka and the load driver alongside the relay, so a host with cores of its own
+      should do better on both counts.</p>
+
+    <p class="note">Every figure is backed by its raw run — logs, resource samples and the script
+      that redraws these charts from them — in
+      <a href="https://github.com/alirux/tandem/tree/main/docs/benchmark-results">docs/benchmark-results</a>.
+      The methodology is in
+      <a href="https://github.com/alirux/tandem/blob/main/docs/HLD-load-testing.md">HLD-load-testing.md</a>,
+      the search algorithm in
+      <a href="https://github.com/alirux/tandem/blob/main/docs/LLD-benchmark.md">LLD-benchmark.md</a>&nbsp;§7.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/alirux/tandem">GitHub</a>
+      <a href="https://central.sonatype.com/artifact/com.codingful/tandem-core">Maven Central</a>
+      <a href="https://github.com/alirux/tandem/releases">Releases</a>
+      <a href="https://github.com/alirux/tandem/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="/problems/">Problem types</a>
+      <a href="/privacy/">Privacy</a>
+    </div>
+    <p><a href="https://github.com/alirux/tandem/blob/main/LICENSE">Apache License 2.0</a> · Java
+      17+ · currently 0.x, the API is still evolving ·
+      <a href="https://github.com/alirux/tandem/blob/main/THIRD-PARTY-NOTICES.md">third-party
+        notices</a></p>
+    <p>Maintained by
+      <a class="li-link" href="https://www.linkedin.com/in/alberto-lirussi/">
+        Alberto Lirussi
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect width="24" height="24" rx="5" fill="#0A66C2"/>
+          <path fill="#FFFFFF" d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.03-1.85-3.03-1.86 0-2.15 1.45-2.15 2.94v5.66H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45zM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56z"/>
+        </svg>
+      </a></p>
+  </div>
+</footer>
+
+</body>
+</html>

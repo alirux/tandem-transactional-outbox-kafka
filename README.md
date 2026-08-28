@@ -178,6 +178,34 @@ See [LLD-benchmark.md §6.4](docs/LLD-benchmark.md) for what stitches the trace 
 spans are the shipped product versus the demo's own stand-ins for a caller's domain span and a
 consumer.
 
+## Measured performance
+
+On a small **2 vCPU / 8 GB** cloud VM sharing one machine with PostgreSQL, Kafka and the load driver,
+Tandem delivers COMMIT→ack at a **p99 of 148 ms** while carrying 600 events/s, and sustains up to
+**1450 events/s**. Zero ordering violations and zero lost events in every scenario, at every rate,
+including the rates the machine could not keep up with.
+
+<img src="docs/tandem-benchmark-latency.svg" alt="COMMIT to ack latency at 600 events per second: p50 54.3, p95 111.1, p99 148.4 and p99.9 207.9 milliseconds, with the spread between three runs shown as a whisker" width="100%" />
+
+Up to the ceiling the relay delivers one event for every event offered and the backlog stays flat.
+Past it nothing fails and nothing is dropped: the excess accumulates in the outbox and drains once
+the offered rate falls back.
+
+<img src="docs/tandem-benchmark-throughput.svg" alt="Delivered throughput against offered rate. Delivery tracks the offered rate one for one up to 1450 events per second, then flattens at that ceiling while the offered rate keeps rising, the gap accumulating as backlog" width="100%" />
+
+At the rates where the ceiling sits, what runs out on this host is CPU rather than disk — 87% of
+both cores against 7% disk utilisation.
+
+Treat these as a floor. Those two cores also carry PostgreSQL, Kafka and the load driver alongside
+the relay, and the host is a burstable instance whose ceiling ranges from 725 to 1450 events/s with
+recent CPU use; latency is stable across the same runs. A host with cores of its own should do
+better on both counts.
+
+Every figure above is backed by its raw run in
+[docs/benchmark-results/](docs/benchmark-results/) — logs, resource samples, and the script that
+redraws these charts from them. The full scenario results are on
+**[tandem.codingful.com/performance](https://tandem.codingful.com/performance/)**.
+
 ## Key features
 
 - **Per-aggregate happens-before ordering** — strict order within an `aggregate_id`, full
@@ -507,6 +535,16 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
 - **Blocking JDBC only.** The relay is a thread-per-worker pool over a `DataSource`; R2DBC and
   reactive pipelines are not supported.
 
+- **Throughput has been measured only on a burstable host.** Its capacity changes with recent CPU
+  use, so the measured ceiling ranges from 725 to 1450 events/s; latency is stable across the same
+  runs (see [Measured performance](#measured-performance)). What a host with dedicated cores
+  sustains is not yet known.
+
+- **Saturation recovery is unverified on small hardware.** The saturation scenario drives past the
+  ceiling and expects the backlog to drain inside a fixed window; two cores need longer than that,
+  so it fails there. Nothing is lost or reordered while it happens — only the recovery deadline is
+  missed.
+
 ## Future work
 
 Not yet shipped, in no particular order:
@@ -534,3 +572,14 @@ Not yet shipped, in no particular order:
   the capabilities above, and adding it back to the API contract stays an additive change.
 
 The full per-module status is in [CONTRIBUTING.md](CONTRIBUTING.md#project-layout).
+
+---
+
+> **On the name.** A tandem is a bicycle whose riders share one frame and one drivetrain: they
+> cannot pedal off to different destinations, and neither of them arrives without the other. The
+> domain change and the event announcing it ride the same way — one transaction, committed or
+> rolled back together.
+>
+> The word is Latin for *at length*, borrowed into English as a pun about horses harnessed one
+> behind the other rather than side by side. That sense is in here too: events for one aggregate
+> leave single file, in the order they were committed.
