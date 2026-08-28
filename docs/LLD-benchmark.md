@@ -222,6 +222,20 @@ The fix: every `AggregateSelector` factory takes a `namespace` (each scenario pa
 e.g. `"S1"`, `"S6"`), producing ids like `"S1-bench-agg-0"` / `"S6-bench-agg-0"`. `LagProbe`'s
 drain-related queries (§6.1) are scoped the same way, for the identical reason.
 
+**Namespacing keeps scenarios from colliding; it does not keep them from inheriting.** A scenario that
+ends with rows still pending — S4 saturates deliberately, and on a small host cannot always work the
+backlog off inside its window — leaves them in the shared `tandem_outbox` for whatever runs next, which
+then measures its own load *plus* the leftovers and can miss its own drain deadline as a direct result.
+Observed exactly that way: on a two-core host S4 timed out, and S5 then timed out behind it, having
+passed comfortably when run in a separate process. `LoadTestRunner` therefore calls
+`BenchmarkEnvironment.resetBetweenScenarios()` before each scenario, truncating `tandem_outbox`,
+`tandem_bucket_lease` (the multi-instance scenario leaves ownership rows) and `bench_aggregate` (whose
+version counters would otherwise keep climbing).
+
+This was invisible for as long as an exception from one scenario aborted the whole batch — the polluted
+scenarios never got to run. Isolating the exceptions is what exposed it, which is the general lesson
+worth keeping: **isolating failures is not the same as isolating state.**
+
 ---
 
 ## 5. `CorrelationConsumer` — latency capture + correctness verifier
@@ -667,9 +681,9 @@ result back, not by inspection:
    running* — which effectively tested whether the system could absorb a continuously **increasing**
    rate for the whole `sustainWindow`, a bar that is nearly impossible to clear (compounding a 10%
    step every 2s observation window over a 20s window is already a ~2.6× rate increase within the
-   very window meant to *confirm* a fixed rate). Fixed by splitting into two explicit phases: once a
-   candidate rate looks acceptable, **freeze it** and hold it fixed for the entire `sustainWindow`
-   before either confirming it (then resuming the additive ramp *from* there) or backing off.
+   very window meant to *confirm* a fixed rate). Fixed by separating the *predicate* from the
+   *search*: a candidate rate is **frozen** and held fixed for the entire `sustainWindow`, and only
+   its verdict — held or grew — feeds back into choosing the next candidate.
 2. **Compare against a tolerance-banded baseline, not the immediately preceding sample with none.**
    Fixing (1) alone still produced `0.0`: the relay claims in batches (up to `batchSize` rows per poll
    cycle), so the pending count naturally saw-tooths by roughly that magnitude within a single poll
@@ -682,26 +696,67 @@ result back, not by inspection:
 
 As-built algorithm (`findSustainableMax(generator, initialRate, budget)`):
 
-- **Single continuous hold, re-anchored on every rate change.** Every time the rate changes (up on
-  confirmation, down on backoff), a fresh hold starts immediately with `holdBaselinePending` = the
-  current pending count. While `pending() <= holdBaselinePending + toleranceRows`, the hold continues
-  and the rate is left untouched. If pending exceeds that band, **back off multiplicatively**
-  (`rate *= 1 - backoffFraction`) and start a new hold at the lower rate. If the hold survives the
-  whole `sustainWindow` within the band, **confirm** `bestSustained = rate`, then **step up
-  additively** (`rate *= 1 + rampStepFraction`) and start a new hold at the higher rate.
-- **Sustain gate.** The caller passes `BenchmarkConfig.duration()` as `sustainWindow`, so on the
-  full-run default (10 min) it matches the HLD's "held ≥ 10 min" gate; on the smoke/demo configs
-  (§10) it is proportionally short. A burst peak that cannot hold for the full window at a **fixed**
+**The search is a named algorithm, not an invented one** — **exponential search to bracket, then
+bisection**, the standard method for locating the boundary of a monotone predicate over an unbounded
+domain. The two layers are kept separate on purpose:
+
+- **The predicate** — "rate `R` keeps the backlog flat for a whole `sustainWindow`" — is evaluated by
+  the hold logic below. It is **assumed monotone in `R`** (a host that sustains `R` sustains anything
+  below it), and that assumption is what licenses bisection; it is the one modelling claim the class
+  makes, stated in its javadoc.
+- **The search** over `R` is `RampController.afterHold(search, held)`, a pure function of one hold's
+  outcome, extracted from the polling loop precisely so its convergence is pinned by unit tests
+  (`RampControllerTest`) with no database, no relay, and none of the wall-clock waiting a real search
+  spends. The search state is the interval `[lo, hi]` plus the candidate being tested; `hi` is
+  `+∞` until the first failing rate is seen — the honest encoding of "the ceiling is above `lo`, and
+  nothing more is known". One expression covers both phases: while `hi` is infinite the next candidate
+  is `lo × 2`; once finite it is the midpoint.
+- **Convergence, which is the reason for the choice.** Doubling brackets a ceiling `k` octaves above
+  the seed in `k` holds; each bisection then halves the bracket, so from `[lo, 2·lo]` the relative
+  uncertainty after `n` bisections is `2⁻ⁿ` — **stated in advance, independent of the remaining
+  budget**. The search stops as soon as the bracket is within `relativeTolerance` (S1: 5%, reported in
+  the summary; S2: 15%, since it only needs the right neighbourhood — latency, not the rate, is its
+  KPI), rather than burning the rest of the budget.
+- **`bracketed` is part of the result, and callers must honour it.** If no rate ever failed, the
+  search located nothing: the figure is `seed × 2ⁿ` for whatever `n` the budget allowed, identical on
+  every host. `RampResult.bracketed()` says whether an upper witness was ever observed, and S1 refuses
+  to present an unbracketed figure as a maximum (HLD-load-testing §3.1). It stays out of
+  `ScenarioResult.passed`, which is correctness-only (§8).
+
+**What this replaced, and why it is recorded here.** The original search was additive-increase /
+multiplicative-decrease with no bracket and no termination condition — it oscillated around the
+ceiling and returned whatever rate the budget stopped it on. With `sustainWindow` also set to half the
+search budget, exactly two increments fitted, and S1 reported `100 × 1.1² = 110 events/s` on every
+host, at every `duration`, for both the demo and full configs. It was caught by a reader asking why
+the number never moved, not by the harness. The lesson generalised into HLD-load-testing §3.1: a
+custom driver does not license a custom method, and a KPI must carry the evidence that it is one.
+
+- **Single continuous hold, re-anchored on every rate change.** Every time the candidate changes, a
+  fresh hold starts immediately with `holdBaselinePending` = the current pending count. While
+  `pending() <= holdBaselinePending + toleranceRows`, the hold continues and the rate is left
+  untouched. If pending exceeds that band the hold **fails** (that rate becomes `hi`); if it survives
+  the whole `sustainWindow` within the band the hold **holds** (that rate becomes `lo`). Either way
+  the next candidate comes from `afterHold`.
+- **Sustain gate.** `sustainWindow` is `ScenarioSupport.sustainWindowFor(cfg)` — a **quarter** of
+  `BenchmarkConfig.duration()`, floored at twice the observation window. It must stay a *fraction* of
+  the search budget: set equal to it (as it once was), no bracketing is possible at all, because a
+  single hold consumes everything. A burst peak that cannot hold for the full window at a **fixed**
   rate is never reported as the max.
+- **Observation cadence.** `ScenarioSupport.observationWindowFor(cfg)` is capped at 5s rather than
+  scaling with `duration`: it is a sampling cadence, not a measurement window, and a 10-minute run
+  gains nothing from checking the backlog once a minute — the sustain window needs several samples
+  inside it.
 - `RampController` doesn't own the `LoadGenerator`'s lifecycle: it calls `generator.start(rate)`
   internally but leaves `generator.stop()` to the caller, so a scenario retains normal
   try-with-resources ownership of the generator it constructed.
 - The reported result is the aggregate rate; each scenario divides by `BenchmarkConfig.workers()` for
   the per-shard number (HLD-load-testing.md §1.1).
-- **S2's own quick-ramp needed the same search-budget/sustain-window split as S1** (`duration` vs.
-  `duration × 2`, §8): it originally used one duration for both, which — once the hold-based algorithm
-  needed the *entire* sustain window uninterrupted just to confirm a single candidate — left no time
-  for even one backoff-and-retry cycle.
+- **S2's own quick-ramp needs the same budget-to-sustain-window ratio as S1, for the same reason.** It
+  runs a shorter search (sustain window `max(10s, duration/8)`, budget six of those) purely to place
+  the offered load in the right neighbourhood before measuring latency at half of it. It originally
+  used one duration for both, then two sustain windows — neither leaves room to bracket, so the
+  "normal load" it measured latency at was a fixed multiple of the seed rather than half of what the
+  host sustains.
 
 ---
 
@@ -722,11 +777,12 @@ throughput number on a laptop must still be able to *pass*.
 `ScenarioSupport` (package-private) holds the logic every scenario shares: `verify(generator, consumer)`
 (the correctness reconciliation above), `waitForDrain(lagProbe, namespace, timeout)` /
 `waitForOthersToDrain(lagProbe, namespace, excludedId, timeout)` (§6.1's namespace-scoped, FAILED-excluding
-polls), and small duration helpers (`observationWindowFor`, `maxDuration`, `minDuration`).
+polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, `maxDuration`,
+`minDuration`).
 
 | ID | Focus | As-built orchestration |
 |---|---|---|
-| **S1** | Sustained max throughput | `RampController` over a uniform `AggregateSelector`; search budget = `duration × 2`; reports aggregate + per-worker rate |
+| **S1** | Sustained max throughput | `RampController` over a uniform `AggregateSelector`; search budget = `duration × 2`, sustain window = `duration / 4`, tolerance 5%; reports aggregate + per-worker rate, **as a maximum only if the search bracketed it** (§7) |
 | **S2** | Latency at normal load | A short internal ramp estimates a sustainable rate, then holds 50% of it for `duration`, discarding a `warmup` window; the only scenario using `ACCURATE` latency mode |
 | **S3** | Hot partition / skew | `AggregateSelector.skewed` (80% hot fraction) at a fixed offered rate, driven for `min(duration, MAX_DRIVE=10s)` regardless of the configured `duration` (see below); reports hot-bucket pending vs. cold-buckets-with-backlog (`BucketHash.bucketFor` locates the hot bucket) — informational only, not gated |
 | **S4** | Saturation / backpressure | Offers a deliberately enormous nominal rate (the in-flight semaphore + real DB/broker capacity self-limit actual throughput — no need to know S1's measured max first), then drops to a trickle and confirms full drain |
@@ -953,6 +1009,12 @@ no measurable time. No product code involved.
 - **Official numbers** come from the reference host (§5 baseline), on a schedule or before a release;
   results are archived for regression tracking. Developer-machine runs are correctness/behaviour only
   (HLD-load-testing.md §5.1).
+- **Archived runs live in [`docs/benchmark-results/`](benchmark-results/)** — the harness's own stdout
+  (minus the one per-poll DEBUG line that is 99.9% of its bytes and carries no result), the resource
+  samples taken alongside, and `render-charts.py`, which redraws `docs/tandem-benchmark-*.svg` by
+  **parsing those files**: the ramp trace and percentiles out of the logs, the per-rate CPU windows
+  out of the CSV, and the ceiling bracket and its error bar out of which rates held. No published
+  chart carries a transcribed number, so a stale chart is a failed redraw rather than a quiet lie.
 
 ---
 

@@ -165,6 +165,35 @@ it is not re-litigated later:
 - **JMH** — the right tool for a *micro*-benchmark of the insert hot path, but not a
   sustained-load / end-to-end harness; it may complement this plan, not replace it.
 
+**A custom harness does not license a custom *method*.** The list above argues that no
+existing tool can *measure* what this KPI is (COMMIT→ack at the correlation consumer, under
+one clock, §2.3) or *orchestrate* what S3–S8 do. It says nothing about the algorithms the
+harness then runs, and the two must not be conflated: **anything the harness computes that
+is a known problem must use the known solution**, named in the design and in the code, with
+its properties stated. Writing a bespoke one is not a smaller decision because the
+surrounding harness is already bespoke — it is the same decision made again, with less
+scrutiny.
+
+This was learnt the expensive way. S1's rate search was originally hand-rolled as an
+additive-increase / multiplicative-decrease loop with no bracket, so it had no convergence
+property at all: it oscillated around the ceiling and returned whatever rate the budget
+happened to stop it on. Combined with a sustain window set to half the search budget, that
+allowed exactly two increments, and S1 reported `seed × 1.1²` — **the same figure on every
+host and at every duration** — as a measured maximum, for as long as nobody multiplied it
+out. Finding the boundary of a monotone predicate is a solved problem; the search is now
+**exponential bracketing followed by bisection** (LLD-benchmark §7), whose precision is
+stated up front rather than being an artefact of the stopping time.
+
+**A KPI must carry the evidence that it is one.** The defect above was undetectable in the
+output: a number that is an artefact and a number that is a measurement look identical once
+printed. Every measured KPI in this harness therefore reports whether its own procedure
+actually established it — S1 reports a throughput as a maximum **only if the search observed
+a rate the host could not hold** (`bracketed`), and otherwise reports it, loudly, as a lower
+bound set by the budget. This does **not** gate `ScenarioResult.passed`, which stays
+correctness-only (LLD-benchmark §8): a slow host must still be able to pass, and an
+unconverged search is not a failing system — it is an absent measurement, which is a
+statement about the run, not about Tandem.
+
 ---
 
 ## 4. Scenarios
@@ -275,7 +304,11 @@ non-negotiable regardless of performance).
 - Triggered by an explicit task (`./gradlew :tandem-benchmark:loadTest`), **not** part of PR CI: they
   are slow, resource-hungry, and would be flaky on shared runners.
 - Run on a schedule (nightly/weekly) on the reference host, or on demand before a release;
-  results (throughput numbers, latency histograms) are archived for regression tracking.
+  results (throughput numbers, latency histograms) are archived for regression tracking in
+  [`docs/benchmark-results/`](benchmark-results/), together with the resource samples taken
+  alongside each run and the script that redraws the published charts **from** them. Anything
+  Tandem publishes as a performance figure has its raw run archived there — a number whose
+  measurement cannot be re-examined is not one this project quotes.
 - A *smoke* variant (tiny rate, short duration) **does** run — `SmokeLoadTest`
   (`@Tag("integration")`) covers S1, S3, S5, S6 against `BenchmarkConfig.toSmoke()`, purely
   to keep the harness compiling and wired; it asserts correctness, never KPI numbers.

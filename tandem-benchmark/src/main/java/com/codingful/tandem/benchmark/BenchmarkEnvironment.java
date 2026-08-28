@@ -195,6 +195,38 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         return faultInjector;
     }
 
+    /**
+     * Empties every table the scenarios write to, so each one starts from the state the first one
+     * found (LLD-benchmark §8).
+     *
+     * <p>Scenarios share one environment, and sharing it turned out to mean sharing its
+     * <i>contents</i>: a scenario that ends with a backlog — S4 saturates on purpose, and on a small
+     * host cannot always work it off inside its window — leaves those rows for whatever runs next,
+     * which then measures its own load plus the leftovers. That made results order-dependent, and it
+     * stayed hidden while an exception from one scenario aborted the whole batch; isolating the
+     * exceptions is what exposed it. Isolating the exception is not the same as isolating the state.
+     *
+     * <p>Called between scenarios, with every relay pool already stopped. {@code bench_aggregate} is
+     * included because its version counters would otherwise keep climbing across scenarios that
+     * address the same synthetic aggregates.
+     *
+     * <p><b>{@code tandem_bucket_lease} is cleared, never truncated.</b> Its rows are not runtime
+     * state: the baseline DDL seeds exactly one per virtual bucket, and a {@code LEASE} relay refuses
+     * to start unless it finds {@code bucketCount} of them — so emptying the table makes the
+     * multi-instance scenario fail at startup with a configuration error rather than run. Only the
+     * ownership columns are reset, which is what "no one owns anything yet" actually means here.
+     */
+    public void resetBetweenScenarios() {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("TRUNCATE TABLE tandem_outbox, bench_aggregate");
+            stmt.execute("UPDATE tandem_bucket_lease "
+                    + "SET owner = NULL, lease_until = NULL, paused = false, updated_at = now()");
+        } catch (SQLException e) {
+            throw new IllegalStateException("resetting the environment between scenarios failed", e);
+        }
+    }
+
     /** A consumer subscribed to the benchmark topic, reading from the beginning. Caller closes it. */
     public KafkaConsumer<String, byte[]> newConsumer(String groupId) {
         Map<String, Object> consumerConfig = new HashMap<>();

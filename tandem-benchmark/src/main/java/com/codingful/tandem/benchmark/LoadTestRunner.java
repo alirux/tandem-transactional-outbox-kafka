@@ -40,11 +40,13 @@ import java.util.Set;
  * </ul>
  * The scenario list defaults to all six.
  *
- * <p>Scenarios are isolated from one another: an exception thrown by one (an assertion failure inside
- * it, or a bounded wait — e.g. draining the backlog — timing out) is caught, reported as a {@code FAIL}
- * line, and counted into the run's overall correctness like any other failure — it does not abort the
- * remaining scenarios or the process. Each {@link Scenario} implementation stops its own relay pool in
- * a {@code finally} block, so the shared {@link BenchmarkEnvironment} stays usable for the next one.
+ * <p>Scenarios are isolated from one another in two respects, and both are needed. An exception thrown
+ * by one (an assertion failure inside it, or a bounded wait — e.g. draining the backlog — timing out)
+ * is caught, reported as a {@code FAIL} line, and counted into the run's overall correctness like any
+ * other failure, rather than aborting the batch. And the environment is emptied before each scenario
+ * ({@link BenchmarkEnvironment#resetBetweenScenarios()}), so one that ends with rows still in the
+ * outbox cannot hand them to the next: without that, a scenario measured its own load plus whatever
+ * the previous one left behind, which made results depend on the order they ran in.
  */
 public final class LoadTestRunner {
 
@@ -80,6 +82,7 @@ public final class LoadTestRunner {
                     continue;
                 }
                 System.out.println("--- Running " + id + " ---");
+                env.resetBetweenScenarios();
                 try {
                     ScenarioResult result = scenario.run(ctx);
                     System.out.println((result.passed() ? "PASS " : "FAIL ") + result.scenarioId() + ": " + result.summary());

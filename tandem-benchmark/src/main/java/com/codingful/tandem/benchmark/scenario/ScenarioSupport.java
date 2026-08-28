@@ -74,10 +74,29 @@ final class ScenarioSupport {
         throw new IllegalStateException("other aggregates did not drain within " + timeout);
     }
 
-    /** A ramp observation window scaled to a short (smoke) or long (full) {@code duration}, floored at 1s. */
+    /**
+     * How often the ramp samples the backlog: a few seconds, floored at 1s and never longer than a
+     * tenth of {@code duration} (so a smoke run still samples several times). Capped rather than scaled
+     * because this is a sampling cadence, not a measurement window — a 10-minute run gains nothing from
+     * checking the backlog once a minute, and {@link #sustainWindowFor} needs several samples inside it.
+     */
     static Duration observationWindowFor(BenchmarkConfig cfg) {
         Duration tenth = cfg.duration().dividedBy(10);
-        return tenth.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1) : tenth;
+        Duration capped = minDuration(tenth, Duration.ofSeconds(5));
+        return capped.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1) : capped;
+    }
+
+    /**
+     * How long one candidate rate must hold flat to count as sustained: a <b>quarter</b> of
+     * {@code duration}, so that a search budget of a small multiple of {@code duration} affords several
+     * ramp steps. It must stay a fraction of the budget rather than equal it: with
+     * {@code sustainWindow == budget / 2} the search can only ever confirm two steps, and S1 then
+     * reports {@code seed × (1 + step)²} — the same number on every run and on every host, set by that
+     * arithmetic rather than by the system under test. Floored at 2× the observation window so each
+     * hold is judged on more than a single sample.
+     */
+    static Duration sustainWindowFor(BenchmarkConfig cfg) {
+        return maxDuration(cfg.duration().dividedBy(4), observationWindowFor(cfg).multipliedBy(2));
     }
 
     static Duration maxDuration(Duration a, Duration b) {

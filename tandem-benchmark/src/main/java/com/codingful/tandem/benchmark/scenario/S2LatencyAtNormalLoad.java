@@ -44,14 +44,16 @@ public final class S2LatencyAtNormalLoad implements Scenario {
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), commitTimestamps)) {
             consumer.start();
 
-            // The sustain window a candidate rate must hold flat for, distinct from the (longer)
-            // total search budget — mirrors S1's duration-vs-duration*2 split (RampController now
-            // freezes the rate for the whole sustain window per hold, so the two must not be equal
-            // or there is no time left for even one backoff-and-retry cycle).
-            Duration quickRampSustainWindow = ScenarioSupport.maxDuration(Duration.ofSeconds(10), cfg.duration().dividedBy(4));
-            Duration quickRampSearchBudget = quickRampSustainWindow.multipliedBy(2);
+            // The sustain window a candidate rate must hold flat for, distinct from the (longer) total
+            // search budget — mirrors S1's split. The budget must be several sustain windows, not two:
+            // at two the search cannot bracket the ceiling at all, and the "normal load" this scenario
+            // then measures latency at is a fixed multiple of the seed rather than half of what the host
+            // can actually sustain. A coarser tolerance than S1's is deliberate: this ramp only has to
+            // place the load in the right neighbourhood, since latency — not the rate — is the KPI here.
+            Duration quickRampSustainWindow = ScenarioSupport.maxDuration(Duration.ofSeconds(10), cfg.duration().dividedBy(8));
+            Duration quickRampSearchBudget = quickRampSustainWindow.multipliedBy(6);
             RampController ramp = new RampController(env.lagProbe(),
-                    ScenarioSupport.observationWindowFor(cfg), quickRampSustainWindow, 0.15, 0.3, cfg.batchSize());
+                    ScenarioSupport.observationWindowFor(cfg), quickRampSustainWindow, 0.15, cfg.batchSize());
             RampController.RampResult quick = ramp.findSustainableMax(generator, 100.0, quickRampSearchBudget);
             double normalLoadRate = Math.max(1.0, quick.sustainedRatePerSecond() * 0.5);
             generator.setRate(normalLoadRate);
