@@ -1,0 +1,1313 @@
+> Task :tandem-benchmark:processResources UP-TO-DATE
+> Task :tandem-core:compileJava UP-TO-DATE
+> Task :tandem-jdbc:processResources UP-TO-DATE
+> Task :tandem-jdbc:compileJava UP-TO-DATE
+> Task :tandem-kafka:compileJava UP-TO-DATE
+> Task :tandem-micrometer:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:compileJava UP-TO-DATE
+> Task :tandem-core:processResources NO-SOURCE
+> Task :tandem-core:classes UP-TO-DATE
+> Task :tandem-core:jar UP-TO-DATE
+> Task :tandem-jdbc:classes UP-TO-DATE
+> Task :tandem-jdbc:jar UP-TO-DATE
+> Task :tandem-test:compileJava UP-TO-DATE
+> Task :tandem-kafka:processResources NO-SOURCE
+> Task :tandem-kafka:classes UP-TO-DATE
+> Task :tandem-kafka:jar UP-TO-DATE
+> Task :tandem-micrometer:processResources NO-SOURCE
+> Task :tandem-micrometer:classes UP-TO-DATE
+> Task :tandem-micrometer:jar UP-TO-DATE
+> Task :tandem-test:processResources NO-SOURCE
+> Task :tandem-test:classes UP-TO-DATE
+> Task :tandem-test:jar UP-TO-DATE
+> Task :tandem-tracing-otel:processResources NO-SOURCE
+> Task :tandem-tracing-otel:classes UP-TO-DATE
+> Task :tandem-tracing-otel:jar UP-TO-DATE
+> Task :tandem-benchmark:compileJava UP-TO-DATE
+> Task :tandem-benchmark:classes UP-TO-DATE
+
+> Task :tandem-benchmark:loadTest
+Tandem load test — scenarios=[S1, S2, S3, S4, S5, S6, S8], smoke=false, demo=false, duration=PT3M, workers=8
+--- Running S1 ---
+13:29:55 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+  ramp 13:30:40  held  rate:100.0/s bracket:[100.0, unbounded] next:200.0/s pending:5
+  ramp 13:31:25  held  rate:200.0/s bracket:[200.0, unbounded] next:400.0/s pending:9
+400.0/s bracket:[400.0, unbounded] next:800.0/s pending:33
+  ramp 13:32:55  held  rate:800.0/s bracket:[800.0, unbounded] next:1600.0/s pending:38
+13:33:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w4, processed:10000, ok:10000, ko:0
+13:33:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w3, processed:10000, ok:10000, ko:0
+13:33:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w7, processed:10000, ok:10000, ko:0
+13:33:05 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w6, processed:10000, ok:10000, ko:0
+13:33:05 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w2, processed:10000, ok:10000, ko:0
+13:33:05 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w1, processed:10000, ok:10000, ko:0
+13:33:06 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w5, processed:10000, ok:10000, ko:0
+13:33:06 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w0, processed:10000, ok:10000, ko:0
+  ramp 13:33:10  grew  rate:1600.0/s bracket:[800.0, 1600.0] next:1200.0/s pending:187
+  ramp 13:33:55  held  rate:1200.0/s bracket:[1200.0, 1600.0] next:1400.0/s pending:77
+13:34:08 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w4, processed:20000, ok:20000, ko:0
+13:34:09 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w7, processed:20000, ok:20000, ko:0
+13:34:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w5, processed:20000, ok:20000, ko:0
+13:34:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w3, processed:20000, ok:20000, ko:0
+13:34:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w2, processed:20000, ok:20000, ko:0
+13:34:11 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w6, processed:20000, ok:20000, ko:0
+13:34:12 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w1, processed:20000, ok:20000, ko:0
+13:34:12 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w0, processed:20000, ok:20000, ko:0
+  ramp 13:34:15  grew  rate:1400.0/s bracket:[1200.0, 1400.0] next:1300.0/s pending:331
+  ramp 13:35:01  held  rate:1300.0/s bracket:[1300.0, 1400.0] next:1350.0/s pending:104
+13:35:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w4, processed:30000, ok:30000, ko:0
+13:35:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w5, processed:30000, ok:30000, ko:0
+13:35:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w7, processed:30000, ok:30000, ko:0
+13:35:14 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w2, processed:30000, ok:30000, ko:0
+13:35:14 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w1, processed:30000, ok:30000, ko:0
+13:35:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w0, processed:30000, ok:30000, ko:0
+13:35:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w3, processed:30000, ok:30000, ko:0
+13:35:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w6, processed:30000, ok:30000, ko:0
+  ramp 13:35:46  held  rate:1350.0/s bracket:[1350.0, 1400.0] next:1375.0/s pending:75
+13:35:47 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+13:35:47 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+PASS S1: sustained 1350.0 events/s aggregate (168.8/s per worker); ceiling bracketed below 1400.0/s, so known to within 4%; ordering violations=0, missing=0
+--- Running S2 ---
+  ramp 13:36:12  held  rate:100.0/s bracket:[100.0, unbounded] next:200.0/s pending:2
+  ramp 13:36:37  held  rate:200.0/s bracket:[200.0, unbounded] next:400.0/s pending:12
+  held  rate:400.0/s bracket:[400.0, unbounded] next:800.0/s pending:25
+  ramp 13:37:17  grew  rate:800.0/s bracket:[400.0, 800.0] next:600.0/s pending:373
+  ramp 13:37:42  held  rate:600.0/s bracket:[600.0, 800.0] next:700.0/s pending:25
+13:39:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w4, processed:10000, ok:10000, ko:0
+13:39:12 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w2, processed:10000, ok:10000, ko:0
+13:39:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w1, processed:10000, ok:10000, ko:0
+13:39:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w7, processed:10000, ok:10000, ko:0
+13:39:14 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w5, processed:10000, ok:10000, ko:0
+13:39:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w0, processed:10000, ok:10000, ko:0
+13:39:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w6, processed:10000, ok:10000, ko:0
+13:39:21 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-34200-e040-w3, processed:10000, ok:10000, ko:0
+13:41:33 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+PASS S2: normal-load rate 300.0/s; p50=PT0.052264959S p95=PT0.106364927S p99=PT0.122159103S p999=PT0.189267967S; ordering violations=0, missing=0
+--- Running S3 ---
+13:41:33 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+PASS S3: hot-bucket pending=1442, cold buckets with backlog=2 (isolated=false); ordering violations=0, missing=0
+13:44:32 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+--- Running S4 ---
+13:44:32 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+13:45:49 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:468
+13:48:08 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:69
+13:55:30 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:70
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@1ebd3297 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@2a63f2ee (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@18aad4a9 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@1a445e6b (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@b3990a8 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@3e78f7a3 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@70396359 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@48b6dc33 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@f4db95d (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@767192f8 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@4de904c4 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@33401e0e (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@51a5de6a (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@2b3970f4 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@2ef38e73 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@1df045cd (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@62599e97 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@287ecf8 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@30356acd (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@2f748f2b (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@1f70174 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@3caacd9e (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@27d2bbc4 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+[] [WARN] com.zaxxer.hikari.pool.PoolBase - tandem-benchmark - Failed to validate connection org.postgresql.jdbc.PgConnection@2c5475c2 (This connection has been closed.). Possibly consider using a shorter maxLifetime value.
+13:57:42 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+FAIL S4: threw IllegalStateException: backlog did not drain within PT9M
+--- Running S5 ---
+13:57:42 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+13:59:19 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+14:00:20 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+14:10:59 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+FAIL S5: threw IllegalStateException: backlog did not drain within PT9M
+--- Running S6 ---
+14:10:59 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-34200-e040, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+14:12:02 SEVERE  com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed permanently rowId:675706, aggregateType:BenchAggregate, aggregateId:S6-bench-agg-0, attempts:1
+14:12:10 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:12:55 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:13:35 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:14:16 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:15:02 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:15:53 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:17:17 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-34200-e040
+FAIL S6: threw IllegalStateException: other aggregates did not drain within PT3M
+--- Running S8 ---
+14:17:17 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-1, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+14:17:17 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-2, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+14:17:17 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-3, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+14:17:17 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-1, count:256
+14:17:20 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released excess buckets owner:s8-instance-1, count:170
+14:17:21 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-2, count:86
+14:17:22 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-3, count:84
+14:17:34 WARNING com.codingful.tandem.jdbc.BucketLeaseManager - Relay pruned dead member(s), presence lease expired owner:s8-instance-1, deadOwners:[s8-instance-3]
+14:17:34 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-1, count:42
+14:17:35 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-2, count:42
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:467472, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:467510, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:470109, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:471790, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:472619, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:472854, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:473398, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:476438, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:678429, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679149, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679684, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679753, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679777, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679919, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:679998, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680030, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680146, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680185, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680211, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680225, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680235, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680271, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680273, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680321, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680428, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680456, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680463, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680506, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680550, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680636, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680696, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680740, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680775, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680812, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680863, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:680922, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681018, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681159, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681226, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681443, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681451, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681765, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:681841, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682182, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682286, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682354, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682443, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682576, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:682766, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684147, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684194, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684196, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684201, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684215, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684223, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684268, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+[tandem-relay-s8-instance-3-w0] [ERROR] com.codingful.tandem.kafka.KafkaRelay - Sending outbox row failed synchronously rowId:684297, topic:tandem-benchmark-events
+org.apache.kafka.common.errors.InterruptException: java.lang.InterruptedException
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1121)
+	at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:993)
+	at com.codingful.tandem.kafka.KafkaRelay.dispatch(KafkaRelay.java:112)
+	at com.codingful.tandem.benchmark.FaultInjectingDispatcher.dispatch(FaultInjectingDispatcher.java:27)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:104)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:219)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:192)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: java.lang.InterruptedException
+	at java.base/java.lang.Object.wait0(Native Method)
+	at java.base/java.lang.Object.wait(Object.java:389)
+	at org.apache.kafka.common.utils.SystemTime.waitObject(SystemTime.java:60)
+	at org.apache.kafka.clients.producer.internals.ProducerMetadata.awaitUpdate(ProducerMetadata.java:123)
+	at org.apache.kafka.clients.producer.KafkaProducer.waitOnMetadata(KafkaProducer.java:1180)
+	at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:1027)
+	... 7 more
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:467472, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-794, attempts:1, delayMs:744
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:467510, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-202, attempts:1, delayMs:52
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:470109, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-471, attempts:1, delayMs:859
+14:17:50 SEVERE  com.codingful.tandem.jdbc.WorkerPool - Relay worker iteration failed workerIndex:0, instanceId:s8-instance-3
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:471790, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-909, attempts:1, delayMs:827
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:472619, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-527, attempts:1, delayMs:747
+14:17:50 WARNING com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed, retrying rowId:472854, aggregateType:BenchAggregate, aggregateId:S4-bench-agg-215, attempts:1, delayMs:923
+14:17:50 SEVERE  com.codingful.tandem.jdbc.WorkerPool - Relay worker died; restarting workerIndex:0
+14:18:17 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:170
+14:18:22 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:467
+14:18:34 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:510
+14:18:34 WARNING com.codingful.tandem.jdbc.BucketLeaseManager - Relay pruned dead member(s), presence lease expired owner:s8-instance-1, deadOwners:[s8-instance-2]
+14:18:35 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:315
+14:18:51 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:38
+14:18:53 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:76
+14:18:54 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:44
+14:18:55 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:18:56 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:18:58 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:49
+14:19:03 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:292
+14:19:04 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:19:05 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:92
+14:19:07 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:24
+14:19:18 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:84
+14:19:28 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:169
+14:19:29 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:19:31 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:19:35 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:200
+14:19:39 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:66
+14:19:41 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:300
+14:19:41 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:91
+14:19:47 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:19:49 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:94
+14:20:00 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:02 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:65
+14:20:07 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:08 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:152
+14:20:08 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:74
+14:20:10 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:77
+14:20:13 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:82
+14:20:14 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:99
+14:20:15 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:96
+14:20:15 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:77
+14:20:16 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:20:21 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:88
+14:20:21 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:32 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:35 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:20:39 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:97
+14:20:45 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:73
+14:20:48 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:85
+14:20:49 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:92
+14:20:49 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:64
+14:20:50 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:52 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:90
+14:20:54 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:99
+14:20:55 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:57 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:20:59 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:95
+14:20:59 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:21:02 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:21:04 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:21:17 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:65
+14:21:18 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:96
+14:21:22 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:82
+14:21:27 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:96
+14:21:29 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:76
+14:21:29 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:85
+14:21:34 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:94
+14:21:37 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:71
+14:21:39 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:21:40 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:74
+14:21:42 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:21:46 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:21:50 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:84
+14:21:52 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:282
+14:21:54 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:22:04 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:22:09 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:60
+14:22:10 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:173
+14:22:12 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:86
+14:22:20 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:57
+14:22:23 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:83
+14:22:27 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:80
+14:22:30 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:92
+14:22:30 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:90
+14:22:31 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:62
+14:22:38 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:97
+14:22:41 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:192
+14:22:47 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:22:54 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:173
+14:22:57 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:22:58 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:72
+14:22:59 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:86
+14:23:04 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:74
+14:23:09 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:91
+14:23:12 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:67
+14:23:16 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:23:17 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:79
+14:23:22 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:70
+14:23:28 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:91
+14:23:33 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:173
+14:23:34 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:88
+14:23:43 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:77
+14:23:45 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:53
+14:23:46 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:79
+14:23:46 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:85
+14:23:49 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:100
+14:23:58 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:53
+14:24:00 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:93
+14:24:01 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:159
+14:24:06 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:64
+14:24:09 WARNING com.codingful.tandem.jdbc.BucketLeaseManager - Relay pruned dead member(s), presence lease expired owner:s8-instance-2, deadOwners:[s8-instance-1]
+14:24:10 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-2, count:128
+14:24:13 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:86
+14:24:26 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:92
+14:24:28 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:91
+14:24:33 FINE    com.codingful.tandem.jdbc.WorkerPool - Reclaimed expired leases count:92
+14:24:35 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s8-instance-1
+14:24:55 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released all owned buckets owner:s8-instance-2, count:256
+FAIL S8: threw IllegalStateException: backlog did not drain within PT3M
+One or more scenarios FAILED correctness.
+14:24:55 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s8-instance-2
+
+> Task :tandem-benchmark:loadTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':tandem-benchmark:loadTest' (registered in build file 'tandem-benchmark/build.gradle.kts').
+> Process 'command '/usr/lib/jvm/java-25-openjdk-amd64/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 55m 15s
+16 actionable tasks: 1 executed, 15 up-to-date

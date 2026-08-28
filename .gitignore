@@ -20,5 +20,8 @@ schema/**/databasechangelog.csv
 # OS
 .DS_Store
 
+# Python bytecode (docs/benchmark-results/render-charts.py)
+__pycache__/
+
 # Claude Code (machine-local, never shared)
 .claude/

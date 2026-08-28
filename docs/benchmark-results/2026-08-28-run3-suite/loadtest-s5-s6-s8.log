@@ -1,0 +1,62 @@
+> Task :tandem-benchmark:processResources UP-TO-DATE
+> Task :tandem-jdbc:processResources UP-TO-DATE
+> Task :tandem-core:compileJava UP-TO-DATE
+> Task :tandem-jdbc:compileJava UP-TO-DATE
+> Task :tandem-micrometer:compileJava UP-TO-DATE
+> Task :tandem-kafka:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:compileJava UP-TO-DATE
+> Task :tandem-core:processResources NO-SOURCE
+> Task :tandem-core:classes UP-TO-DATE
+> Task :tandem-core:jar UP-TO-DATE
+> Task :tandem-jdbc:classes UP-TO-DATE
+> Task :tandem-test:compileJava UP-TO-DATE
+> Task :tandem-jdbc:jar UP-TO-DATE
+> Task :tandem-kafka:processResources NO-SOURCE
+> Task :tandem-kafka:classes UP-TO-DATE
+> Task :tandem-kafka:jar UP-TO-DATE
+> Task :tandem-micrometer:processResources NO-SOURCE
+> Task :tandem-micrometer:classes UP-TO-DATE
+> Task :tandem-micrometer:jar UP-TO-DATE
+> Task :tandem-test:processResources NO-SOURCE
+> Task :tandem-test:classes UP-TO-DATE
+> Task :tandem-test:jar UP-TO-DATE
+> Task :tandem-tracing-otel:processResources NO-SOURCE
+> Task :tandem-tracing-otel:classes UP-TO-DATE
+> Task :tandem-tracing-otel:jar UP-TO-DATE
+> Task :tandem-benchmark:compileJava
+> Task :tandem-benchmark:classes
+
+> Task :tandem-benchmark:loadTest
+Tandem load test — scenarios=[S5, S6, S8], smoke=false, demo=false, duration=PT3M, workers=8
+--- Running S5 ---
+14:59:56 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-74017-8254, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:01:26 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-74017-8254
+15:02:27 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-74017-8254, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:03:57 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-74017-8254
+PASS S5: reclaimed=0, duplicates=0 (bound=800); ordering violations=0, missing=0
+--- Running S6 ---
+15:03:57 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-74017-8254, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:04:35 SEVERE  com.codingful.tandem.jdbc.RelayWorker - Outbox row dispatch failed permanently rowId:13908, aggregateType:BenchAggregate, aggregateId:S6-bench-agg-0, attempts:1
+PASS S6: poison=S6-bench-agg-0 blocked=true; other aggregates: ordering violations=0, missing=0
+--- Running S8 ---
+15:06:58 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-74017-8254
+15:06:58 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-1, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:06:58 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-2, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:06:58 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-1, count:256
+15:06:58 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s8-instance-3, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, maxAttempts:10, rowLeaseMs:60000
+15:06:58 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released excess buckets owner:s8-instance-1, count:170
+15:06:58 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-2, count:86
+15:06:58 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-3, count:84
+15:07:08 WARNING com.codingful.tandem.jdbc.BucketLeaseManager - Relay pruned dead member(s), presence lease expired owner:s8-instance-1, deadOwners:[s8-instance-3]
+15:07:08 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-1, count:42
+15:07:08 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s8-instance-2, count:42
+15:10:09 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released all owned buckets owner:s8-instance-1, count:128
+15:10:09 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s8-instance-1
+15:10:09 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released all owned buckets owner:s8-instance-2, count:128
+15:10:09 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s8-instance-2
+PASS S8: 3 instances, killed 1 (owned 84 buckets pre-kill); survivors own 128 + 128 (disjoint=true, covered=256/256); ordering violations=0, missing=0, duplicates=0
+All scenarios passed correctness.
+
+BUILD SUCCESSFUL in 10m 28s
+16 actionable tasks: 2 executed, 14 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html
