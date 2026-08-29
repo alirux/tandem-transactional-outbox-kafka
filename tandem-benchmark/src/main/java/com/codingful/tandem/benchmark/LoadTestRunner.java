@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -24,7 +25,8 @@ import java.util.Set;
  * (multi-instance {@code LEASE} coordination) builds its own additional relay instances on top of the
  * shared environment (LLD-benchmark §8) rather than using the environment's primary {@code SINGLE} pool.
  *
- * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [S1,S2,...]}:
+ * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
+ * [--poll-interval=<millis>] [S1,S2,...]}:
  * <ul>
  *   <li>{@code --smoke} — tiny rate/duration, correctness only, no KPI numbers (HLD-load-testing.md §5.1).</li>
  *   <li>{@code --demo} — real relay concurrency (default workers/batchSize/bucketCount) but a short
@@ -36,9 +38,17 @@ import java.util.Set;
  *       shorter than the 10-minute full-run default — note S3 caps its own active drive phase
  *       independent of this (LLD-benchmark §8): its backlog is structurally serialized per aggregate,
  *       so it does not scale the same way as the other scenarios.</li>
+ *   <li>{@code --workers=<n>} — relay {@code workersPerInstance}, and {@code --poll-interval=<millis>}
+ *       — the relay's <b>idle</b> backoff. The two together are the discovery-latency knob pair
+ *       (docs/dispatch-latency.md §1): idle {@code T_discover} averages half the poll interval, and
+ *       the idle query load it costs is {@code workers / pollInterval}, so they are only meaningful
+ *       swept against each other. Both are applied after {@code --smoke}/{@code --demo}, like
+ *       {@code --duration=}, so an explicit value always wins over the preset's own.</li>
  *   <li>neither flag — the full-run default ({@code BenchmarkConfig.defaults()}, 10 min/scenario).</li>
  * </ul>
- * The scenario list defaults to all six.
+ * The scenario list defaults to all six. An unrecognised {@code --} argument is rejected rather than
+ * ignored: a run that silently used the default sizing reads exactly like one that honoured the flag,
+ * and the difference only surfaces once the numbers are already published.
  *
  * <p>Scenarios are isolated from one another in two respects, and both are needed. An exception thrown
  * by one (an assertion failure inside it, or a bounded wait — e.g. draining the backlog — timing out)
@@ -53,24 +63,21 @@ public final class LoadTestRunner {
     private static final Map<String, Scenario> ALL_SCENARIOS = registerScenarios();
     private static final Set<String> FLAGS = Set.of("--smoke", "--demo");
     private static final String DURATION_PREFIX = "--duration=";
+    private static final String WORKERS_PREFIX = "--workers=";
+    private static final String POLL_INTERVAL_PREFIX = "--poll-interval=";
+    private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX, POLL_INTERVAL_PREFIX);
 
     public static void main(String[] args) throws Exception {
-        boolean smoke = List.of(args).contains("--smoke");
-        boolean demo = List.of(args).contains("--demo");
-        List<String> scenarioIds = List.of(args).stream()
-                .filter(a -> !FLAGS.contains(a) && !a.startsWith(DURATION_PREFIX))
-                .findFirst()
-                .map(csv -> List.of(csv.split(",")))
-                .orElse(List.copyOf(ALL_SCENARIOS.keySet()));
-
-        BenchmarkConfig baseConfig = smoke ? BenchmarkConfig.defaults().toSmoke()
-                : demo ? BenchmarkConfig.defaults().toDemo()
-                : BenchmarkConfig.defaults();
-        BenchmarkConfig config = List.of(args).stream().filter(a -> a.startsWith(DURATION_PREFIX)).findFirst()
-                .map(a -> baseConfig.withDuration(Duration.ofSeconds(Long.parseLong(a.substring(DURATION_PREFIX.length())))))
-                .orElse(baseConfig);
-        System.out.println("Tandem load test — scenarios=" + scenarioIds + ", smoke=" + smoke + ", demo=" + demo
-                + ", duration=" + config.duration() + ", workers=" + config.workers());
+        List<String> argList = List.of(args);
+        rejectUnknownFlags(argList);
+        List<String> scenarioIds = scenarioIdsFrom(argList);
+        BenchmarkConfig config = configFrom(argList);
+        // The sizing goes in the run's own first line because these runs are archived and quoted from
+        // (docs/benchmark-results/): a percentile is only attributable if the log says what produced it.
+        System.out.println("Tandem load test — scenarios=" + scenarioIds
+                + ", smoke=" + argList.contains("--smoke") + ", demo=" + argList.contains("--demo")
+                + ", duration=" + config.duration() + ", workers=" + config.workers()
+                + ", pollInterval=" + config.pollInterval());
 
         try (BenchmarkEnvironment env = new BenchmarkEnvironment(config).start()) {
             ScenarioContext ctx = new ScenarioContext(env, config);
@@ -95,6 +102,57 @@ public final class LoadTestRunner {
             System.out.println(allPassed ? "All scenarios passed correctness." : "One or more scenarios FAILED correctness.");
             if (!allPassed) {
                 System.exit(1);
+            }
+        }
+    }
+
+    /** The scenario list: the first argument that is not a flag, defaulting to every known scenario. */
+    static List<String> scenarioIdsFrom(List<String> args) {
+        return args.stream()
+                .filter(a -> !a.startsWith("--"))
+                .findFirst()
+                .map(csv -> List.of(csv.split(",")))
+                .orElse(List.copyOf(ALL_SCENARIOS.keySet()));
+    }
+
+    /**
+     * The base preset chosen by {@code --smoke}/{@code --demo}, with each explicit knob layered on
+     * top — so a flag given alongside a preset overrides that preset rather than being swallowed by it.
+     */
+    static BenchmarkConfig configFrom(List<String> args) {
+        BenchmarkConfig base = args.contains("--smoke") ? BenchmarkConfig.defaults().toSmoke()
+                : args.contains("--demo") ? BenchmarkConfig.defaults().toDemo()
+                : BenchmarkConfig.defaults();
+        BenchmarkConfig.Builder config = base.toBuilder();
+        longValue(args, DURATION_PREFIX).ifPresent(seconds -> config.duration(Duration.ofSeconds(seconds)));
+        longValue(args, WORKERS_PREFIX).ifPresent(workers -> config.workers(Math.toIntExact(workers)));
+        longValue(args, POLL_INTERVAL_PREFIX).ifPresent(millis -> config.pollInterval(Duration.ofMillis(millis)));
+        return config.build();
+    }
+
+    private static Optional<Long> longValue(List<String> args, String prefix) {
+        return args.stream()
+                .filter(a -> a.startsWith(prefix))
+                .findFirst()
+                .map(a -> parseLong(prefix, a.substring(prefix.length()).trim()));
+    }
+
+    private static long parseLong(String prefix, String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException notANumber) {
+            // Rethrown naming the flag: the bare message is the offending text with no hint of which
+            // argument carried it, and every one of these flags takes a bare number.
+            throw new IllegalArgumentException(prefix + " expects a number, got: " + value, notANumber);
+        }
+    }
+
+    private static void rejectUnknownFlags(List<String> args) {
+        for (String arg : args) {
+            if (arg.startsWith("--") && !FLAGS.contains(arg)
+                    && VALUE_PREFIXES.stream().noneMatch(arg::startsWith)) {
+                throw new IllegalArgumentException("Unknown argument: " + arg
+                        + " (known: " + FLAGS + ", " + VALUE_PREFIXES + ")");
             }
         }
     }

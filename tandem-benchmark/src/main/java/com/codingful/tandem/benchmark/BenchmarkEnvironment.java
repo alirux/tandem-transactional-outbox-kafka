@@ -96,18 +96,29 @@ public final class BenchmarkEnvironment implements AutoCloseable {
 
     /**
      * A {@link RelayConfig.Builder} pre-populated from this environment's {@link BenchmarkConfig}
-     * (bucket count, workers, batch size, row lease, max attempts, the real delivery timeout) — the
-     * shared sizing every relay instance in this environment uses. S8 layers
+     * (bucket count, workers, poll interval, batch size, row lease, max attempts, the real delivery
+     * timeout) — the shared sizing every relay instance in this environment uses. S8 layers
      * {@code .coordination(LEASE).instanceId(...)} on top to build its own additional instances.
      */
     public RelayConfig.Builder relayConfigBuilder() {
+        return relayConfigBuilder(config, relay.deliveryTimeoutMs());
+    }
+
+    /**
+     * The mapping itself, taking the producer's resolved {@code deliveryTimeoutMs} rather than reading
+     * it off a started environment: it is a pure translation of the harness's knobs into the relay's,
+     * and every knob that fails to make the crossing does so silently — the run is simply sized as if
+     * the flag had never been passed.
+     */
+    static RelayConfig.Builder relayConfigBuilder(BenchmarkConfig config, long deliveryTimeoutMs) {
         return RelayConfig.builder()
                 .bucketCount(config.bucketCount())
                 .workersPerInstance(config.workers())
+                .pollInterval(config.pollInterval())
                 .batchSize(config.batchSize())
                 .rowLease(config.rowLease())
                 .maxAttempts(config.maxAttempts())
-                .deliveryTimeoutMs(relay.deliveryTimeoutMs());
+                .deliveryTimeoutMs(deliveryTimeoutMs);
     }
 
     /**

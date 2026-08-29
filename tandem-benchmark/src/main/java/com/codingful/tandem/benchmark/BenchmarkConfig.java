@@ -20,6 +20,7 @@ public final class BenchmarkConfig {
 
     private final int bucketCount;
     private final int workers;
+    private final Duration pollInterval;
     private final int batchSize;
     private final Duration rowLease;
     private final long deliveryTimeoutMs;
@@ -34,6 +35,7 @@ public final class BenchmarkConfig {
     private BenchmarkConfig(Builder b) {
         this.bucketCount = b.bucketCount;
         this.workers = b.workers;
+        this.pollInterval = b.pollInterval;
         this.batchSize = b.batchSize;
         this.rowLease = b.rowLease;
         this.deliveryTimeoutMs = b.deliveryTimeoutMs;
@@ -54,6 +56,15 @@ public final class BenchmarkConfig {
     /** Relay {@code workersPerInstance}. Default 8. */
     public int workers() {
         return workers;
+    }
+
+    /**
+     * Relay {@code pollInterval} — the <b>idle</b> backoff between claim attempts, not a per-batch
+     * delay (LLD-jdbc §3.1), so it bounds discovery latency for a drained bucket and sets the idle
+     * query load at {@code workers / pollInterval}. Default 100 ms, matching {@code RelayConfig}'s.
+     */
+    public Duration pollInterval() {
+        return pollInterval;
     }
 
     /** Relay claim batch size — the per-shard in-flight window (LLD-jdbc §3.4). Default 100. */
@@ -115,25 +126,44 @@ public final class BenchmarkConfig {
     }
 
     /**
+     * A builder pre-loaded with every field of this config, for the derived configs below and for the
+     * runner's command-line overrides. Deliberately not a field-by-field copy at each call site: the
+     * derivations are full copies with a few overrides, and enumerating the fields in each of them is
+     * how a newly-added knob silently reverts to its default in three places at once.
+     */
+    public Builder toBuilder() {
+        return builder()
+                .bucketCount(bucketCount)
+                .workers(workers)
+                .pollInterval(pollInterval)
+                .batchSize(batchSize)
+                .rowLease(rowLease)
+                .deliveryTimeoutMs(deliveryTimeoutMs)
+                .maxAttempts(maxAttempts)
+                .maxConnections(maxConnections)
+                .payloadBytes(payloadBytes)
+                .aggregateCardinality(aggregateCardinality)
+                .warmup(warmup)
+                .duration(duration)
+                .latencyMode(latencyMode);
+    }
+
+    /**
      * A copy of this config with a much smaller warmup/duration/rowLease — the CI smoke variant
      * (HLD-load-testing.md §7). {@code deliveryTimeoutMs} shrinks together with {@code rowLease} so
      * the relay-startup invariant {@code rowLease > deliveryTimeoutMs} still holds (LLD-jdbc §3.5) —
      * shrinking only rowLease would fail fast at {@code WorkerPool.start()}.
      */
     public BenchmarkConfig toSmoke() {
-        return builder()
-                .bucketCount(bucketCount)
+        return toBuilder()
                 .workers(Math.min(workers, 2))
                 .batchSize(Math.min(batchSize, 20))
                 .deliveryTimeoutMs(4_000)
                 .rowLease(Duration.ofSeconds(9))
-                .maxAttempts(maxAttempts)
                 .maxConnections(Math.min(maxConnections, 8))
-                .payloadBytes(payloadBytes)
                 .aggregateCardinality(Math.min(aggregateCardinality, 32))
                 .warmup(Duration.ofSeconds(1))
                 .duration(Duration.ofSeconds(3))
-                .latencyMode(latencyMode)
                 .build();
     }
 
@@ -145,43 +175,25 @@ public final class BenchmarkConfig {
      * look at). {@code deliveryTimeoutMs}/{@code rowLease} shrink together, same reason as {@link #toSmoke()}.
      */
     public BenchmarkConfig toDemo() {
-        return builder()
-                .bucketCount(bucketCount)
-                .workers(workers)
-                .batchSize(batchSize)
+        return toBuilder()
                 .deliveryTimeoutMs(8_000)
                 .rowLease(Duration.ofSeconds(20))
-                .maxAttempts(maxAttempts)
                 .maxConnections(Math.min(maxConnections, 16))
-                .payloadBytes(payloadBytes)
                 .aggregateCardinality(Math.min(aggregateCardinality, 256))
                 .warmup(Duration.ofSeconds(3))
                 .duration(Duration.ofSeconds(20))
-                .latencyMode(latencyMode)
                 .build();
     }
 
     /** A copy of this config with only {@code duration} changed — everything else carries over as-is. */
     public BenchmarkConfig withDuration(Duration duration) {
-        return builder()
-                .bucketCount(bucketCount)
-                .workers(workers)
-                .batchSize(batchSize)
-                .deliveryTimeoutMs(deliveryTimeoutMs)
-                .rowLease(rowLease)
-                .maxAttempts(maxAttempts)
-                .maxConnections(maxConnections)
-                .payloadBytes(payloadBytes)
-                .aggregateCardinality(aggregateCardinality)
-                .warmup(warmup)
-                .duration(duration)
-                .latencyMode(latencyMode)
-                .build();
+        return toBuilder().duration(duration).build();
     }
 
     public static final class Builder {
         private int bucketCount = 256;
         private int workers = 8;
+        private Duration pollInterval = Duration.ofMillis(100);   // RelayConfig's own default
         private int batchSize = 100;
         private Duration rowLease = Duration.ofSeconds(60);
         private long deliveryTimeoutMs = 30_000;   // Kafka producer default (LLD-kafka §1)
@@ -203,6 +215,15 @@ public final class BenchmarkConfig {
 
         public Builder workers(int workers) {
             this.workers = positive(workers, "workers");
+            return this;
+        }
+
+        public Builder pollInterval(Duration pollInterval) {
+            Objects.requireNonNull(pollInterval, "pollInterval");
+            if (pollInterval.isNegative() || pollInterval.isZero()) {
+                throw new IllegalArgumentException("pollInterval must be positive");
+            }
+            this.pollInterval = pollInterval;
             return this;
         }
 
