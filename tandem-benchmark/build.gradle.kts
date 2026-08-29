@@ -140,6 +140,18 @@ tasks.register<JavaExec>("tracingDashboardDemo") {
     errorOutput = System.err
 }
 
+// Prices the OTHER half of the poll-interval trade-off: what an idle relay costs the database when
+// there is nothing to find (docs/relay-sizing.md §1). Every scenario drives load, so none of them can
+// measure this. Measures; gates nothing.
+tasks.register<JavaExec>("idlePollCostProbe") {
+    description = "Measures what idle polling costs PostgreSQL (IdlePollCostProbe). Requires Docker."
+    group = "verification"
+    mainClass.set("com.codingful.tandem.benchmark.IdlePollCostProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
 // Prices the managed-`seq` mechanism against the other two modes on the caller's write path
 // (LLD-benchmark §6.5): the three modes saturated, durable, paced, batched and interleaved, plus the
 // CACHE 1 sequence's own server-side ceiling. Measures; gates nothing.

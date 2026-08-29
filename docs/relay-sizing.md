@@ -30,11 +30,40 @@ idle query load  =  instances × workersPerInstance / pollInterval
 ```
 
 Every idle worker issues one claim per interval. At the defaults (8 workers, 100 ms) that is 80
-queries per second per instance to discover nothing — each an index-only scan of the partial index on
-`status = 0`, so unmeasurable on one relay, and 8 000/s across 10 instances of 16 workers at 20 ms.
+queries per second per instance to discover nothing — negligible on one relay, and 8 000/s across 10
+instances of 16 workers at 20 ms.
 
-This identity is the whole trade-off: **the two knobs buy each other**. Halving the workers pays for
-halving the poll interval at unchanged database load.
+The identity counts queries. What each query *costs* depends on what the outbox holds
+(`./gradlew :tandem-benchmark:idlePollCostProbe`; PostgreSQL CPU over an idle baseline, 100% = one
+core, Docker-in-a-VM):
+
+| relay | queries/s | empty outbox | 200k `DONE` rows | + 2 000 unclaimable rows |
+|---|---:|---:|---:|---:|
+| 8 workers @ 100 ms | ~78 | 3.5% | 4.0% | 11.4% |
+| 8 workers @ 20 ms | ~333 | 12.1% | 14.7% | 42.2% |
+| 8 workers @ 10 ms | ~652 | 20.2% | 25.4% | 68.4% |
+| 2 workers @ 25 ms | ~71 | 4.4% | 3.9% | 20.8% |
+
+**Delivered rows are nearly free; stuck rows are not.** `idx_tandem_outbox_dispatch` is partial on
+`status = 0`, so a `DONE` row leaves it — 200 000 of them add under a quarter to the cost of a poll.
+A row that is `PENDING` but *unclaimable* stays in the index and is scanned on every cycle, and the
+head-of-chain `NOT EXISTS` runs against each one. Two ordinary situations produce them: a row backing
+off after a failure, and a row queued behind a `FAILED` head. Fewer than eight such rows per bucket
+roughly **triple** the cost of every claim that finds nothing.
+
+**Budget accordingly:** about **a third of a core per thousand idle queries/s** on a healthy outbox,
+and about **one core per thousand** once stuck rows accumulate. The arithmetic above over-estimates
+the rate itself — a worker's idle cycle is the sleep *plus* the claim it just ran, so the true period
+is `pollInterval + claim time` and the measured rate lands 3-17% under `workers / pollInterval` — so
+it is safe to plan with.
+
+**The two knobs buy each other only while the outbox is healthy.** A claim filters
+`WHERE bucket = ANY(?)` over the worker's own slice, so halving the workers doubles the buckets each
+claim covers. With the partial index near-empty that costs nothing, and 8 workers at 100 ms and 2 at
+25 ms are genuinely interchangeable. With stuck rows in the index the wider slice scans proportionally
+more of them, and the same 80 queries/s cost **twice as much** at 2 workers as at 8. Trading workers
+for a shorter interval is cost-neutral on a clean outbox and turns against you on a blocked one —
+which is to say, at the moment something is already wrong.
 
 ---
 
@@ -119,10 +148,12 @@ p99 of `T`, set `pollInterval ≈ T / 2`. Some worked values:
 | ~20 ms — read-your-writes through events | 10 ms |
 | single-digit ms | not reachable by polling — see §5 |
 
-**Step 3 — price what you just bought.** Compute `instances × workers / pollInterval`. Below a few
-hundred queries/s on a healthy PostgreSQL this is not worth thinking about. Above roughly a thousand,
-either accept it deliberately or spend a worker reduction on it (§1) — and note the load scales with
-instance count, so a number that is fine on one relay is 10× that at ten.
+**Step 3 — price what you just bought.** Compute `instances × workers / pollInterval`, then price it
+at roughly a third of a core per thousand queries/s, or a full core per thousand if the outbox carries
+stuck rows (§1). At the default sizing that is ~4% of one core and not worth a thought; at 800
+queries/s it is a quarter of a core on a clean outbox and two thirds on a blocked one. The load scales
+with instance count, so a figure that is fine on one relay is 10× that at ten — that multiplication,
+not the single-relay number, is usually what makes this matter.
 
 **Step 4 — verify on your own hardware.** §6.
 
@@ -138,6 +169,11 @@ instance count, so a number that is fine on one relay is 10× that at ten.
 | `LEASE`, several instances, ordinary events | default | 100 ms | 80/s × instances |
 | `LEASE`, many instances, latency matters | 4 | 25 ms | 160/s × instances |
 | High sustained throughput, latency secondary | default or higher | 100 ms | ~80/s |
+
+The two rows with a reduced worker count assume `FAILED` and backing-off rows are cleared rather than
+left to accumulate (the Admin API's replay and discard exist for this). On an outbox that collects
+stuck rows, keep the workers at their default and buy latency with the interval alone — a wide bucket
+slice and a short interval is the one combination that multiplies both halves of the cost.
 
 ---
 
@@ -168,8 +204,16 @@ database and broker rather than trusted:
 ```
 
 S2 reports COMMIT→ack p50/p95/p99/p99.9 at a held load, and the run's first line records the sizing it
-used — quote a percentile only together with that line. Requires Docker
-([LLD-benchmark.md](LLD-benchmark.md) §9).
+used — quote a percentile only together with that line.
+
+The cost side has its own probe, which holds the outbox at each of the three states in §1 and reports
+the query rate each sizing actually produces alongside what it costs PostgreSQL:
+
+```bash
+./gradlew :tandem-benchmark:idlePollCostProbe --args="--seconds=60"
+```
+
+Both require Docker ([LLD-benchmark.md](LLD-benchmark.md) §9).
 
 ---
 

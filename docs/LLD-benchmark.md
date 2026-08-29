@@ -666,6 +666,33 @@ builder call claims, the second is the direct evidence for or against sequence-p
 
 ---
 
+### 6.6 `IdlePollCostProbe` — what idle polling costs the database
+
+The counterpart to the poll-interval latency figures: every scenario drives load, so all of them
+measure what a shorter interval *buys* and none measures what it *costs*. The probe holds the outbox
+at a chosen state, runs one relay sizing at a time against it, and reports the query rate that sizing
+actually produces (from the `xact_commit` delta on the benchmark database — a claim is one autocommit
+transaction, so this counts claims without a Postgres extension) alongside PostgreSQL's CPU. Results
+and the guidance drawn from them: [relay-sizing.md](relay-sizing.md) §1.
+
+**Three outbox states, because "a claim that finds nothing" is not one thing.** On an **empty** table
+the partial `idx_tandem_outbox_dispatch` is empty too and the head-of-chain `NOT EXISTS` never runs —
+a floor, not a typical cost. **Drained** adds `DONE` bulk, which the partial index excludes by
+construction. **Blocked** adds rows in `status = 0` that no claim can take, backing off or queued
+behind a `FAILED` head: those sit in the index, are scanned every cycle, and each one runs the
+`NOT EXISTS`. One poisoned aggregate (S6, an ordinary occurrence) holds an outbox in that state
+indefinitely, and it is the state where the cost stops being linear in the query rate alone.
+
+Two measurement details are load-bearing rather than incidental. The container is located by
+**image**, never by name — Testcontainers leaves generated names (`adoring_rosalind`), the same thing
+that makes the archived `containers.csv` hard to attribute (§8). And each state is seeded, then
+`VACUUM ANALYZE`d **in the foreground**: fresh statistics keep the planner on the plan a real database
+would use, and vacuuming here keeps that work out of the windows — left to autovacuum it lands in the
+no-relay baseline and is subtracted from every cell of that state as background noise.
+
+Like the demos and `ManagedSeqCostProbe`: out of `test`/`check` and out of `loadTest`. Measures;
+gates nothing.
+
 ## 7. `RampController` — adaptive rate search (S1)
 
 S1 finds the **highest sustainable** offered rate, which static injection profiles (the external-tool
@@ -976,6 +1003,10 @@ no measurable time. No product code involved.
   `loadTest`. ~25 minutes for every phase at the defaults, one Postgres container and no Kafka;
   `--args="--phases=4"` runs just the sequence-ceiling sweep (~4 minutes), `--phases=5,6,7` just the
   interleaved comparisons. Results: HLD-managed-seq.md §3.4.
+- **Idle poll cost probe:** `./gradlew :tandem-benchmark:idlePollCostProbe` → `IdlePollCostProbe.main`
+  (§6.6). Same status as the demos — out of `test`/`check` and out of `loadTest`. ~20 minutes at the
+  defaults (three outbox states × five relay sizings × a 60 s window); `--args="--seconds=30"` halves
+  it, `--done-rows=`/`--blocked-rows=` size the seeded states. One PostgreSQL container and Kafka.
 - **`--workers=<n>` and `--poll-interval=<millis>`** override the relay's `workersPerInstance` and
   its idle backoff, also applied after `--smoke`/`--demo`, so an explicit value wins over the preset's
   own. They are the discovery-latency knob pair and are only meaningful swept **against each other**:
