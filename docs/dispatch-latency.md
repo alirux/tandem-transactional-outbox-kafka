@@ -49,6 +49,15 @@ Two consequences follow, and both matter more than the raw number:
    because it is always in the idle regime. This is the profile worth optimising, and
    it is the *opposite* of the profile most throughput benchmarks exercise.
 
+   **Measured 2026-08-29, and wider than "low-rate" suggests.** Below the relay's throughput
+   ceiling the relay is by definition faster than its arrivals, so workers drain and sleep
+   whatever the offered rate: the median COMMIT→ack sat at `pollInterval / 2 + a few ms` at
+   every rate and every worker count measured (400 events/s across 2/4/8 workers; 300 and 600
+   events/s on the archived cloud runs). The busy regime is reached at saturation, not at
+   "sustained load". There is also a third state between the two: an empty claim with publishes
+   still in flight waits 5 ms rather than `pollInterval`. Numbers, and how to set the two knobs:
+   [relay-sizing.md](relay-sizing.md) §2.
+
 A third, less visible cost is the **idle query load**, which scales as
 `instances × workersPerInstance / pollInterval`. Each query is an index-only scan of
 `idx_tandem_outbox_dispatch` (partial on `status = 0`, so it touches no heap on a drained

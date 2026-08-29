@@ -953,7 +953,7 @@ no measurable time. No product code involved.
 ## 9. Execution & CI
 
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
-  [--duration=<seconds>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
+  [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
   layered on top), runs the selected scenarios (all six minus the deferred S7 by default) in sequence
   against it, and prints a PASS/FAIL line + summary per scenario. Kept **out of the normal
@@ -976,6 +976,16 @@ no measurable time. No product code involved.
   `loadTest`. ~25 minutes for every phase at the defaults, one Postgres container and no Kafka;
   `--args="--phases=4"` runs just the sequence-ceiling sweep (~4 minutes), `--phases=5,6,7` just the
   interleaved comparisons. Results: HLD-managed-seq.md §3.4.
+- **`--workers=<n>` and `--poll-interval=<millis>`** override the relay's `workersPerInstance` and
+  its idle backoff, also applied after `--smoke`/`--demo`, so an explicit value wins over the preset's
+  own. They are the discovery-latency knob pair and are only meaningful swept **against each other**:
+  idle `T_discover` averages half the poll interval, while the idle query load it costs is
+  `workers / pollInterval`, so halving the workers buys a halved poll interval at identical database
+  load (dispatch-latency.md §1). Until these existed every archived run used the 100 ms default, and
+  nothing in the logs said so — which is why the run's first line now prints the sizing it used.
+- **Unknown `--` arguments are rejected**, rather than ignored as before. A typo (`--pollinterval=20`)
+  otherwise produces a run at the default sizing that is indistinguishable, in its output and in its
+  archived log, from one that honoured the flag.
 - **`--duration=<seconds>`** overrides whichever base config's `duration` (applied after
   `--smoke`/`--demo`) — for a run longer than `--demo`'s 20s but far short of the 10-minute full-run
   default. S3 is safe to include regardless: its own drive phase and drain timeout are both capped
@@ -1030,6 +1040,7 @@ knob to expose here):
 |---|---|---|
 | `bucketCount` | 256 | must match the write-side + relay |
 | `workers` | 8 | relay `workersPerInstance` |
+| `pollInterval` | 100 ms | relay idle backoff — bounds discovery latency for a drained bucket, and costs `workers / pollInterval` queries/s to discover nothing (dispatch-latency.md §1) |
 | `batchSize` | 100 | per-shard in-flight window |
 | `rowLease` | 60 s | relay row lease; must stay `> deliveryTimeoutMs` |
 | `deliveryTimeoutMs` | 30000 | Kafka producer `delivery.timeout.ms`, actually wired into the producer config (§3) |
@@ -1051,6 +1062,12 @@ fixed once during smoke verification.
 **`toDemo()`** derives the "show it running" variant (§9): keeps `workers`/`batchSize`/`bucketCount`
 at their real defaults (unlike `toSmoke()`), caps `maxConnections ≤ 16` and `aggregateCardinality ≤
 256`, `warmup = 3 s`, `duration = 20 s`, `deliveryTimeoutMs = 8000`, `rowLease = 20 s`.
+
+Both derivations, and `withDuration(...)`, go through **`toBuilder()`** — a builder pre-loaded with
+every field — rather than re-listing the fields they carry over. Each of them is a full copy with a
+handful of overrides, so enumerating the fields made adding a knob a three-place edit whose omission
+is silent: the new knob simply reverts to its default in whichever copy forgot it, and the run reads
+as if the flag had never been passed.
 
 ---
 

@@ -522,9 +522,12 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   publish, never a reorder (tracked as hardening,
   [IMPLEMENTATION-PLAN-embedded-lease.md](docs/IMPLEMENTATION-PLAN-embedded-lease.md) §6).
 
-- **Idle latency is bounded by `pollInterval`, not by the commit.** No post-commit wakeup yet — up
-  to ~120 ms worst case at the 100 ms default, ~0 under sustained load. Full analysis:
-  [dispatch-latency.md](docs/dispatch-latency.md).
+- **Idle latency is bounded by `pollInterval`, not by the commit.** No post-commit wakeup yet: a row
+  written to a bucket whose worker has drained waits up to ~120 ms at the 100 ms default, about half
+  that on average. That is most rows at any load below the relay's throughput ceiling — not only on a
+  quiet outbox — and it is a knob rather than a floor: the poll interval moves the whole distribution,
+  tails included. Sizing guide: [relay-sizing.md](docs/relay-sizing.md); why the latency is there and
+  what would remove it: [dispatch-latency.md](docs/dispatch-latency.md).
 
 - **`bucketCount` is immutable after the first deploy.** Re-sharding an existing outbox isn't
   supported — pick `B` once (default 256).
