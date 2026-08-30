@@ -58,6 +58,7 @@ Tier`) rather than billed.
 | `2026-08-28-run2/` | S1 + S2, `--duration=240`, started right after run 1 | Ceiling #2 (**725/s**) — the throttled outlier, and a latency replicate |
 | `2026-08-28-run3-suite/` | All seven scenarios, `--duration=180`, with per-scenario reset | Ceiling #3 (1450/s), the third latency replicate, and the whole correctness table |
 | `2026-08-30-endurance/` | S9, six hours at a fixed 400 events/s, on a Mac | The endurance result: no drift in throughput, latency, bucket coverage or storage — and the concurrent-cleanup deadlock it surfaced. Has its own [README](2026-08-30-endurance/README.md) |
+| `2026-08-30-poll-interval/` | Ceiling at 100 ms vs 10 ms poll interval, drained and blocked outbox, on a Mac | Whether a short poll interval costs delivery capacity (it does not) and what a blocked outbox costs (a fifth to a quarter of the ceiling). Has its own [README](2026-08-30-poll-interval/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples

@@ -52,7 +52,9 @@ off after a failure, and a row queued behind a `FAILED` head. Fewer than eight s
 roughly **triple** the cost of every claim that finds nothing.
 
 **Budget accordingly:** about **a third of a core per thousand idle queries/s** on a healthy outbox,
-and about **one core per thousand** once stuck rows accumulate. The arithmetic above over-estimates
+and about **one core per thousand** once stuck rows accumulate. That is a cost in CPU, and it does
+*not* show up as lost delivery capacity — §2 measures the ceiling at both ends of the interval range
+and finds no difference it can resolve. The arithmetic above over-estimates
 the rate itself — a worker's idle cycle is the sleep *plus* the claim it just ran, so the true period
 is `pollInterval + claim time` and the measured rate lands 3-17% under `workers / pollInterval` — so
 it is safe to plan with.
@@ -126,6 +128,35 @@ One caveat carried over from the archived runs: on a burstable instance and a sh
 **median reproduces and the p99 does not**. The baseline cell above is the shipped default, and gave
 p99 187 ms where a longer archived run of the same configuration gave 148
 ([benchmark-results/](benchmark-results/)). Size against the median; treat a single p99 as indicative.
+
+### A short interval does not take capacity away from real work
+
+§1 prices the idle queries in CPU. That is not the same as them competing with delivery, so the
+ceiling itself was measured at both ends of the interval range, in both outbox states
+(`./gradlew :tandem-benchmark:pollIntervalCapacityProbe`; 8 workers, 200 000 `DONE` rows, 2 000
+unclaimable rows in the blocked state; two replicates per cell, run in reverse order on the second
+pass so a drifting host feeds both arms of every comparison):
+
+| outbox | poll | ceiling, per replicate | mean |
+|---|---:|---:|---:|
+| drained | 100 ms | 1350 / 1550 | 1450 |
+| drained | 10 ms | 1550 / 1550 | 1550 |
+| blocked | 100 ms | 1100 / 1100 | 1100 |
+| blocked | 10 ms | 1100 / 1250 | 1175 |
+
+**In both states the 10 ms arm sustained slightly *more*, not less** — about 7%, which is smaller
+than the spread between replicates of the same cell (up to 13.8%). The honest reading is that this
+host cannot tell the two intervals apart; what it rules out is the effect being large. The threefold
+idle cost a blocked outbox adds to each claim does not come back as a lower ceiling.
+
+**What does cost capacity is the blocked outbox itself.** At either interval it sustains 1100–1175
+against 1450–1550 drained — roughly a fifth to a quarter of the ceiling, with the two ranges not
+overlapping. Which is §1's conclusion reached from the other side: the thing to watch is stuck rows,
+not the poll interval. A poisoned aggregate costs throughput as well as CPU, and it costs it whether
+you poll ten times a second or once.
+
+All eight searches bracketed their ceiling, so none of these figures is a lower bound set by the
+search budget. Developer Mac, Docker in a VM: read the ratios, not the rates.
 
 ---
 

@@ -706,6 +706,37 @@ no-relay baseline and is subtracted from every cell of that state as background 
 Like the demos and `ManagedSeqCostProbe`: out of `test`/`check` and out of `loadTest`. Measures;
 gates nothing.
 
+### 6.7 `PollIntervalCapacityProbe` — whether that cost takes capacity from real work
+
+§6.6 prices the queries an idle relay makes; it cannot say whether they compete with delivery. This
+probe answers that directly: it measures the **sustainable ceiling** at two poll intervals in two
+outbox states, with a `RampController` search per cell, and compares. Results and the sizing guidance
+drawn from them: [relay-sizing.md](relay-sizing.md) §2.
+
+**A ceiling comparison is only as good as its reproducibility**, which shapes the design more than
+anything else here. Cells are **replicated and interleaved** — replicate 1 runs them in order,
+replicate 2 in reverse — so a host that drifts one way over the session (a laptop warming up, a
+burstable instance spending credits) contributes to both arms of every comparison instead of to one.
+The report prints the **spread between replicates of the same cell** beside the difference between
+cells, and says so explicitly when the former swallows the latter: a host that cannot resolve the
+difference should say "cannot tell", not print a percentage.
+
+For the same reason the report carries each cell's **bracketed** flag and refuses the comparison
+outright unless every cell in it bracketed. An unbracketed search reports the highest rate that
+happened to hold before the budget ran out — a lower bound set by the seed rate and the doubling
+schedule, identical on every host — and two such numbers compared against each other measure the
+arithmetic, not the system (the same trap §7 describes for S1).
+
+It reuses `OutboxStateSeeder` (shared with §6.6, so the two probes cannot drift in what "blocked"
+means) and runs **no correlation consumer**: this measures capacity, and the harness's own Kafka
+consumer would take some of the host it is trying to measure. Correctness is S1's job. One detail
+that would otherwise invalidate the blocked cells: the seeded unclaimable rows are a permanent floor
+in the backlog reading, and the ramp judges *growth* against a baseline taken at the start of each
+hold — a probe comparing absolute pending against zero would read every blocked cell as saturated
+from its first second.
+
+---
+
 ## 7. `RampController` — adaptive rate search (S1)
 
 S1 finds the **highest sustainable** offered rate, which static injection profiles (the external-tool
