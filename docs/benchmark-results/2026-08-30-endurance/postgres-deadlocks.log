@@ -1,0 +1,22 @@
+# Excerpt captured from the PostgreSQL container's log *during* the run (2026-08-30, ~00:30).
+# The container is a Testcontainers instance and was removed when the harness JVM exited, so this
+# excerpt is the surviving record — the harness's own log carried the failures without their cause
+# (the SimpleFormatter dropped the Throwable; fixed in the same change).
+# 20 deadlocks occurred over the 6-hour run, all of this shape: cleanup against cleanup.
+
+2026-08-29 22:10:43.695 UTC [93] ERROR:  deadlock detected
+2026-08-29 22:10:43.695 UTC [93] DETAIL:  Process 93 waits for ShareLock on transaction 874618; blocked by process 81.
+	Process 81 waits for ShareLock on transaction 874573; blocked by process 93.
+	Process 93: DELETE FROM tandem_outbox WHERE id IN (SELECT id FROM tandem_outbox               WHERE status IN (2, 4) AND created_at < $1               ORDER BY id LIMIT $2)
+	Process 81: DELETE FROM tandem_outbox WHERE id IN (SELECT id FROM tandem_outbox               WHERE status IN (2, 4) AND created_at < $1               ORDER BY id LIMIT $2)
+2026-08-29 22:10:43.695 UTC [93] CONTEXT:  while deleting tuple (21946,2) in relation "tandem_outbox"
+2026-08-29 22:10:43.695 UTC [93] STATEMENT:  DELETE FROM tandem_outbox WHERE id IN (SELECT id FROM tandem_outbox               WHERE status IN (2, 4) AND created_at < $1               ORDER BY id LIMIT $2)
+
+2026-08-29 22:13:47.855 UTC [93] ERROR:  deadlock detected
+2026-08-29 22:13:47.855 UTC [93] DETAIL:  Process 93 waits for ShareLock on transaction 1003792; blocked by process 81.
+	Process 81 waits for ShareLock on transaction 1003746; blocked by process 93.
+	Process 93: DELETE FROM tandem_outbox WHERE id IN (SELECT id FROM tandem_outbox               WHERE status IN (2, 4) AND created_at < $1               ORDER BY id LIMIT $2)
+	Process 81: DELETE FROM tandem_outbox WHERE id IN (SELECT id FROM tandem_outbox               WHERE status IN (2, 4) AND created_at < $1               ORDER BY id LIMIT $2)
+2026-08-29 22:13:47.855 UTC [93] CONTEXT:  while deleting tuple (12688,5) in relation "tandem_outbox"
+
+# pg_stat_database at 00:33 (40 minutes in): deadlocks=7, xact_rollback=7, conflicts=0.

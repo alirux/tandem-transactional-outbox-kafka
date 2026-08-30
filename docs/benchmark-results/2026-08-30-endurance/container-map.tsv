@@ -1,0 +1,3 @@
+upbeat_payne	confluentinc/cp-kafka:7.6.1
+hungry_cannon	postgres:16-alpine
+testcontainers-ryuk-a6585c9a-421f-4355-8378-441094764d73	testcontainers/ryuk:0.12.0

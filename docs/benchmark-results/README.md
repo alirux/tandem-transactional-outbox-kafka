@@ -57,10 +57,12 @@ Tier`) rather than billed.
 | `2026-08-28-run1/` | S1 + S2, `--duration=240` | Ceiling #1 (1450/s), one of the three latency replicates, and the per-rate CPU/disk chart |
 | `2026-08-28-run2/` | S1 + S2, `--duration=240`, started right after run 1 | Ceiling #2 (**725/s**) — the throttled outlier, and a latency replicate |
 | `2026-08-28-run3-suite/` | All seven scenarios, `--duration=180`, with per-scenario reset | Ceiling #3 (1450/s), the third latency replicate, and the whole correctness table |
+| `2026-08-30-endurance/` | S9, six hours at a fixed 400 events/s, on a Mac | The endurance result: no drift in throughput, latency, bucket coverage or storage — and the concurrent-cleanup deadlock it surfaced. Has its own [README](2026-08-30-endurance/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples
-(`resources.csv`) and per-container samples (`containers.csv`).
+(`resources.csv`) and per-container samples (`containers.csv`). `2026-08-30-endurance/` differs: it
+ran on a different host with a different instrument, and names its own files in its README.
 
 `2026-08-28-run3-suite/` is split across two log files for one reason worth stating: `loadtest-s1-s4.log`
 is the full-suite run, and `loadtest-s5-s6-s8.log` is the immediate re-run of the last three
