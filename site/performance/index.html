@@ -185,6 +185,50 @@
 
 <section>
   <div class="wrap prose">
+    <p class="kicker">Endurance</p>
+    <h2>Six hours of production-shaped load</h2>
+    <p>Every scenario above measures the first few minutes of a relay's life. The ways an outbox
+      actually fails in production are slow ones &mdash; a leak, index bloat on a table churning
+      through millions of rows, autovacuum falling behind, a lease renewal path that misbehaves only
+      after many cycles. None of them shows up in four minutes.</p>
+
+    <p>So Tandem is also run long. A fixed 400 events/s held for <strong>six hours</strong> under
+      two-instance lease coordination, with retention set so the relay deletes delivered rows
+      throughout &mdash; the churn a real deployment lives in, not a table that only grows.
+      8.6&nbsp;million events, reported in eighteen twenty-minute windows so the last can be compared
+      against the first.</p>
+
+    <div class="cards" style="max-width:none">
+
+      <div class="card">
+        <h3>No drift</h3>
+        <p>Throughput 395.7 &rarr; 399.6 events/s against 400 offered; p50 flat at 58&ndash;60&nbsp;ms
+          and p99 within 156&ndash;173&nbsp;ms, with no slope in either.</p>
+      </div>
+
+      <div class="card">
+        <h3>256/256 buckets</h3>
+        <p>Ownership complete and disjoint in every one of the eighteen windows, across roughly 720
+          lease renewal cycles.</p>
+      </div>
+
+      <div class="card">
+        <h3>0 lost, 0 reordered</h3>
+        <p>Zero duplicates too, over the whole run. The outbox reached a steady size instead of
+          growing, and autovacuum kept pace with the churn.</p>
+      </div>
+
+    </div>
+
+    <p class="note" style="margin-top:26px">This one ran on a developer machine rather than the VM described below, so read
+      it for the <em>absence of a slope</em> rather than for a rate &mdash; the whole value of an
+      endurance run is in what does not change. Windows, host samples and the run's own summary are in
+      <a href="https://github.com/alirux/tandem/tree/main/docs/benchmark-results/2026-08-30-endurance">docs/benchmark-results/2026-08-30-endurance</a>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap prose">
     <p class="kicker">Test environment</p>
     <h2>What produced these numbers</h2>
 
