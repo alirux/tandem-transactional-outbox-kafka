@@ -21,6 +21,7 @@ public final class BenchmarkConfig {
     private final int bucketCount;
     private final int workers;
     private final Duration pollInterval;
+    private final Duration pollIntervalFloor;
     private final int batchSize;
     private final Duration rowLease;
     private final long deliveryTimeoutMs;
@@ -41,6 +42,7 @@ public final class BenchmarkConfig {
         this.bucketCount = b.bucketCount;
         this.workers = b.workers;
         this.pollInterval = b.pollInterval;
+        this.pollIntervalFloor = b.pollIntervalFloor;
         this.batchSize = b.batchSize;
         this.rowLease = b.rowLease;
         this.deliveryTimeoutMs = b.deliveryTimeoutMs;
@@ -69,12 +71,23 @@ public final class BenchmarkConfig {
     }
 
     /**
-     * Relay {@code pollInterval} — the <b>idle</b> backoff between claim attempts, not a per-batch
-     * delay (LLD-jdbc §3.1), so it bounds discovery latency for a drained bucket and sets the idle
-     * query load at {@code workers / pollInterval}. Default 100 ms, matching {@code RelayConfig}'s.
+     * Relay {@code pollInterval} — the <b>ceiling</b> of the idle backoff between claim attempts, not
+     * a per-batch delay (LLD-jdbc §3.1), so it bounds discovery latency for a bucket that has gone
+     * quiet and sets the idle query load at {@code workers / pollInterval}. Default 100 ms, matching
+     * {@code RelayConfig}'s.
      */
     public Duration pollInterval() {
         return pollInterval;
+    }
+
+    /**
+     * Relay {@code pollIntervalFloor} — where the idle backoff restarts after a claim that returned
+     * rows, so what a row of a live stream actually waits (LLD-jdbc §3.1). Set it equal to
+     * {@link #pollInterval()} to measure a fixed poll interval. Default 10 ms, matching
+     * {@code RelayConfig}'s.
+     */
+    public Duration pollIntervalFloor() {
+        return pollIntervalFloor;
     }
 
     /** Relay claim batch size — the per-shard in-flight window (LLD-jdbc §3.4). Default 100. */
@@ -193,6 +206,7 @@ public final class BenchmarkConfig {
                 .bucketCount(bucketCount)
                 .workers(workers)
                 .pollInterval(pollInterval)
+                .pollIntervalFloor(pollIntervalFloor)
                 .batchSize(batchSize)
                 .rowLease(rowLease)
                 .deliveryTimeoutMs(deliveryTimeoutMs)
@@ -255,7 +269,8 @@ public final class BenchmarkConfig {
     public static final class Builder {
         private int bucketCount = 256;
         private int workers = 8;
-        private Duration pollInterval = Duration.ofMillis(100);   // RelayConfig's own default
+        private Duration pollInterval = Duration.ofMillis(100);        // RelayConfig's own defaults
+        private Duration pollIntervalFloor = Duration.ofMillis(10);
         private int batchSize = 100;
         private Duration rowLease = Duration.ofSeconds(60);
         private long deliveryTimeoutMs = 30_000;   // Kafka producer default (LLD-kafka §1)
@@ -291,6 +306,15 @@ public final class BenchmarkConfig {
                 throw new IllegalArgumentException("pollInterval must be positive");
             }
             this.pollInterval = pollInterval;
+            return this;
+        }
+
+        public Builder pollIntervalFloor(Duration pollIntervalFloor) {
+            Objects.requireNonNull(pollIntervalFloor, "pollIntervalFloor");
+            if (pollIntervalFloor.isNegative() || pollIntervalFloor.isZero()) {
+                throw new IllegalArgumentException("pollIntervalFloor must be positive");
+            }
+            this.pollIntervalFloor = pollIntervalFloor;
             return this;
         }
 

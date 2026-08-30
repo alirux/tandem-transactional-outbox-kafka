@@ -16,7 +16,12 @@ import java.time.Duration;
  * @param instanceId         unique instance id; unset → a derived {@code tandem-<host>-<pid>-<rand>}
  * @param bucketLease        LEASE bucket-lease duration; default {@code 30s}
  * @param workersPerInstance worker threads; default {@code availableProcessors() * 2}
- * @param pollInterval       idle backoff between empty claims (±20% jitter); default {@code 100ms}
+ * @param pollInterval       ceiling of the idle backoff between empty claims (±20% jitter), so what the
+ *                           first row after a quiet stretch waits; default {@code 100ms}
+ * @param pollIntervalFloor  where that backoff restarts after a claim that returned rows, so what a row
+ *                           of a live stream waits; default {@code 10ms}
+ * @param pollBackoffFactor  how fast the idle backoff climbs from the floor to the interval, one step
+ *                           per empty claim; default {@code 2.0}
  * @param batchSize          per-shard in-flight window; default {@code 100}
  * @param rowLease           per-row claim lease; default {@code 60s} (must exceed the delivery timeout)
  * @param maxAttempts        delivery attempts before a row is quarantined; default {@code 10}
@@ -41,6 +46,8 @@ public record TandemRelayProperties(
         Duration bucketLease,
         Integer workersPerInstance,
         Duration pollInterval,
+        Duration pollIntervalFloor,
+        Double pollBackoffFactor,
         Integer batchSize,
         Duration rowLease,
         Integer maxAttempts,

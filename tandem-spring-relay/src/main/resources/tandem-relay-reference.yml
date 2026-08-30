@@ -40,8 +40,18 @@ tandem:
     # tandem.relay.workers-per-instance — worker threads. Default: availableProcessors() * 2.
     # workers-per-instance: 8
 
-    # tandem.relay.poll-interval — idle backoff between empty claims. Default: 100ms.
+    # tandem.relay.poll-interval — ceiling of the idle backoff between empty claims, so what the
+    # first row after a quiet stretch waits, and what bounds the idle query load. Default: 100ms.
     # poll-interval: 100ms
+
+    # tandem.relay.poll-interval-floor — where that backoff restarts after a claim that returned
+    # rows, so what a row of a live stream waits. Set it equal to poll-interval for a fixed
+    # interval. Default: 10ms.
+    # poll-interval-floor: 10ms
+
+    # tandem.relay.poll-backoff-factor — how fast the idle backoff climbs from the floor back to
+    # poll-interval, one step per empty claim. Must be > 1. Default: 2.0.
+    # poll-backoff-factor: 2.0
 
     # tandem.relay.batch-size — per-shard in-flight window. Default: 100.
     # batch-size: 100

@@ -94,6 +94,12 @@ public class TandemRelayAutoConfiguration {
         if (relay.pollInterval() != null) {
             builder.pollInterval(relay.pollInterval());
         }
+        if (relay.pollIntervalFloor() != null) {
+            builder.pollIntervalFloor(relay.pollIntervalFloor());
+        }
+        if (relay.pollBackoffFactor() != null) {
+            builder.pollBackoffFactor(relay.pollBackoffFactor());
+        }
         if (relay.batchSize() != null) {
             builder.batchSize(relay.batchSize());
         }

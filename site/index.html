@@ -66,24 +66,20 @@
 </section>
 
 <section>
-  <div class="wrap two-col">
-    <div>
-      <p class="kicker">The whole idea</p>
-      <h2>One transaction, no dual write</h2>
-      <p>The classic double write — write to the database, then publish to Kafka as two
-        non-atomic steps — diverges permanently on partial failure. Tandem removes it: the
-        domain change and the event are one commit, guaranteed by the database you already
-        trust.</p>
-      <p>If the relay crashes after publishing but before marking the row done, it republishes:
-        a <strong>duplicate</strong>, which your consumer can handle — never a
-        <strong>divergence</strong>, which nobody can.</p>
-    </div>
-    <div>
+  <div class="wrap">
+    <p class="kicker">The whole idea</p>
+    <h2>One transaction, no dual write</h2>
+    <p>The classic double write — write to the database, then publish to Kafka as two
+      non-atomic steps — diverges permanently on partial failure. Tandem removes it: the
+      domain change and the event are one commit, guaranteed by the database you already
+      trust.</p>
 <pre><span class="k">BEGIN TX</span>
   UPDATE aggregate SET version = version + 1 WHERE id = ? FOR UPDATE
   INSERT INTO tandem_outbox (aggregate_id, type, seq, payload, ...)
 <span class="k">COMMIT TX</span>   <span class="c">← both or neither, guaranteed by the DB</span></pre>
-    </div>
+    <p>If the relay crashes after publishing but before marking the row done, it republishes:
+      a <strong>duplicate</strong>, which your consumer can handle — never a
+      <strong>divergence</strong>, which nobody can.</p>
   </div>
 </section>
 
@@ -150,6 +146,12 @@ cd tandem
           and poison-message isolation: a stuck event blocks only its own aggregate.</p>
       </div>
       <div class="card">
+        <h3>A poll interval that adapts</h3>
+        <p>The relay polls fast while a bucket is receiving events and slows down when it goes
+          quiet. Low delivery latency under traffic, without a tight poll running all day against
+          an idle database.</p>
+      </div>
+      <div class="card">
         <h3>CloudEvents by default</h3>
         <p>Messages are published in the CNCF CloudEvents envelope (binary mode), so the wider
           ecosystem can consume them without a bespoke reader.</p>
@@ -193,20 +195,20 @@ cd tandem
   <div class="wrap">
     <p class="kicker">Install</p>
     <h2>Add it to your build</h2>
-    <div class="two-col">
-      <div>
 <pre>dependencies {
     implementation(platform(<span class="k">"com.codingful:tandem-bom:x.y.z"</span>))
     implementation(<span class="k">"com.codingful:tandem-jdbc"</span>)
     implementation(<span class="k">"com.codingful:tandem-kafka"</span>)
     testImplementation(<span class="k">"com.codingful:tandem-test"</span>)
 }</pre>
-      </div>
+    <div class="two-col">
       <div>
         <p>Published to Maven Central under the <code>com.codingful</code> group. Import the BOM
           and declare modules without a version; take the current one from
           <a href="https://central.sonatype.com/artifact/com.codingful/tandem-core">Maven
             Central</a>.</p>
+      </div>
+      <div>
         <p>The write side (<code>tandem-jdbc</code>) pulls no Kafka dependency — add
           <code>tandem-kafka</code> only where the relay runs. On Spring Boot, take
           <code>tandem-spring-producer</code> where you write and

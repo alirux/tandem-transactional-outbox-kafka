@@ -1,0 +1,23 @@
+Idle poll cost probe — window=PT25S, postgres container=375bf949fd10, doneRows=200000, blockedRows=2000
+=== outbox state: EMPTY (pending:0, done:0, failed:0) ===
+cell                     expected q/s   measured q/s  postgres CPU% CPU% over base
+no relay (baseline)               0.0            0.2           0.15          +0.00
+8w @ 100 ms                      80.0           75.4           3.04          +2.89
+8w @ 20 ms                      400.0          313.9           9.93          +9.78
+8w @ 10 ms                      800.0          652.9          17.19         +17.04
+2w @ 25 ms                       80.0           75.8           3.06          +2.90
+=== outbox state: DRAINED (pending:0, done:200000, failed:0) ===
+cell                     expected q/s   measured q/s  postgres CPU% CPU% over base
+no relay (baseline)               0.0            0.0           0.05          +0.00
+8w @ 100 ms                      80.0           76.0           3.42          +3.36
+8w @ 20 ms                      400.0          315.8          12.90         +12.85
+8w @ 10 ms                      800.0          652.5          21.54         +21.48
+2w @ 25 ms                       80.0           73.4           3.60          +3.54
+=== outbox state: BLOCKED (pending:2000, done:200000, failed:100) ===
+cell                     expected q/s   measured q/s  postgres CPU% CPU% over base
+no relay (baseline)               0.0            0.2           0.19          +0.00
+8w @ 100 ms                      80.0           75.2          10.55         +10.37
+8w @ 20 ms                      400.0          313.2          37.51         +37.32
+8w @ 10 ms                      800.0          623.5          66.94         +66.76
+2w @ 25 ms                       80.0           66.0          20.01         +19.83
+BUILD SUCCESSFUL in 7m 39s

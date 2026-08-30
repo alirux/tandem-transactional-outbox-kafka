@@ -7,10 +7,11 @@ The raw output behind every performance figure Tandem publishes — the README's
 asks for results to be archived for regression tracking; this is where they go.
 
 **The headline finding is a negative one.** On this host the throughput ceiling is **not
-reproducible** — three measurements gave 1450, 725 and 1450 events/s, each internally precise to
-within 3%. Latency, measured at a fixed load, *is* reproducible: three runs agree to within about a
-millisecond at the median. Correctness never wavered in any run at any rate. Read the sections below
-before quoting any number from here.
+reproducible**: the 2026-08-28 session gave 1450, 725 and 1450 events/s, each internally precise to
+within 3%, and the 2026-08-30 session gave 1200, 1250, 1300, 1350, 1350 and 1400 across one hour.
+Latency, measured at a fixed load, *is* reproducible: replicates agree to within a millisecond or two
+at the median, in both sessions. Correctness never wavered in any run at any rate. Read the sections
+below before quoting any number from here.
 
 ## The host
 
@@ -59,6 +60,10 @@ Tier`) rather than billed.
 | `2026-08-28-run3-suite/` | All seven scenarios, `--duration=180`, with per-scenario reset | Ceiling #3 (1450/s), the third latency replicate, and the whole correctness table |
 | `2026-08-30-endurance/` | S9, six hours at a fixed 400 events/s, on a Mac | The endurance result: no drift in throughput, latency, bucket coverage or storage — and the concurrent-cleanup deadlock it surfaced. Has its own [README](2026-08-30-endurance/README.md) |
 | `2026-08-30-poll-interval/` | Ceiling at 100 ms vs 10 ms poll interval, drained and blocked outbox, on a Mac | Whether a short poll interval costs delivery capacity (it does not) and what a blocked outbox costs (a fifth to a quarter of the ceiling). Has its own [README](2026-08-30-poll-interval/README.md) |
+| `2026-08-30-adaptive-backoff/` | S2 with and without the adaptive idle backoff, plus the idle-cost probe under it, on a Mac | What the 10 ms floor buys (4.7× at the median, 3.4× at the p99) and what it costs an idle relay (nothing: 75 q/s at the 100 ms ceiling, as before). Has its own [README](2026-08-30-adaptive-backoff/README.md) |
+| `2026-08-30-ec2-run1/`, `-run2/` | S1 + S2, `--duration=240`, on the reference host, adaptive backoff | The latency figures the README and the site publish, and the ladder the throughput chart is drawn from |
+| `2026-08-30-ec2-run3-suite/` | All seven non-endurance scenarios, `--duration=180`, same host and build | The correctness table on the site, and a third latency replicate |
+| `2026-08-30-ec2-s1-ab/` | Four alternating ceiling searches, adaptive vs fixed interval | Whether the adaptive backoff costs throughput (it does not, within what this host can resolve). Has its own [README](2026-08-30-ec2-s1-ab/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples

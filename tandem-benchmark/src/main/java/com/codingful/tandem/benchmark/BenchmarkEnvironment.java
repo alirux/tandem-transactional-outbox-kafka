@@ -115,6 +115,7 @@ public final class BenchmarkEnvironment implements AutoCloseable {
                 .bucketCount(config.bucketCount())
                 .workersPerInstance(config.workers())
                 .pollInterval(config.pollInterval())
+                .pollIntervalFloor(config.pollIntervalFloor())
                 .batchSize(config.batchSize())
                 .rowLease(config.rowLease())
                 .maxAttempts(config.maxAttempts())

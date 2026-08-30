@@ -1,12 +1,13 @@
 # Sizing the relay: workers and poll interval
 
-**Applies to:** `RelayConfig.workersPerInstance` and `RelayConfig.pollInterval` (`tandem-jdbc`).
+**Applies to:** `RelayConfig.workersPerInstance`, `RelayConfig.pollInterval`,
+`RelayConfig.pollIntervalFloor` and `RelayConfig.pollBackoffFactor` (`tandem-jdbc`).
 **Companion to:** [dispatch-latency.md](dispatch-latency.md) (why the latency is where it is, and what
-it would take to remove it), [LLD-jdbc.md](LLD-jdbc.md) §3.1 (the poll loop itself).
+it would take to remove the rest of it), [LLD-jdbc.md](LLD-jdbc.md) §3.1 (the poll loop itself).
 
-Two knobs, one of which does something other than what its name suggests. This guide says what each
-one controls, gives a procedure for setting them, and shows the measurements the procedure is drawn
-from.
+Four knobs, none of which does quite what its name suggests: the worker count is not a latency knob,
+and the poll interval is a ceiling rather than the wait itself. This guide says what each one
+controls, gives a procedure for setting them, and shows the measurements the procedure is drawn from.
 
 ---
 
@@ -17,21 +18,38 @@ concurrency: each owns the buckets where `bucket % workersPerInstance == workerI
 them, and dispatches asynchronously. More workers means more parallel claim/publish pipelines, and a
 smaller share of the outbox stranded behind any one wedged worker.
 
-**`pollInterval` — the bound on discovery latency.** It is an **idle backoff, not a per-batch delay**:
-a worker claims back-to-back for as long as work remains, and waits `pollInterval` (±20% jitter) only
-after a claim that returned nothing *and* left nothing in flight. An empty claim with publishes still
-outstanding waits 5 ms instead. So `pollInterval` is what a row waits when its bucket was quiet at the
-moment it was written — which, below the relay's throughput ceiling, is most rows.
+**The idle backoff is a range, not a value, and it adapts to the traffic.** A worker claims
+back-to-back for as long as work remains, and waits only after a claim that returned nothing *and*
+left nothing in flight (an empty claim with publishes still outstanding waits 5 ms instead). That
+wait starts at **`pollIntervalFloor`** (10 ms) after every claim that found rows and grows by
+**`pollBackoffFactor`** (2.0) on each consecutive empty claim, up to **`pollInterval`** (100 ms).
 
-**The identity that ties them together:**
+**`pollIntervalFloor` — what a row of a live stream waits.** Below the relay's throughput ceiling the
+relay is faster than its arrivals, so its workers drain and go quiet between rows at any load. Those
+rows are the common case, and what they wait for is the floor, not the interval.
+
+**`pollInterval` — the ceiling: what the first row after a quiet stretch waits, and what a quiet
+relay costs.** It bounds the wait a worker can reach, so it is still the worst case, and since a
+genuinely idle relay sits at it, it is also what the idle query load is sized against.
+
+**`pollBackoffFactor` — how fast the climb is.** At 2.0 a worker goes 10, 20, 40, 80, 100 ms: four
+empty claims to reach a 100 ms ceiling, so a bucket that pauses for a second is polled about eight
+times rather than ten, and one that pauses for an hour is polled at the ceiling throughout. Lower it
+only to keep short pauses cheaper in latency, at the price of more queries in them.
+
+**The identity that ties them together, for a relay that has gone quiet:**
 
 ```
 idle query load  =  instances × workersPerInstance / pollInterval
 ```
 
-Every idle worker issues one claim per interval. At the defaults (8 workers, 100 ms) that is 80
+Every quiet worker issues one claim per interval. At the defaults (8 workers, 100 ms) that is 80
 queries per second per instance to discover nothing — negligible on one relay, and 8 000/s across 10
-instances of 16 workers at 20 ms.
+instances of 16 workers at 20 ms. **While a stream is running the rate is set by the traffic
+instead**, since each row resets its worker to the floor: it rises with the arrival rate up to
+`workers / pollIntervalFloor`, and falls back to the identity above within a few hundred milliseconds
+of the last row. This is the half of the trade-off the floor is worth paying for: the short-interval
+cost is paid only while there is something to find.
 
 The identity counts queries. What each query *costs* depends on what the outbox holds
 (`./gradlew :tandem-benchmark:idlePollCostProbe`; PostgreSQL CPU over an idle baseline, 100% = one
@@ -71,7 +89,47 @@ which is to say, at the moment something is already wrong.
 
 ## 2. What the measurements show
 
-Two axes, measured with S2 (COMMIT→ack, HdrHistogram) at a constant 400 events/s. Milliseconds.
+### The floor against a fixed interval
+
+The first thing to measure was the change itself: the same relay, the same load, with and without the
+ramp (`--poll-floor=` equal to `--poll-interval=` is the fixed timing every earlier run used). S2 at a
+constant 400 events/s, 8 workers, two replicates each, run in reverse order on the second pass.
+Milliseconds, developer Mac, Docker in a VM:
+
+| idle backoff | p50 | p95 | p99 | p99.9 |
+|---|---:|---:|---:|---:|
+| fixed 100 ms | 64.5 / 61.8 | 153 / 134 | 309 / 203 | 1358 / 283 |
+| **10 ms floor → 100 ms ceiling (the default)** | **12.8 / 13.1 / 12.2** | **42 / 42 / 40** | **61 / 59 / 57** | **96 / 93 / 92** |
+
+Zero ordering violations and zero lost events in all four runs. On the clean replicate pair that is
+**4.7× at the median and 3.4× at the p99**, for an unchanged ceiling and an unchanged idle cost: the
+cost probe re-run under the new default measures 75.4 queries/s at the 100 ms ceiling against the ~78
+it measured before, because a worker with nothing to find reaches the ceiling within four empty claims
+and stays there. Both, with the raw logs:
+[benchmark-results/2026-08-30-adaptive-backoff/](benchmark-results/2026-08-30-adaptive-backoff/). The
+adaptive arm also reproduces far better than the fixed one (12.8 against 13.1, where the fixed arm's
+p99.9 moved by a factor of five between replicates), which is what you would expect once most rows
+stop waiting on a 100 ms sleep that the host's own jitter then rides on top of.
+
+**Confirmed on the reference host, where the published figures come from.** Three runs of S2 at 600
+events/s on the 2 vCPU cloud VM: p50 13.7 / 11.2 / 12.8 ms and p99 92 / 78 / 91, against the 54.3 /
+54.6 / 54.1 and 148 / 149 / 146 the same scenario gave there at the fixed interval. The median moves
+by 4.3×, the p99 by 1.7×, and the p99.9 not at all: above the poll term the distribution is the
+host's. Four alternating ceiling searches on that host, adaptive against fixed, found no capacity
+cost either — 1325 against 1275 events/s, inside each arm's own spread
+([benchmark-results/2026-08-30-ec2-s1-ab/](benchmark-results/2026-08-30-ec2-s1-ab/)).
+
+**It does not reach a fixed 10 ms interval, and it is not meant to.** That cell measured p50 9.3 and
+p99 23 on the same host (below), against 13 and 60 here: within a stream's short pauses the backoff
+has already climbed a step or two, so the ceiling still shows up in the tail. What it buys against
+that cell is the idle load, 80 queries/s instead of 652.
+
+### The fixed-interval sweep the model is drawn from
+
+These tables predate the adaptive backoff and are what established that the poll term, not the
+service term, is what the median is made of. They remain the reference for what a fixed interval
+does, and for what the *ceiling* still governs. S2 (COMMIT→ack, HdrHistogram) at a constant 400
+events/s. Milliseconds.
 
 **Changing workers, poll interval fixed — the median does not move:**
 
@@ -103,13 +161,19 @@ term getting cheaper (fewer threads contending), not rows being discovered soone
 
 Zero ordering violations and zero lost events in every cell, including at 10 ms.
 
-Two rules of thumb come out of it:
+Two rules of thumb come out of it, stated for a fixed interval and holding for whichever wait the
+worker is actually sitting at:
 
 ```
-p50 ≈ pollInterval / 2 + service        (service: ~2-10 ms, host-dependent,
-                                         and smaller at shorter intervals)
-p99 ≈ 1.4 to 2 × pollInterval
+p50 ≈ wait / 2 + service                (service: ~2-10 ms, host-dependent,
+                                         and smaller at shorter waits)
+p99 ≈ 1.4 to 2 × wait
 ```
+
+With the adaptive default the wait is the floor for a row arriving into a live stream and the ceiling
+for one arriving after a quiet stretch, so the two rules bracket the distribution rather than
+describing one point of it: `p50 ≈ pollIntervalFloor / 2 + service`, and a tail that reaches towards
+`pollInterval` as the stream's pauses lengthen.
 
 **Both were re-measured on a different host** — a 2 vCPU cloud VM with native Linux Docker, where the
 tables above came from a developer Mac running Docker in a VM. Same three claims, same 400 events/s:
@@ -168,19 +232,22 @@ offered rate. Aim to sit at roughly half the rate the relay can sustain: the sla
 backlog after a burst, a restart, or a Kafka hiccup, and it costs nothing while unused. Do not tune
 this knob for latency in either direction — §2 shows it does not move the median.
 
-**Step 2 — set the poll interval from the latency budget.** Invert the rule of thumb: for a target
-p99 of `T`, set `pollInterval ≈ T / 2`. Some worked values:
+**Step 2 — start from the defaults, and move the floor before the ceiling.** The default pair (10 ms
+floor, 100 ms ceiling) already puts the median of a live stream in the low tens of milliseconds at the
+idle cost of a 100 ms interval, which is why it is the default. Reach for a knob only when a budget
+says so:
 
-| Latency budget (p99) | `pollInterval` |
-|---|---|
-| ~200 ms — projections, search indexing, analytics | 100 ms (the default) |
-| ~100 ms — integration events between services | 50 ms |
-| ~50 ms — a user-visible side effect, no read-your-writes | 20 ms |
-| ~20 ms — read-your-writes through events | 10 ms |
-| single-digit ms | not reachable by polling — see §5 |
+| What the budget is about | Knob | Worked values |
+|---|---|---|
+| Latency of a row written into a stream that is already flowing (the common case) | `pollIntervalFloor` | `p50 ≈ floor / 2 + service`. 10 ms (default) for a ~15 ms median; 4 ms is around the service floor on a small VM and nothing below it buys anything |
+| Latency of the first row after a bucket has been quiet for a while, and the whole tail | `pollInterval` | `p99 ≈ 1.4 to 2 × interval` for that row. 100 ms (default) for a ~200 ms worst case; 20 ms for ~40 ms |
+| What a relay costs while there is nothing to deliver | `pollInterval` | `instances × workers / pollInterval` queries/s; raise it to 500 ms or 1 s on a fleet that is mostly idle, at the price of the row above |
+| How much a short pause in the stream costs | `pollBackoffFactor` | 2.0 (default); 1.5 climbs more gently, so a bucket that pauses for a beat is re-checked sooner, for more queries in every pause |
+| Single-digit milliseconds, for a row after silence | none | not reachable by polling — see §5 |
 
-**Step 3 — price what you just bought.** Compute `instances × workers / pollInterval`, then price it
-at roughly a third of a core per thousand queries/s, or a full core per thousand if the outbox carries
+**Step 3 — price what you just bought.** Compute `instances × workers / pollInterval` for the quiet
+state, and `instances × workers / pollIntervalFloor` for the ceiling it can reach while a stream runs.
+Then price it at roughly a third of a core per thousand queries/s, or a full core per thousand if the outbox carries
 stuck rows (§1). At the default sizing that is ~4% of one core and not worth a thought; at 800
 queries/s it is a quarter of a core on a clean outbox and two thirds on a blocked one. The load scales
 with instance count, so a figure that is fine on one relay is 10× that at ten — that multiplication,
@@ -192,19 +259,26 @@ not the single-relay number, is usually what makes this matter.
 
 ## 4. Starting points
 
-| Profile | `workersPerInstance` | `pollInterval` | Idle load |
+| Profile | `workersPerInstance` | floor → ceiling | Idle load |
 |---|---|---|---|
-| Single embedded relay, ordinary integration events | default (`cores × 2`) | 100 ms | ~80/s |
-| Single relay, latency-sensitive consumer | default | 20 ms | ~400/s |
-| Mostly-idle outbox, latency matters | 2 | 20 ms | 100/s |
-| `LEASE`, several instances, ordinary events | default | 100 ms | 80/s × instances |
-| `LEASE`, many instances, latency matters | 4 | 25 ms | 160/s × instances |
-| High sustained throughput, latency secondary | default or higher | 100 ms | ~80/s |
+| Single embedded relay, ordinary integration events | default (`cores × 2`) | 10 ms → 100 ms (defaults) | ~80/s |
+| Single relay, latency-sensitive consumer | default | 10 ms → 20 ms | ~400/s |
+| Mostly-idle outbox, occasional events that matter when they come | default | 10 ms → 20 ms | ~400/s |
+| Mostly-idle outbox, latency matters only under load | default | 10 ms → 1 s | ~8/s |
+| `LEASE`, several instances, ordinary events | default | defaults | 80/s × instances |
+| `LEASE`, many instances, mostly idle | default | 10 ms → 500 ms | 16/s × instances |
+| High sustained throughput, latency secondary | default or higher | defaults | ~80/s |
 
-The two rows with a reduced worker count assume `FAILED` and backing-off rows are cleared rather than
-left to accumulate (the Admin API's replay and discard exist for this). On an outbox that collects
-stuck rows, keep the workers at their default and buy latency with the interval alone — a wide bucket
-slice and a short interval is the one combination that multiplies both halves of the cost.
+The two mostly-idle rows are the choice the ceiling now makes explicit: **a bucket that goes quiet is
+either cheap or fast on its first row back, and you pick which.** Under the defaults an idle fleet
+pays 80 queries/s per instance for a ~100 ms cold row; at a 1 s ceiling it pays 8 for a cold row of up
+to a second, and nothing changes for any row that arrives while the stream is already flowing. That
+choice is what a post-commit wakeup would remove ([dispatch-latency.md](dispatch-latency.md) §3.4).
+
+Note also what is *not* in the table any more: trading workers away to afford a shorter interval. It
+worked (8 workers at 100 ms and 2 at 25 ms cost the same 80 queries/s, §2), but it bought latency the
+floor now gives for free, and it multiplied the cost of a blocked outbox, since a claim over a wider
+bucket slice scans proportionally more unclaimable rows. Keep the workers sized for throughput.
 
 ---
 
@@ -219,20 +293,25 @@ but query load.
 neither poll nor service — GC, CPU contention, a broker pause. Lowering the poll interval translates
 the whole distribution down; it does not remove that tail.
 
-**Below the floor.** Single-digit-millisecond delivery is not reachable by shortening the interval —
-that is the case a post-commit wakeup exists for, and the design (including why it is not built yet,
-and why it is much weaker under `LEASE` than it looks) is in [dispatch-latency.md](dispatch-latency.md).
+**The cold row.** Shortening the floor does nothing for a row that arrives into a bucket which has
+been quiet long enough for its worker to reach the ceiling: that one waits the ceiling, and the only
+way to make it fast *and* keep an idle relay cheap is a post-commit wakeup. The design, including why
+it is not built yet and why it is much weaker under `LEASE` than it looks, is in
+[dispatch-latency.md](dispatch-latency.md) §3.4.
 
 ---
 
 ## 6. Measuring it yourself
 
-The load-test harness takes both knobs, so the table in §2 can be reproduced against your own
+The load-test harness takes all three knobs, so the tables in §2 can be reproduced against your own
 database and broker rather than trusted:
 
 ```bash
-./gradlew :tandem-benchmark:loadTest --args="--demo --duration=90 --workers=4 --poll-interval=25 S2"
+./gradlew :tandem-benchmark:loadTest --args="--demo --duration=90 --workers=4 --poll-interval=25 --poll-floor=5 S2"
 ```
+
+Passing `--poll-floor=` equal to `--poll-interval=` measures a fixed interval, which is how the
+adaptive backoff is compared against the timing every run archived before it used.
 
 S2 reports COMMIT→ack p50/p95/p99/p99.9 at a held load, and the run's first line records the sizing it
 used — quote a percentile only together with that line.
@@ -248,11 +327,12 @@ Both require Docker ([LLD-benchmark.md](LLD-benchmark.md) §9).
 
 ---
 
-## 7. Side effects worth knowing before you turn the interval down
+## 7. Side effects worth knowing before you turn the knobs down
 
 - **`pollInterval` is also the first retry delay after a failing cycle**, growing exponentially to
-  `reclaimInterval` (default 5 s). A 10 ms interval means a relay whose database is down starts
-  retrying every 10 ms — bounded by the cap, but it reaches it through a few more doublings.
+  `reclaimInterval` (default 5 s). It is deliberately anchored on the ceiling and not on the floor,
+  so lowering the floor does not make a relay retry a database that is down ten times faster; that
+  only happens if you lower `pollInterval` itself.
 - **Keep `workersPerInstance ≤ bucketCount`.** Buckets are assigned as `bucket % workersPerInstance`;
   beyond the bucket count, the surplus workers own nothing and poll forever to find it.
 - **Under `LEASE`, the split is over the buckets the instance currently owns**, not all of them, so

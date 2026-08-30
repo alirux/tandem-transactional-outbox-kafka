@@ -23,6 +23,17 @@ class LoadTestRunnerArgsTest {
 
         assertThat(config.workers()).isEqualTo(BenchmarkConfig.defaults().workers());
         assertThat(config.pollInterval()).isEqualTo(BenchmarkConfig.defaults().pollInterval());
+        assertThat(config.pollIntervalFloor()).isEqualTo(BenchmarkConfig.defaults().pollIntervalFloor());
+    }
+
+    @Test
+    void GIVEN_a_run_measuring_a_fixed_poll_interval_WHEN_the_floor_is_given_as_the_interval_THEN_both_reach_the_relay() {
+        // How a run reproduces the pre-adaptive timing: floor and ceiling equal, no ramp in between.
+        BenchmarkConfig config = LoadTestRunner.configFrom(List.of(POLL_INTERVAL, "--poll-floor=20"));
+
+        var relayConfig = BenchmarkEnvironment.relayConfigBuilder(config, config.deliveryTimeoutMs()).build();
+        assertThat(relayConfig.pollIntervalFloor()).isEqualTo(Duration.ofMillis(20));
+        assertThat(relayConfig.pollIntervalFloor()).isEqualTo(relayConfig.pollInterval());
     }
 
     @Test

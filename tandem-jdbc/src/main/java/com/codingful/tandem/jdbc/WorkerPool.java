@@ -137,6 +137,8 @@ public final class WorkerPool {
         LOG.log(Level.INFO, "Starting relay instanceId:" + instanceId + ", workers:" + workerCount
                 + ", coordination:" + cfg.coordination() + ", bucketCount:" + cfg.bucketCount()
                 + ", batchSize:" + cfg.batchSize() + ", pollIntervalMs:" + cfg.pollInterval().toMillis()
+                + ", pollIntervalFloorMs:" + cfg.pollIntervalFloor().toMillis()
+                + ", pollBackoffFactor:" + cfg.pollBackoffFactor()
                 + ", maxAttempts:" + cfg.maxAttempts() + ", rowLeaseMs:" + cfg.rowLease().toMillis());
         for (int i = 0; i < workerCount; i++) {
             int index = i;
@@ -213,7 +215,8 @@ public final class WorkerPool {
         RelayWorker worker = workers[index];
         // A local, so the failure counter is this thread's by construction — never shared, never
         // contended, and reset with the thread when a supervised restart replaces it (§3.1).
-        PollBackoff backoff = new PollBackoff(cfg.pollInterval(), cfg.reclaimInterval());
+        PollBackoff backoff = new PollBackoff(cfg.pollIntervalFloor(), cfg.pollInterval(),
+                cfg.pollBackoffFactor(), cfg.reclaimInterval());
         while (running) {
             try {
                 int claimed = worker.claimAndDispatch();
@@ -223,24 +226,24 @@ public final class WorkerPool {
                 // worker whose every iteration fails is not making progress, and status() must say so
                 // (§3.8). Claiming nothing is still progress — an idle relay is a working relay.
                 lastCycleAtMillis.set(index, clock.millis());
-                backoff.onCycleCompleted();
                 if (!running) {
                     break;
                 }
                 if (claimed > 0 && LOG.isLoggable(Level.DEBUG)) {
                     LOG.log(Level.DEBUG, "Worker claimed rows workerIndex:" + index + ", claimed:" + claimed);
                 }
-                if (claimed == 0) {
-                    // No work claimed: idle-backoff when nothing is in flight, else a brief pause so
-                    // async completions can land before we re-flush (§3.1 — pollInterval is idle backoff).
-                    sleep(worker.inFlight() == 0 ? backoff.idleSleepMillis() : 5);
+                // The loop reports what the cycle did and is told how long to wait; which of the three
+                // waits that is, and how the idle one grows, belongs to PollBackoff (§3.1).
+                long wait = backoff.waitAfterCycle(claimed, worker.inFlight());
+                if (wait > 0) {
+                    sleep(wait);
                 }
             } catch (Exception perIteration) {
                 LOG.log(Level.ERROR, "Relay worker iteration failed workerIndex:" + index
                         + ", instanceId:" + instanceId, perIteration);
                 // Growing wait, not a fixed pollInterval: a database that is down would otherwise have
                 // every worker re-querying and logging a stack trace ten times a second (§3.1).
-                sleep(backoff.failedCycleSleepMillis());
+                sleep(backoff.waitAfterFailedCycle());
             }
         }
         worker.flushDone();       // best-effort drain of any acked ids on shutdown

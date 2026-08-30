@@ -757,6 +757,41 @@ class WorkerPoolTest {
         assertThat(store.lagQueries()).isZero();
     }
 
+    @Test
+    void GIVEN_a_relay_that_polls_at_most_once_a_second_WHEN_events_keep_arriving_THEN_none_of_them_waits_that_long() {
+        // The whole point of the adaptive idle backoff: the configured interval bounds what the first
+        // row after a quiet stretch waits, not what every row of a live stream waits. With a 3s
+        // ceiling and a 5ms floor, a worker that keeps finding work must keep discovering it in
+        // milliseconds; one that never came back to the floor would make each row wait seconds.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1)
+                .pollInterval(Duration.ofSeconds(3)).pollIntervalFloor(Duration.ofMillis(5))
+                .build();
+        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg);
+
+        pool.start();
+        try {
+            for (int seq = 1; seq <= 6; seq++) {
+                int delivered = seq;
+                outbox.insert(OutboxMessage.builder()
+                        .aggregateId("order-1").aggregateType("Order").seq(seq)
+                        .payload(("p-" + seq).getBytes()).build());
+                // The first row arrives into a worker that has been idle since startup, so it may
+                // legitimately wait the ceiling; every later one follows a claim that found work.
+                Duration budget = seq == 1 ? Duration.ofSeconds(10) : Duration.ofSeconds(1);
+                awaitUpTo(budget,
+                        () -> "event " + delivered + " delivered, got " + outbox.statusCounts(),
+                        () -> outbox.byStatus(OutboxStatus.DONE).size() == delivered);
+            }
+        } finally {
+            pool.stop();
+        }
+
+        assertThat(dispatcher.dispatchCount()).isEqualTo(6);
+    }
+
     /** Delegates every call to a real {@link InMemoryOutbox}; each subclass bends exactly one of them. */
     private abstract static class DelegatingStore implements OutboxStore {
         private final InMemoryOutbox delegate;

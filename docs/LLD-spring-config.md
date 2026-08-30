@@ -309,6 +309,8 @@ programmatic builder never drift:
 | `tandem.relay.bucket-lease` | Duration | `30s` |
 | `tandem.relay.workers-per-instance` | int | `availableProcessors() * 2` |
 | `tandem.relay.poll-interval` | Duration | `100ms` |
+| `tandem.relay.poll-interval-floor` | Duration | `10ms` |
+| `tandem.relay.poll-backoff-factor` | double | `2.0` |
 | `tandem.relay.batch-size` | int | `100` |
 | `tandem.relay.row-lease` | Duration | `60s` |
 | `tandem.relay.max-attempts` | int | `10` |
@@ -324,6 +326,12 @@ programmatic builder never drift:
 write-side ordering precondition is otherwise completely silent (LLD-jdbc §3.9), and switchable off
 where writers to one aggregate are serialised by construction — the detection is bounded and therefore
 partial, and costs one tracked entry per recently-published aggregate per worker.
+
+`poll-interval` is a **ceiling**, not the wait itself: the idle backoff starts at
+`poll-interval-floor` after every claim that found work and climbs by `poll-backoff-factor` towards
+`poll-interval` while claims keep coming back empty (LLD-jdbc §3.1). So the floor sets what a row of
+a live stream waits, the interval bounds what the first row after a quiet stretch waits and what a
+quiet relay costs the database, and setting the two equal restores a fixed poll interval.
 
 Two of these carry a second role the key name does not reveal, both from the relay loop's sleep
 timing (LLD-jdbc §3.1): `poll-interval` is also the *first* wait after a worker cycle throws, and

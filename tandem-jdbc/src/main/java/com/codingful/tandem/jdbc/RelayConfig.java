@@ -33,6 +33,8 @@ public final class RelayConfig {
     private final Duration bucketLease;
     private final int workersPerInstance;
     private final Duration pollInterval;
+    private final Duration pollIntervalFloor;
+    private final double pollBackoffFactor;
     private final int batchSize;
     private final Duration rowLease;
     private final int maxAttempts;
@@ -52,6 +54,8 @@ public final class RelayConfig {
         this.bucketLease = b.bucketLease;
         this.workersPerInstance = b.workersPerInstance;
         this.pollInterval = b.pollInterval;
+        this.pollIntervalFloor = b.pollIntervalFloor;
+        this.pollBackoffFactor = b.pollBackoffFactor;
         this.batchSize = b.batchSize;
         this.rowLease = b.rowLease;
         this.maxAttempts = b.maxAttempts;
@@ -94,8 +98,25 @@ public final class RelayConfig {
         return workersPerInstance;
     }
 
+    /**
+     * The <b>ceiling</b> on the idle backoff, and so on discovery latency: a worker that has found
+     * nothing for a while waits no longer than this between claims (§3.1).
+     */
     public Duration pollInterval() {
         return pollInterval;
+    }
+
+    /**
+     * The idle backoff a worker starts from after a claim that returned rows, before it ramps towards
+     * {@link #pollInterval()} (§3.1). Capped to {@code pollInterval} when configured above it.
+     */
+    public Duration pollIntervalFloor() {
+        return pollIntervalFloor;
+    }
+
+    /** Factor by which the idle backoff grows on each consecutive empty claim (§3.1). */
+    public double pollBackoffFactor() {
+        return pollBackoffFactor;
     }
 
     public int batchSize() {
@@ -235,6 +256,8 @@ public final class RelayConfig {
         private Duration bucketLease = Duration.ofSeconds(30);
         private int workersPerInstance = Math.max(1, Runtime.getRuntime().availableProcessors() * 2);
         private Duration pollInterval = Duration.ofMillis(100);
+        private Duration pollIntervalFloor = Duration.ofMillis(10);
+        private double pollBackoffFactor = 2.0;
         private int batchSize = 100;
         private Duration rowLease = Duration.ofSeconds(60);
         private int maxAttempts = 10;
@@ -302,12 +325,50 @@ public final class RelayConfig {
         }
 
         /**
-         * Idle-backoff between claim attempts when nothing was claimed, applied with ±20% jitter so
-         * concurrent workers do not poll in lockstep. Also the first delay after a failed cycle, from
-         * which the relay backs off exponentially up to {@link #reclaimInterval}. Default 100ms.
+         * <b>Ceiling</b> of the idle backoff between claim attempts when nothing was claimed, applied
+         * with ±20% jitter so concurrent workers do not poll in lockstep. A worker starts from
+         * {@link #pollIntervalFloor} after each productive claim and grows towards this value while it
+         * keeps finding nothing, so this is what bounds both discovery latency and the idle query load
+         * (§3.1). Also the first delay after a failed cycle, from which the relay backs off
+         * exponentially up to {@link #reclaimInterval}. Default 100ms.
          */
         public Builder pollInterval(Duration pollInterval) {
             this.pollInterval = Objects.requireNonNull(pollInterval, "pollInterval");
+            return this;
+        }
+
+        /**
+         * Where the idle backoff restarts after a claim that returned rows, before it ramps back
+         * towards {@link #pollInterval} (§3.1). This is what a row waits when its bucket is under a
+         * live stream, so it sets the latency of the common case; {@code pollInterval} only bounds the
+         * first row arriving after a genuinely quiet stretch. Capped to {@code pollInterval} when
+         * configured above it, and setting the two equal restores a fixed poll interval. Default 10ms,
+         * around the relay's own service time, below which faster polling buys nothing.
+         *
+         * @throws IllegalArgumentException if not positive
+         */
+        public Builder pollIntervalFloor(Duration pollIntervalFloor) {
+            Objects.requireNonNull(pollIntervalFloor, "pollIntervalFloor");
+            if (pollIntervalFloor.isNegative() || pollIntervalFloor.isZero()) {
+                throw new IllegalArgumentException("pollIntervalFloor must be positive");
+            }
+            this.pollIntervalFloor = pollIntervalFloor;
+            return this;
+        }
+
+        /**
+         * How fast the idle backoff climbs from {@link #pollIntervalFloor} to {@link #pollInterval},
+         * one step per consecutive empty claim. Default 2.0 (doubling), which reaches a 100ms ceiling
+         * from a 10ms floor in four steps; a smaller factor trades a slower climb for more queries in
+         * the pauses of a bursty stream.
+         *
+         * @throws IllegalArgumentException if not greater than 1
+         */
+        public Builder pollBackoffFactor(double pollBackoffFactor) {
+            if (!(pollBackoffFactor > 1.0) || Double.isInfinite(pollBackoffFactor)) {
+                throw new IllegalArgumentException("pollBackoffFactor must be greater than 1");
+            }
+            this.pollBackoffFactor = pollBackoffFactor;
             return this;
         }
 

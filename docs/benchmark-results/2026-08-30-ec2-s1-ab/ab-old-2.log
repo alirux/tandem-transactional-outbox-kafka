@@ -1,0 +1,32 @@
+Tandem load test — scenarios=[S1], smoke=false, demo=false, duration=PT4M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.1S
+--- Running S1 ---
+11:32:16 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-35975-44f7, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:100, pollBackoffFactor:2.0, maxAttempts:10, rowLeaseMs:60000
+  ramp 11:33:17  held  rate:100.0/s bracket:[100.0, unbounded] next:200.0/s pending:5
+  ramp 11:34:17  held  rate:200.0/s bracket:[200.0, unbounded] next:400.0/s pending:11
+  ramp 11:35:17  held  rate:400.0/s bracket:[400.0, unbounded] next:800.0/s pending:31
+11:36:02 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w5, processed:10000, ok:10000, ko:0
+11:36:02 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w7, processed:10000, ok:10000, ko:0
+11:36:03 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w4, processed:10000, ok:10000, ko:0
+11:36:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w2, processed:10000, ok:10000, ko:0
+11:36:06 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w1, processed:10000, ok:10000, ko:0
+11:36:07 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w3, processed:10000, ok:10000, ko:0
+11:36:07 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w0, processed:10000, ok:10000, ko:0
+11:36:08 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w6, processed:10000, ok:10000, ko:0
+  ramp 11:36:17  held  rate:800.0/s bracket:[800.0, unbounded] next:1600.0/s pending:45
+  ramp 11:36:22  grew  rate:1600.0/s bracket:[800.0, 1600.0] next:1200.0/s pending:196
+11:37:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w7, processed:20000, ok:20000, ko:0
+11:37:13 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w4, processed:20000, ok:20000, ko:0
+11:37:16 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w5, processed:20000, ok:20000, ko:0
+11:37:16 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w2, processed:20000, ok:20000, ko:0
+11:37:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w3, processed:20000, ok:20000, ko:0
+11:37:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w1, processed:20000, ok:20000, ko:0
+11:37:19 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w0, processed:20000, ok:20000, ko:0
+11:37:21 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-35975-44f7-w6, processed:20000, ok:20000, ko:0
+  ramp 11:37:22  held  rate:1200.0/s bracket:[1200.0, 1600.0] next:1400.0/s pending:69
+  ramp 11:37:47  grew  rate:1400.0/s bracket:[1200.0, 1400.0] next:1300.0/s pending:502
+  ramp 11:38:02  grew  rate:1300.0/s bracket:[1200.0, 1300.0] next:1250.0/s pending:4865
+  ramp 11:38:07  grew  rate:1250.0/s bracket:[1200.0, 1250.0] next:1225.0/s pending:10887
+11:39:05 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-35975-44f7
+PASS S1: sustained 1200.0 events/s aggregate (150.0/s per worker); ceiling bracketed below 1250.0/s, so known to within 4%; ordering violations=0, missing=0
+All scenarios passed correctness.
+BUILD SUCCESSFUL in 7m 4s

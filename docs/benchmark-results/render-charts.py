@@ -14,6 +14,7 @@ is never the sole carrier.
 """
 
 import csv
+import math
 import pathlib
 import re
 
@@ -33,15 +34,26 @@ SANS = '"Helvetica Neue",Helvetica,Arial,sans-serif'
 MONO = 'Menlo,"DejaVu Sans Mono",monospace'
 
 HERE = pathlib.Path(__file__).resolve().parent
-RUNS = ("2026-08-28-run1", "2026-08-28-run2", "2026-08-28-run3-suite")
-RUN_LABELS = {"2026-08-28-run1": "run 1", "2026-08-28-run2": "run 2", "2026-08-28-run3-suite": "run 3"}
+
+# Two run sets, because the two questions have different evidence. PERF_RUNS is the current
+# behaviour and is what latency, throughput and resource use are drawn from. HOST_RUNS is the
+# 2026-08-28 session kept as the record of how this burstable host behaves: the ceilings chart is
+# about the machine, not about a version of the relay, and re-measuring it on a later build would
+# not make it a better record of that.
+PERF_RUNS = ("2026-08-30-ec2-run1", "2026-08-30-ec2-run2", "2026-08-30-ec2-run3-suite")
+HOST_RUNS = ("2026-08-28-run1", "2026-08-28-run2", "2026-08-28-run3-suite")
+RUN_LABELS = {"2026-08-28-run1": "run 1", "2026-08-28-run2": "run 2", "2026-08-28-run3-suite": "run 3",
+              "2026-08-30-ec2-run1": "run 1", "2026-08-30-ec2-run2": "run 2",
+              "2026-08-30-ec2-run3-suite": "run 3"}
 
 RAMP_RE = re.compile(
     r"ramp (?P<t>\d\d:\d\d:\d\d)\s+(?P<verdict>held|grew)\s+rate:(?P<rate>[\d.]+)/s\s+"
     r"bracket:\[(?P<lo>[\d.]+), (?P<hi>[\d.]+|unbounded)\].*?pending:(?P<pending>\d+)")
 S1_RE = re.compile(r"PASS S1: sustained (?P<rate>[\d.]+) events/s.*?below (?P<hi>[\d.]+)/s")
+# The rate may be followed by a parenthetical naming what it is a fraction of, which runs archived
+# before that was added do not carry. Optional, so one regex reads both.
 S2_RE = re.compile(
-    r"PASS S2: normal-load rate (?P<rate>[\d.]+)/s; "
+    r"PASS S2: normal-load rate (?P<rate>[\d.]+)/s(?: \([^)]*\))?; "
     r"p50=PT(?P<p50>[\d.]+)S p95=PT(?P<p95>[\d.]+)S p99=PT(?P<p99>[\d.]+)S p999=PT(?P<p999>[\d.]+)S")
 
 
@@ -170,15 +182,18 @@ def load_per_step(run):
 # PostgreSQL may genuinely never read from disk — one archived run has reads at 0.00 throughout while
 # its write column takes 168 distinct values. A flat *write* or *utilisation* column during a
 # write-heavy run still means the sampler is broken, so those stay required.
-for _r in RUNS:
-    assert_channels_live(HERE / _r / "resources.csv",
-                         required=("cpu_usr", "cpu_sys", "cpu_iowait", "mem_used_mb",
-                                   "disk_write_kbps", "disk_util_pct"),
-                         advisory=("disk_read_kbps",))
+# One sampler covers a whole session, so only the run whose window it starts in carries the CSVs.
+for _r in HOST_RUNS + PERF_RUNS:
+    _csv = HERE / _r / "resources.csv"
+    if _csv.exists():
+        assert_channels_live(_csv,
+                             required=("cpu_usr", "cpu_sys", "cpu_iowait", "mem_used_mb",
+                                       "disk_write_kbps", "disk_util_pct"),
+                             advisory=("disk_read_kbps",))
 
-CEILINGS = {r: load_ceiling(_log_for(r)) for r in RUNS}
-LATENCIES = {r: load_latency(_log_for(r)) for r in RUNS}
-STEPS_RUN1 = load_per_step(RUNS[0])
+CEILINGS = {r: load_ceiling(_log_for(r)) for r in HOST_RUNS + PERF_RUNS}
+LATENCIES = {r: load_latency(_log_for(r)) for r in PERF_RUNS}
+STEPS_RUN1 = load_per_step(PERF_RUNS[0])
 
 
 def head(w, h, label):
@@ -187,6 +202,23 @@ def head(w, h, label):
             f'  <style>\n    <![CDATA[\n    text{{ font-family:{SANS}; }}\n'
             f'    .mono{{ font-family:{MONO}; }}\n    ]]>\n  </style>\n'
             f'  <rect x="0" y="0" width="{w}" height="{h}" rx="18" fill="{BG}"/>\n')
+
+
+def _nice_axis(maxval, ticks=4):
+    """An axis top and step that fit `maxval` and still read as round numbers.
+
+    Hardcoding the top is what made this chart overflow once already: the p99.9 grew past a bound
+    written when it was smaller, and the bar ran out of the panel rather than the axis growing.
+    """
+    raw = maxval / ticks
+    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
+    step = next((m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw), 10 * mag)
+    return math.ceil(maxval / step) * step, step
+
+
+def _count_word(n):
+    """Small counts read as words in alt text, which is prose and is spoken aloud."""
+    return ("zero", "one", "two", "three", "four", "five", "six")[n] if n <= 6 else str(n)
 
 
 def txt(x, y, s, size=13, fill=MUTED, anchor="start", weight=None, mono=True):
@@ -218,8 +250,8 @@ def ceilings_svg():
         s += f'  <line x1="{X(v):.1f}" y1="{T}" x2="{X(v):.1f}" y2="{T+ph}" stroke="{BORDER}" stroke-width="1"/>\n'
         s += txt(X(v), T + ph + 26, f"{v:.0f}", 13, MUTED, anchor="middle")
 
-    rowh = ph / len(RUNS)
-    for i, run in enumerate(RUNS):
+    rowh = ph / len(HOST_RUNS)
+    for i, run in enumerate(HOST_RUNS):
         lo, hi = CEILINGS[run]
         y = T + rowh * i + rowh / 2
         s += txt(L - 18, y + 5, RUN_LABELS[run], 15, BRIGHT, anchor="end", weight="bold")
@@ -252,10 +284,16 @@ def resources_svg():
     slot = pw / len(STEPS_RUN1)
     bw = min(46, slot - 34)
 
+    held = [d for d in STEPS_RUN1 if d["held"]]
+    grew = [d for d in STEPS_RUN1 if not d["held"]]
+    cpu_at_ceiling = max(d["cpu"] for d in held) if held else 0
+    cpu_past = grew[0]["cpu"] if grew else cpu_at_ceiling   # the first rate past the ceiling
+    disk_max = max(d["disk"] for d in STEPS_RUN1)
     s = head(W, H,
-             "CPU and disk utilisation by offered rate. CPU rises with the rate to 87 percent "
-             "where the ceiling sits and 90 percent at the rate that failed, while disk "
-             "utilisation stays below 14 percent throughout.")
+             f"CPU and disk utilisation by offered rate. CPU rises with the rate to "
+             f"{cpu_at_ceiling:.0f} percent where the ceiling sits and {cpu_past:.0f} percent at the "
+             f"rate that failed, while disk utilisation stays below {disk_max + 1:.0f} percent "
+             f"throughout.")
     s += f'  <rect x="{L-56}" y="{T-72}" width="{pw+R+16}" height="{ph+150}" rx="12" fill="{PANEL}" stroke="{BORDER}" stroke-width="2"/>\n'
     s += txt(L - 56, 52, "On this host the ceiling is the cores, not the disk", 21, BRIGHT,
              weight="bold", mono=False)
@@ -299,23 +337,30 @@ def latency_svg():
     W, H = 1320, 440
     L, R, T, B = 130, 210, 120, 76
     pw, ph = W - L - R, H - T - B
-    xmax = 230
-    X = lambda v: L + (v / xmax) * pw
     labels = ("p50", "p95", "p99", "p99.9")
 
-    at600 = [r for r in RUNS if LATENCIES[r][0] == 600.0]
-    other = [r for r in RUNS if LATENCIES[r][0] != 600.0]
+    # The headline rate is whichever one most runs held, so the chart follows the runs rather than a
+    # rate written down here: S2 holds half of its own quick ramp, which the host decides.
+    rates = [LATENCIES[r][0] for r in PERF_RUNS]
+    headline = max(set(rates), key=rates.count)
+    at_headline = [r for r in PERF_RUNS if LATENCIES[r][0] == headline]
+    other = [r for r in PERF_RUNS if LATENCIES[r][0] != headline]
+    means = [sum(LATENCIES[r][1][i] for r in at_headline) / len(at_headline) for i in range(4)]
+    # The axis is sized to what is actually drawn: the widest whisker end, not the widest bar.
+    xmax, xstep = _nice_axis(max([LATENCIES[r][1][i] for r in PERF_RUNS for i in range(4)]))
+    X = lambda v: L + (v / xmax) * pw
 
     s = head(W, H,
-             "COMMIT to ack latency at 600 events per second: p50 54.3, p95 111.1, p99 148.4 and "
-             "p99.9 207.9 milliseconds, with the spread between three runs shown as a whisker.")
+             f"COMMIT to ack latency at {headline:.0f} events per second: p50 {means[0]:.1f}, "
+             f"p95 {means[1]:.1f}, p99 {means[2]:.1f} and p99.9 {means[3]:.1f} milliseconds, with the "
+             f"spread between {_count_word(len(at_headline))} runs shown as a whisker.")
     s += f'  <rect x="{L-90}" y="{T-76}" width="{pw+R+50}" height="{ph+128}" rx="12" fill="{PANEL}" stroke="{BORDER}" stroke-width="2"/>\n'
-    s += txt(L - 90, 52, "COMMIT → ack latency at 600 events/s", 21, BRIGHT, weight="bold", mono=False)
+    s += txt(L - 90, 52, f"COMMIT → ack latency at {headline:.0f} events/s", 21, BRIGHT, weight="bold", mono=False)
     s += txt(L - 90, 76, "End to end, measured against a single clock", 14, MUTED, mono=False)
 
     lx = L + pw - 30
     s += f'  <rect x="{lx}" y="{T-52}" width="12" height="12" rx="3" fill="{HELD}"/>\n'
-    s += txt(lx + 20, T - 41, f"{len(at600)} runs at 600 events/s", 13, SOFT, mono=False)
+    s += txt(lx + 20, T - 41, f"{len(at_headline)} runs at {headline:.0f} events/s", 13, SOFT, mono=False)
     if other:
         rate = LATENCIES[other[0]][0]
         s += f'  <rect x="{lx}" y="{T-32}" width="12" height="12" rx="3" fill="{STALE}"/>\n'
@@ -323,17 +368,19 @@ def latency_svg():
     else:
         s += txt(lx + 20, T - 21, "bar = mean, whisker = spread", 12.5, MUTED, mono=False)
 
-    for v in (0, 50, 100, 150, 200):
+    v = 0
+    while v <= xmax + 1e-9:
         s += f'  <line x1="{X(v):.1f}" y1="{T}" x2="{X(v):.1f}" y2="{T+ph}" stroke="{BORDER}" stroke-width="1"/>\n'
         s += txt(X(v), T + ph + 26, f"{v:.0f}", 13, MUTED, anchor="middle")
+        v += xstep
 
     rowh = ph / len(labels)
     for i, name in enumerate(labels):
         ytop = T + rowh * i + 10
         s += txt(L - 16, ytop + 20, name, 15, BRIGHT, anchor="end")
-        vals600 = [LATENCIES[r][1][i] for r in at600]
-        lo, hi = min(vals600), max(vals600)
-        mid = sum(vals600) / len(vals600)
+        vals = [LATENCIES[r][1][i] for r in at_headline]
+        lo, hi = min(vals), max(vals)
+        mid = sum(vals) / len(vals)
         # the spread across replicates, drawn as the bar's own uncertainty rather than hidden in a mean
         s += f'  <rect x="{L}" y="{ytop:.1f}" width="{max(1,X(mid)-L):.1f}" height="18" rx="4" fill="{HELD}"/>\n'
         if hi - lo > 0.05:
@@ -360,8 +407,11 @@ def latency_svg():
 # Run 2 is left out of the curve on purpose. It is the one execution whose host was throttled — it
 # brackets the ceiling at half the others, and mixing a half-capacity ladder into a curve about how
 # the relay responds to load would describe neither machine state.
-CURVE_REFERENCE = RUNS[0]
-CURVE_CORROBORATING = RUNS[2]
+# The corroborating run is the other one of the same shape. Run 3 is the full suite at a shorter
+# duration, so its ceiling search runs on a different budget; holding it to the same 10% as a
+# like-for-like replicate would fail the chart on a difference in method rather than in result.
+CURVE_REFERENCE = PERF_RUNS[0]
+CURVE_CORROBORATING = PERF_RUNS[1]
 
 # How far apart two independent ceiling searches may land and still count as "the same result".
 # Each search is already precise to within its own reported tolerance (S1SustainedThroughput's
@@ -487,7 +537,8 @@ if __name__ == "__main__":
             print(f"  SKIPPED {name}: {e}")
 
     print(f"wrote {len(written)}/{len(charts)} svgs: {written}")
-    print(f"  ceilings: {[f'{CEILINGS[r][0]:.0f}' for r in RUNS]}")
-    print(f"  latency at 600/s: {[LATENCIES[r][1] for r in RUNS if LATENCIES[r][0] == 600.0]}")
+    print(f"  host-record ceilings: {[f'{CEILINGS[r][0]:.0f}' for r in HOST_RUNS]}")
+    print(f"  current ceilings:     {[f'{CEILINGS[r][0]:.0f}' for r in PERF_RUNS]}")
+    print(f"  current latency:      {[(LATENCIES[r][0], LATENCIES[r][1]) for r in PERF_RUNS]}")
     if skipped:
         raise SystemExit(f"{len(skipped)} chart(s) skipped: {skipped} — see messages above")

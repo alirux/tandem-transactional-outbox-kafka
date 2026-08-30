@@ -181,25 +181,30 @@ consumer.
 ## Measured performance
 
 On a small **2 vCPU / 8 GB** cloud VM sharing one machine with PostgreSQL, Kafka and the load driver,
-Tandem delivers COMMIT→ack at a **p99 of 148 ms** while carrying 600 events/s, and sustains up to
-**1450 events/s**. Zero ordering violations and zero lost events in every scenario, at every rate,
-including the rates the machine could not keep up with.
+Tandem delivers COMMIT→ack at a **median of 13 ms** and a p99 of 87 ms while carrying 600 events/s,
+and sustains **1200 to 1400 events/s**. Zero ordering violations and zero lost events in every
+scenario, at every rate, including the rates the machine could not keep up with.
 
-<img src="docs/tandem-benchmark-latency.svg" alt="COMMIT to ack latency at 600 events per second: p50 54.3, p95 111.1, p99 148.4 and p99.9 207.9 milliseconds, with the spread between three runs shown as a whisker" width="100%" />
+<img src="docs/tandem-benchmark-latency.svg" alt="COMMIT to ack latency at 600 events per second: p50 12.6, p95 45.9, p99 87.0 and p99.9 231.6 milliseconds, with the spread between three runs shown as a whisker" width="100%" />
 
 Up to the ceiling the relay delivers one event for every event offered and the backlog stays flat.
 Past it nothing fails and nothing is dropped: the excess accumulates in the outbox and drains once
 the offered rate falls back.
 
-<img src="docs/tandem-benchmark-throughput.svg" alt="Delivered throughput against offered rate. Delivery tracks the offered rate one for one up to 1450 events per second, then flattens at that ceiling while the offered rate keeps rising, the gap accumulating as backlog" width="100%" />
+<img src="docs/tandem-benchmark-throughput.svg" alt="Delivered throughput against offered rate. Delivery keeps pace one for one up to 1250 events per second; past that the relay stays at its ceiling and the excess accumulates as backlog" width="100%" />
 
-At the rates where the ceiling sits, what runs out on this host is CPU rather than disk — 87% of
-both cores against 7% disk utilisation.
+At the rates where the ceiling sits, what runs out on this host is CPU rather than disk — 94% of
+both cores against under 1% disk utilisation.
 
 Treat these as a floor. Those two cores also carry PostgreSQL, Kafka and the load driver alongside
-the relay, and the host is a burstable instance whose ceiling ranges from 725 to 1450 events/s with
-recent CPU use; latency is stable across the same runs. A host with cores of its own should do
+the relay, and the host is a burstable instance whose ceiling has ranged from 725 to 1450 events/s
+with recent CPU use; latency is stable across the same runs. A host with cores of its own should do
 better on both counts.
+
+The median is what the relay's own timing sets, and it moved when that timing did: the same runs
+measured 54 ms before the idle backoff became adaptive
+([relay-sizing.md](docs/relay-sizing.md)). The p99 improved by less, and the p99.9 not at all;
+above the poll term the distribution belongs to the host, not to the knob.
 
 Every figure above is backed by its raw run in
 [docs/benchmark-results/](docs/benchmark-results/) — logs, resource samples, and the script that
@@ -212,6 +217,10 @@ redraws these charts from them. The full scenario results are on
   parallelism across aggregates (the Kafka partition-key model, preserved end to end).
 - **At-least-once relay** with sharded `SKIP LOCKED` polling, lease-based failover, exponential
   backoff, and poison-message isolation (a stuck event blocks only its aggregate).
+- **A poll interval that adapts to traffic** — the relay polls fast while a bucket is receiving
+  events and backs off when it goes quiet, so low delivery latency does not cost a tight poll
+  running all day against an idle database. Defaults, both bounds and the measurements behind them:
+  [relay-sizing.md](docs/relay-sizing.md).
 - **CloudEvents by default** — messages are published using the CNCF CloudEvents envelope
   (binary mode), interoperable with the wider ecosystem.
 - **First-class, per-aggregate replay** — re-publish a single aggregate's history through a
@@ -522,12 +531,13 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   publish, never a reorder (tracked as hardening,
   [IMPLEMENTATION-PLAN-embedded-lease.md](docs/IMPLEMENTATION-PLAN-embedded-lease.md) §6).
 
-- **Idle latency is bounded by `pollInterval`, not by the commit.** No post-commit wakeup yet: a row
-  written to a bucket whose worker has drained waits up to ~120 ms at the 100 ms default, about half
-  that on average. That is most rows at any load below the relay's throughput ceiling — not only on a
-  quiet outbox — and it is a knob rather than a floor: the poll interval moves the whole distribution,
-  tails included. Sizing guide: [relay-sizing.md](docs/relay-sizing.md); why the latency is there and
-  what would remove it: [dispatch-latency.md](docs/dispatch-latency.md).
+- **Discovery latency is a poll, not a commit hook.** No post-commit wakeup yet: a row is found by
+  the next claim of the worker owning its bucket. That wait adapts to the traffic — it restarts at
+  `pollIntervalFloor` (10 ms) after every claim that found work and climbs to `pollInterval` (100 ms)
+  while a bucket stays quiet — so a row written into a live stream waits milliseconds, while the first
+  row after a quiet stretch can wait the full interval. Both ends are knobs rather than floors.
+  Sizing guide: [relay-sizing.md](docs/relay-sizing.md); why the latency is there and what would
+  remove the remaining part of it: [dispatch-latency.md](docs/dispatch-latency.md).
 
 - **`bucketCount` is immutable after the first deploy.** Re-sharding an existing outbox isn't
   supported — pick `B` once (default 256).
@@ -539,7 +549,7 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   reactive pipelines are not supported.
 
 - **Throughput has been measured only on a burstable host.** Its capacity changes with recent CPU
-  use, so the measured ceiling ranges from 725 to 1450 events/s; latency is stable across the same
+  use, so the measured ceiling has ranged from 725 to 1450 events/s; latency is stable across the same
   runs (see [Measured performance](#measured-performance)). What a host with dedicated cores
   sustains is not yet known.
 

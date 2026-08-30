@@ -21,6 +21,8 @@ class RelayConfigTest {
         assertThat(cfg.bucketCount()).isEqualTo(256);
         assertThat(cfg.batchSize()).isEqualTo(100);
         assertThat(cfg.pollInterval()).isEqualTo(Duration.ofMillis(100));
+        assertThat(cfg.pollIntervalFloor()).isEqualTo(Duration.ofMillis(10));
+        assertThat(cfg.pollBackoffFactor()).isEqualTo(2.0);
         assertThat(cfg.rowLease()).isEqualTo(Duration.ofSeconds(60));
         assertThat(cfg.maxAttempts()).isEqualTo(10);
         assertThat(cfg.retention()).isEqualTo(Duration.ofDays(14));
@@ -67,6 +69,30 @@ class RelayConfigTest {
         assertThatThrownBy(() -> RelayConfig.builder().logEveryRows(0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("logEveryRows must be positive");
+    }
+
+    @Test
+    void GIVEN_a_non_positive_poll_interval_floor_WHEN_built_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> RelayConfig.builder().pollIntervalFloor(Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollIntervalFloor must be positive");
+        assertThatThrownBy(() -> RelayConfig.builder().pollIntervalFloor(Duration.ofMillis(-5)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollIntervalFloor must be positive");
+    }
+
+    @Test
+    void GIVEN_a_backoff_factor_that_would_never_climb_WHEN_built_THEN_it_is_rejected() {
+        // At 1.0 the wait would sit on the floor for ever and the configured interval would stop
+        // bounding the idle query load, which is the guarantee an operator sizes against.
+        assertThatThrownBy(() -> RelayConfig.builder().pollBackoffFactor(1.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollBackoffFactor must be greater than 1");
+        // An infinite factor passes "greater than 1" and would make the very first empty claim jump
+        // to the ceiling, which is a fixed interval wearing the ramp's name.
+        assertThatThrownBy(() -> RelayConfig.builder().pollBackoffFactor(Double.POSITIVE_INFINITY))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollBackoffFactor must be greater than 1");
     }
 
     @Test
@@ -118,6 +144,8 @@ class RelayConfigTest {
                 .workersPerInstance(2)
                 .batchSize(50)
                 .pollInterval(Duration.ofMillis(200))
+                .pollIntervalFloor(Duration.ofMillis(25))
+                .pollBackoffFactor(1.5)
                 .rowLease(Duration.ofSeconds(90))
                 .maxAttempts(5)
                 .retention(Duration.ofDays(7))
@@ -135,6 +163,8 @@ class RelayConfigTest {
         assertThat(cfg.workersPerInstance()).isEqualTo(2);
         assertThat(cfg.batchSize()).isEqualTo(50);
         assertThat(cfg.pollInterval()).isEqualTo(Duration.ofMillis(200));
+        assertThat(cfg.pollIntervalFloor()).isEqualTo(Duration.ofMillis(25));
+        assertThat(cfg.pollBackoffFactor()).isEqualTo(1.5);
         assertThat(cfg.rowLease()).isEqualTo(Duration.ofSeconds(90));
         assertThat(cfg.maxAttempts()).isEqualTo(5);
         assertThat(cfg.retention()).isEqualTo(Duration.ofDays(7));

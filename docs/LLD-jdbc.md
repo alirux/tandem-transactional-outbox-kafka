@@ -188,17 +188,33 @@ column stays `NULL` when no correlation id is present, which is every row when t
 
 - A **WorkerPool** of `workersPerInstance` threads (default `cores × 2`). Each worker owns a subset
   of buckets and runs the poll loop. The loop **claims and dispatches back-to-back while work
-  remains**, re-claiming as in-flight slots free (§3.4); `pollInterval` (default 100 ms) is the
-  **idle backoff** applied *only* when a claim returns no rows — it is **not** a per-batch sleep. A
-  fixed per-cycle sleep would cap a shard at `batch_size / pollInterval` (e.g. 1 000/s), an order of
-  magnitude under the throughput target (HLD §10); the continuous claim-while-busy loop removes that
-  ceiling.
-- **The idle sleep carries ±20% jitter** (`PollBackoff`). The mean is exactly `pollInterval`, so
-  discovery latency is what the operator configured (dispatch-latency.md §1); the jitter only stops
-  workers that started in the same instant from polling in lockstep for the life of the relay,
-  which would concentrate `instances × workersPerInstance` queries into periodic bursts. The narrow
-  band is deliberate: an idle wait must never collapse towards zero and turn the loop into a spin.
-- **A cycle that *throws* backs off exponentially instead**, from `pollInterval`, doubling, capped
+  remains**, re-claiming as in-flight slots free (§3.4); the idle backoff is applied *only* when a
+  claim returns no rows — it is **not** a per-batch sleep. A fixed per-cycle sleep would cap a shard
+  at `batch_size / pollInterval` (e.g. 1 000/s), an order of magnitude under the throughput target
+  (HLD §10); the continuous claim-while-busy loop removes that ceiling.
+- **All four waits live in one place** (`PollBackoff`): the loop reports what each cycle did (rows
+  claimed, publishes still in flight, or an exception) and is told how long to wait, so no timing
+  policy sits in the worker loop itself. The four are: nothing at all while work remains, 5 ms while
+  the worker's own publishes drain, the idle backoff below, and the failure backoff further down.
+- **The idle backoff is adaptive**: it starts at `pollIntervalFloor` (default 10 ms)
+  after any claim that returned rows, and grows by `pollBackoffFactor` (default 2.0) on each
+  consecutive empty claim up to `pollInterval` (default 100 ms). So a bucket under a live stream is
+  re-checked at the floor, and one that has genuinely gone quiet settles at the ceiling instead of
+  querying at the floor for ever. This is what separates the two things the single interval used to
+  tie together (dispatch-latency.md §1): **discovery latency for the common case** is set by the
+  floor, while **the idle query load and the worst case** stay bounded by `pollInterval`, which is
+  why the ceiling remains the value an operator sizes against. Setting the floor equal to the ceiling
+  restores a fixed interval exactly.
+- **Every idle wait carries ±20% jitter.** It only stops workers that started in the same instant
+  from polling in lockstep for the life of the relay, which would concentrate
+  `instances × workersPerInstance` queries into periodic bursts. The narrow band is deliberate: it
+  is below the growth factor, so the ramp still climbs strictly monotonically, and an idle wait can
+  never collapse towards zero and turn the loop into a spin. Unlike the failure backoff below, the
+  jitter is *not* clamped at the ceiling: the idle worst case is `pollInterval` + 20%, as it always
+  was.
+- **A cycle that *throws* backs off exponentially instead**, from `pollInterval` and not from the
+  floor (a broken database is the one case where the relay must back away rather than lean in),
+  doubling, capped
   at `reclaimInterval` (5 s by default) and reset by the first cycle that completes. This is a
   per-worker counter held in the loop's own frame — never shared state. Under a database outage the
   fixed `pollInterval` retry meant every worker re-querying and logging a stack trace ten times a
@@ -848,7 +864,9 @@ The defaults the basic round needs (the full property reference is the `tandem.*
 | `instanceId` | derived `host-pid-<rand>` | `LEASE` only: unique lease owner (≤ 64 chars); operator may override for stability across restarts |
 | `bucketLease` | 30 s | `LEASE` only: bucket-ownership lease, renewed each `reclaimInterval`; **independent** of `rowLease` (§3.2/§3.5) |
 | `workersPerInstance` | `cores × 2` | per-process worker threads |
-| `pollInterval` | 100 ms | **idle backoff** when a claim returns empty, ±20% jitter; not a per-batch sleep (§3.1). A cycle that *throws* backs off from here exponentially, capped at `reclaimInterval` |
+| `pollInterval` | 100 ms | **ceiling** of the idle backoff when claims keep returning empty, ±20% jitter; not a per-batch sleep (§3.1). Bounds discovery latency for a quiet bucket and the idle query load. A cycle that *throws* backs off from here exponentially, capped at `reclaimInterval` |
+| `pollIntervalFloor` | 10 ms | where that backoff restarts after a claim that returned rows, so what a row of a live stream waits (§3.1). Capped to `pollInterval`; equal to it means a fixed interval |
+| `pollBackoffFactor` | 2.0 | growth per consecutive empty claim, from the floor to the ceiling (§3.1). Must be `> 1` |
 | `batchSize` | 100 | claim batch = **per-shard in-flight concurrency window** (§3.4) |
 | `rowLease` | 60 s | row IN_FLIGHT lease; **hard invariant `rowLease > delivery.timeout.ms`** (default = 2×); relay fail-fasts otherwise (§3.5) |
 | backoff | base 1 s, ×2, cap ~5 min, max 10 attempts | full jitter (§3.6) |

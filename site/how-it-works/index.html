@@ -51,16 +51,16 @@
 <section class="tight">
   <div class="wrap">
     <p class="kicker">What the picture is hiding</p>
+<pre><span class="k">BEGIN TX</span>
+  UPDATE aggregate SET version = version + 1 WHERE id = ?
+  INSERT INTO tandem_outbox (aggregate_id, bucket, seq, payload)
+<span class="k">COMMIT TX</span></pre>
     <div class="cards">
 
       <div class="card">
         <h3>One commit, no dual write</h3>
-        <pre><span class="k">BEGIN TX</span>
-  UPDATE aggregate SET version = version + 1 WHERE id = ?
-  INSERT INTO tandem_outbox (aggregate_id, bucket, seq, payload)
-<span class="k">COMMIT TX</span></pre>
-        <p>The domain change and the outbox row are one commit. Nothing publishes yet (stage 1 is
-          just a row becoming durable).</p>
+        <p>The domain change and the outbox row are one commit, as above. Nothing publishes yet
+          (stage 1 is just a row becoming durable).</p>
       </div>
 
       <div class="card">
@@ -75,6 +75,13 @@
         <p>A worker claims its bucket's <code>PENDING</code> rows in <code>id</code> order with
           <code>FOR UPDATE SKIP LOCKED</code> and marks them <code>IN_FLIGHT</code> under a lease.
           If the worker dies mid-publish, the lease expires and another worker reclaims the row.</p>
+      </div>
+
+      <div class="card">
+        <h3>A poll interval that adapts</h3>
+        <p>The loop claims back to back while work remains, and waits only when it finds nothing.
+          That wait is short right after a claim that found rows and grows while the bucket stays
+          quiet, so a busy bucket is checked often and an idle one is left alone.</p>
       </div>
 
       <div class="card">

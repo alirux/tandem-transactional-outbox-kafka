@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Measured performance</title>
-<meta name="description" content="Measured throughput, latency and resource use for the Tandem relay: p99 148 ms COMMIT to ack at 600 events/s, up to 1450 events/s sustained, zero lost or reordered events.">
+<meta name="description" content="Measured throughput, latency and resource use for the Tandem relay: p50 13 ms and p99 87 ms COMMIT to ack at 600 events/s, 1200 to 1400 events/s sustained, zero lost or reordered events.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Measured performance">
-<meta property="og:description" content="p99 148 ms COMMIT to ack at 600 events/s, up to 1450 events/s sustained, zero lost or reordered events — on a 2 vCPU VM.">
+<meta property="og:description" content="p50 13 ms and p99 87 ms COMMIT to ack at 600 events/s, 1200 to 1400 events/s sustained, zero lost or reordered events — on a 2 vCPU VM.">
 <meta property="og:image" content="https://tandem.codingful.com/assets/social-preview.png">
 <meta property="og:url" content="https://tandem.codingful.com/performance/">
 <meta name="twitter:card" content="summary_large_image">
@@ -36,8 +36,9 @@
     <p class="kicker">Performance</p>
     <h1>Measured performance</h1>
     <p class="lede">On a 2&nbsp;vCPU / 8&nbsp;GB cloud VM shared with PostgreSQL, Kafka and the load
-      driver, Tandem delivers COMMIT&nbsp;→&nbsp;ack at a <strong>p99 of 148&nbsp;ms</strong> while
-      carrying 600 events a second, and sustains up to <strong>1450 events/s</strong>.</p>
+      driver, Tandem delivers COMMIT&nbsp;→&nbsp;ack at a <strong>median of 13&nbsp;ms</strong> and
+      a p99 of 87&nbsp;ms while carrying 600 events a second, and sustains
+      <strong>1200 to 1400 events/s</strong>.</p>
     <p class="sub">Zero lost events and zero ordering violations in every scenario, at every rate —
       including the rates the host could not keep up with.</p>
   </div>
@@ -48,15 +49,15 @@
     <div class="cards">
 
       <div class="card">
-        <h3>p99 148 ms</h3>
-        <p>COMMIT&nbsp;→&nbsp;ack at 600 events/s. p50 54&nbsp;ms, p95 111&nbsp;ms,
-          p99.9 208&nbsp;ms.</p>
+        <h3>p50 13 ms</h3>
+        <p>COMMIT&nbsp;→&nbsp;ack at 600 events/s, mean of three runs. p95 46&nbsp;ms,
+          p99 87&nbsp;ms; the p99.9 is the host&rsquo;s own tail and ranged 146 to 363&nbsp;ms.</p>
       </div>
 
       <div class="card">
-        <h3>1450 events/s</h3>
-        <p>Highest rate delivered with the backlog flat, bracketed below 1500/s on two cores
-          shared with the database and the broker.</p>
+        <h3>1200&ndash;1400 events/s</h3>
+        <p>Highest rate delivered with the backlog flat, across seven searches in one hour on two
+          cores shared with the database and the broker.</p>
       </div>
 
       <div class="card">
@@ -79,9 +80,10 @@
 
     <figure class="figure">
       <img src="/assets/benchmark-latency.svg"
-           alt="COMMIT to ack latency at 600 events per second: p50 54.3, p95 111.1, p99 148.4 and p99.9 207.9 milliseconds, with the spread between three runs shown as a whisker.">
-      <figcaption>600 events/s is roughly 40% of this host&rsquo;s ceiling, so the relay is not
-        idling at these figures.</figcaption>
+           alt="COMMIT to ack latency at 600 events per second: p50 12.6, p95 45.9, p99 87.0 and p99.9 231.6 milliseconds, with the spread between three runs shown as a whisker.">
+      <figcaption>600 events/s is around half of this host&rsquo;s ceiling, so the relay is not
+        idling at these figures. A row written into a bucket that has been quiet longer waits for the
+        poll interval instead, up to 100&nbsp;ms.</figcaption>
     </figure>
   </div>
 </section>
@@ -97,9 +99,9 @@
 
     <figure class="figure">
       <img src="/assets/benchmark-throughput.svg"
-           alt="Delivered throughput against offered rate. Delivery tracks the offered rate one for one up to 1450 events per second, then flattens at that ceiling while the offered rate keeps rising, the gap accumulating as backlog.">
-      <figcaption>Two runs on this host produced the same ladder: every rate up to 1450 events/s held
-        its backlog flat, 1500 and 1600 did not.</figcaption>
+           alt="Delivered throughput against offered rate. Delivery keeps pace one for one up to 1250 events per second; past that the relay stays at its ceiling and the excess accumulates as backlog.">
+      <figcaption>Every rate up to 1250 events/s held its backlog flat in this run; 1300 and above
+        did not. A second run of the same shape bracketed its ceiling at 1200.</figcaption>
     </figure>
   </div>
 </section>
@@ -108,16 +110,16 @@
   <div class="wrap">
     <p class="kicker">What sets the limit</p>
     <h2>On this host the ceiling is the cores, not the disk</h2>
-    <p>What runs out at the ceiling is CPU: it reaches <strong>87% of both cores</strong> while disk
-      utilisation sits at <strong>7%</strong> and the relay waits on I/O for well under one percent
+    <p>What runs out at the ceiling is CPU: it reaches <strong>94% of both cores</strong> while disk
+      utilisation sits under <strong>1%</strong> and the relay waits on I/O for a tenth of a percent
       of its time. The bottleneck here is computation — encoding, publishing and polling — not the
       rate at which the database writes to disk.</p>
 
     <figure class="figure">
       <img src="/assets/benchmark-resources.svg"
-           alt="CPU and disk utilisation by offered rate. CPU rises with the rate to 87 percent where the ceiling sits and 90 percent at the rate that failed, while disk utilisation stays below 14 percent throughout.">
-      <figcaption>Even at the two rates the relay could not hold, it is CPU that is exhausted —
-        90% and 92% of both cores — while the disk stays close to idle.</figcaption>
+           alt="CPU and disk utilisation by offered rate. CPU rises with the rate to 94 percent where the ceiling sits and 94 percent at the rate that failed, while disk utilisation stays below 10 percent throughout.">
+      <figcaption>At the rates the relay could not hold, CPU is exhausted just the same — 94% of
+        both cores — while the disk stays close to idle.</figcaption>
     </figure>
   </div>
 </section>
@@ -139,19 +141,19 @@
           <td>Sustained throughput</td>
           <td>Finds the highest rate the relay holds</td>
           <td><span class="status ok">PASS</span></td>
-          <td>1450 events/s, ceiling bracketed below 1500/s</td>
+          <td>1250 events/s, ceiling bracketed below 1300/s</td>
         </tr>
         <tr>
           <td>Latency at normal load</td>
           <td>Holds 600 events/s and times every event</td>
           <td><span class="status ok">PASS</span></td>
-          <td>p50 54.1 ms, p99 145.5 ms</td>
+          <td>p50 12.8 ms, p99 90.9 ms</td>
         </tr>
         <tr>
           <td>Hot partition</td>
           <td>Sends 80% of traffic to one aggregate</td>
           <td><span class="status ok">PASS</span></td>
-          <td>1480 rows queued behind the hot bucket; the rest kept flowing</td>
+          <td>985 rows queued behind the hot bucket; the rest kept flowing</td>
         </tr>
         <tr>
           <td>Saturation</td>
@@ -192,7 +194,11 @@
       through millions of rows, autovacuum falling behind, a lease renewal path that misbehaves only
       after many cycles. None of them shows up in four minutes.</p>
 
-    <p>So Tandem is also run long. A fixed 400 events/s held for <strong>six hours</strong> under
+    <p>So Tandem is also run long. This one run predates the adaptive idle backoff, so its latency
+      figures below carry the fixed 100&nbsp;ms poll interval the numbers further up no longer use;
+      what it is evidence for &mdash; drift, or its absence, over six hours &mdash; is unaffected.</p>
+
+    <p>A fixed 400 events/s held for <strong>six hours</strong> under
       two-instance lease coordination, with retention set so the relay deletes delivered rows
       throughout &mdash; the churn a real deployment lives in, not a table that only grows.
       8.6&nbsp;million events, reported in eighteen twenty-minute windows so the last can be compared
@@ -262,7 +268,7 @@
 
     <p style="margin-top:26px"><strong>Treat these as a floor.</strong> Latency is stable on this
       host; sustained throughput is not: this is a burstable instance, whose capacity moves with recent
-      CPU use, and its ceiling ranges from 725 to 1450 events/s. Those two cores also carry
+      CPU use, and its ceiling has ranged from 725 to 1450 events/s across sessions. Those two cores also carry
       PostgreSQL, Kafka and the load driver alongside the relay, so a host with cores of its own
       should do better on both counts.</p>
 

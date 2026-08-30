@@ -590,9 +590,11 @@ The flow below is shown as a single sequence for clarity. The boundary after `CO
               ▼
 [WorkerPool — each worker owns a subset of the fixed virtual buckets (§4.3)]
     │
-    ├── Poll loop — claims back-to-back while work remains; sleeps pollInterval (e.g. 100ms,
-    │   ±20% jitter) only when a claim is empty (idle backoff, NOT a per-batch throttle;
-    │   §3.1 LLD-jdbc). A cycle that throws backs off exponentially instead.
+    ├── Poll loop — claims back-to-back while work remains; sleeps only when a claim is
+    │   empty (idle backoff, NOT a per-batch throttle; §3.1 LLD-jdbc). That wait adapts:
+    │   from pollIntervalFloor (10ms) after a claim that found rows, growing to
+    │   pollInterval (100ms) while claims keep coming back empty, ±20% jitter.
+    │   A cycle that throws backs off exponentially instead.
     │
     ├── Poll this worker's buckets for the HEAD of each aggregate's pending chain
     │   (E2 — never leapfrog a not-yet-DONE earlier row; this also subsumes the poison gate):

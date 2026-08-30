@@ -27,7 +27,7 @@ import java.util.Set;
  * shared environment (LLD-benchmark §8) rather than using the environment's primary {@code SINGLE} pool.
  *
  * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
- * [--poll-interval=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>]
+ * [--poll-interval=<millis>] [--poll-floor=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>]
  * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>] [S1,S2,...]}:
  * <ul>
  *   <li>{@code --smoke} — tiny rate/duration, correctness only, no KPI numbers (HLD-load-testing.md §5.1).</li>
@@ -40,12 +40,15 @@ import java.util.Set;
  *       shorter than the 10-minute full-run default — note S3 caps its own active drive phase
  *       independent of this (LLD-benchmark §8): its backlog is structurally serialized per aggregate,
  *       so it does not scale the same way as the other scenarios.</li>
- *   <li>{@code --workers=<n>} — relay {@code workersPerInstance}, and {@code --poll-interval=<millis>}
- *       — the relay's <b>idle</b> backoff. The two together are the discovery-latency knob pair
- *       (docs/dispatch-latency.md §1): idle {@code T_discover} averages half the poll interval, and
- *       the idle query load it costs is {@code workers / pollInterval}, so they are only meaningful
- *       swept against each other. Both are applied after {@code --smoke}/{@code --demo}, like
- *       {@code --duration=}, so an explicit value always wins over the preset's own.</li>
+ *   <li>{@code --workers=<n>} — relay {@code workersPerInstance}; {@code --poll-interval=<millis>} —
+ *       the ceiling of the relay's idle backoff; {@code --poll-floor=<millis>} — where that backoff
+ *       restarts after a claim that found work. They are the discovery-latency knobs
+ *       (docs/dispatch-latency.md §1): a row of a live stream waits about half the floor, a row
+ *       arriving after a quiet stretch up to the ceiling, and the idle query load a quiet relay costs
+ *       is {@code workers / pollInterval}. Passing {@code --poll-floor=} equal to
+ *       {@code --poll-interval=} measures the pre-adaptive fixed interval. All three are applied
+ *       after {@code --smoke}/{@code --demo}, like {@code --duration=}, so an explicit value always
+ *       wins over the preset's own.</li>
  *   <li>{@code --rate=<events/s>} and {@code --window=<seconds>} — the endurance scenario's fixed
  *       offered rate and reporting window (S9). Without {@code --rate=} it seeds one with a short
  *       ramp of its own; {@code --window=} is the unit its drift comparison is made between.</li>
@@ -80,6 +83,7 @@ public final class LoadTestRunner {
     private static final String DURATION_PREFIX = "--duration=";
     private static final String WORKERS_PREFIX = "--workers=";
     private static final String POLL_INTERVAL_PREFIX = "--poll-interval=";
+    private static final String POLL_FLOOR_PREFIX = "--poll-floor=";
     private static final String RATE_PREFIX = "--rate=";
     private static final String WINDOW_PREFIX = "--window=";
     private static final String CONNECTIONS_PREFIX = "--connections=";
@@ -87,8 +91,8 @@ public final class LoadTestRunner {
     private static final String CLEANUP_INTERVAL_PREFIX = "--cleanup-interval=";
     private static final String CLEANUP_BATCH_PREFIX = "--cleanup-batch=";
     private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX,
-            POLL_INTERVAL_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX, RETENTION_PREFIX,
-            CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX);
+            POLL_INTERVAL_PREFIX, POLL_FLOOR_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX,
+            RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX);
 
     public static void main(String[] args) throws Exception {
         List<String> argList = List.of(args);
@@ -100,7 +104,8 @@ public final class LoadTestRunner {
         System.out.println("Tandem load test — scenarios=" + scenarioIds
                 + ", smoke=" + argList.contains("--smoke") + ", demo=" + argList.contains("--demo")
                 + ", duration=" + config.duration() + ", workers=" + config.workers()
-                + ", pollInterval=" + config.pollInterval());
+                + ", pollInterval=" + config.pollInterval()
+                + ", pollFloor=" + config.pollIntervalFloor());
 
         try (BenchmarkEnvironment env = new BenchmarkEnvironment(config).start()) {
             ScenarioContext ctx = new ScenarioContext(env, config);
@@ -150,6 +155,7 @@ public final class LoadTestRunner {
         longValue(args, DURATION_PREFIX).ifPresent(seconds -> config.duration(Duration.ofSeconds(seconds)));
         longValue(args, WORKERS_PREFIX).ifPresent(workers -> config.workers(Math.toIntExact(workers)));
         longValue(args, POLL_INTERVAL_PREFIX).ifPresent(millis -> config.pollInterval(Duration.ofMillis(millis)));
+        longValue(args, POLL_FLOOR_PREFIX).ifPresent(millis -> config.pollIntervalFloor(Duration.ofMillis(millis)));
         longValue(args, RATE_PREFIX).ifPresent(config::offeredRate);
         longValue(args, WINDOW_PREFIX).ifPresent(seconds -> config.window(Duration.ofSeconds(seconds)));
         longValue(args, CONNECTIONS_PREFIX).ifPresent(n -> config.maxConnections(Math.toIntExact(n)));

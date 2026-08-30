@@ -13,7 +13,8 @@ class TandemRelayConfigMappingTest {
 
     private static TandemRelayProperties allUnset() {
         return new TandemRelayProperties(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null);
     }
 
     @Test
@@ -24,6 +25,8 @@ class TandemRelayConfigMappingTest {
         assertThat(config.coordination()).isEqualTo(defaults.coordination());
         assertThat(config.batchSize()).isEqualTo(defaults.batchSize());
         assertThat(config.pollInterval()).isEqualTo(defaults.pollInterval());
+        assertThat(config.pollIntervalFloor()).isEqualTo(defaults.pollIntervalFloor());
+        assertThat(config.pollBackoffFactor()).isEqualTo(defaults.pollBackoffFactor());
         assertThat(config.rowLease()).isEqualTo(defaults.rowLease());
         assertThat(config.maxAttempts()).isEqualTo(defaults.maxAttempts());
         assertThat(config.cleanupInterval()).isEqualTo(defaults.cleanupInterval());
@@ -37,8 +40,8 @@ class TandemRelayConfigMappingTest {
     void GIVEN_relay_properties_are_set_WHEN_building_the_config_THEN_they_override_the_defaults() {
         TandemRelayProperties relay = new TandemRelayProperties(
                 Coordination.LEASE, "relay-1", Duration.ofSeconds(45), 8, Duration.ofMillis(250),
-                50, Duration.ofSeconds(90), 5, Duration.ofDays(7), 500, Duration.ofSeconds(10),
-                Duration.ofMinutes(30), Duration.ofSeconds(30), 5_000L, false);
+                Duration.ofMillis(25), 1.5, 50, Duration.ofSeconds(90), 5, Duration.ofDays(7), 500,
+                Duration.ofSeconds(10), Duration.ofMinutes(30), Duration.ofSeconds(30), 5_000L, false);
 
         RelayConfig config = TandemRelayAutoConfiguration.buildRelayConfig(OUTBOX, relay);
 
@@ -47,6 +50,8 @@ class TandemRelayConfigMappingTest {
         assertThat(config.bucketLease()).isEqualTo(Duration.ofSeconds(45));
         assertThat(config.workersPerInstance()).isEqualTo(8);
         assertThat(config.pollInterval()).isEqualTo(Duration.ofMillis(250));
+        assertThat(config.pollIntervalFloor()).isEqualTo(Duration.ofMillis(25));
+        assertThat(config.pollBackoffFactor()).isEqualTo(1.5);
         assertThat(config.batchSize()).isEqualTo(50);
         assertThat(config.rowLease()).isEqualTo(Duration.ofSeconds(90));
         assertThat(config.maxAttempts()).isEqualTo(5);

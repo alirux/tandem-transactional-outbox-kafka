@@ -883,19 +883,23 @@ scales with `offered rate × hot fraction × drive time`, not the milder scaling
 backlog) but then timed out waiting for that same, now-smaller backlog to drain within the *original*
 (too-short-relative-to-10s) window. Found by actually running a `duration=150s` demo, not by inspection.
 
-**No scenario measures idle-path dispatch latency, and S2 is not it.** S2 holds ~50% of a sustainable
-rate for its whole window, so its buckets are continuously busy — and a busy worker never sleeps
-`pollInterval` (it claims back-to-back while work remains, LLD-jdbc §3.1). S2 therefore measures the
-`claim → encode → publish → consume` path with the discovery term already at ~0, which is the right
-thing for a "latency at normal load" number but leaves the **other** regime unmeasured: a bucket that
-was drained, whose worker is sleeping, pays a discovery delay uniform in `[0, pollInterval]` (mean ~50 ms
-at the default) before its first row is even seen. That regime is what any post-commit wakeup mechanism
-would improve, so **there is currently no measurement that would show such an improvement — or its
-absence** (dispatch-latency.md, Q-D). A scenario for it would need a shape none of S1–S8 have: drive a
-low, sparse rate (one event every few seconds per aggregate, well below any drain rate) and report the
-distribution of `commit → first claim`, not just the end-to-end percentile. Deliberately not added in
-this round — the mechanism it would evaluate is itself undecided, and an idle-path number is only
-meaningful against the §5 reference baseline, not a laptop.
+**S2 measures the idle path, which is not what it was assumed to measure.** The expectation was that
+holding ~50% of a sustainable rate keeps the buckets continuously busy, leaving the discovery term at
+~0 and timing only `claim → encode → publish → consume`. The sweep showed otherwise: S2's median is
+invariant to the offered rate and to the worker count, and tracks the poll interval alone. Below the
+relay's ceiling the relay is by definition faster than its arrivals, so workers drain their slice and
+go quiet between rows whatever the load, and **the discovery term is in S2's median, not absent from
+it** (relay-sizing §2). That is what made the poll interval measurable at all, and it is why S2 with
+`--poll-interval=`/`--poll-floor=` is the scenario the sizing guide is drawn from.
+
+What S2 still does not measure is the **cold** case: a row arriving into a bucket that has been quiet
+long enough for its worker to sit at the ceiling. Under the adaptive backoff (LLD-jdbc §3.1) that is
+the one regime the floor does not help, and it is exactly what a post-commit wakeup would improve
+(dispatch-latency.md §3.4). A scenario for it would need a shape none of S1–S9 have: drive a low,
+sparse rate (one event every few seconds per aggregate) and report the distribution of
+`commit → first claim`, not just the end-to-end percentile. Deliberately not added here — the
+mechanism it would evaluate is itself undecided, and an idle-path number is only meaningful against
+the §5 reference baseline, not a laptop.
 
 ### 8.1 Observations from a `--demo --duration=150s` run (this Mac, 2026-07-02, all 6 scenarios, ~28 min)
 
@@ -1097,13 +1101,16 @@ and the fix belongs in the assertion.
   (§6.6). Same status as the demos — out of `test`/`check` and out of `loadTest`. ~20 minutes at the
   defaults (three outbox states × five relay sizings × a 60 s window); `--args="--seconds=30"` halves
   it, `--done-rows=`/`--blocked-rows=` size the seeded states. One PostgreSQL container and Kafka.
-- **`--workers=<n>` and `--poll-interval=<millis>`** override the relay's `workersPerInstance` and
-  its idle backoff, also applied after `--smoke`/`--demo`, so an explicit value wins over the preset's
-  own. They are the discovery-latency knob pair and are only meaningful swept **against each other**:
-  idle `T_discover` averages half the poll interval, while the idle query load it costs is
-  `workers / pollInterval`, so halving the workers buys a halved poll interval at identical database
-  load (dispatch-latency.md §1). Until these existed every archived run used the 100 ms default, and
-  nothing in the logs said so — which is why the run's first line now prints the sizing it used.
+- **`--workers=<n>`, `--poll-interval=<millis>` and `--poll-floor=<millis>`** override the relay's
+  `workersPerInstance`, the ceiling of its idle backoff and the floor that backoff restarts from after
+  a claim that found work. All three are applied after `--smoke`/`--demo`, so an explicit value wins
+  over the preset's own. They are the discovery-latency knobs and are only meaningful swept **against
+  each other**: a row of a live stream waits about half the floor, a row arriving after a quiet
+  stretch up to the ceiling, and the idle query load a quiet relay costs is `workers / pollInterval`
+  (dispatch-latency.md §1). **`--poll-floor=` equal to `--poll-interval=` reproduces the fixed
+  interval** every run archived before the adaptive backoff used, which is how the two are compared.
+  Until these existed every archived run used the 100 ms default, and nothing in the logs said so —
+  which is why the run's first line now prints the sizing it used.
 - **Unknown `--` arguments are rejected**, rather than ignored as before. A typo (`--pollinterval=20`)
   otherwise produces a run at the default sizing that is indistinguishable, in its output and in its
   archived log, from one that honoured the flag.
@@ -1163,7 +1170,8 @@ knob to expose here):
 |---|---|---|
 | `bucketCount` | 256 | must match the write-side + relay |
 | `workers` | 8 | relay `workersPerInstance` |
-| `pollInterval` | 100 ms | relay idle backoff — bounds discovery latency for a drained bucket, and costs `workers / pollInterval` queries/s to discover nothing (dispatch-latency.md §1) |
+| `pollInterval` | 100 ms | **ceiling** of the relay's idle backoff: bounds discovery latency for a bucket that has gone quiet, and costs `workers / pollInterval` queries/s to discover nothing (dispatch-latency.md §1) |
+| `pollIntervalFloor` | 10 ms | where that backoff restarts after a claim that returned rows, so what a row of a live stream waits; equal to `pollInterval` reproduces a fixed interval |
 | `batchSize` | 100 | per-shard in-flight window |
 | `rowLease` | 60 s | relay row lease; must stay `> deliveryTimeoutMs` |
 | `deliveryTimeoutMs` | 30000 | Kafka producer `delivery.timeout.ms`, actually wired into the producer config (§3) |

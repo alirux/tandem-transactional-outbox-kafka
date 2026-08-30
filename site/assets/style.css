@@ -444,6 +444,15 @@ footer .links {
         grid-template-columns: 1fr;
     }
 
+    /* Code blocks span the full width, so on a desktop every line fits and nothing scrolls. A
+       phone is narrower than any line of code, so there the choice is between a scrollbar and a
+       wrap — and a scrollbar hides the end of the line, which is usually the part that carries
+       the point. */
+    pre {
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+    }
+
     .hero {
         padding-top: 48px;
     }
