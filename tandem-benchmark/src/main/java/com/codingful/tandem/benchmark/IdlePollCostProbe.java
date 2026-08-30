@@ -51,17 +51,6 @@ import java.util.Map;
  */
 public final class IdlePollCostProbe {
 
-    /** How much of the outbox is filled before a cell is measured (see the class doc). */
-    private enum OutboxState {
-
-        /** Nothing at all: the partial index is empty, so the claim is as cheap as it can be. */
-        EMPTY,
-        /** Many {@code DONE} rows — bulk the partial index excludes, which is the point of it being partial. */
-        DRAINED,
-        /** {@code DRAINED}, plus rows in {@code status = 0} that no claim can take: the realistic cost case. */
-        BLOCKED
-    }
-
     /** One cell: a relay sizing, or the no-relay baseline when {@code workers == 0}. */
     private record Cell(int workers, int pollMillis) {
 
@@ -97,86 +86,19 @@ public final class IdlePollCostProbe {
             System.out.println("Idle poll cost probe — window=" + window + ", postgres container="
                     + postgresContainer + ", doneRows=" + doneRows + ", blockedRows=" + blockedRows);
 
-            for (OutboxState state : OutboxState.values()) {
+            for (OutboxStateSeeder.State state : OutboxStateSeeder.State.values()) {
                 // The environment builds a primary pool but never starts it — scenarios do. This probe
                 // leaves it stopped and drives its own per-cell instances instead, so the only relay
                 // polling during a window is the one whose sizing is being priced.
-                seed(env, state, config.bucketCount(), doneRows, blockedRows);
+                OutboxStateSeeder.seed(env, state, config.bucketCount(), doneRows, blockedRows);
                 System.out.println();
-                System.out.println("=== outbox state: " + state + " (" + describe(env) + ") ===");
+                System.out.println("=== outbox state: " + state + " (" + OutboxStateSeeder.describe(env) + ") ===");
                 Map<Cell, Sample> results = new LinkedHashMap<>();
                 for (Cell cell : cells) {
                     results.put(cell, measure(env, cell, window, postgresContainer));
                 }
                 report(results);
             }
-        }
-    }
-
-    /**
-     * Truncates and refills the outbox for {@code state}. {@code ANALYZE} at the end is not optional:
-     * without fresh statistics the planner can pick a different plan for the claim than a real
-     * database would, and the whole measurement would be of that wrong plan.
-     */
-    private static void seed(BenchmarkEnvironment env, OutboxState state, int bucketCount,
-            int doneRows, int blockedRows) throws Exception {
-        env.resetBetweenScenarios();
-        if (state == OutboxState.EMPTY) {
-            analyze(env);
-            return;
-        }
-        int poisonAggregates = Math.max(1, blockedRows / 20);
-        try (Connection conn = env.dataSource().getConnection();
-             Statement stmt = conn.createStatement()) {
-            // DONE bulk: excluded from the partial index, present in the table and the aggregate index.
-            stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
-                    + "SELECT 'probe-done-' || (i % 5000), 'Probe', 'probe.done', (i % " + bucketCount + "), "
-                    + "i, '{\"p\":1}'::jsonb, 2, 0 FROM generate_series(1, " + doneRows + ") AS i");
-            if (state == OutboxState.BLOCKED) {
-                // Half backing off: excluded by the next_attempt_at predicate, but still index entries
-                // the bucket scan walks on every poll.
-                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, "
-                        + "status, seq_source, next_attempt_at) SELECT 'probe-backoff-' || i, 'Probe', 'probe.retry', "
-                        + "(i % " + bucketCount + "), 1000000 + i, '{\"p\":1}'::jsonb, 0, 0, now() + interval '1 hour' "
-                        + "FROM generate_series(1, " + (blockedRows / 2) + ") AS i");
-                // Half behind a FAILED head, which is what makes the claim run its NOT EXISTS per row.
-                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
-                        + "SELECT 'probe-poison-' || i, 'Probe', 'probe.poison', (i % " + bucketCount + "), "
-                        + "2000000 + i, '{\"p\":1}'::jsonb, 3, 0 FROM generate_series(1, " + poisonAggregates + ") AS i");
-                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
-                        + "SELECT 'probe-poison-' || j, 'Probe', 'probe.blocked', (j % " + bucketCount + "), "
-                        + "3000000 + i, '{\"p\":1}'::jsonb, 0, 0 FROM generate_series(1, " + (blockedRows / 2) + ") AS i, "
-                        + "LATERAL (SELECT ((i - 1) % " + poisonAggregates + ") + 1 AS j) x");
-            }
-        }
-        analyze(env);
-    }
-
-    /**
-     * {@code VACUUM ANALYZE} plus a settle, run in the foreground on purpose. Fresh statistics keep the
-     * planner honest, and doing the vacuum here keeps it out of the measurement windows. Left to
-     * autovacuum it lands inside them — including the no-relay baseline, where it is then subtracted
-     * from every cell of that state as though it were background noise.
-     */
-    private static void analyze(BenchmarkEnvironment env) throws Exception {
-        try (Connection conn = env.dataSource().getConnection();
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("VACUUM ANALYZE tandem_outbox");
-        }
-        Thread.sleep(10_000);
-    }
-
-    /** Row counts by status, so each state's table is described by what it holds, not by its label. */
-    private static String describe(BenchmarkEnvironment env) throws Exception {
-        try (Connection conn = env.dataSource().getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(
-                     "SELECT count(*) FILTER (WHERE status = 0) AS pending,"
-                             + " count(*) FILTER (WHERE status = 2) AS done,"
-                             + " count(*) FILTER (WHERE status = 3) AS failed FROM tandem_outbox")) {
-            return rs.next()
-                    ? "pending:" + rs.getLong(1) + ", done:" + rs.getLong(2) + ", failed:" + rs.getLong(3)
-                    : "unknown";
         }
     }
 

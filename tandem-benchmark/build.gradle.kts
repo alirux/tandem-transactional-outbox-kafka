@@ -152,6 +152,18 @@ tasks.register<JavaExec>("idlePollCostProbe") {
     errorOutput = System.err
 }
 
+// The other side of the same trade-off (LLD-benchmark §6.7): not what an idle claim costs in
+// isolation, but whether those claims take capacity away from real traffic — the sustainable ceiling
+// at two poll intervals, in a drained and a blocked outbox, replicated and interleaved.
+tasks.register<JavaExec>("pollIntervalCapacityProbe") {
+    description = "Measures whether a short poll interval lowers the throughput ceiling (PollIntervalCapacityProbe). Requires Docker."
+    group = "verification"
+    mainClass.set("com.codingful.tandem.benchmark.PollIntervalCapacityProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
 // Prices the managed-`seq` mechanism against the other two modes on the caller's write path
 // (LLD-benchmark §6.5): the three modes saturated, durable, paced, batched and interleaved, plus the
 // CACHE 1 sequence's own server-side ceiling. Measures; gates nothing.
