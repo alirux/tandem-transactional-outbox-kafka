@@ -12,6 +12,9 @@ on:
       - 'docs/tandem-cli-status-watch.png'
       - 'docs/tandem-metrics-dashboard.png'
       - 'docs/tandem-social-preview.png'
+      - 'docs/tandem-benchmark-latency.svg'
+      - 'docs/tandem-benchmark-throughput.svg'
+      - 'docs/tandem-benchmark-resources.svg'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
