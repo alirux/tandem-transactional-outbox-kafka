@@ -1,5 +1,6 @@
 package com.codingful.tandem.benchmark;
 
+import com.codingful.tandem.jdbc.Wakeup;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -37,6 +38,7 @@ public final class BenchmarkConfig {
     private final Duration cleanupInterval;
     private final int cleanupBatchSize;
     private final LatencyMode latencyMode;
+    private final Wakeup wakeup;
 
     private BenchmarkConfig(Builder b) {
         this.bucketCount = b.bucketCount;
@@ -58,6 +60,7 @@ public final class BenchmarkConfig {
         this.cleanupInterval = b.cleanupInterval;
         this.cleanupBatchSize = b.cleanupBatchSize;
         this.latencyMode = b.latencyMode;
+        this.wakeup = b.wakeup;
     }
 
     /** Must match the value baked into every row by the write-side (LLD-jdbc §2.1). Default 256. */
@@ -187,6 +190,18 @@ public final class BenchmarkConfig {
         return latencyMode;
     }
 
+    /**
+     * Whether the write side signals the relay after commit and the relay listens for it
+     * (dispatch-latency §3.4). It is one knob because it is one mechanism: setting it wires
+     * {@code Wakeup.PG_NOTIFY} into every {@link LoadGenerator}'s repository <b>and</b> a
+     * {@code WakeupSource} into every relay this environment builds, which is the only combination
+     * that does anything. Default {@link Wakeup#NONE}, so every scenario measures the polling default
+     * unless a run asks otherwise. S10 overrides it per arm, since comparing the two is its subject.
+     */
+    public Wakeup wakeup() {
+        return wakeup;
+    }
+
     public static BenchmarkConfig defaults() {
         return builder().build();
     }
@@ -221,7 +236,8 @@ public final class BenchmarkConfig {
                 .retention(retention)
                 .cleanupInterval(cleanupInterval)
                 .cleanupBatchSize(cleanupBatchSize)
-                .latencyMode(latencyMode);
+                .latencyMode(latencyMode)
+                .wakeup(wakeup);
     }
 
     /**
@@ -286,6 +302,7 @@ public final class BenchmarkConfig {
         private Duration cleanupInterval = Duration.ofMinutes(15);
         private int cleanupBatchSize = 1000;
         private LatencyMode latencyMode = LatencyMode.PROXY;
+        private Wakeup wakeup = Wakeup.NONE;
 
         private Builder() {
         }
@@ -406,6 +423,11 @@ public final class BenchmarkConfig {
 
         public Builder latencyMode(LatencyMode latencyMode) {
             this.latencyMode = Objects.requireNonNull(latencyMode, "latencyMode");
+            return this;
+        }
+
+        public Builder wakeup(Wakeup wakeup) {
+            this.wakeup = Objects.requireNonNull(wakeup, "wakeup");
             return this;
         }
 

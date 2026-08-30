@@ -141,7 +141,7 @@ public final class TracingDashboardDemo {
                 String highlightedCorrelationId = correlationIdFor(highlighted);
 
                 try (LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(),
-                        cfg.maxConnections(), selector, cfg.payloadBytes(), null, tracePropagator,
+                        cfg.maxConnections(), selector, cfg.payloadBytes(), null, cfg.wakeup(), tracePropagator,
                         (aggregateId, work) -> runWithWriteSpan(tracer, aggregateId, work));
                      ConsumerSpanBridge consumerBridge =
                              new ConsumerSpanBridge(env.newConsumer("tracing-demo"), openTelemetry, tracer)) {

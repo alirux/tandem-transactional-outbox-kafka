@@ -41,7 +41,8 @@ public final class S2LatencyAtNormalLoad implements Scenario {
         try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s2");
              CorrelationConsumer consumer = new CorrelationConsumer(kafkaConsumer, latency, commitTimestamps);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
-                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), commitTimestamps)) {
+                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(),
+                     commitTimestamps, cfg.wakeup())) {
             consumer.start();
 
             // The sustain window a candidate rate must hold flat for, distinct from the (longer) total

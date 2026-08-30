@@ -43,7 +43,7 @@ public final class LagGaugeDemo {
 
             try (LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(),
                     cfg.maxConnections(), AggregateSelector.uniform("laggauge", cfg.aggregateCardinality()),
-                    cfg.payloadBytes(), null)) {
+                    cfg.payloadBytes(), null, cfg.wakeup())) {
 
                 runStart = System.nanoTime();
                 header();

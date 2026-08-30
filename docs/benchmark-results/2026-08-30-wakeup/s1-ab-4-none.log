@@ -1,0 +1,80 @@
+> Task :tandem-benchmark:processResources UP-TO-DATE
+> Task :tandem-core:compileJava UP-TO-DATE
+> Task :tandem-jdbc:processResources UP-TO-DATE
+> Task :tandem-jdbc:compileJava UP-TO-DATE
+> Task :tandem-kafka:compileJava UP-TO-DATE
+> Task :tandem-micrometer:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:compileJava UP-TO-DATE
+> Task :tandem-core:processResources NO-SOURCE
+> Task :tandem-core:classes UP-TO-DATE
+> Task :tandem-test:compileJava UP-TO-DATE
+> Task :tandem-core:jar UP-TO-DATE
+> Task :tandem-jdbc:classes UP-TO-DATE
+> Task :tandem-jdbc:jar UP-TO-DATE
+> Task :tandem-kafka:processResources NO-SOURCE
+> Task :tandem-kafka:classes UP-TO-DATE
+> Task :tandem-kafka:jar UP-TO-DATE
+> Task :tandem-micrometer:processResources NO-SOURCE
+> Task :tandem-micrometer:classes UP-TO-DATE
+> Task :tandem-micrometer:jar UP-TO-DATE
+> Task :tandem-test:processResources NO-SOURCE
+> Task :tandem-test:classes UP-TO-DATE
+> Task :tandem-test:jar UP-TO-DATE
+> Task :tandem-tracing-otel:processResources NO-SOURCE
+> Task :tandem-benchmark:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:classes UP-TO-DATE
+> Task :tandem-benchmark:classes UP-TO-DATE
+> Task :tandem-tracing-otel:jar UP-TO-DATE
+
+> Task :tandem-benchmark:loadTest
+Tandem load test — scenarios=[S1], smoke=false, demo=false, duration=PT4M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=NONE
+--- Running S1 ---
+15:15:28 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-6721-4855, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+  ramp 15:16:28  held  rate:100.0/s bracket:[100.0, unbounded] next:200.0/s pending:5
+  ramp 15:17:28  held  rate:200.0/s bracket:[200.0, unbounded] next:400.0/s pending:4
+  ramp 15:18:29  held  rate:400.0/s bracket:[400.0, unbounded] next:800.0/s pending:9
+15:19:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w1, processed:10000, ok:10000, ko:0
+15:19:16 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w7, processed:10000, ok:10000, ko:0
+15:19:17 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w2, processed:10000, ok:10000, ko:0
+15:19:17 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w4, processed:10000, ok:10000, ko:0
+15:19:17 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w0, processed:10000, ok:10000, ko:0
+15:19:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w6, processed:10000, ok:10000, ko:0
+15:19:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w5, processed:10000, ok:10000, ko:0
+15:19:20 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w3, processed:10000, ok:10000, ko:0
+  ramp 15:19:29  held  rate:800.0/s bracket:[800.0, unbounded] next:1600.0/s pending:16
+  ramp 15:19:39  grew  rate:1600.0/s bracket:[800.0, 1600.0] next:1200.0/s pending:227
+15:20:27 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w7, processed:20000, ok:20000, ko:0
+15:20:29 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w4, processed:20000, ok:20000, ko:0
+15:20:30 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w0, processed:20000, ok:20000, ko:0
+15:20:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w6, processed:20000, ok:20000, ko:0
+15:20:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w2, processed:20000, ok:20000, ko:0
+15:20:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w1, processed:20000, ok:20000, ko:0
+15:20:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w5, processed:20000, ok:20000, ko:0
+15:20:32 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w3, processed:20000, ok:20000, ko:0
+  ramp 15:20:39  held  rate:1200.0/s bracket:[1200.0, 1600.0] next:1400.0/s pending:45
+  ramp 15:21:19  grew  rate:1400.0/s bracket:[1200.0, 1400.0] next:1300.0/s pending:234
+15:21:29 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w7, processed:30000, ok:30000, ko:0
+15:21:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w4, processed:30000, ok:30000, ko:0
+15:21:34 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w0, processed:30000, ok:30000, ko:0
+15:21:34 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w1, processed:30000, ok:30000, ko:0
+15:21:35 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w5, processed:30000, ok:30000, ko:0
+15:21:35 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w2, processed:30000, ok:30000, ko:0
+15:21:35 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w6, processed:30000, ok:30000, ko:0
+15:21:35 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w3, processed:30000, ok:30000, ko:0
+  ramp 15:22:20  held  rate:1300.0/s bracket:[1300.0, 1400.0] next:1350.0/s pending:257
+15:22:34 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w7, processed:40000, ok:40000, ko:0
+15:22:36 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w4, processed:40000, ok:40000, ko:0
+15:22:40 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w0, processed:40000, ok:40000, ko:0
+15:22:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w5, processed:40000, ok:40000, ko:0
+15:22:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w6, processed:40000, ok:40000, ko:0
+15:22:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w2, processed:40000, ok:40000, ko:0
+15:22:42 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w3, processed:40000, ok:40000, ko:0
+15:22:42 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-6721-4855-w1, processed:40000, ok:40000, ko:0
+  ramp 15:23:20  held  rate:1350.0/s bracket:[1350.0, 1400.0] next:1375.0/s pending:111
+15:23:21 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-6721-4855
+PASS S1: sustained 1350.0 events/s aggregate (168.8/s per worker); ceiling bracketed below 1400.0/s, so known to within 4%; ordering violations=0, missing=0
+All scenarios passed correctness.
+
+BUILD SUCCESSFUL in 8m 10s
+16 actionable tasks: 1 executed, 15 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html

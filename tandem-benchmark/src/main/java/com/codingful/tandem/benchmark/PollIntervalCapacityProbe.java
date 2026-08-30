@@ -101,7 +101,7 @@ public final class PollIntervalCapacityProbe {
         instance.pool().start();
         try (LoadGenerator generator = new LoadGenerator(env.dataSource(), config.bucketCount(),
                 config.maxConnections(), AggregateSelector.uniform("P36", config.aggregateCardinality()),
-                config.payloadBytes(), null)) {
+                config.payloadBytes(), null, config.wakeup())) {
             generator.stopTrackingInsertedKeys();   // nothing reconciles here; keep the harness's memory flat
             RampController ramp = new RampController(env.lagProbe(), Duration.ofSeconds(5), sustain, 0.05,
                     config.batchSize());

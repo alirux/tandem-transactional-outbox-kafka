@@ -209,10 +209,21 @@ statement about the run, not about Tandem.
 | **S7** | Causal-ordering overhead (opt-in) | Cost of the Lamport feature | **Deferred — 2nd round:** requires the causal-ordering feature (`tandem_aggregate_clock`) to be implemented. Run S1/S2 with the Lamport clock on vs off; report throughput/latency delta |
 | **S8** | Multi-instance `LEASE` coordination | Disjoint bucket ownership; failover between instances | Run three relay instances under `Coordination.LEASE` against one outbox; confirm the partition is disjoint and complete, then kill one abruptly and confirm the survivors reclaim its share with ordering intact |
 | **S9** | Endurance | Nothing drifts over hours; coverage holds across many renewal cycles | Hold a fixed, moderate rate (≈50% of a short seed ramp) under `LEASE` for hours, sliced into reporting windows; compare the last window's throughput and latency against the first, and sample bucket coverage, outbox size, dead tuples and heap every window |
+| **S10** | Cold row, with and without the post-commit wakeup | What the wakeup buys on discovery, and what it costs the write path | Hold a rate low enough that every event arrives into a worker slice already waiting at `pollInterval`; alternate four windows (poll, wakeup, wakeup, poll) inside one run and report COMMIT→ack **and** the write transaction's own duration for each arm |
 
 Each scenario asserts **zero ordering violations** per aggregate (consumer verifies
 `seq` is strictly increasing per `aggregate_id`) and **zero lost events** (every committed
 event eventually reaches `DONE` and the broker).
+
+**S10 measures a knob, so it measures both of its sides.** Every other scenario drives a stream, which
+is the regime where the relay's adaptive idle backoff already sits near its floor and a wakeup has
+almost nothing left to remove; the cold row is the one case the backoff cannot price
+(dispatch-latency.md §3.2). But a wakeup is not free on the way in: it adds a statement to the caller's
+transaction. So the scenario reports the write transaction's own duration next to COMMIT→ack, and a run
+where the write cost grew more than the discovery latency fell is a run that says leave it off. The two
+arms **alternate within one run** (poll, wakeup, wakeup, poll) rather than being two runs compared
+afterwards: a developer machine drifts over minutes, and a drift that lands on the second half of an
+AABB run is indistinguishable from an effect.
 
 **S9 measures a slope where the others measure a level, and that changes what it may do.**
 The failure modes an outbox dies of in production are slow — a leak, index bloat on a table
@@ -326,7 +337,7 @@ non-negotiable regardless of performance).
   Tandem publishes as a performance figure has its raw run archived there — a number whose
   measurement cannot be re-examined is not one this project quotes.
 - A *smoke* variant (tiny rate, short duration) **does** run — `SmokeLoadTest`
-  (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9 against `BenchmarkConfig.toSmoke()`, purely
+  (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9, S10 against `BenchmarkConfig.toSmoke()`, purely
   to keep the harness compiling and wired; it asserts correctness, never KPI numbers.
   Measured wall-clock on a developer machine: **~106 s** (LLD-benchmark §9); most of that
   is deliberate idle time (S5's row-lease wait with the relay stopped, S3's drain-tail

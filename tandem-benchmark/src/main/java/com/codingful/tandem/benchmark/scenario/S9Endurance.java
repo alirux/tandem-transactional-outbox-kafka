@@ -103,7 +103,7 @@ public final class S9Endurance implements Scenario {
              // harness spends its memory on (SequenceLedger).
              CorrelationConsumer consumer = new CorrelationConsumer(kafkaConsumer, latency, null, false);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
-                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null)) {
+                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             generator.stopTrackingInsertedKeys();
             consumer.start();
 

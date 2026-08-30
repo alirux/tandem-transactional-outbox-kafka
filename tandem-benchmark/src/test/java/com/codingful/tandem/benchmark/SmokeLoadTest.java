@@ -2,6 +2,7 @@ package com.codingful.tandem.benchmark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codingful.tandem.benchmark.scenario.S10ColdBurst;
 import com.codingful.tandem.benchmark.scenario.S1SustainedThroughput;
 import com.codingful.tandem.benchmark.scenario.S3HotPartition;
 import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
@@ -22,7 +23,9 @@ import org.junit.jupiter.api.TestInstance;
  * harness compiling and wired, asserts <b>correctness only</b>, never KPI numbers. Covers S1, S3, S5,
  * S6, S8 — the scenarios that each exercise a structurally distinct code path (ramp, skew, failover,
  * poison, multi-instance LEASE coordination); S2/S4 reuse S1's infrastructure and are exercised only
- * in full runs.
+ * in full runs. S10 is included for the same reason the others are: nothing else exercises the
+ * post-commit wakeup, and its two arms build their own relay instances with and without a listening
+ * connection.
  */
 @Tag("integration")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -72,6 +75,11 @@ class SmokeLoadTest {
     @Test
     void s9EnduranceSmoke() throws Exception {
         assertPassed(new S9Endurance());
+    }
+
+    @Test
+    void s10ColdBurstSmoke() throws Exception {
+        assertPassed(new S10ColdBurst());
     }
 
     private void assertPassed(Scenario scenario) throws Exception {

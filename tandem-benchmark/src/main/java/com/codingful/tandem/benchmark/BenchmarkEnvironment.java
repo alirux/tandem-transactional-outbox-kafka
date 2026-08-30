@@ -9,6 +9,8 @@ import com.codingful.tandem.jdbc.BucketCountGuard;
 import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.RelayConfig;
+import com.codingful.tandem.jdbc.RelayControlSource;
+import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
@@ -90,7 +92,8 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         // newRelayInstance instead of this primary pool).
         RelayConfig relayCfg = relayConfigBuilder().build();
         relayPool = new WorkerPool(store, dispatcher, relayCfg, metrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.forCoordination(relayCfg, dataSource));
+                BackoffStrategy.fullJitter(), BucketSource.forCoordination(relayCfg, dataSource),
+                RelayControlSource.NOOP, newWakeupSource());
         return this;
     }
 
@@ -139,6 +142,15 @@ public final class BenchmarkEnvironment implements AutoCloseable {
     }
 
     /**
+     * A source for this environment's configured {@link com.codingful.tandem.jdbc.Wakeup} mode, on this
+     * environment's {@code DataSource}. A new one per relay instance, deliberately: each holds its own
+     * listening connection, exactly as separate relay processes would.
+     */
+    public WakeupSource newWakeupSource() {
+        return WakeupSource.forWakeup(config.wakeup(), dataSource);
+    }
+
+    /**
      * As {@link #newRelayInstance(RelayConfig)}, but reporting to {@code instanceMetrics} instead of the
      * environment's shared {@link BenchmarkMetrics}. Needed whenever the instances must be told apart in
      * the metrics themselves: several of the port's signals are per-instance ({@code workers.active}),
@@ -155,6 +167,16 @@ public final class BenchmarkEnvironment implements AutoCloseable {
      */
     public RelayInstance newRelayInstance(RelayConfig relayCfg, TandemMetrics instanceMetrics,
             TandemSpanRecorder spanRecorder) {
+        return newRelayInstance(relayCfg, instanceMetrics, spanRecorder, newWakeupSource());
+    }
+
+    /**
+     * As {@link #newRelayInstance(RelayConfig, TandemMetrics, TandemSpanRecorder)}, but with an explicit
+     * {@code wakeupSource} instead of this environment's configured one — for S10, whose whole subject is
+     * running one arm with a wakeup and one without inside a single run.
+     */
+    public RelayInstance newRelayInstance(RelayConfig relayCfg, TandemMetrics instanceMetrics,
+            TandemSpanRecorder spanRecorder, WakeupSource wakeupSource) {
         KafkaRelay producer = new KafkaRelay(producerConfig(), record -> TOPIC,
                 KafkaRelayConfig.of("/tandem/benchmark"), spanRecorder);
         extraProducers.add(producer);
@@ -166,7 +188,7 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         OutboxStore faultInjectingStore = new FaultInjectingOutboxStore(store, faultInjector);
         BucketSource bucketSource = BucketSource.forCoordination(relayCfg, dataSource);
         WorkerPool pool = new WorkerPool(faultInjectingStore, dispatcher, relayCfg, instanceMetrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), bucketSource);
+                BackoffStrategy.fullJitter(), bucketSource, RelayControlSource.NOOP, wakeupSource);
         return new RelayInstance(pool, bucketSource, producer);
     }
 

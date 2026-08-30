@@ -864,6 +864,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S6** | Poison message | `FaultInjector.poisonAggregate(id)` before driving load; after the run, waits for every *other* aggregate to drain, confirms `hasFailedRow` on the poisoned one, and reconciles zero-loss **excluding** the poisoned aggregate's own (deliberately never-delivered) keys |
 | **S7** | Causal-ordering overhead | **Deferred — 2nd round** (needs the causal-ordering feature); not implemented |
 | **S8** | Multi-instance `LEASE` coordination + crash recovery | Runs **three** relay instances (`env.newRelayInstance`, each its own producer) under `Coordination.LEASE`; waits for a fair 3-way partition, **kills one** (`WorkerPool.kill()` — an abrupt crash, not `stop()`), and confirms the two survivors reclaim its share and delivery still completes correctly. See §8.2/§8.3 for what this scenario found and fixed along the way |
+| **S10** | The cold row, wakeup on vs off | Four windows inside one run, in the order poll, wakeup, wakeup, poll (ABBA, so a linear host drift cancels). Each window builds its own relay instance and its own write side wired for that arm, holds a low fixed rate (`--rate=`, default 2/s) for `duration / 4`, drains, and reconciles; one shared consumer and one shared `LatencyRecorder` span the run, so each window's snapshot is the interval since the previous. Reports COMMIT→ack **and** the write transaction's own duration per arm |
 | **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows. The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
@@ -894,12 +895,32 @@ it** (relay-sizing §2). That is what made the poll interval measurable at all, 
 
 What S2 still does not measure is the **cold** case: a row arriving into a bucket that has been quiet
 long enough for its worker to sit at the ceiling. Under the adaptive backoff (LLD-jdbc §3.1) that is
-the one regime the floor does not help, and it is exactly what a post-commit wakeup would improve
-(dispatch-latency.md §3.4). A scenario for it would need a shape none of S1–S9 have: drive a low,
-sparse rate (one event every few seconds per aggregate) and report the distribution of
-`commit → first claim`, not just the end-to-end percentile. Deliberately not added here — the
-mechanism it would evaluate is itself undecided, and an idle-path number is only meaningful against
-the §5 reference baseline, not a laptop.
+the one regime the floor does not help, and it is exactly what the post-commit wakeup addresses
+(dispatch-latency.md §3.4). **That shape is now S10**, and it is deliberately not a variant of S2: it
+drives a rate low enough that every event arrives into a slice already waiting at the ceiling, and it
+runs both arms inside one run rather than comparing two.
+
+Three choices in S10 are worth stating, because each of them is a way the scenario could have measured
+its own setup instead of the mechanism:
+
+- **The arms alternate ABBA.** On a developer machine minutes of drift are ordinary, and an AABB run
+  would credit all of it to the second arm. Four windows also let a reader see whether the two windows
+  of one arm agree with each other, which is the only cheap check on whether the run means anything.
+- **Each window gets its own aggregate namespace** (`S10-w1`, `S10-w2`, …). The consumer is shared
+  across the run, so the reconciliation of one window would otherwise inherit the keys of the previous
+  one.
+- **The write transaction's own duration is measured** (`LoadGenerator.recordWriteLatency`), not only
+  COMMIT→ack. The wakeup's cost lands there, on the caller's transaction, and a scenario that reported
+  only the end-to-end win would be answering half the question.
+
+What S10 cannot settle at 2 events/s is the capacity question: whether the extra statement moves the
+throughput ceiling. That takes an S1 A/B, and it can only be run on the **reference host** for a reason
+sharper than "a laptop is noisy": **S1 does not bracket a ceiling on a fast developer machine at all**.
+The generator is bounded by its connection pool (32 connections at ~4 ms per write transaction, so
+~8 000 inserts/s at most) and the relay keeps up with everything it can offer, so the search doubles
+until the budget ends and reports `NOT A MAXIMUM`. It brackets on the two-core host because the ceiling
+there (~1 300 events/s) is well below the generator's own limit. Both were run, and both are archived
+([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/)).
 
 ### 8.1 Observations from a `--demo --duration=150s` run (this Mac, 2026-07-02, all 6 scenarios, ~28 min)
 
@@ -1056,10 +1077,12 @@ and the fix belongs in the assertion.
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
   [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--poll-floor=<millis>]
   [--rate=<events/s>]
-  [--window=<seconds>] [--connections=<n>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
+  [--window=<seconds>] [--connections=<n>] [--wakeup=none|pg-notify] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
   layered on top), runs the selected scenarios (all six minus the deferred S7 by default) in sequence
-  against it, and prints a PASS/FAIL line + summary per scenario. Kept **out of the normal
+  against it, and prints a PASS/FAIL line + summary per scenario. `--wakeup=` turns the post-commit
+  wakeup on for the whole run, write side and relay together (S10 ignores it: comparing the two arms is
+  what that scenario does). Kept **out of the normal
   `test`/`check` lifecycle** — slow, resource-hungry, not meant for shared CI runners. Pass
   `LoadTestRunner` args through Gradle with `--args`, e.g.
   `./gradlew :tandem-benchmark:loadTest --args="--demo S1,S2,S5,S6"`.
@@ -1073,10 +1096,20 @@ and the fix belongs in the assertion.
 
   ```
   ./gradlew :tandem-benchmark:installDist
-  JAVA_OPTS="-Djava.util.logging.config.file=/path/to/endurance-logging.properties" \
+  JAVA_OPTS="-Djava.util.logging.config.file=$PWD/docs/benchmark-results/endurance-logging.properties" \
     nohup caffeinate -ims tandem-benchmark/build/install/tandem-benchmark/bin/tandem-benchmark \
     --duration=21600 --window=1200 --connections=48 S9 > s9.log 2>&1 &
   ```
+
+  The INFO config lives in the repository ([`endurance-logging.properties`](benchmark-results/endurance-logging.properties))
+  rather than being written per run: the first endurance run's copy lived in a scratch directory and
+  was gone by the next one. `docs/benchmark-results/sample-host-mac.sh` is its companion on macOS,
+  sampling `CPU_Speed_Limit` alongside the containers — without it a throughput slope cannot be told
+  apart from a laptop that quietly reduced its clock (`sample-resources.sh` is the Linux one).
+
+  **Add two connections per relay instance when the wakeup is on.** Each instance holds a permanent
+  listening connection outside the working set, and the pool is shared with the generator and the lag
+  probe — a probe that cannot get a connection throws and ends the run.
 
   `caffeinate` because a laptop that sleeps mid-run ends it; `--connections=` because the pool is shared
   by the generator, both relay instances and the lag probe, and a probe that cannot get a connection
@@ -1135,15 +1168,18 @@ and the fix belongs in the assertion.
     limits, S5's crash-recovery path hasn't actually fired across three runs).
 - **CI smoke:** `SmokeLoadTest` (`@Tag("integration")`, one shared `BenchmarkEnvironment` per class via
   `@TestInstance(PER_CLASS)`) runs `BenchmarkConfig.defaults().toSmoke()` against **S1, S3, S5, S6,
-  S8, S9** — the scenarios that each exercise a structurally distinct code path (ramp, skew, failover,
-  poison, multi-instance `LEASE` coordination, windowed endurance); S2/S4 reuse S1's machinery and are
+  S8, S9, S10** — the scenarios that each exercise a structurally distinct code path (ramp, skew,
+  failover, poison, multi-instance `LEASE` coordination, windowed endurance, the post-commit wakeup);
+  S2/S4 reuse S1's machinery and are
   exercised only in full runs. S9 under `toSmoke()` is a wiring check and nothing more: its seed ramp
   shrinks with the run, so it holds the seed rate and compares two 1.5-second windows — enough to prove
   the ledger, the windowing and the coverage sampling all run, not to observe drift. Runs in the existing `integrationTest` phase (Docker required), asserting **correctness
   only** — the reported throughput/latency numbers in a smoke or demo run are informational, never
   gated (§8). **Measured wall-clock (this Mac, 2026-07-02): ~113 s** with S8 added (container startup
   ≈ 18 s + S6 ≈ 4 s + S5 ≈ 14 s + S1 ≈ 7 s + S3 ≈ 55 s + S8 ≈ small, its `duration` and offered rate are
-  tiny under `toSmoke()`). Not a hard CI budget, but useful context for anyone tuning it further. Both
+  tiny under `toSmoke()`). **S10 adds ≈ 35 s** (2026-08-30): it is four windows, each starting and
+  stopping a relay of its own, so it is the one smoke case whose floor is structural rather than a
+  matter of its rate. Not a hard CI budget, but useful context for anyone tuning it further. Both
   `test` and `integrationTest` print live `PASSED`/`FAILED` lines per test method in the console
   (`testLogging`, §2) — Gradle's `Test` task prints nothing per-test by default otherwise.
 - **Official numbers** come from the reference host (§5 baseline), on a schedule or before a release;
@@ -1182,7 +1218,8 @@ knob to expose here):
 | `warmup` | 30 s | discarded before latency recording (S2) |
 | `duration` | 10 min | steady-state window: S1's sustain gate, S2/S3/S6's drive time, S5's half-phases, S9's whole run |
 | `window` | 20 min | S9's reporting window — the unit its drift comparison is made *between*; shrunk to `duration / 2` when the run is too short to hold two |
-| `offeredRate` | 0 | S9's fixed rate in events/s; `0` leaves the scenario to seed one from a short ramp |
+| `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10); `0` leaves each to pick its own |
+| `wakeup` | `NONE` | one knob for one mechanism (`--wakeup=pg-notify`): it wires `Wakeup.PG_NOTIFY` into every `LoadGenerator`'s repository **and** a `WakeupSource` into every relay the environment builds, since either alone does nothing. S10 overrides it per arm |
 | `latencyMode` | `PROXY` | `PROXY` or `ACCURATE` (§5.1) |
 
 **`toSmoke()`** derives the CI variant: `workers ≤ 2`, `batchSize ≤ 20`, `maxConnections ≤ 8`,
@@ -1220,8 +1257,9 @@ HLD-load-testing.md §2.3); a `tandem-micrometer`-based telemetry path (stays th
 `BenchmarkEnvironment` (§3); a real per-worker (rather than whole-instance) kill for S5; S8 with more
 than two instances or a throughput-scaling comparison (currently correctness/partitioning only, §8.2);
 any fix to the `LEASE` new-joiner-starvation finding (§8.2) — that is `tandem-jdbc` scope, not this
-harness's; an idle-path dispatch-latency scenario (§8, dispatch-latency.md Q-D — the mechanism it would
-evaluate is undecided, and the number needs the reference baseline to mean anything).
+harness's; a reference-host figure for S10 (the scenario exists and runs, but a laptop's numbers are behaviour,
+not KPI, §5.1); and an S1 A/B with the wakeup on, which is the only way to answer whether the extra
+write statement moves the throughput ceiling.
 
 ---
 

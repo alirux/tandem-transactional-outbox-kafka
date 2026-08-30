@@ -440,14 +440,42 @@ wait, so the adaptive ramp and the wakeup share one mechanism rather than compet
 `Connection`, which a dependency-free core port cannot name; a port in `tandem-core` would have been
 ceremony around a boundary nothing else crosses (HLD §1.1, §1.2).
 
-**What is measured, and what is not.** The mechanism is pinned end to end against a real PostgreSQL
+**What is measured.** The mechanism is pinned end to end against a real PostgreSQL
 (`PgNotifyWakeupIT`): a row written into a relay whose next poll is thirty seconds away is dispatched
 in tens of milliseconds, a rolled-back write signals nothing, a batch signals each bucket it wrote
 once, an unreadable payload is skipped without unsubscribing, and a killed listening backend
-resubscribes and keeps delivering. What does **not** exist yet is a benchmark for the profile the
-feature targets, a low rate with long idle gaps: none of S1 to S9 has that shape (LLD-benchmark §8),
-so there is no percentile here for the cold row with the wakeup on, only the functional proof above
-(Q-G).
+resubscribes and keeps delivering.
+
+The **benchmark** for it is S10 (LLD-benchmark §8), the cold-burst shape none of S1 to S9 had: 2
+events/s so that every event arrives into a slice already waiting at the ceiling, four windows in the
+order poll, wakeup, wakeup, poll inside one run. Run on a developer Mac and on the reference host,
+~300 events per window
+([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/)):
+
+| | commit→ack p50 | p95 | p99 | write txn p50 |
+|---|---:|---:|---:|---:|
+| Mac, poll | 64.0 ms | 114.7 | 122.5 | 3.86 ms |
+| Mac, wakeup | **7.7 ms** | **9.3** | **10.3** | 4.39 ms |
+| reference host, poll | 56.5 ms | 106.7 | 117.8 | 1.32 ms |
+| reference host, wakeup | **5.5 ms** | **8.3** | **11.5** | 1.42 ms |
+
+**8× at the median on the Mac and 10× on the reference host, with the arms not overlapping at any
+percentile on either**: the worst reading in a wakeup window is better than the best median in a poll
+window. The poll arm lands where `pollInterval / 2 + service` says it should, which is what argues
+the difference is the mechanism rather than the machine.
+
+The write side pays for it, in the direction one round trip should, and the size of that payment is
+where the two hosts part company: 0.53 ms on the Mac against **0.10 ms on the reference host**, whose
+write transaction is three times faster to begin with (native Docker, no VM `fsync` penalty). Neither
+figure is resolvable, because on both machines the spread inside each arm is at least as large as the
+gap between them, so what the runs establish is an **upper bound of about a tenth of a millisecond**
+on a native host.
+
+**And it costs no throughput this host can resolve.** Four alternating `S1` ceiling searches on the
+reference host (none, wakeup, wakeup, none): 1300 and 1350 events/s in the poll arm, 1300 in the
+wakeup arm, one search producing no bracket at all. The poll arm disagrees with itself by more than
+the arms disagree with each other, which is the same verdict, and the same reasoning, as the adaptive
+backoff's own A/B on this machine. It rules out a large effect, not one of a few per cent.
 
 ---
 
@@ -495,10 +523,11 @@ single-digit milliseconds. Absent that profile, the correct action is R1 plus th
 - **Q-F.** Should the default `pollInterval` move once §3.2 is in? It becomes a pure ceiling on the
   cold case, so a longer default would cut idle load further at the cost of that one profile. Not a
   default to change without a measurement of how often a slice actually goes cold in practice.
-- **Q-G.** Should the harness grow the cold-burst scenario S1 to S9 do not have (LLD-benchmark §8):
-  a low rate with long idle gaps, run with the wakeup off and on? It is the only way to put a number
-  on what §3.4 buys, and the only way to tell whether the extra write statement costs throughput at
-  saturation.
+- **Q-G. Closed.** *Should the harness grow the cold-burst scenario S1 to S9 do not have?* It did.
+  S10 runs both arms inside one run, on both hosts, and the ceiling A/B that answers the capacity half
+  ran on the reference host (§6). What remains is not a measurement but a limit of the instrument: on a
+  fast developer machine S1 cannot bracket a ceiling at all, because the relay outruns the harness's
+  own load generator, so that half of the question can only ever be asked on the small host.
 - **Q-H.** Do wakeups deserve a metric of their own? Nothing counts signals received today, so an
   operator whose pooler silently ate the subscription sees a latency profile that looks like the
   polling default and no other symptom. A counter is cheap; whether it belongs in the metrics port,

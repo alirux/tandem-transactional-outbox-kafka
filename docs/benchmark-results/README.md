@@ -64,6 +64,7 @@ Tier`) rather than billed.
 | `2026-08-30-ec2-run1/`, `-run2/` | S1 + S2, `--duration=240`, on the reference host, adaptive backoff | The latency figures the README and the site publish, and the ladder the throughput chart is drawn from |
 | `2026-08-30-ec2-run3-suite/` | All seven non-endurance scenarios, `--duration=180`, same host and build | The correctness table on the site, and a third latency replicate |
 | `2026-08-30-ec2-s1-ab/` | Four alternating ceiling searches, adaptive vs fixed interval | Whether the adaptive backoff costs throughput (it does not, within what this host can resolve). Has its own [README](2026-08-30-ec2-s1-ab/README.md) |
+| `2026-08-30-wakeup/` | S10 on both hosts, plus four alternating ceiling searches on the reference host | What the post-commit wakeup buys on the cold row (8× on the Mac, 10× on the reference host, arms never overlapping), what it costs the write transaction (~0.1 ms on a native host, inside each arm's own spread) and that it costs no throughput this host can resolve. Has its own [README](2026-08-30-wakeup/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples

@@ -42,7 +42,7 @@ public final class S6PoisonMessage implements Scenario {
              CorrelationConsumer consumer = new CorrelationConsumer(
                      kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
-                     selector, cfg.payloadBytes(), null)) {
+                     selector, cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();
             generator.start(OFFERED_RATE_PER_SECOND);
             Thread.sleep(cfg.duration().toMillis());

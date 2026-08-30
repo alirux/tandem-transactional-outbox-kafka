@@ -1,0 +1,6 @@
+=== S1 arm=pg-notify 16:12:19 ===
+Tandem load test — scenarios=[S1], smoke=false, demo=false, duration=PT2M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=PG_NOTIFY
+PASS S1: NOT A MAXIMUM — the search never found a rate this host could not hold, so 12800,0 events/s aggregate (1600,0/s per worker) is only a lower bound set by the search budget; re-run with a longer duration; ordering violations=0, missing=0
+=== S1 arm=none 16:17:11 ===
+Tandem load test — scenarios=[S1], smoke=false, demo=false, duration=PT2M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=NONE
+PASS S1: NOT A MAXIMUM — the search never found a rate this host could not hold, so 12800,0 events/s aggregate (1600,0/s per worker) is only a lower bound set by the search budget; re-run with a longer duration; ordering violations=0, missing=0

@@ -7,10 +7,12 @@ import com.codingful.tandem.benchmark.scenario.S4Saturation;
 import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
 import com.codingful.tandem.benchmark.scenario.S6PoisonMessage;
 import com.codingful.tandem.benchmark.scenario.S8MultiInstanceLease;
+import com.codingful.tandem.benchmark.scenario.S10ColdBurst;
 import com.codingful.tandem.benchmark.scenario.S9Endurance;
 import com.codingful.tandem.benchmark.scenario.Scenario;
 import com.codingful.tandem.benchmark.scenario.ScenarioContext;
 import com.codingful.tandem.benchmark.scenario.ScenarioResult;
+import com.codingful.tandem.jdbc.Wakeup;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,7 +30,8 @@ import java.util.Set;
  *
  * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
  * [--poll-interval=<millis>] [--poll-floor=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>]
- * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>] [S1,S2,...]}:
+ * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>]
+ * [--wakeup=none|pg-notify] [S1,S2,...]}:
  * <ul>
  *   <li>{@code --smoke} — tiny rate/duration, correctness only, no KPI numbers (HLD-load-testing.md §5.1).</li>
  *   <li>{@code --demo} — real relay concurrency (default workers/batchSize/bucketCount) but a short
@@ -58,13 +61,17 @@ import java.util.Set;
  *       run of hours grows the outbox without bound and never exercises the churn a production outbox
  *       actually lives in. Size the batch against the write rate: {@code rate × interval} rows at
  *       minimum.</li>
+ *   <li>{@code --wakeup=none|pg-notify} — the post-commit wakeup (dispatch-latency.md §3.4), for the
+ *       whole run: it wires the emission into every generator's write side and a listening connection
+ *       into every relay, because either one alone signals into the void. Default {@code none}, which
+ *       is what every published figure was measured at. S10 ignores it and runs both arms itself.</li>
  *   <li>{@code --connections=<n>} — the pooled {@code DataSource}'s size, shared by the load
  *       generator, every relay instance and the lag probe. Worth raising for a run with more than one
  *       relay instance: the generator alone may hold as many connections as it has in-flight inserts,
  *       and a probe that cannot get one fails the run rather than waiting quietly.</li>
  *   <li>neither flag — the full-run default ({@code BenchmarkConfig.defaults()}, 10 min/scenario).</li>
  * </ul>
- * The scenario list defaults to all six. An unrecognised {@code --} argument is rejected rather than
+ * The scenario list defaults to every registered scenario. An unrecognised {@code --} argument is rejected rather than
  * ignored: a run that silently used the default sizing reads exactly like one that honoured the flag,
  * and the difference only surfaces once the numbers are already published.
  *
@@ -90,9 +97,10 @@ public final class LoadTestRunner {
     private static final String RETENTION_PREFIX = "--retention=";
     private static final String CLEANUP_INTERVAL_PREFIX = "--cleanup-interval=";
     private static final String CLEANUP_BATCH_PREFIX = "--cleanup-batch=";
+    private static final String WAKEUP_PREFIX = "--wakeup=";
     private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX,
             POLL_INTERVAL_PREFIX, POLL_FLOOR_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX,
-            RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX);
+            RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX, WAKEUP_PREFIX);
 
     public static void main(String[] args) throws Exception {
         List<String> argList = List.of(args);
@@ -105,7 +113,8 @@ public final class LoadTestRunner {
                 + ", smoke=" + argList.contains("--smoke") + ", demo=" + argList.contains("--demo")
                 + ", duration=" + config.duration() + ", workers=" + config.workers()
                 + ", pollInterval=" + config.pollInterval()
-                + ", pollFloor=" + config.pollIntervalFloor());
+                + ", pollFloor=" + config.pollIntervalFloor()
+                + ", wakeup=" + config.wakeup());
 
         try (BenchmarkEnvironment env = new BenchmarkEnvironment(config).start()) {
             ScenarioContext ctx = new ScenarioContext(env, config);
@@ -163,7 +172,25 @@ public final class LoadTestRunner {
         longValue(args, CLEANUP_INTERVAL_PREFIX)
                 .ifPresent(seconds -> config.cleanupInterval(Duration.ofSeconds(seconds)));
         longValue(args, CLEANUP_BATCH_PREFIX).ifPresent(n -> config.cleanupBatchSize(Math.toIntExact(n)));
+        stringValue(args, WAKEUP_PREFIX).ifPresent(mode -> config.wakeup(wakeupMode(mode)));
         return config.build();
+    }
+
+    private static Optional<String> stringValue(List<String> args, String prefix) {
+        return args.stream()
+                .filter(a -> a.startsWith(prefix))
+                .findFirst()
+                .map(a -> a.substring(prefix.length()).trim());
+    }
+
+    /** {@code none} / {@code pg-notify}, spelled as the Spring property is rather than as the enum is. */
+    private static Wakeup wakeupMode(String value) {
+        return switch (value.toLowerCase(java.util.Locale.ROOT)) {
+            case "none" -> Wakeup.NONE;
+            case "pg-notify", "pg_notify" -> Wakeup.PG_NOTIFY;
+            default -> throw new IllegalArgumentException(
+                    WAKEUP_PREFIX + " expects none or pg-notify, got: " + value);
+        };
     }
 
     private static Optional<Long> longValue(List<String> args, String prefix) {
@@ -203,7 +230,8 @@ public final class LoadTestRunner {
                 new S5WorkerFailover(),
                 new S6PoisonMessage(),
                 new S8MultiInstanceLease(),
-                new S9Endurance())) {
+                new S9Endurance(),
+                new S10ColdBurst())) {
             byId.put(s.id(), s);
         }
         return Collections.unmodifiableMap(byId);

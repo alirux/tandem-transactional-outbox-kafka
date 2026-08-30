@@ -1,0 +1,119 @@
+> Task :tandem-core:compileJava UP-TO-DATE
+> Task :tandem-benchmark:processResources UP-TO-DATE
+> Task :tandem-jdbc:compileJava UP-TO-DATE
+> Task :tandem-kafka:compileJava UP-TO-DATE
+> Task :tandem-micrometer:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:compileJava UP-TO-DATE
+> Task :tandem-core:processResources NO-SOURCE
+> Task :tandem-core:classes UP-TO-DATE
+> Task :tandem-test:compileJava UP-TO-DATE
+> Task :tandem-core:jar UP-TO-DATE
+> Task :tandem-jdbc:processResources UP-TO-DATE
+> Task :tandem-jdbc:classes UP-TO-DATE
+> Task :tandem-benchmark:compileJava UP-TO-DATE
+> Task :tandem-benchmark:classes UP-TO-DATE
+> Task :tandem-kafka:processResources NO-SOURCE
+> Task :tandem-kafka:classes UP-TO-DATE
+> Task :tandem-kafka:jar UP-TO-DATE
+> Task :tandem-micrometer:processResources NO-SOURCE
+> Task :tandem-micrometer:classes UP-TO-DATE
+> Task :tandem-micrometer:jar UP-TO-DATE
+> Task :tandem-test:processResources NO-SOURCE
+> Task :tandem-test:classes UP-TO-DATE
+> Task :tandem-test:jar UP-TO-DATE
+> Task :tandem-tracing-otel:processResources NO-SOURCE
+> Task :tandem-tracing-otel:classes UP-TO-DATE
+> Task :tandem-tracing-otel:jar UP-TO-DATE
+> Task :tandem-jdbc:jar
+
+> Task :tandem-benchmark:loadTest
+Tandem load test — scenarios=[S10], smoke=false, demo=false, duration=PT10M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=NONE
+--- Running S10 ---
+S10: 2.0 events/s for PT2M30S per window, four windows in the order [NONE, PG_NOTIFY, PG_NOTIFY, NONE]; pollInterval=PT0.1S, pollFloor=PT0.01S, workers=8
+14:39:38 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-1864-612, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+S10: window 1 (poll): commit→ack p50=PT0.058916863S p95=PT0.107216895S p99=PT0.116260863S, write p50=PT0.001522687S p99=PT0.004464639S, events=302, violations=0, missing=0
+14:42:12 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-1864-612
+14:42:12 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-1864-b646, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:PgNotifyWakeup, maxAttempts:10, rowLeaseMs:60000
+14:42:13 INFO    com.codingful.tandem.jdbc.PgNotifyWakeup - Listening for relay wakeups channel:tandem_wakeup
+S10: window 2 (wakeup): commit→ack p50=PT0.005869567S p95=PT0.008921087S p99=PT0.012746751S, write p50=PT0.001507327S p99=PT0.004775935S, events=301, violations=0, missing=0
+14:44:46 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-1864-b646
+14:44:46 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-1864-7f13, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:PgNotifyWakeup, maxAttempts:10, rowLeaseMs:60000
+14:44:46 INFO    com.codingful.tandem.jdbc.PgNotifyWakeup - Listening for relay wakeups channel:tandem_wakeup
+S10: window 3 (wakeup): commit→ack p50=PT0.005087231S p95=PT0.007639039S p99=PT0.010215423S, write p50=PT0.001334271S p99=PT0.003647487S, events=301, violations=0, missing=0
+[] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@6a899ddc marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.execute(PgPreparedStatement.java:182)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.execute(ProxyPreparedStatement.java:44)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.execute(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.JdbcOutboxRepository.lambda$signalWakeup$6(JdbcOutboxRepository.java:284)
+	at com.codingful.tandem.jdbc.Jdbc.exec(Jdbc.java:119)
+	at com.codingful.tandem.jdbc.JdbcOutboxRepository.signalWakeup(JdbcOutboxRepository.java:281)
+	at com.codingful.tandem.jdbc.JdbcOutboxRepository.signalWakeup(JdbcOutboxRepository.java:273)
+	at com.codingful.tandem.jdbc.JdbcOutboxRepository.lambda$insert$1(JdbcOutboxRepository.java:188)
+	at com.codingful.tandem.jdbc.Jdbc.lambda$toOperation$2(Jdbc.java:104)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.exec(Jdbc.java:99)
+	at com.codingful.tandem.jdbc.JdbcOutboxRepository.insert(JdbcOutboxRepository.java:180)
+	at com.codingful.tandem.benchmark.LoadGenerator.lambda$insertOne$1(LoadGenerator.java:242)
+	at com.codingful.tandem.benchmark.TransactionalUnitOfWork.runInTransaction(TransactionalUnitOfWork.java:45)
+	at com.codingful.tandem.benchmark.LoadGenerator.lambda$insertOne$0(LoadGenerator.java:231)
+	at com.codingful.tandem.benchmark.LoadGenerator$WriteSpanScope.lambda$static$0(LoadGenerator.java:109)
+	at com.codingful.tandem.benchmark.LoadGenerator.insertOne(LoadGenerator.java:228)
+	at com.codingful.tandem.benchmark.LoadGenerator.lambda$pacerLoop$0(LoadGenerator.java:208)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:460)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 25 more
+14:47:20 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-1864-7f13
+14:47:20 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-1864-721e, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+S10: window 4 (poll): commit→ack p50=PT0.054132735S p95=PT0.106233855S p99=PT0.119341055S, write p50=PT0.001114111S p99=PT0.003434495S, events=301, violations=0, missing=0
+[] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@127680d3 marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:389)
+	at org.postgresql.jdbc.PgConnection.executeTransactionCommand(PgConnection.java:998)
+	at org.postgresql.jdbc.PgConnection.commit(PgConnection.java:1020)
+	at com.zaxxer.hikari.pool.ProxyConnection.commit(ProxyConnection.java:378)
+	at com.zaxxer.hikari.pool.HikariProxyConnection.commit(HikariProxyConnection.java)
+	at com.codingful.tandem.benchmark.TransactionalUnitOfWork.runInTransaction(TransactionalUnitOfWork.java:46)
+	at com.codingful.tandem.benchmark.LoadGenerator.lambda$insertOne$0(LoadGenerator.java:231)
+	at com.codingful.tandem.benchmark.LoadGenerator$WriteSpanScope.lambda$static$0(LoadGenerator.java:109)
+	at com.codingful.tandem.benchmark.LoadGenerator.insertOne(LoadGenerator.java:228)
+	at com.codingful.tandem.benchmark.LoadGenerator.lambda$pacerLoop$0(LoadGenerator.java:208)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:460)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 14 more
+14:49:54 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-1864-721e
+PASS S10: cold rows at 2.0/s; commit→ack p50 56.5→5.5 ms (10.3x), p95 106.7→8.3, p99 117.8→11.5; write p50 1.32→1.42 ms, p99 3.95→4.21; events 603/602; ordering violations=0, missing=0
+All scenarios passed correctness.
+
+BUILD SUCCESSFUL in 10m 34s
+16 actionable tasks: 2 executed, 14 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html

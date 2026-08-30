@@ -109,7 +109,7 @@ public final class MetricsDashboardDemo {
             String stallingAggregate = selector.universe().get(1);
 
             try (LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(),
-                    cfg.maxConnections(), selector, cfg.payloadBytes(), null)) {
+                    cfg.maxConnections(), selector, cfg.payloadBytes(), null, cfg.wakeup())) {
 
                 runStart = System.nanoTime();
                 intro(observability, exporters);

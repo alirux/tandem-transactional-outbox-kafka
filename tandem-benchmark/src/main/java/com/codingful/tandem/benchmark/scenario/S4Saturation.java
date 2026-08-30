@@ -37,7 +37,7 @@ public final class S4Saturation implements Scenario {
              CorrelationConsumer consumer = new CorrelationConsumer(
                      kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
-                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null)) {
+                     AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();
 
             long pendingBefore = env.lagProbe().overall().pending();

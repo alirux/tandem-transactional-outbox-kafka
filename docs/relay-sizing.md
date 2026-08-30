@@ -299,7 +299,11 @@ the whole distribution down; it does not remove that tail.
 been quiet long enough for its worker to reach the ceiling: that one waits the ceiling, and no amount
 of tuning makes it both fast and cheap. The post-commit wakeup is what does, on PostgreSQL and on
 request: `tandem.outbox.wakeup: pg-notify` on both sides, after which the ceiling only bounds what
-happens when a signal does not arrive. The design, and what it costs the write path, is in
+happens when a signal does not arrive. Measured at 2 events/s on the reference host, the cold row went
+from a 57 ms median and a 118 ms p99 to **5.5 ms and 11.5 ms**, for about a tenth of a millisecond
+added to a 1.3 ms write transaction and no throughput cost the host could resolve
+([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/); a developer Mac agrees
+on the ratios). The design, and what it costs the write path, is in
 [dispatch-latency.md](dispatch-latency.md) §3.4.
 
 ---

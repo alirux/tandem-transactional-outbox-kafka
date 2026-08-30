@@ -3,6 +3,7 @@ package com.codingful.tandem.benchmark;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.jdbc.JdbcOutboxRepository;
+import com.codingful.tandem.jdbc.Wakeup;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -59,21 +60,25 @@ public final class LoadGenerator implements AutoCloseable {
     private final Set<String> insertedKeys = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> lastInsertedSeqs = new ConcurrentHashMap<>();
     private volatile boolean trackInsertedKeys = true;
+    private volatile LatencyRecorder writeLatency;   // nullable — only a scenario measuring the write path sets it
 
     private final AtomicReference<Double> targetRatePerSecond = new AtomicReference<>(0.0);
     private volatile boolean running;
     private Thread pacerThread;
 
     public LoadGenerator(DataSource rawDataSource, int bucketCount, int maxInFlight, AggregateSelector selector,
-                          int payloadBytes, CommitTimestamps commitTimestamps) {
-        this(rawDataSource, bucketCount, maxInFlight, selector, payloadBytes, commitTimestamps,
+                          int payloadBytes, CommitTimestamps commitTimestamps, Wakeup wakeup) {
+        this(rawDataSource, bucketCount, maxInFlight, selector, payloadBytes, commitTimestamps, wakeup,
                 TracePropagator.NOOP, WriteSpanScope.NOOP);
     }
 
     /**
-     * As the six-argument constructor, plus the two collaborators only {@link TracingDashboardDemo}
+     * As the seven-argument constructor, plus the two collaborators only {@link TracingDashboardDemo}
      * needs (§6.4) — both default to a no-op above, so every existing call site is unaffected.
      *
+     * @param wakeup          whether each insert also signals the relay the bucket it wrote
+     *                        (dispatch-latency §3.4); the extra statement it costs the write transaction
+     *                        is exactly what a run comparing the two arms is measuring
      * @param tracePropagator captures the write span opened by {@code spanScope} into the row's headers,
      *                        the same seam {@code JdbcOutboxRepository} exposes for any adapter
      * @param spanScope       opens (and closes) the span each unit of work runs inside, so
@@ -83,10 +88,10 @@ public final class LoadGenerator implements AutoCloseable {
      *                        stays off the tracing SDK the way {@link JdbcOutboxRepository} itself does.
      */
     public LoadGenerator(DataSource rawDataSource, int bucketCount, int maxInFlight, AggregateSelector selector,
-                          int payloadBytes, CommitTimestamps commitTimestamps, TracePropagator tracePropagator,
-                          WriteSpanScope spanScope) {
+                          int payloadBytes, CommitTimestamps commitTimestamps, Wakeup wakeup,
+                          TracePropagator tracePropagator, WriteSpanScope spanScope) {
         this.unitOfWork = new TransactionalUnitOfWork(rawDataSource);
-        this.repository = new JdbcOutboxRepository(unitOfWork.transactionAware(), bucketCount, tracePropagator);
+        this.repository = new JdbcOutboxRepository(unitOfWork.transactionAware(), bucketCount, tracePropagator, wakeup);
         this.selector = selector;
         this.payload = referencePayload(payloadBytes);
         this.commitTimestamps = commitTimestamps;
@@ -156,6 +161,16 @@ public final class LoadGenerator implements AutoCloseable {
     }
 
     /**
+     * Records how long each unit of work takes, COMMIT included — the write-side cost of whatever the
+     * run is configured with, which is what makes an extra statement on the write path (a
+     * {@code Wakeup.PG_NOTIFY} signal) measurable rather than assumed. Call it before {@link #start};
+     * unset, nothing is recorded and nothing is allocated.
+     */
+    public void recordWriteLatency(LatencyRecorder recorder) {
+        this.writeLatency = recorder;
+    }
+
+    /**
      * Stops accumulating {@link #insertedKeys()}, leaving {@link #lastInsertedSeqs()} as the record of
      * what was written. For a run long enough that one entry per event would dominate the harness's own
      * memory ({@link SequenceLedger}); call it before {@link #start} — nothing else changes.
@@ -211,6 +226,7 @@ public final class LoadGenerator implements AutoCloseable {
         // The whole unit of work runs inside the span (default no-op): the write span must still be
         // current when repository.insert calls tracePropagator.capture() deep inside runInTransaction.
         spanScope.run(aggregateId, () -> {
+            long startedAtNanos = System.nanoTime();
             try {
                 long seq = unitOfWork.runInTransaction(conn -> {
                     long version = lockAndBumpVersion(conn, aggregateId);
@@ -226,8 +242,16 @@ public final class LoadGenerator implements AutoCloseable {
                     repository.insert(message);
                     return version;
                 });
+                long committedAtNanos = System.nanoTime();
                 if (commitTimestamps != null) {
-                    commitTimestamps.recordCommit(aggregateId, seq, System.nanoTime());
+                    commitTimestamps.recordCommit(aggregateId, seq, committedAtNanos);
+                }
+                LatencyRecorder writeRecorder = writeLatency;
+                if (writeRecorder != null) {
+                    // The whole unit of work, not the INSERT alone: the aggregate lock and the COMMIT are
+                    // what an extra statement on this path competes with, and a figure that excluded them
+                    // would overstate its share.
+                    writeRecorder.record(Duration.ofNanos(committedAtNanos - startedAtNanos));
                 }
                 if (trackInsertedKeys) {
                     insertedKeys.add(aggregateId + '#' + seq);
