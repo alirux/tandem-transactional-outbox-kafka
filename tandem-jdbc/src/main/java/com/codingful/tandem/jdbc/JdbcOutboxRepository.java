@@ -16,9 +16,11 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import javax.sql.DataSource;
@@ -40,6 +42,13 @@ import javax.sql.DataSource;
  * order</b> before inserting anything, which is the stated deadlock guard for a transaction that locks
  * several aggregates. It cannot enforce that ordering across separate {@link #insert} calls in one
  * caller transaction — a caller doing that is responsible for the same ordering itself.
+ *
+ * <p><b>Optional post-commit wakeup:</b> constructed with {@link Wakeup#PG_NOTIFY}, the insert is
+ * followed by one {@code pg_notify} carrying the bucket numbers just written, on the same connection
+ * and so inside the caller's transaction — the database delivers it on commit and discards it on
+ * rollback, so a signal can never announce a row that does not exist (dispatch-latency §3.4). It costs
+ * one round trip per {@code insert}/{@code insertAll} call, whatever the number of rows, and nothing at
+ * all with the default {@link Wakeup#NONE}.
  *
  * <p><b>Payload constraint:</b> the {@code payload} column is PostgreSQL {@code jsonb}, so this
  * adapter requires {@link OutboxMessage#payload()} to be valid UTF-8 JSON. A non-JSON payload is
@@ -73,6 +82,15 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source, payload, headers, correlation_id) "
                     + "VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
 
+    /**
+     * The wakeup signal (dispatch-latency §3.4), emitted once per insert call rather than once per row:
+     * a single statement over the array of distinct buckets written, so a fifty-row {@code insertAll}
+     * costs the same one round trip as a single {@code insert}. PostgreSQL collapses same-channel,
+     * same-payload notifications within a transaction, so a caller inserting into one bucket across
+     * several calls still wakes the relay once.
+     */
+    private static final String NOTIFY_SQL = "SELECT pg_notify(?, bucket::text) FROM unnest(?) AS bucket";
+
     /** PostgreSQL {@code unique_violation} SQLSTATE (LLD-jdbc §2 → DuplicateSeqException). */
     private static final String SQLSTATE_UNIQUE_VIOLATION = "23505";
 
@@ -96,6 +114,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private final DataSource dataSource;
     private final int bucketCount;
     private final TracePropagator tracePropagator;
+    private final Wakeup wakeup;
 
     /**
      * <p>This constructor does <b>no</b> I/O: the {@code dataSource} may be a transaction-aware proxy
@@ -130,9 +149,29 @@ public final class JdbcOutboxRepository implements OutboxRepository {
      * @throws NullPointerException     if {@code dataSource} or {@code tracePropagator} is {@code null}
      */
     public JdbcOutboxRepository(DataSource dataSource, int bucketCount, TracePropagator tracePropagator) {
+        this(dataSource, bucketCount, tracePropagator, Wakeup.NONE);
+    }
+
+    /**
+     * @param dataSource      the write-side connection source; see {@link #JdbcOutboxRepository(DataSource, int)}
+     * @param bucketCount     must match the relay's {@link RelayConfig#bucketCount()}; see
+     *                        {@link #JdbcOutboxRepository(DataSource, int)}
+     * @param tracePropagator captures trace/correlation headers at insert time when
+     *                        {@link TracePropagator#isEnabled()} (HLD-tracing.md §5)
+     * @param wakeup          whether each insert also signals the relay that the buckets it wrote have
+     *                        work ({@link Wakeup#PG_NOTIFY}), or leaves discovery to the relay's poll
+     *                        loop ({@link Wakeup#NONE}, the default). The relay must be listening for
+     *                        the same mechanism, or the signal is simply never consumed
+     * @throws IllegalArgumentException if {@code bucketCount <= 0} or above
+     *                                  {@link RelayConfig#MAX_BUCKET_COUNT} (the {@code SMALLINT} column bound)
+     * @throws NullPointerException     if any argument is {@code null}
+     */
+    public JdbcOutboxRepository(DataSource dataSource, int bucketCount, TracePropagator tracePropagator,
+            Wakeup wakeup) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.bucketCount = RelayConfig.boundedBucketCount(bucketCount);
         this.tracePropagator = Objects.requireNonNull(tracePropagator, "tracePropagator");
+        this.wakeup = Objects.requireNonNull(wakeup, "wakeup");
     }
 
     @Override
@@ -146,6 +185,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
                 bind(ps, message);
                 ps.executeUpdate();
             });
+            signalWakeup(conn, message);
         }, e -> translate(e, message));
     }
 
@@ -172,6 +212,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
                 run.add(message);
             }
             insertBatch(conn, run, current);
+            signalWakeup(conn, bucketsOf(messages));
         }, e -> translate(e, current[0]));
     }
 
@@ -214,6 +255,51 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         for (String aggregateId : aggregateIds) {
             lockAggregate(conn, aggregateId);
         }
+    }
+
+    /**
+     * Tells the relay that {@code buckets} have work, in the caller's own transaction so the signal
+     * lives or dies with the rows it announces (dispatch-latency §3.4). Nothing here can affect
+     * delivery: a relay that is not listening, or a pooler that swallowed the subscription, only means
+     * the rows are found by the next poll instead.
+     *
+     * <p>What it <i>can</i> do is fail, and then it fails the caller's transaction like any other
+     * statement in it (the documented case being a full cluster-wide notification queue). Swallowing
+     * the exception would not avoid that: a statement that errored has already poisoned the
+     * transaction, so there is nothing left to save.
+     */
+    private void signalWakeup(Connection conn, OutboxMessage message) throws SQLException {
+        if (wakeup != Wakeup.NONE) {
+            signalWakeup(conn, Set.of(bucketOf(message)));
+        }
+    }
+
+    private void signalWakeup(Connection conn, Set<Integer> buckets) throws SQLException {
+        if (wakeup == Wakeup.NONE || buckets.isEmpty()) {
+            return;
+        }
+        Jdbc.exec(conn, NOTIFY_SQL, ps -> {
+            ps.setString(1, Wakeup.CHANNEL);
+            ps.setArray(2, conn.createArrayOf("integer", buckets.toArray()));
+            ps.execute();
+        });
+    }
+
+    /** Distinct buckets a batch writes into — what the single notify statement is bound to. */
+    private Set<Integer> bucketsOf(Collection<OutboxMessage> messages) {
+        if (wakeup == Wakeup.NONE) {
+            return Set.of();   // the hash is cheap, but there is no reason to run it per row for nothing
+        }
+        Set<Integer> buckets = new LinkedHashSet<>();
+        for (OutboxMessage message : messages) {
+            buckets.add(bucketOf(message));
+        }
+        return buckets;
+    }
+
+    /** The bucket a message lands in — the same hash {@link #bind} writes into the row. */
+    private int bucketOf(OutboxMessage message) {
+        return BucketHash.bucketFor(message.aggregateId().value(), bucketCount);
     }
 
     private static void lockAggregate(Connection conn, String aggregateId) throws SQLException {

@@ -75,7 +75,7 @@ public class TandemProducerAutoConfiguration {
         // it the one bound to the active transaction. Without it, the insert would run on a separate
         // autocommitted connection and lose atomicity with the business state change.
         return new JdbcOutboxRepository(new TransactionAwareDataSourceProxy(dataSource), properties.bucketCount(),
-                tracePropagator.getIfAvailable(() -> TracePropagator.NOOP));
+                tracePropagator.getIfAvailable(() -> TracePropagator.NOOP), properties.wakeup());
     }
 
     /**

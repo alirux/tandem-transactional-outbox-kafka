@@ -273,7 +273,9 @@ The two mostly-idle rows are the choice the ceiling now makes explicit: **a buck
 either cheap or fast on its first row back, and you pick which.** Under the defaults an idle fleet
 pays 80 queries/s per instance for a ~100 ms cold row; at a 1 s ceiling it pays 8 for a cold row of up
 to a second, and nothing changes for any row that arrives while the stream is already flowing. That
-choice is what a post-commit wakeup would remove ([dispatch-latency.md](dispatch-latency.md) §3.4).
+choice is what the opt-in post-commit wakeup removes on PostgreSQL: with
+`tandem.outbox.wakeup: pg-notify` the cold row is signalled rather than waited for, so a long ceiling
+costs nothing but the idle load it saves ([dispatch-latency.md](dispatch-latency.md) §3.4).
 
 Note also what is *not* in the table any more: trading workers away to afford a shorter interval. It
 worked (8 workers at 100 ms and 2 at 25 ms cost the same 80 queries/s, §2), but it bought latency the
@@ -294,9 +296,10 @@ neither poll nor service — GC, CPU contention, a broker pause. Lowering the po
 the whole distribution down; it does not remove that tail.
 
 **The cold row.** Shortening the floor does nothing for a row that arrives into a bucket which has
-been quiet long enough for its worker to reach the ceiling: that one waits the ceiling, and the only
-way to make it fast *and* keep an idle relay cheap is a post-commit wakeup. The design, including why
-it is not built yet and why it is much weaker under `LEASE` than it looks, is in
+been quiet long enough for its worker to reach the ceiling: that one waits the ceiling, and no amount
+of tuning makes it both fast and cheap. The post-commit wakeup is what does, on PostgreSQL and on
+request: `tandem.outbox.wakeup: pg-notify` on both sides, after which the ceiling only bounds what
+happens when a signal does not arrive. The design, and what it costs the write path, is in
 [dispatch-latency.md](dispatch-latency.md) §3.4.
 
 ---

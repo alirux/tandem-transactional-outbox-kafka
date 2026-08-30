@@ -18,6 +18,15 @@ tandem:
     # bind the identical value; a divergence fails startup instead of stalling delivery silently.
     bucket-count: 256
 
+    # tandem.outbox.wakeup — post-commit wakeup: none (default) or pg-notify.
+    # pg-notify makes this relay hold one connection listening on the tandem_wakeup channel, so a row
+    # written into a bucket that has gone quiet is claimed at once instead of waiting out
+    # tandem.relay.poll-interval. The write side must emit the same mechanism, or nothing is ever
+    # signalled. PostgreSQL only, and a connection pooler in transaction-pooling mode silently breaks
+    # LISTEN: either way the relay keeps polling, so the cost of a mismatch is latency alone
+    # (LLD-jdbc §3.10).
+    wakeup: none
+
   # ----------------------------------------------------------------------------------------------
   # tandem.relay — the relay engine.
   # ----------------------------------------------------------------------------------------------

@@ -11,7 +11,9 @@ import com.codingful.tandem.core.port.TopicRouter;
 import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcRelayControlSource;
 import com.codingful.tandem.jdbc.RelayConfig;
+import com.codingful.tandem.jdbc.PgNotifyWakeup;
 import com.codingful.tandem.jdbc.RelayControlSource;
+import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
 import io.micrometer.tracing.propagation.Propagator;
@@ -65,7 +67,18 @@ class TandemRelayAutoConfigurationTest {
             assertThat(context).hasSingleBean(RelayControlSource.class);
             assertThat(context.getBean(RelayControlSource.class)).isInstanceOf(JdbcRelayControlSource.class);
             assertThat(context.getBean(TandemMetrics.class)).isSameAs(TandemMetrics.NOOP);
+            // Nothing is listened for unless asked: the relay discovers work by polling by default.
+            assertThat(context.getBean(WakeupSource.class)).isSameAs(WakeupSource.NONE);
         });
+    }
+
+    @Test
+    void GIVEN_the_wakeup_configured_WHEN_the_context_starts_THEN_the_relay_listens_for_it() {
+        // The relay half of the post-commit wakeup (dispatch-latency §3.4). It binds the same
+        // tandem.outbox key the write-side emits under, because a signal only helps when both sides
+        // name the same mechanism.
+        wiredRelay().withPropertyValues("tandem.outbox.wakeup=pg-notify").run(context ->
+                assertThat(context.getBean(WakeupSource.class)).isInstanceOf(PgNotifyWakeup.class));
     }
 
     @Test

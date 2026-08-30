@@ -594,7 +594,9 @@ The flow below is shown as a single sequence for clarity. The boundary after `CO
     │   empty (idle backoff, NOT a per-batch throttle; §3.1 LLD-jdbc). That wait adapts:
     │   from pollIntervalFloor (10ms) after a claim that found rows, growing to
     │   pollInterval (100ms) while claims keep coming back empty, ±20% jitter.
-    │   A cycle that throws backs off exponentially instead.
+    │   A cycle that throws backs off exponentially instead. The wait is bounded, not
+    │   blind: with the opt-in wakeup (PostgreSQL, LLD-jdbc §3.10) the write-side signals
+    │   the bucket it wrote inside its own transaction and the wait ends there instead.
     │
     ├── Poll this worker's buckets for the HEAD of each aggregate's pending chain
     │   (E2 — never leapfrog a not-yet-DONE earlier row; this also subsumes the poison gate):

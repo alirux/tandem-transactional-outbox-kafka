@@ -162,6 +162,80 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_row_written_into_a_quiet_bucket_WHEN_the_write_side_signals_it_THEN_it_is_delivered_without_waiting_for_the_poll() {
+        // The whole point of the wakeup, stated as a measurement: the poll interval here is 30s at both
+        // ends, so a delivery inside ten seconds cannot be a poll finding the row.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
+                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, wakeup);
+
+        pool.start();
+        try {
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId("order-1").aggregateType("Order").seq(1).payload("p".getBytes()).build());
+            long id = outbox.all().get(0).id();
+
+            wakeup.signal(outbox.bucketOf(id));
+
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the signalled row delivered, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_relay_with_a_wakeup_source_WHEN_it_starts_and_stops_THEN_the_source_follows_its_lifecycle() {
+        // Both halves matter and neither fails loudly: a source never started delivers nothing, and one
+        // never stopped leaves a connection and a thread behind every relay restart.
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(),
+                RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build(),
+                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
+                BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, wakeup);
+
+        pool.start();
+        assertThat(wakeup.startCalls()).isEqualTo(1);
+
+        pool.stop();
+
+        assertThat(wakeup.stopCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_wakeup_source_that_cannot_start_WHEN_the_relay_starts_THEN_it_runs_and_delivers_by_polling() {
+        // A broken signal must never be a broken relay: discovery falls back to the poll interval, which
+        // is what bounds it in every configuration anyway.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").seq(1).payload("p".getBytes()).build());
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).pollInterval(Duration.ofMillis(10)).build();
+        WakeupSource unstartable = new WakeupSource() {
+            @Override
+            public void start(Listener listener) {
+                throw new IllegalStateException("no listening connection");
+            }
+        };
+        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
+                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, unstartable);
+
+        pool.start();
+        try {
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the row delivered by polling, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_running_relay_WHEN_stopped_THEN_it_shuts_down_cleanly() {
         WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(),
                 RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build());
@@ -985,6 +1059,40 @@ class WorkerPoolTest {
 
         int releaseCalls() {
             return releaseCalls.get();
+        }
+    }
+
+    /**
+     * A {@link WakeupSource} a test signals through by hand, standing in for the write-side emission a
+     * {@code pg_notify} adapter would carry (that end is covered against a real database in
+     * {@code PgNotifyWakeupIT}).
+     */
+    private static final class RecordingWakeupSource implements WakeupSource {
+        private final AtomicInteger startCalls = new AtomicInteger();
+        private final AtomicInteger stopCalls = new AtomicInteger();
+        private volatile Listener listener;
+
+        @Override
+        public void start(Listener listener) {
+            this.listener = listener;
+            startCalls.incrementAndGet();
+        }
+
+        @Override
+        public void stop() {
+            stopCalls.incrementAndGet();
+        }
+
+        void signal(int bucket) {
+            listener.wake(bucket);
+        }
+
+        int startCalls() {
+            return startCalls.get();
+        }
+
+        int stopCalls() {
+            return stopCalls.get();
         }
     }
 

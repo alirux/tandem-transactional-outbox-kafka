@@ -12,6 +12,7 @@ import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.JdbcRelayControlSource;
 import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.RelayControlSource;
+import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
@@ -206,12 +207,25 @@ public class TandemRelayAutoConfiguration {
         return new JdbcRelayControlSource(dataSource, relayConfig.coordination(), relayConfig.reclaimInterval());
     }
 
+    /**
+     * Where the write-side's post-commit signals arrive (dispatch-latency §3.4), selected by
+     * {@code tandem.outbox.wakeup} — the same key the write-side emits under, since a signal only helps
+     * when both sides name the same mechanism. The default contributes {@link WakeupSource#NONE}, so an
+     * application that sets nothing pays nothing and discovers work by polling exactly as before.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    WakeupSource tandemWakeupSource(TandemOutboxProperties outbox, DataSource dataSource) {
+        return WakeupSource.forWakeup(outbox.wakeup(), dataSource);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     WorkerPool tandemWorkerPool(OutboxStore outboxStore, OutboxDispatcher outboxDispatcher, RelayConfig relayConfig,
-            TandemMetrics tandemMetrics, BucketSource bucketSource, RelayControlSource relayControlSource) {
+            TandemMetrics tandemMetrics, BucketSource bucketSource, RelayControlSource relayControlSource,
+            WakeupSource wakeupSource) {
         return new WorkerPool(outboxStore, outboxDispatcher, relayConfig, tandemMetrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), bucketSource, relayControlSource);
+                BackoffStrategy.fullJitter(), bucketSource, relayControlSource, wakeupSource);
     }
 
     @Bean

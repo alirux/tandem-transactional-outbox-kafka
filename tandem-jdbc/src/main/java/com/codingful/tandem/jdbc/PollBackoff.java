@@ -27,6 +27,10 @@ import java.util.concurrent.ThreadLocalRandom;
  *       floor forever.</li>
  * </ul>
  *
+ * <p>A configured {@link WakeupSource} cuts across the idle case: a signal ends the wait early and
+ * {@link #resetIdle()} puts the backoff back at the floor, so the ramp a worker climbed while its
+ * slice was quiet does not price the first row that arrives out of that silence.
+ *
  * <p>A <b>failed cycle</b> is the fourth case: an exponentially growing delay from
  * {@code pollInterval} up to a cap, reset by the first cycle that completes. A dead database
  * otherwise has every worker re-querying and logging a stack trace ten times a second. It is
@@ -100,6 +104,15 @@ final class PollBackoff {
             consecutiveIdle++;   // stops once the ceiling is reached: counting further changes nothing
         }
         return jitter(delay);
+    }
+
+    /**
+     * Puts the idle backoff back at {@code pollIntervalFloor}, exactly as a claim returning rows would.
+     * Called when a {@link WakeupSource} signal, rather than the backoff itself, ended a worker's wait:
+     * the bucket has just been written to, so the ramp climbed while it was quiet no longer describes it.
+     */
+    void resetIdle() {
+        consecutiveIdle = 0;
     }
 
     /** How long to wait after a cycle that threw; grows on each successive call until the cap. */

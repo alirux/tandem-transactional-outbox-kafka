@@ -6,6 +6,12 @@ dependencies {
     api(project(":tandem-core"))
     // Adapter uses only java.sql (JDK). No Kafka, no metrics library, no JSON binding (minimal footprint).
 
+    // PgNotifyWakeup is the one class needing the driver's LISTEN/NOTIFY API (dispatch-latency §3.4).
+    // compileOnly: it is never redistributed, so the client write-side footprint is unchanged, and the
+    // class is loaded only where a relay opts into `Wakeup.PG_NOTIFY` — where a Postgres application
+    // has the driver anyway.
+    compileOnly(libs.postgresql)
+
     // Unit tests: the in-memory collaborators (no DB).
     testImplementation(project(":tandem-test"))
 

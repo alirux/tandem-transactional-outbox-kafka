@@ -1,8 +1,9 @@
 # Tandem: dispatch latency and post-commit wakeup
 
-**Version:** 2.1
-**Status:** Analysis complete, every option measured or costed. **R1 (§3.2) is built and measured**;
-the wakeup mechanisms themselves remain undecided (§5).
+**Version:** 3.0
+**Status:** Analysis complete, every option measured or costed. **R1 (§3.2) is built and measured**, and
+so is the wakeup itself: the port of §6 with the `pg_notify` adapter of §3.4, opt-in and off by default.
+Only the in-process hint (§3.3) is deliberately not built (R3).
 **Companion to:** HLD §6 (End-to-End Flow), [LLD-jdbc.md](LLD-jdbc.md) §3.1 (the poll loop),
 [relay-sizing.md](relay-sizing.md) (how to set the two knobs today, and the measurements this note
 draws on).
@@ -26,6 +27,11 @@ a measurement it named (Q-D). That measurement now exists, on two hosts, and it 
 3. A third option appears that v1 did not consider, because §3 only ever weighed a *fixed* interval:
    the idle wait can be a function of recent activity instead of a constant (§3.2). It changes the
    recommendation, so it is analysed alongside the wakeup mechanisms rather than as a footnote.
+
+**What v3 adds.** The wakeup itself. §3.4 is built and opt-in, §6 records the shape it took rather
+than the shape proposed, and the three questions its design turned on are closed (Q-A, Q-B, Q-C). The
+analysis in §1 to §5 is unchanged: nothing measured since v2 revised it, and the recommendation it
+produced is exactly what was implemented.
 
 ---
 
@@ -260,7 +266,7 @@ Two constraints shape it:
 - **Cons:** violates C6 (one JVM only); its benefit decays as `1/N` in `LEASE` mode; needs a commit
   hook the write-side cannot provide on its own outside Spring.
 
-### 3.4 PostgreSQL `LISTEN` / `NOTIFY`
+### 3.4 PostgreSQL `LISTEN` / `NOTIFY` (shipped, opt-in)
 
 The only mechanism that crosses process boundaries without new infrastructure. Its semantics line up
 with the outbox unusually well:
@@ -296,6 +302,33 @@ Operational caveats, all manageable but all mandatory to document:
   than one outbox.
 - **PostgreSQL only.** MySQL has no equivalent primitive (HLD §5.4), so the fallback there is §3.1
   and §3.2, permanently.
+
+**What was built.** The first variant, a second statement on the write-side connection, for the reason
+Q-C gives: it is the only one that costs the write path nothing but a round trip, needs no DDL, and
+leaves JDBC batching alone. The payload is the bucket number (Q-A), so a signal wakes the one worker
+that owns it and the cost of a wakeup does not grow with the worker count.
+
+Concretely, and in one line each:
+
+| | |
+|---|---|
+| Channel | `tandem_wakeup`, a published contract between a writer and a relay |
+| Emission | `Wakeup.PG_NOTIFY` on `JdbcOutboxRepository`, or `tandem.outbox.wakeup: pg-notify` under Spring. One statement per `insert`/`insertAll` call, over the array of distinct buckets that call wrote, so a fifty-row batch costs the same single round trip as one row |
+| Subscription | `PgNotifyWakeup`, one dedicated connection per relay instance, reconnecting with full jitter and asking for a full sweep whenever it (re)subscribes, since nothing emitted while it was disconnected was delivered |
+| Relay-side seam | `WakeupSource`, alongside `BucketSource` and `RelayControlSource` rather than in `tandem-core`: only the `WorkerPool` consumes it, and there is no swappable boundary anywhere else (HLD §1.1) |
+| Worker wait | `WorkerWakeups`, a per-worker flag the idle wait ends on. A signal that arrives while its worker is mid-claim is remembered, not dropped, which is the case the mechanism exists for |
+| Driver footprint | `org.postgresql:postgresql` is `compileOnly` on `tandem-jdbc` and reaches no consumer POM; the one class touching it loads only where the mode is configured |
+
+**One property to know before turning it on under `LEASE`:** the notification is a broadcast, so
+every instance wakes a worker for every signal, including the roughly `(N-1)/N` of them naming buckets
+it does not own. Those wakes find nothing and leave the woken worker polling at its floor, which is
+claim load that scales with the instance count. It is not a correctness question and it does not arise
+under `SINGLE`, where one instance owns everything; it is the one place where the mechanism's cost is
+not simply "one round trip per write".
+
+Its correctness rests on doing nothing new: a missing signal, a pooler that ate the subscription, a
+relay listening for a mechanism the writer does not emit, or no driver at all, each leave a relay that
+discovers rows by polling exactly as it did before, within `pollInterval`.
 
 ### 3.5 Rejected
 
@@ -334,7 +367,7 @@ one relay of 8 workers at the default 100 ms ceiling.
 | §3.1 Fixed 10 ms | ~9 ms | ~5 ms | 652 q/s, 20% core (68% blocked) | yes | all | none | none |
 | §3.2 Adaptive backoff (shipped) | ~13 ms measured | up to the ceiling | traffic-proportional under load, `workers / pollInterval` quiet | yes | all | none | small |
 | §3.3 In-process hint | sub-ms, locally-owned buckets only | sub-ms, same restriction | as configured | **no** | all | none | medium-low |
-| §3.4 `pg_notify` | sub-ms | sub-ms | as configured | yes | PostgreSQL | listening connection, pooler incompatibility, notification queue | medium |
+| §3.4 `pg_notify` (shipped) | sub-ms | sub-ms | as configured | yes | PostgreSQL | listening connection, pooler incompatibility, notification queue | medium |
 
 The two rows that matter are §3.2 and §3.4, and they are **complements, not alternatives**: adaptive
 backoff prices the warm stream and costs nothing when idle, and the wakeup removes the single case
@@ -354,12 +387,19 @@ proportion to that traffic, and a re-measurement of the published figures: **the
 the site and in the archived runs were taken at the fixed 100 ms interval and now describe the
 pre-adaptive default.**
 
-**R2. Treat §3.4 as conditional, not as the next step.** After R1 the remaining gap is exactly one
-profile: an event arriving out of silence, with a single-digit-millisecond requirement. Build the
-port and the `pg_notify` adapter when a real deployment presents that profile, or when raising the
-ceiling into the hundreds of milliseconds becomes worthwhile for the idle-load reasons in §1. Its
-value is much higher after R1 than before, because R1 is what makes a long ceiling tolerable for
-everything else.
+**R2. §3.4 is built, and it is off by default.** After R1 the remaining gap was exactly one profile:
+an event arriving out of silence, with a single-digit-millisecond requirement. The port and the
+`pg_notify` adapter now close it for the deployments that have that profile, while every deployment
+that does not keeps the behaviour and the cost it had. Two consequences follow from leaving it opt-in
+rather than making it the default: a relay only holds a listening connection where an operator asked
+for one, and the published latency figures continue to describe the polling default (§3.2), which is
+what the overwhelming majority of deployments run.
+
+Turning it on is what makes a **longer `pollInterval`** worth considering, and that is where the idle
+half of §1's trade is actually won: with the ceiling at a second, an idle fleet pays 8 queries per
+second per instance instead of 80, and the cold row that a second would otherwise cost is the one case
+the signal covers. Raising the ceiling is still a separate, deliberate decision (Q-F), not something
+enabling the wakeup should do on its own.
 
 **R3. Do not ship §3.3 on its own.** Under `LEASE` it helps `1/N` of writes and is silent about the
 rest, which is a mechanism whose behaviour cannot be explained to an operator in one sentence. If the
@@ -375,31 +415,46 @@ this note's decision.
 
 ---
 
-## 6. Proposed shape, if the wakeup is built
+## 6. The shape that was built
 
-A port in `tandem-core`, a wakeup signal with a `signal(int bucket)` emission side and a subscription
-side consumed by the relay, with a **no-op default** and adapters (HLD §1.2):
+A relay-side seam, `WakeupSource`, with a **no-op default** and one adapter (HLD §1.2):
 
 1. **None (default).** Polling with the idle backoff of §3.2. Zero cost, every engine, every
    topology.
-2. **In-process**, applicable when the relay and the write-side share a JVM.
-3. **`pg_notify`**, explicitly opt-in, for the split topology on PostgreSQL.
+2. **`pg_notify`**, explicitly opt-in, for the split topology on PostgreSQL (§3.4).
 
-The worker's sleep becomes a bounded wait on the signal rather than a plain sleep, so the poll
+An in-process adapter is not built, per R3.
+
+The worker's sleep became a **bounded wait** on the signal rather than a plain sleep, so the poll
 interval remains the ceiling on discovery latency in every configuration. That single property is
 what keeps the whole feature off the correctness path (C2): with no adapter configured, the wait
-expires and the loop behaves exactly as it does today; with an adapter configured but broken,
+expires and the loop behaves exactly as it did before; with an adapter configured but broken,
 misconfigured, or silently disabled by a connection pooler, the wait expires and the loop behaves
-exactly as it does today.
+exactly as it did before. The relay logs a failed subscription and keeps delivering.
 
-The composition with §3.2 is direct: a signal resets the worker's backoff to its floor and unparks
-it, so the adaptive ramp and the wakeup share one mechanism rather than competing for the sleep.
+The composition with §3.2 is direct: a signal resets the worker's backoff to its floor and ends its
+wait, so the adaptive ramp and the wakeup share one mechanism rather than competing for the sleep.
+
+**Where the seam is.** In `tandem-jdbc`, next to `BucketSource` and `RelayControlSource`, not in
+`tandem-core`. The `WorkerPool` is the only consumer and the emission side needs the caller's JDBC
+`Connection`, which a dependency-free core port cannot name; a port in `tandem-core` would have been
+ceremony around a boundary nothing else crosses (HLD §1.1, §1.2).
+
+**What is measured, and what is not.** The mechanism is pinned end to end against a real PostgreSQL
+(`PgNotifyWakeupIT`): a row written into a relay whose next poll is thirty seconds away is dispatched
+in tens of milliseconds, a rolled-back write signals nothing, a batch signals each bucket it wrote
+once, an unreadable payload is skipped without unsubscribing, and a killed listening backend
+resubscribes and keeps delivering. What does **not** exist yet is a benchmark for the profile the
+feature targets, a low rate with long idle gaps: none of S1 to S9 has that shape (LLD-benchmark §8),
+so there is no percentile here for the cold row with the wakeup on, only the functional proof above
+(Q-G).
 
 ---
 
-## 7. When this is not worth building
+## 7. When this is not worth turning on
 
-Stated plainly, because the analysis does not support building the wakeup unconditionally:
+Stated plainly, because the analysis does not support enabling the wakeup unconditionally, which is
+why it ships off:
 
 - **If the outbox is rarely idle**, the gain is zero. The busy state already has `T_discover ≈ 0`,
   and no mechanism improves on zero.
@@ -417,15 +472,16 @@ single-digit milliseconds. Absent that profile, the correct action is R1 plus th
 
 ## 8. Open questions
 
-- **Q-A.** Should the signal be per-bucket or a single global "something changed"? Per-bucket wakes
-  exactly one worker but couples the signal to the bucket count (immutable per HLD §4.3, so the
-  coupling is stable); a global signal wakes every worker on every write, which does not scale with
-  worker count. Open, and only relevant once §3.4 is greenlit.
-- **Q-B.** In `LEASE` mode, is the `1/N` effectiveness of the in-process hint (§3.3) worth shipping at
-  all, or should the in-process adapter be restricted to `SINGLE` mode so its behaviour is not
-  misleading? R3 leans to the latter.
-- **Q-C.** Which `pg_notify` emission variant (§3.4)? The extra round-trip is the safest for the write
-  path, and the trigger is the only one that also covers writers outside Tandem's control.
+- **Q-A. Closed.** *Per-bucket or one global "something changed"?* Per-bucket, carried as the
+  notification payload. It wakes exactly one worker, so a wakeup's cost is independent of the worker
+  count, and the coupling it introduces is to a value that is immutable anyway (HLD §4.3).
+- **Q-B. Closed.** *Is the in-process hint worth shipping under `LEASE`?* Not shipped at all, per R3.
+  The seam is there, so an in-process adapter remains a small by-product if a deployment ever asks for
+  one; nothing about the current design has to change to add it.
+- **Q-C. Closed.** *Which emission variant?* The second statement on the write-side connection. The
+  CTE saves the round trip but turns the insert into a result-set-producing statement, on the hot write
+  path, and the trigger moves library behaviour into operator-applied DDL. The round trip is amortised
+  instead: one statement per insert call, over the array of distinct buckets it wrote.
 - **Q-D. Closed.** *Does the benchmark harness need an idle-path latency scenario before any of this
   is decided?* It did, it now has one, and the answer changed the note: S2 reports COMMIT→ack
   percentiles at a held rate with `--workers=` and `--poll-interval=`, the idle cost probe prices the
@@ -439,3 +495,11 @@ single-digit milliseconds. Absent that profile, the correct action is R1 plus th
 - **Q-F.** Should the default `pollInterval` move once §3.2 is in? It becomes a pure ceiling on the
   cold case, so a longer default would cut idle load further at the cost of that one profile. Not a
   default to change without a measurement of how often a slice actually goes cold in practice.
+- **Q-G.** Should the harness grow the cold-burst scenario S1 to S9 do not have (LLD-benchmark §8):
+  a low rate with long idle gaps, run with the wakeup off and on? It is the only way to put a number
+  on what §3.4 buys, and the only way to tell whether the extra write statement costs throughput at
+  saturation.
+- **Q-H.** Do wakeups deserve a metric of their own? Nothing counts signals received today, so an
+  operator whose pooler silently ate the subscription sees a latency profile that looks like the
+  polling default and no other symptom. A counter is cheap; whether it belongs in the metrics port,
+  which is a published contract, is the actual question.

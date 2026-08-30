@@ -4,12 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.jdbc.Coordination;
 import com.codingful.tandem.jdbc.RelayConfig;
+import com.codingful.tandem.jdbc.Wakeup;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class TandemRelayConfigMappingTest {
 
-    private static final TandemOutboxProperties OUTBOX = new TandemOutboxProperties(256);
+    private static final TandemOutboxProperties OUTBOX = new TandemOutboxProperties(256, Wakeup.NONE);
 
     private static TandemRelayProperties allUnset() {
         return new TandemRelayProperties(

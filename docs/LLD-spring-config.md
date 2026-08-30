@@ -291,10 +291,20 @@ than renamed.
 | Property | Type | Default | Maps to |
 |---|---|---|---|
 | `tandem.outbox.bucket-count` | int | `256` | `JdbcOutboxRepository(dataSource, bucketCount)` and `RelayConfig.bucketCount` |
+| `tandem.outbox.wakeup` | `none` \| `pg-notify` | `none` | the producer's `JdbcOutboxRepository(…, Wakeup)` and the relay's `WakeupSource` bean |
 
-Bound by **both** modules. It is the only value the two sides must agree on, and it must never change
-after first deployment — it is baked into every stored row's `bucket`. §3 specifies the guard that
-makes a mismatch impossible to miss.
+Bound by **both** modules, because both values describe the contract between the two sides rather than
+one side's behaviour.
+
+`bucket-count` must never change after first deployment: it is baked into every stored row's `bucket`.
+§3 specifies the guard that makes a mismatch impossible to miss.
+
+`wakeup` turns on the post-commit signal (LLD-jdbc §3.10, dispatch-latency §3.4): the write-side emits
+one `pg_notify` per insert call naming the buckets it wrote, and the relay listens on a connection of
+its own, so a row written into a bucket that has gone quiet is picked up at once instead of waiting out
+`tandem.relay.poll-interval`. It is PostgreSQL-only and off by default. Setting it on one side only
+costs nothing and changes nothing, which is also why there is **no guard** here: unlike a bucket-count
+mismatch, a wakeup mismatch cannot corrupt anything, it only leaves discovery to the poll loop.
 
 ### 2.2 `tandem.relay.*` — relay engine
 

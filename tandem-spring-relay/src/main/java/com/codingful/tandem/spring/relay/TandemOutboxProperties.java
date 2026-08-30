@@ -1,5 +1,6 @@
 package com.codingful.tandem.spring.relay;
 
+import com.codingful.tandem.jdbc.Wakeup;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -10,7 +11,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *
  * @param bucketCount number of virtual buckets; the single value the write side and relay must share,
  *                    bound identically by both modules, and it must never change after first deploy
+ * @param wakeup      the post-commit signal this relay listens for ({@code pg-notify}), or {@code none}
+ *                    (the default) to discover work by polling alone. It must match what the write-side
+ *                    emits to be of any use, and mismatching it costs latency only
  */
 @ConfigurationProperties("tandem.outbox")
-public record TandemOutboxProperties(@DefaultValue("256") int bucketCount) {
+public record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup) {
 }

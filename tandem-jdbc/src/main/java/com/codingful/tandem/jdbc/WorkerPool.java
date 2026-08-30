@@ -35,6 +35,7 @@ public final class WorkerPool {
     private final BackoffStrategy backoff;
     private final BucketSource bucketSource;
     private final RelayControlSource controlSource;
+    private final WakeupSource wakeupSource;
     private final String instanceId;
 
     private final int workerCount;
@@ -47,6 +48,8 @@ public final class WorkerPool {
      * reading whose staleness is itself unbounded cannot answer the question it exists for.
      */
     private final AtomicLongArray lastCycleAtMillis;
+    /** Where {@link #wakeupSource} signals land, and what a worker's idle wait ends on. */
+    private final WorkerWakeups wakeups;
     private volatile boolean running;
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
@@ -93,6 +96,29 @@ public final class WorkerPool {
     public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
                       TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource,
                       RelayControlSource controlSource) {
+        this(store, dispatcher, cfg, metrics, clock, backoff, bucketSource, controlSource, WakeupSource.NONE);
+    }
+
+    /**
+     * Full topology constructor, with post-commit wakeups (dispatch-latency §3.4).
+     *
+     * @param store         relay-side persistence (poll/claim/update/cleanup)
+     * @param dispatcher    the publish port (e.g. {@code KafkaRelay})
+     * @param cfg           relay engine configuration
+     * @param metrics       metrics sink; {@link TandemMetrics#NOOP} disables it
+     * @param clock         used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
+     * @param backoff       retry-delay strategy for retriable dispatch failures
+     * @param bucketSource  which virtual buckets this instance owns ({@link BucketSource#embedded} or
+     *                      {@link BucketLeaseManager} for the standalone topology)
+     * @param controlSource the Admin API's desired pause state, refreshed on {@code reclaimInterval};
+     *                      {@link RelayControlSource#NOOP} disables pause support entirely
+     * @param wakeupSource  where the write-side's post-commit signals arrive, shortening discovery for a
+     *                      row written into a quiet bucket; {@link WakeupSource#NONE} leaves discovery to
+     *                      the poll loop alone, which is what bounds it in every configuration anyway
+     */
+    public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
+                      TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource,
+                      RelayControlSource controlSource, WakeupSource wakeupSource) {
         this.store = Objects.requireNonNull(store, "store");
         this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher");
         this.cfg = Objects.requireNonNull(cfg, "cfg");
@@ -101,6 +127,7 @@ public final class WorkerPool {
         this.backoff = Objects.requireNonNull(backoff, "backoff");
         this.bucketSource = Objects.requireNonNull(bucketSource, "bucketSource");
         this.controlSource = Objects.requireNonNull(controlSource, "controlSource");
+        this.wakeupSource = Objects.requireNonNull(wakeupSource, "wakeupSource");
         // Single instance identity, shared with the LEASE bucket owner (RelayConfig#instanceId), so a
         // worker/thread-name/log line correlates directly to tandem_bucket_lease.owner (LLD-jdbc §3.2).
         this.instanceId = cfg.instanceId();
@@ -108,6 +135,7 @@ public final class WorkerPool {
         this.workers = new RelayWorker[workerCount];
         this.threads = new Thread[workerCount];
         this.lastCycleAtMillis = new AtomicLongArray(workerCount);
+        this.wakeups = new WorkerWakeups(workerCount);
     }
 
     /** Validate config (fail-fast), then start the worker threads and the maintenance jobs. Idempotent guard. */
@@ -139,6 +167,7 @@ public final class WorkerPool {
                 + ", batchSize:" + cfg.batchSize() + ", pollIntervalMs:" + cfg.pollInterval().toMillis()
                 + ", pollIntervalFloorMs:" + cfg.pollIntervalFloor().toMillis()
                 + ", pollBackoffFactor:" + cfg.pollBackoffFactor()
+                + ", wakeup:" + wakeupName()
                 + ", maxAttempts:" + cfg.maxAttempts() + ", rowLeaseMs:" + cfg.rowLease().toMillis());
         for (int i = 0; i < workerCount; i++) {
             int index = i;
@@ -147,6 +176,7 @@ public final class WorkerPool {
                     () -> sliceFor(index));
             startWorkerThread(index);
         }
+        startWakeups();
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> daemon(r, "tandem-relay-" + instanceId + "-jobs"));
         long reclaimMs = cfg.reclaimInterval().toMillis();
         scheduler.scheduleWithFixedDelay(this::reclaimTick, reclaimMs, reclaimMs, TimeUnit.MILLISECONDS);
@@ -235,8 +265,12 @@ public final class WorkerPool {
                 // The loop reports what the cycle did and is told how long to wait; which of the three
                 // waits that is, and how the idle one grows, belongs to PollBackoff (§3.1).
                 long wait = backoff.waitAfterCycle(claimed, worker.inFlight());
-                if (wait > 0) {
-                    sleep(wait);
+                if (wait > 0 && awaitWakeup(index, wait)) {
+                    // A signal ended the wait, not the backoff: the bucket has just been written to, so
+                    // the next empty claim starts from the floor rather than continuing the idle ramp
+                    // (dispatch-latency §6). With no WakeupSource wired nothing ever signals, and this
+                    // is the plain sleep it has always been.
+                    backoff.resetIdle();
                 }
             } catch (Exception perIteration) {
                 LOG.log(Level.ERROR, "Relay worker iteration failed workerIndex:" + index
@@ -357,6 +391,7 @@ public final class WorkerPool {
         if (toJoin == null) {
             return;
         }
+        stopWakeups();   // outside the lock too: it joins a thread of its own, and briefly blocks
         try {
             joinAll(toJoin);   // outside the lock, so a worker's uncaught-handler restart never stalls on it
             try {
@@ -387,6 +422,7 @@ public final class WorkerPool {
         if (toJoin == null) {
             return;
         }
+        stopWakeups();
         try {
             joinAll(toJoin);
         } finally {
@@ -435,6 +471,53 @@ public final class WorkerPool {
         Thread t = new Thread(r, name);
         t.setDaemon(true);
         return t;
+    }
+
+    /** What the startup line reports for the wakeup source: {@code none}, or the adapter's own name. */
+    private String wakeupName() {
+        if (wakeupSource == WakeupSource.NONE) {
+            return "none";
+        }
+        String simple = wakeupSource.getClass().getSimpleName();
+        return simple.isEmpty() ? wakeupSource.getClass().getName() : simple;   // an anonymous source has none
+    }
+
+    /**
+     * Starts delivering wakeups into {@link #wakeups}. A source that cannot start must not stop the
+     * relay: discovery falls back to the poll interval, which bounds it in every configuration anyway
+     * (dispatch-latency §2, C2).
+     */
+    private void startWakeups() {
+        try {
+            wakeupSource.start(wakeups);
+        } catch (Exception e) {
+            LOG.log(Level.ERROR, "Starting the wakeup source failed; discovery is the poll loop only"
+                    + " instanceId:" + instanceId, e);
+        }
+    }
+
+    private void stopWakeups() {
+        try {
+            wakeupSource.stop();
+        } catch (Exception e) {
+            LOG.log(Level.ERROR, "Stopping the wakeup source failed instanceId:" + instanceId, e);
+        }
+    }
+
+    /**
+     * This worker's idle wait, ended early by a wakeup for one of its buckets.
+     *
+     * @return {@code true} if a signal ended it, {@code false} if the wait simply elapsed — or if the
+     *         thread was interrupted, which a shutdown does and which the loop's own {@code running}
+     *         check handles next
+     */
+    private boolean awaitWakeup(int index, long millis) {
+        try {
+            return wakeups.await(index, millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private static void sleep(long millis) {

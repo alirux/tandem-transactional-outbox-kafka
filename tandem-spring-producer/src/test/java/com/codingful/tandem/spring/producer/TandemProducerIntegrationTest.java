@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.port.TandemAggregate;
+import com.codingful.tandem.jdbc.PgNotifyWakeup;
+import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.test.TandemTestContainer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,6 +14,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -74,6 +79,21 @@ class TandemProducerIntegrationTest {
         }
     }
 
+    /** The bucket the database holds for that aggregate's row, read back rather than recomputed. */
+    private static int storedBucketOf(String aggregateId) {
+        try (Connection connection = container.dataSource().getConnection();
+                PreparedStatement statement = connection.prepareStatement(
+                        "SELECT bucket FROM tandem_outbox WHERE aggregate_id = ?")) {
+            statement.setString(1, aggregateId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                assertThat(resultSet.next()).as("a row for %s", aggregateId).isTrue();
+                return resultSet.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("reading the stored bucket failed", e);
+        }
+    }
+
     @Test
     void GIVEN_the_template_WHEN_the_work_commits_THEN_the_row_is_inserted() {
         runner.run(context -> {
@@ -127,6 +147,39 @@ class TandemProducerIntegrationTest {
             assertThatThrownBy(() -> eventService.publishThenFail("evt-rollback")).isInstanceOf(IllegalStateException.class);
             assertThat(outboxRowCount("evt-rollback")).isZero();
         });
+    }
+
+    @Test
+    void GIVEN_the_wakeup_configured_WHEN_the_template_commits_THEN_the_relay_is_signalled_about_the_bucket_written()
+            throws Exception {
+        // The write-side half of the post-commit wakeup (dispatch-latency §3.4), and the one thing this
+        // module contributes to it: that the configured mode actually reaches the repository. Nothing
+        // here fails loudly if it does not — the rows are simply found by the next poll.
+        LinkedBlockingQueue<Integer> signalled = new LinkedBlockingQueue<>();
+        CountDownLatch subscribed = new CountDownLatch(1);
+        PgNotifyWakeup wakeup = new PgNotifyWakeup(container.dataSource());
+        wakeup.start(new WakeupSource.Listener() {
+            @Override
+            public void wake(int bucket) {
+                signalled.add(bucket);
+            }
+
+            @Override
+            public void wakeAll() {
+                subscribed.countDown();
+            }
+        });
+        try {
+            assertThat(subscribed.await(10, TimeUnit.SECONDS)).as("the listener must have subscribed").isTrue();
+
+            runner.withPropertyValues("tandem.outbox.wakeup=pg-notify").run(context ->
+                    context.getBean(TransactionalOutboxTemplate.class).executeWithoutResult(outbox ->
+                            outbox.record("Order", "tpl-wakeup", 1L, new OrderEvent("tpl-wakeup"))));
+
+            assertThat(signalled.poll(10, TimeUnit.SECONDS)).isEqualTo(storedBucketOf("tpl-wakeup"));
+        } finally {
+            wakeup.stop();
+        }
     }
 
     @Test

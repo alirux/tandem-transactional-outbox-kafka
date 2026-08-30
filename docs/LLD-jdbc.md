@@ -103,6 +103,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
   dedicated column (Pareto). (Causation is not handled here — it belongs to the opt-in causal-ordering
   feature, LLD-core §1.3.)
 - A `UNIQUE(aggregate_id, seq)` violation is translated to `DuplicateSeqException` (Q5).
+- **Optionally, one `pg_notify` follows the insert** on the same connection, telling the relay which
+  buckets this call wrote (`Wakeup.PG_NOTIFY`, §3.10). Off by default; when on it is one statement per
+  call, over the distinct buckets, so a batch costs the same round trip as a single row.
 - `insertAll` batches multiple messages via JDBC batch in the same transaction.
 - **`seq_source` is always bound**, and `seq` is bound to SQL `NULL` for an `unsequenced()` message.
   Binding is what distinguishes that from a managed row: the column has a `DEFAULT`, so *omitting* it
@@ -205,6 +208,12 @@ column stays `NULL` when no correlation id is present, which is every row when t
   floor, while **the idle query load and the worst case** stay bounded by `pollInterval`, which is
   why the ceiling remains the value an operator sizes against. Setting the floor equal to the ceiling
   restores a fixed interval exactly.
+- **The idle wait is a bounded wait, not a bare sleep** (§3.10). A worker waits on a signal flag of
+  its own with exactly the timeout the backoff computed, so a wakeup for one of its buckets ends the
+  wait immediately and puts the backoff back at the floor; with the default `WakeupSource.NONE`
+  nothing ever signals and the wait behaves as the sleep it always was. `pollInterval` therefore
+  stays the ceiling on discovery latency in **every** configuration, wakeup or not, which is the
+  single property that keeps the whole mechanism off the correctness path.
 - **Every idle wait carries ±20% jitter.** It only stops workers that started in the same instant
   from polling in lockstep for the life of the relay, which would concentrate
   `instances × workersPerInstance` queries into periodic bursts. The narrow band is deliberate: it
@@ -675,6 +684,61 @@ of when the memory is lost, and when it survives, is in HLD-managed-seq §6. Set
 `false` (Spring: `tandem.relay.order-violation-detection`) where writers are serialised by construction
 and the signal is not wanted — nothing is then allocated at all.
 
+### 3.10 Post-commit wakeup (`WakeupSource`) — opt-in
+
+The idle backoff prices a stream well and cannot price silence: the first row after a quiet stretch
+waits up to `pollInterval` however the ramp is tuned. A wakeup removes that one case by telling the
+relay a bucket has been written to, instead of waiting for it to find out
+([dispatch-latency.md](dispatch-latency.md) §3.4, §6). It is **off by default**, and everything about
+its design follows from one rule: it may only make discovery faster, never make delivery depend on it.
+
+- **The signal carries a bucket number and nothing else.** The database stays the only source of
+  truth for what is pending; a signal that carried work would be a delivery channel, with all the
+  ways one can drop, reorder or overflow.
+- **The write side emits it inside the caller's transaction.** With `Wakeup.PG_NOTIFY`,
+  `JdbcOutboxRepository` follows the insert with one `pg_notify` over the distinct buckets that call
+  wrote, on the caller's own connection: PostgreSQL delivers it when the transaction commits and
+  discards it when it rolls back, so a signal can never announce a row that does not exist. One
+  statement per `insert`/`insertAll` call, whatever the row count, and nothing at all under the
+  default `Wakeup.NONE`.
+- **The relay side subscribes on a connection of its own.** `PgNotifyWakeup` holds one connection for
+  the relay's lifetime, `LISTEN`s on `tandem_wakeup`, and hands each bucket number to the pool. It
+  reconnects with full jitter after a failure and asks for a full sweep of every worker whenever it
+  subscribes, since nothing emitted while it was disconnected was delivered. It logs and stops for
+  good only when the PostgreSQL driver is absent, where retrying could not help.
+- **`WorkerPool` maps a bucket to the one worker that owns it** (`bucket % workerCount`,
+  `WorkerWakeups`), so a wakeup costs one worker a claim, not the whole pool. A signal arriving while
+  its worker is mid-claim is remembered rather than dropped: that is the case the mechanism exists
+  for, and dropping it would leave the row it announces waiting a full interval.
+- **The one thing the signal can do to a writer is fail.** `pg_notify` is a statement in the caller's
+  transaction, so an error there (the documented case is a full cluster-wide notification queue, which
+  a listener that stops draining can cause) aborts that transaction like any other failing statement.
+  Swallowing it would change nothing: a statement that errored has already poisoned the transaction.
+  This is the price of emitting from inside the transaction, and it is the same price that buys the
+  guarantee a signal never announces a row that does not exist.
+- **Under `LEASE`, a signal reaches every instance, not only the owner.** `LISTEN` is a broadcast:
+  each instance's listener receives every notification and wakes the worker at
+  `bucket % workerCount`, whether or not this instance owns that bucket. The extra wake costs one
+  claim that returns nothing, and it resets that worker's backoff to the floor, so with `N`
+  instances roughly `(N-1)/N` of the signals leave a worker polling at the floor for work it cannot
+  see. Correctness is untouched; the cost is claim load, and it grows with the instance count.
+  Filtering by ownership is not free either, because `BucketSource.ownedBuckets()` is a live query
+  (§3.2) and the listener would have to cache it. Under `SINGLE` the question does not arise: one
+  instance owns every bucket.
+- **Every other failure mode is the polling default.** No adapter, an adapter that cannot connect, a
+  connection pooler in transaction-pooling mode silently eating the subscription, a writer emitting
+  what this relay does not listen for, a payload it cannot parse: each costs latency and only
+  latency. Which also means a broken wakeup is **invisible** without watching the latency itself.
+- **PostgreSQL only.** MySQL has no equivalent primitive (§5.4), so a MySQL deployment stays on the
+  adaptive backoff, permanently.
+
+Wiring is explicit, on both sides and independently: `new JdbcOutboxRepository(dataSource,
+bucketCount, tracePropagator, Wakeup.PG_NOTIFY)` for the writer, and the `WorkerPool` constructor
+taking a `WakeupSource` for the relay (`WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource)`). Under
+Spring both sides read the same key, `tandem.outbox.wakeup: pg-notify`, for the same reason
+`bucket-count` is shared: it is a value the two sides have to agree on
+(LLD-spring-config.md §2.1).
+
 ---
 
 ## 4. Metrics
@@ -873,6 +937,7 @@ The defaults the basic round needs (the full property reference is the `tandem.*
 | `retention` | 14 days | cleanup of DONE/DISCARDED (§3.7) |
 | `metricsInterval` | 10 s | how often the lag gauges are read; the job is **only scheduled when a metrics adapter is wired** (§4) |
 | `logEveryRows` | 10,000 | per-worker `INFO` progress log every N dispatch outcomes (ok + ko combined) — a row-count cadence, not a clock one, so an idle relay stays silent; unlike `metricsInterval`, always on, no adapter needed |
+| `wakeup` | `NONE` | post-commit signalling (§3.10), opt-in on each side separately: `Wakeup.PG_NOTIFY` on `JdbcOutboxRepository` emits, a `WakeupSource` on `WorkerPool` listens. Not a `RelayConfig` field, since each side is a collaborator rather than a setting |
 | `topicSuffix` | `-topic` | LLD-kafka §5 |
 | `defaultContentType` | `application/json` | LLD-kafka §3.2 |
 
@@ -943,6 +1008,15 @@ RelayControlSource control    = new JdbcRelayControlSource(dataSource, cfg.coord
 WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
                                    TandemMetrics.NOOP, Clock.systemUTC(),
                                    BackoffStrategy.fullJitter(), buckets, control);
+
+// With the post-commit wakeup (§3.10) — a ninth argument, and the matching Wakeup on the write side.
+// Both sides are opt-in and independent: either one alone is harmless, and neither is on by default.
+OutboxRepository  repo        = new JdbcOutboxRepository(dataSource, bucketCount,
+                                   TracePropagator.NOOP, Wakeup.PG_NOTIFY);
+WakeupSource      wakeup      = WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource);
+WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
+                                   TandemMetrics.NOOP, Clock.systemUTC(),
+                                   BackoffStrategy.fullJitter(), buckets, control, wakeup);
 
 relay.start();
 // on shutdown: relay.stop();   // graceful — buckets released (LEASE), in-flight recovered by row lease

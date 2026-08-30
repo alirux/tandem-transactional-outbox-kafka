@@ -19,7 +19,7 @@ driver among them — do reach whoever declares it, and are listed below.
 | Module         | Redistributed runtime dependencies                  |
 |----------------|-----------------------------------------------------|
 | `tandem-core`  | none — JDK only                                     |
-| `tandem-jdbc`  | none beyond `tandem-core` (JDBC driver is test-only)|
+| `tandem-jdbc`  | none beyond `tandem-core`: the PostgreSQL JDBC driver is test-only, and `compileOnly` for the `pg_notify` wakeup adapter, so neither reaches a consumer |
 | `tandem-kafka` | `kafka-clients`, `cloudevents-kafka`, `cloudevents-core`, `slf4j-api` |
 | `tandem-spring-producer` | none beyond `tandem-jdbc` — **Spring and Jackson are `compileOnly`**, so the application's own versions are used and none is dragged in |
 | `tandem-spring-relay` | none beyond `tandem-jdbc` and `tandem-kafka` — Spring is `compileOnly`, as above. `tandem-micrometer` (below) is also `compileOnly` here, so it adds nothing to this module's own footprint |

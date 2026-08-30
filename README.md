@@ -531,13 +531,17 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   publish, never a reorder (tracked as hardening,
   [IMPLEMENTATION-PLAN-embedded-lease.md](docs/IMPLEMENTATION-PLAN-embedded-lease.md) §6).
 
-- **Discovery latency is a poll, not a commit hook.** No post-commit wakeup yet: a row is found by
-  the next claim of the worker owning its bucket. That wait adapts to the traffic — it restarts at
-  `pollIntervalFloor` (10 ms) after every claim that found work and climbs to `pollInterval` (100 ms)
-  while a bucket stays quiet — so a row written into a live stream waits milliseconds, while the first
-  row after a quiet stretch can wait the full interval. Both ends are knobs rather than floors.
-  Sizing guide: [relay-sizing.md](docs/relay-sizing.md); why the latency is there and what would
-  remove the remaining part of it: [dispatch-latency.md](docs/dispatch-latency.md).
+- **Discovery latency is a poll by default.** A row is found by the next claim of the worker owning
+  its bucket. That wait adapts to the traffic: it restarts at `pollIntervalFloor` (10 ms) after every
+  claim that found work and climbs to `pollInterval` (100 ms) while a bucket stays quiet, so a row
+  written into a live stream waits milliseconds, while the first row after a quiet stretch can wait
+  the full interval. Both ends are knobs rather than floors. On PostgreSQL that last case can be
+  removed with the **opt-in post-commit wakeup** (`tandem.outbox.wakeup: pg-notify`): the write-side
+  signals the bucket it wrote inside its own transaction and the relay, listening on a connection of
+  its own, claims at once. It is off by default, it can only make discovery faster (a lost or
+  unheard signal costs latency and nothing else), and MySQL has no equivalent primitive.
+  Sizing guide: [relay-sizing.md](docs/relay-sizing.md); why the latency is there and what the
+  wakeup does about it: [dispatch-latency.md](docs/dispatch-latency.md).
 
 - **`bucketCount` is immutable after the first deploy.** Re-sharding an existing outbox isn't
   supported — pick `B` once (default 256).
