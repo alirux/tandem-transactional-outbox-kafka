@@ -846,7 +846,10 @@ KPI-meaningful on the §5 reference baseline (HLD-load-testing.md §5.1); a scen
 throughput number on a laptop must still be able to *pass*.
 
 `ScenarioSupport` (package-private) holds the logic every scenario shares: `verify(generator, consumer)`
-(the correctness reconciliation above), `waitForDrain(lagProbe, namespace, timeout)` /
+(the correctness reconciliation above), `missingAfterCatchUp(expected, consumer)` (the bounded consumer
+grace `verify` is built on, exposed separately for the one scenario that must narrow `expected` first,
+§8.5), `awaitFailedRow(lagProbe, aggregateId, timeout)` (S6's poison gate, polled rather than read
+once), `waitForDrain(lagProbe, namespace, timeout)` /
 `waitForOthersToDrain(lagProbe, namespace, excludedId, timeout)` (§6.1's namespace-scoped, FAILED-excluding
 polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, `maxDuration`,
 `minDuration`).
@@ -861,7 +864,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S6** | Poison message | `FaultInjector.poisonAggregate(id)` before driving load; after the run, waits for every *other* aggregate to drain, confirms `hasFailedRow` on the poisoned one, and reconciles zero-loss **excluding** the poisoned aggregate's own (deliberately never-delivered) keys |
 | **S7** | Causal-ordering overhead | **Deferred — 2nd round** (needs the causal-ordering feature); not implemented |
 | **S8** | Multi-instance `LEASE` coordination + crash recovery | Runs **three** relay instances (`env.newRelayInstance`, each its own producer) under `Coordination.LEASE`; waits for a fair 3-way partition, **kills one** (`WorkerPool.kill()` — an abrupt crash, not `stop()`), and confirms the two survivors reclaim its share and delivery still completes correctly. See §8.2/§8.3 for what this scenario found and fixed along the way |
-| **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows (§8.5). The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
+| **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows. The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
 single worker thread among several — only whole-instance `stop()`/`start()`. S5 therefore simulates an
@@ -1020,12 +1023,35 @@ to what was published. This never hides real loss — a genuinely dropped event 
 times out, and `verify` still reports it; in the happy path the check passes on the first poll and adds
 no measurable time. No product code involved.
 
+### 8.5 The same race in S6 (2026-08-30)
+
+S6 carries two variants of §8.4's race, because it is the one scenario that cannot call `verify`: the
+poisoned aggregate's keys must leave the comparison before anything waits for them, so the diff was
+hand-rolled without the consumer grace. It also read `hasFailedRow` once, the instant the other
+aggregates drained, although a permanent failure is captured when the publish future completes and
+written by the worker's *next* cycle.
+
+Both are bounded by how long the relay takes between claims, and the adaptive idle backoff (LLD-jdbc
+§3.1) shortened that: `s6PoisonMessageSmoke` then failed about two runs in five, as `missing=1` or
+`blocked=false`. The same test with `pollIntervalFloor` pinned to the 100 ms ceiling passes 4/4; at
+the 10 ms default it fails 2/4.
+
+`verify`'s grace is now the reusable `missingAfterCatchUp(expected, consumer)`, which S6 calls after
+excluding the poisoned keys, and the poison gate is `awaitFailedRow(...)`, a bounded poll. Neither
+weakens the assertion: an aggregate that never fails never satisfies the poll, and an event that is
+genuinely lost never arrives. 5/5 after.
+
+**A harness assertion that reads state at "the moment the backlog drains" is calibrated against the
+relay's speed without saying so.** Making the relay faster is a legitimate way to break such a test,
+and the fix belongs in the assertion.
+
 ---
 
 ## 9. Execution & CI
 
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
-  [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--rate=<events/s>]
+  [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--poll-floor=<millis>]
+  [--rate=<events/s>]
   [--window=<seconds>] [--connections=<n>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
   layered on top), runs the selected scenarios (all six minus the deferred S7 by default) in sequence

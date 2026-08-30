@@ -91,19 +91,53 @@ final class ScenarioSupport {
 
     /** Zero ordering violations, and every inserted {@code (aggregateId, seq)} eventually arrived (duplicates allowed). */
     static CorrectnessReport verify(LoadGenerator generator, CorrelationConsumer consumer) throws InterruptedException {
-        // The caller waits for the OUTBOX to drain (all rows published), but the correlation consumer polls
-        // Kafka on its own thread and can lag that drain by a poll cycle — so diffing immediately would read a
-        // just-published, not-yet-received event as loss (a flaky missing key under CI timing). Give the
-        // consumer a bounded grace to catch up to what was published before diffing. This never hides real
-        // loss: a genuinely dropped event never arrives, the wait times out, and verify still reports it.
-        Set<String> inserted = new HashSet<>(generator.insertedKeys());
+        Set<String> missing = missingAfterCatchUp(new HashSet<>(generator.insertedKeys()), consumer);
+        return new CorrectnessReport(consumer.orderingViolations(), missing, consumer.duplicateCount());
+    }
+
+    /**
+     * Which of {@code expected} the consumer never received, after a bounded grace for it to catch up.
+     *
+     * <p>The caller waits for the OUTBOX to drain (all rows published), but the correlation consumer polls
+     * Kafka on its own thread and can lag that drain by a poll cycle — so diffing immediately would read a
+     * just-published, not-yet-received event as loss (a flaky missing key under CI timing). This never
+     * hides real loss: a genuinely dropped event never arrives, the wait times out, and it is still
+     * reported.
+     *
+     * <p>{@code expected} must already exclude keys that are never meant to arrive (S6's poisoned
+     * aggregate), or every call waits out the full grace for events that will never come.
+     */
+    static Set<String> missingAfterCatchUp(Set<String> expected, CorrelationConsumer consumer)
+            throws InterruptedException {
         Instant deadline = Instant.now().plus(CONSUMER_CATCH_UP);
-        while (!consumer.receivedKeys().containsAll(inserted) && Instant.now().isBefore(deadline)) {
+        while (!consumer.receivedKeys().containsAll(expected) && Instant.now().isBefore(deadline)) {
             Thread.sleep(200);
         }
-        Set<String> missing = new HashSet<>(inserted);
+        Set<String> missing = new HashSet<>(expected);
         missing.removeAll(consumer.receivedKeys());
-        return new CorrectnessReport(consumer.orderingViolations(), missing, consumer.duplicateCount());
+        return missing;
+    }
+
+    /**
+     * Waits for {@code aggregateId} to have a {@code FAILED} row, bounded by {@code timeout}.
+     *
+     * <p>A permanent dispatch failure is captured when the publish future completes and written by the
+     * worker's <i>next</i> cycle, so reading the table once, the instant the other aggregates drain,
+     * races that write and can see the row still {@code IN_FLIGHT}. The race narrowed as the relay got
+     * faster: the drain now finishes closer to the last claim, which left less accidental slack.
+     * Polling instead of sleeping keeps the assertion honest — an aggregate that never fails never
+     * satisfies it.
+     */
+    static boolean awaitFailedRow(LagProbe lagProbe, String aggregateId, Duration timeout)
+            throws InterruptedException {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            if (lagProbe.hasFailedRow(aggregateId)) {
+                return true;
+            }
+            Thread.sleep(200);
+        }
+        return lagProbe.hasFailedRow(aggregateId);
     }
 
     /**

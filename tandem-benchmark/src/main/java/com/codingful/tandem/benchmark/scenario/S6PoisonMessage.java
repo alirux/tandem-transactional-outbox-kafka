@@ -50,11 +50,15 @@ public final class S6PoisonMessage implements Scenario {
 
             ScenarioSupport.waitForOthersToDrain(env.lagProbe(), id(), poisonAggregateId,
                     ScenarioSupport.maxDuration(Duration.ofMinutes(2), cfg.duration()));
-            boolean poisonBlocked = env.lagProbe().hasFailedRow(poisonAggregateId);
+            boolean poisonBlocked = ScenarioSupport.awaitFailedRow(
+                    env.lagProbe(), poisonAggregateId, Duration.ofSeconds(15));
 
-            Set<String> missing = new HashSet<>(generator.insertedKeys());
-            missing.removeIf(key -> key.startsWith(poisonAggregateId + '#'));   // excluded on purpose — never dispatched
-            missing.removeAll(consumer.receivedKeys());
+            Set<String> expected = new HashSet<>(generator.insertedKeys());
+            expected.removeIf(key -> key.startsWith(poisonAggregateId + '#'));   // excluded on purpose — never dispatched
+            // Same bounded grace the other scenarios get through ScenarioSupport.verify: this one cannot
+            // call verify itself, because the poisoned aggregate's own keys must come out of the
+            // comparison before anything waits for them.
+            Set<String> missing = ScenarioSupport.missingAfterCatchUp(expected, consumer);
             boolean othersOk = missing.isEmpty() && consumer.orderingViolations() == 0;
 
             env.faultInjector().clear();
