@@ -207,10 +207,26 @@ statement about the run, not about Tandem.
 | **S5** | Worker failover | Lease reclaim; at-least-once | Kill a worker mid-load; measure reclaim time (`lease_expired.count`), duplicate count, time to drain backlog |
 | **S6** | Poison message | Per-aggregate blocking | Inject a permanently-failing event; confirm only its aggregate blocks (`failed.count`), other aggregates keep flowing, throughput impact bounded |
 | **S7** | Causal-ordering overhead (opt-in) | Cost of the Lamport feature | **Deferred — 2nd round:** requires the causal-ordering feature (`tandem_aggregate_clock`) to be implemented. Run S1/S2 with the Lamport clock on vs off; report throughput/latency delta |
+| **S8** | Multi-instance `LEASE` coordination | Disjoint bucket ownership; failover between instances | Run three relay instances under `Coordination.LEASE` against one outbox; confirm the partition is disjoint and complete, then kill one abruptly and confirm the survivors reclaim its share with ordering intact |
+| **S9** | Endurance | Nothing drifts over hours; coverage holds across many renewal cycles | Hold a fixed, moderate rate (≈50% of a short seed ramp) under `LEASE` for hours, sliced into reporting windows; compare the last window's throughput and latency against the first, and sample bucket coverage, outbox size, dead tuples and heap every window |
 
 Each scenario asserts **zero ordering violations** per aggregate (consumer verifies
 `seq` is strictly increasing per `aggregate_id`) and **zero lost events** (every committed
 event eventually reaches `DONE` and the broker).
+
+**S9 measures a slope where the others measure a level, and that changes what it may do.**
+The failure modes an outbox dies of in production are slow — a leak, index bloat on a table
+churning `PENDING → IN_FLIGHT → DONE`, autovacuum falling behind, a lease renewal path that
+misbehaves only after many periods — and each of them is invisible inside a few minutes. Two
+consequences follow. The rate is **fixed, never ramped**: windows hours apart are comparable only
+at the same offered load, and a rate search is the one thing that drives a host to its ceiling,
+where a burstable instance or a warm laptop stops being a measuring instrument. And correctness is
+tracked in memory bounded by the **aggregate cardinality** rather than by the event count — over
+hours, the per-event reconciliation sets the other scenarios use would make the harness's own
+garbage collection the loudest signal in the measurement.
+
+Drift is **reported, not asserted**: `passed` stays correctness-only (§6), because on a
+non-reference host (§5.1) a throughput slope can belong to the host rather than to Tandem.
 
 ---
 
@@ -310,7 +326,7 @@ non-negotiable regardless of performance).
   Tandem publishes as a performance figure has its raw run archived there — a number whose
   measurement cannot be re-examined is not one this project quotes.
 - A *smoke* variant (tiny rate, short duration) **does** run — `SmokeLoadTest`
-  (`@Tag("integration")`) covers S1, S3, S5, S6 against `BenchmarkConfig.toSmoke()`, purely
+  (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9 against `BenchmarkConfig.toSmoke()`, purely
   to keep the harness compiling and wired; it asserts correctness, never KPI numbers.
   Measured wall-clock on a developer machine: **~106 s** (LLD-benchmark §9); most of that
   is deliberate idle time (S5's row-lease wait with the relay stopped, S3's drain-tail

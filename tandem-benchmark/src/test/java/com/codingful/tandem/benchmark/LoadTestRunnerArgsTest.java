@@ -52,6 +52,26 @@ class LoadTestRunnerArgsTest {
     }
 
     @Test
+    void GIVEN_an_offered_rate_and_a_reporting_window_WHEN_the_harness_is_configured_THEN_both_are_honoured() {
+        BenchmarkConfig config = LoadTestRunner.configFrom(List.of("--rate=250", "--window=1200"));
+
+        assertThat(config.offeredRate()).isEqualTo(250.0);
+        assertThat(config.window()).isEqualTo(Duration.ofMinutes(20));
+    }
+
+    @Test
+    void GIVEN_a_connection_pool_size_WHEN_the_harness_is_configured_THEN_it_overrides_the_default() {
+        BenchmarkConfig config = LoadTestRunner.configFrom(List.of("--connections=48"));
+
+        assertThat(config.maxConnections()).isEqualTo(48);
+    }
+
+    @Test
+    void GIVEN_no_offered_rate_WHEN_the_harness_is_configured_THEN_the_scenario_is_left_to_find_one() {
+        assertThat(LoadTestRunner.configFrom(List.of()).offeredRate()).isZero();
+    }
+
+    @Test
     void GIVEN_sizing_arguments_and_a_scenario_list_WHEN_the_scenarios_are_selected_THEN_only_the_list_is_read_as_scenarios() {
         List<String> scenarios = LoadTestRunner.scenarioIdsFrom(List.of(WORKERS, "S1,S2", POLL_INTERVAL));
 
@@ -97,5 +117,30 @@ class LoadTestRunnerArgsTest {
 
         assertThat(relayConfig.pollInterval()).isEqualTo(config.pollInterval());
         assertThat(relayConfig.workersPerInstance()).isEqualTo(config.workers());
+    }
+
+    @Test
+    void GIVEN_a_cleanup_policy_on_the_command_line_WHEN_a_relay_is_built_from_it_THEN_it_deletes_on_that_policy() {
+        BenchmarkConfig config = LoadTestRunner.configFrom(
+                List.of("--retention=600", "--cleanup-interval=30", "--cleanup-batch=20000"));
+
+        var relayConfig = BenchmarkEnvironment.relayConfigBuilder(config, config.deliveryTimeoutMs()).build();
+
+        // A run shorter than the 14-day default retention deletes nothing at all, so the outbox only
+        // grows — which for a run measured in hours is both the wrong shape to measure and a way to
+        // fill the host's disk. The knob only means anything if it survives the crossing into RelayConfig.
+        assertThat(relayConfig.retention()).isEqualTo(Duration.ofMinutes(10));
+        assertThat(relayConfig.cleanupInterval()).isEqualTo(Duration.ofSeconds(30));
+        assertThat(relayConfig.cleanupBatchSize()).isEqualTo(20_000);
+    }
+
+    @Test
+    void GIVEN_no_cleanup_arguments_WHEN_a_relay_is_built_THEN_it_keeps_the_libraries_own_defaults() {
+        BenchmarkConfig config = LoadTestRunner.configFrom(List.of());
+
+        var relayConfig = BenchmarkEnvironment.relayConfigBuilder(config, config.deliveryTimeoutMs()).build();
+
+        assertThat(relayConfig.retention()).isEqualTo(Duration.ofDays(14));
+        assertThat(relayConfig.cleanupBatchSize()).isEqualTo(1000);
     }
 }

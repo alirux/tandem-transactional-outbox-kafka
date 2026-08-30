@@ -118,6 +118,9 @@ public final class BenchmarkEnvironment implements AutoCloseable {
                 .batchSize(config.batchSize())
                 .rowLease(config.rowLease())
                 .maxAttempts(config.maxAttempts())
+                .retention(config.retention())
+                .cleanupInterval(config.cleanupInterval())
+                .cleanupBatchSize(config.cleanupBatchSize())
                 .deliveryTimeoutMs(deliveryTimeoutMs);
     }
 

@@ -42,6 +42,18 @@ public final class LagProbe {
     private static final String PENDING_EXCLUDING_SQL =
             "SELECT count(*) FROM tandem_outbox WHERE status IN (0, 1) AND aggregate_id <> ? AND aggregate_id LIKE ?";
 
+    // Storage growth over a long run (S9): the table's total on-disk size, how much of it is index,
+    // the exact row count, and the dead tuples autovacuum has not yet reclaimed. The dead-tuple count
+    // is the one that turns "throughput sagged after four hours" into a diagnosis rather than a
+    // mystery: a churn table whose vacuum falls behind slows down through bloat, not through anything
+    // the relay is doing.
+    private static final String STORAGE_SQL =
+            "SELECT pg_total_relation_size('tandem_outbox') AS total_bytes, "
+                    + "pg_indexes_size('tandem_outbox') AS index_bytes, "
+                    + "(SELECT count(*) FROM tandem_outbox) AS row_count, "
+                    + "coalesce((SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'tandem_outbox'), 0) "
+                    + "AS dead_tuples";
+
     private static final String HAS_FAILED_ROW_SQL =
             "SELECT EXISTS(SELECT 1 FROM tandem_outbox WHERE aggregate_id = ? AND status = 3)";
 
@@ -52,6 +64,31 @@ public final class LagProbe {
     }
 
     public record Lag(long pending, Duration age) {
+    }
+
+    /** {@code tandem_outbox}'s on-disk footprint at a point in time (S9). */
+    public record Storage(long totalBytes, long indexBytes, long rowCount, long deadTuples) {
+
+        public long totalMegabytes() {
+            return totalBytes / (1024 * 1024);
+        }
+
+        public long indexMegabytes() {
+            return indexBytes / (1024 * 1024);
+        }
+    }
+
+    /** Total/index size, row count and unreclaimed dead tuples for {@code tandem_outbox}. */
+    public Storage storage() {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(STORAGE_SQL);
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return new Storage(rs.getLong("total_bytes"), rs.getLong("index_bytes"),
+                    rs.getLong("row_count"), rs.getLong("dead_tuples"));
+        } catch (SQLException e) {
+            throw new IllegalStateException("lag probe (storage) failed", e);
+        }
     }
 
     /** Global pending count + age of the oldest pending row, across all buckets. */

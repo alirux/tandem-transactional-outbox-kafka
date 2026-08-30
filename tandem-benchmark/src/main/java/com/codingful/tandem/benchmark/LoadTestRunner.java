@@ -7,6 +7,7 @@ import com.codingful.tandem.benchmark.scenario.S4Saturation;
 import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
 import com.codingful.tandem.benchmark.scenario.S6PoisonMessage;
 import com.codingful.tandem.benchmark.scenario.S8MultiInstanceLease;
+import com.codingful.tandem.benchmark.scenario.S9Endurance;
 import com.codingful.tandem.benchmark.scenario.Scenario;
 import com.codingful.tandem.benchmark.scenario.ScenarioContext;
 import com.codingful.tandem.benchmark.scenario.ScenarioResult;
@@ -26,7 +27,8 @@ import java.util.Set;
  * shared environment (LLD-benchmark §8) rather than using the environment's primary {@code SINGLE} pool.
  *
  * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
- * [--poll-interval=<millis>] [S1,S2,...]}:
+ * [--poll-interval=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>]
+ * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>] [S1,S2,...]}:
  * <ul>
  *   <li>{@code --smoke} — tiny rate/duration, correctness only, no KPI numbers (HLD-load-testing.md §5.1).</li>
  *   <li>{@code --demo} — real relay concurrency (default workers/batchSize/bucketCount) but a short
@@ -44,6 +46,19 @@ import java.util.Set;
  *       the idle query load it costs is {@code workers / pollInterval}, so they are only meaningful
  *       swept against each other. Both are applied after {@code --smoke}/{@code --demo}, like
  *       {@code --duration=}, so an explicit value always wins over the preset's own.</li>
+ *   <li>{@code --rate=<events/s>} and {@code --window=<seconds>} — the endurance scenario's fixed
+ *       offered rate and reporting window (S9). Without {@code --rate=} it seeds one with a short
+ *       ramp of its own; {@code --window=} is the unit its drift comparison is made between.</li>
+ *   <li>{@code --retention=<seconds>}, {@code --cleanup-interval=<seconds>} and
+ *       {@code --cleanup-batch=<n>} — the relay's DONE-row cleanup. The defaults (14 days, every 15
+ *       minutes, 1000 rows) mean cleanup deletes nothing during any run shorter than a fortnight, so a
+ *       run of hours grows the outbox without bound and never exercises the churn a production outbox
+ *       actually lives in. Size the batch against the write rate: {@code rate × interval} rows at
+ *       minimum.</li>
+ *   <li>{@code --connections=<n>} — the pooled {@code DataSource}'s size, shared by the load
+ *       generator, every relay instance and the lag probe. Worth raising for a run with more than one
+ *       relay instance: the generator alone may hold as many connections as it has in-flight inserts,
+ *       and a probe that cannot get one fails the run rather than waiting quietly.</li>
  *   <li>neither flag — the full-run default ({@code BenchmarkConfig.defaults()}, 10 min/scenario).</li>
  * </ul>
  * The scenario list defaults to all six. An unrecognised {@code --} argument is rejected rather than
@@ -65,7 +80,15 @@ public final class LoadTestRunner {
     private static final String DURATION_PREFIX = "--duration=";
     private static final String WORKERS_PREFIX = "--workers=";
     private static final String POLL_INTERVAL_PREFIX = "--poll-interval=";
-    private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX, POLL_INTERVAL_PREFIX);
+    private static final String RATE_PREFIX = "--rate=";
+    private static final String WINDOW_PREFIX = "--window=";
+    private static final String CONNECTIONS_PREFIX = "--connections=";
+    private static final String RETENTION_PREFIX = "--retention=";
+    private static final String CLEANUP_INTERVAL_PREFIX = "--cleanup-interval=";
+    private static final String CLEANUP_BATCH_PREFIX = "--cleanup-batch=";
+    private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX,
+            POLL_INTERVAL_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX, RETENTION_PREFIX,
+            CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX);
 
     public static void main(String[] args) throws Exception {
         List<String> argList = List.of(args);
@@ -127,6 +150,13 @@ public final class LoadTestRunner {
         longValue(args, DURATION_PREFIX).ifPresent(seconds -> config.duration(Duration.ofSeconds(seconds)));
         longValue(args, WORKERS_PREFIX).ifPresent(workers -> config.workers(Math.toIntExact(workers)));
         longValue(args, POLL_INTERVAL_PREFIX).ifPresent(millis -> config.pollInterval(Duration.ofMillis(millis)));
+        longValue(args, RATE_PREFIX).ifPresent(config::offeredRate);
+        longValue(args, WINDOW_PREFIX).ifPresent(seconds -> config.window(Duration.ofSeconds(seconds)));
+        longValue(args, CONNECTIONS_PREFIX).ifPresent(n -> config.maxConnections(Math.toIntExact(n)));
+        longValue(args, RETENTION_PREFIX).ifPresent(seconds -> config.retention(Duration.ofSeconds(seconds)));
+        longValue(args, CLEANUP_INTERVAL_PREFIX)
+                .ifPresent(seconds -> config.cleanupInterval(Duration.ofSeconds(seconds)));
+        longValue(args, CLEANUP_BATCH_PREFIX).ifPresent(n -> config.cleanupBatchSize(Math.toIntExact(n)));
         return config.build();
     }
 
@@ -166,7 +196,8 @@ public final class LoadTestRunner {
                 new S4Saturation(),
                 new S5WorkerFailover(),
                 new S6PoisonMessage(),
-                new S8MultiInstanceLease())) {
+                new S8MultiInstanceLease(),
+                new S9Endurance())) {
             byId.put(s.id(), s);
         }
         return Collections.unmodifiableMap(byId);

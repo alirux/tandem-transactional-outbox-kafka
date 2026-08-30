@@ -30,6 +30,11 @@ public final class BenchmarkConfig {
     private final int aggregateCardinality;
     private final Duration warmup;
     private final Duration duration;
+    private final Duration window;
+    private final double offeredRate;
+    private final Duration retention;
+    private final Duration cleanupInterval;
+    private final int cleanupBatchSize;
     private final LatencyMode latencyMode;
 
     private BenchmarkConfig(Builder b) {
@@ -45,6 +50,11 @@ public final class BenchmarkConfig {
         this.aggregateCardinality = b.aggregateCardinality;
         this.warmup = b.warmup;
         this.duration = b.duration;
+        this.window = b.window;
+        this.offeredRate = b.offeredRate;
+        this.retention = b.retention;
+        this.cleanupInterval = b.cleanupInterval;
+        this.cleanupBatchSize = b.cleanupBatchSize;
         this.latencyMode = b.latencyMode;
     }
 
@@ -112,6 +122,53 @@ public final class BenchmarkConfig {
         return duration;
     }
 
+    /**
+     * The reporting window a long run is sliced into (S9) — the unit a drift comparison is made
+     * <b>between</b>, where {@link #duration()} is the whole run. Default 20 minutes; a scenario shrinks
+     * it when the run is too short to hold two.
+     */
+    public Duration window() {
+        return window;
+    }
+
+    /**
+     * A fixed offered rate in events/s, or {@code 0} to let the scenario find one. Only an endurance
+     * run reads it: every other scenario decides its own rate, by ramp or by design. Holding it fixed is
+     * what makes two windows hours apart comparable at all — and the alternative, a ramp scaled to the
+     * run, would spend hours at the ceiling, which is the one place a burstable or thermally-limited
+     * host stops being a measuring instrument.
+     */
+    public double offeredRate() {
+        return offeredRate;
+    }
+
+    /**
+     * How long a {@code DONE} row is kept before the relay's cleanup deletes it — {@code RelayConfig}'s
+     * own default of 14 days, which for any run shorter than that means <b>cleanup never deletes
+     * anything</b> and the outbox only grows. That is the right default for a scenario measured in
+     * minutes and the wrong shape for one measured in hours: a production outbox is a churn table, and
+     * an endurance run that never deletes measures a table getting longer rather than the
+     * {@code PENDING → IN_FLIGHT → DONE → deleted} cycle a real deployment lives in (and fills the
+     * host's disk while doing it). Default 14 days.
+     */
+    public Duration retention() {
+        return retention;
+    }
+
+    /** How often the relay's cleanup pass runs. Default 15 min, matching {@code RelayConfig}'s. */
+    public Duration cleanupInterval() {
+        return cleanupInterval;
+    }
+
+    /**
+     * Rows deleted per cleanup pass. Sized against the write rate for a long run: at {@code r} events/s
+     * a pass every {@code i} seconds must delete at least {@code r × i} rows, or the backlog of
+     * deletable rows grows even though cleanup is running. Default 1000.
+     */
+    public int cleanupBatchSize() {
+        return cleanupBatchSize;
+    }
+
     /** Default {@link LatencyMode#PROXY}. */
     public LatencyMode latencyMode() {
         return latencyMode;
@@ -145,6 +202,11 @@ public final class BenchmarkConfig {
                 .aggregateCardinality(aggregateCardinality)
                 .warmup(warmup)
                 .duration(duration)
+                .window(window)
+                .offeredRate(offeredRate)
+                .retention(retention)
+                .cleanupInterval(cleanupInterval)
+                .cleanupBatchSize(cleanupBatchSize)
                 .latencyMode(latencyMode);
     }
 
@@ -203,6 +265,11 @@ public final class BenchmarkConfig {
         private int aggregateCardinality = 1024;
         private Duration warmup = Duration.ofSeconds(30);
         private Duration duration = Duration.ofMinutes(10);
+        private Duration window = Duration.ofMinutes(20);
+        private double offeredRate = 0;   // 0 = the scenario finds its own
+        private Duration retention = Duration.ofDays(14);        // RelayConfig's own defaults
+        private Duration cleanupInterval = Duration.ofMinutes(15);
+        private int cleanupBatchSize = 1000;
         private LatencyMode latencyMode = LatencyMode.PROXY;
 
         private Builder() {
@@ -275,6 +342,41 @@ public final class BenchmarkConfig {
 
         public Builder duration(Duration duration) {
             this.duration = Objects.requireNonNull(duration, "duration");
+            return this;
+        }
+
+        /** The endurance reporting window; must be positive. Default 20 minutes. */
+        public Builder window(Duration window) {
+            Objects.requireNonNull(window, "window");
+            if (window.isNegative() || window.isZero()) {
+                throw new IllegalArgumentException("window must be positive");
+            }
+            this.window = window;
+            return this;
+        }
+
+        /** Fixed offered rate in events/s; {@code 0} leaves the scenario to find one. */
+        public Builder offeredRate(double offeredRate) {
+            if (offeredRate < 0) {
+                throw new IllegalArgumentException("offeredRate must not be negative");
+            }
+            this.offeredRate = offeredRate;
+            return this;
+        }
+
+        /** How long a {@code DONE} row is kept; must be positive. Default 14 days. */
+        public Builder retention(Duration retention) {
+            this.retention = Objects.requireNonNull(retention, "retention");
+            return this;
+        }
+
+        public Builder cleanupInterval(Duration cleanupInterval) {
+            this.cleanupInterval = Objects.requireNonNull(cleanupInterval, "cleanupInterval");
+            return this;
+        }
+
+        public Builder cleanupBatchSize(int cleanupBatchSize) {
+            this.cleanupBatchSize = positive(cleanupBatchSize, "cleanupBatchSize");
             return this;
         }
 

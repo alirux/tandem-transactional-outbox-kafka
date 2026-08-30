@@ -259,6 +259,18 @@ through verbatim by the relay's header-passthrough, since it's just an ordinary 
   tracked separately (`duplicateCount`, via a `receivedKeys` set) and never fail a scenario on their own.
   Zero-loss is reconciled by each scenario after driving load: `generator.insertedKeys() \
   consumer.receivedKeys()` must be empty (`ScenarioSupport.verify`, §8).
+- **Correctness in bounded memory (S9).** Both reconciliation sets cost an entry per event on each
+  side, which is unremarkable for a scenario measured in minutes and unaffordable for one measured in
+  hours: the harness would spend its memory on bookkeeping rather than on the system under test, and the
+  resulting GC pressure would read as a throughput decline over the run — exactly the signal an
+  endurance scenario exists to detect. `SequenceLedger` re-derives the same answers from **one
+  watermark per aggregate**, which is sound because the generator's `seq` is the `bench_aggregate`
+  version bumped inside the insert's own transaction, and therefore runs `1, 2, 3, …` with no holes: a
+  gap in the delivered stream is loss, counted as it happens, and what an aggregate still owes at the
+  end is `lastInsertedSeq − watermark`. A consumer constructed with key tracking off (S9) leaves the
+  ledger as the sole record; every other scenario keeps both. The ordering rule is the ledger's in both
+  modes, and its violation samples are **capped** — an unbounded copy-on-write list makes the harness
+  quadratic precisely when the system under test is already misbehaving.
 - **Latency.** Compute `t1 − t0` and feed `LatencyRecorder`. `t1` is the consumer receive time; the
   delta includes the broker→consumer hop, so it **over-estimates** the COMMIT→ack KPI — accepted and
   conservative.
@@ -314,6 +326,7 @@ therefore queries `tandem_outbox` directly for everything it needs:
 | `perBucket()` | `GROUP BY bucket`, `status IN (0,1,3)` | S3 (hot vs. cold bucket backlog) |
 | `pendingExcludingAggregate(ns, excludedId)` | `status IN (0,1)`, namespace-scoped, `aggregate_id <> excludedId` | S6 (`waitForOthersToDrain`) |
 | `hasFailedRow(aggregateId)` | `EXISTS(… status = 3)` | S6 (confirms the poison gate tripped) |
+| `storage()` | `pg_total_relation_size` / `pg_indexes_size` / `count(*)` / `pg_stat_user_tables.n_dead_tup` | S9 (per-window growth of the outbox and of what autovacuum has not reclaimed) |
 
 Two design points only became clear once real Docker runs exposed the failure modes:
 
@@ -817,6 +830,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S6** | Poison message | `FaultInjector.poisonAggregate(id)` before driving load; after the run, waits for every *other* aggregate to drain, confirms `hasFailedRow` on the poisoned one, and reconciles zero-loss **excluding** the poisoned aggregate's own (deliberately never-delivered) keys |
 | **S7** | Causal-ordering overhead | **Deferred — 2nd round** (needs the causal-ordering feature); not implemented |
 | **S8** | Multi-instance `LEASE` coordination + crash recovery | Runs **three** relay instances (`env.newRelayInstance`, each its own producer) under `Coordination.LEASE`; waits for a fair 3-way partition, **kills one** (`WorkerPool.kill()` — an abrupt crash, not `stop()`), and confirms the two survivors reclaim its share and delivery still completes correctly. See §8.2/§8.3 for what this scenario found and fixed along the way |
+| **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows (§8.5). The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`); correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
 single worker thread among several — only whole-instance `stop()`/`start()`. S5 therefore simulates an
@@ -980,13 +994,32 @@ no measurable time. No product code involved.
 ## 9. Execution & CI
 
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
-  [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
+  [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--rate=<events/s>]
+  [--window=<seconds>] [--connections=<n>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
   layered on top), runs the selected scenarios (all six minus the deferred S7 by default) in sequence
   against it, and prints a PASS/FAIL line + summary per scenario. Kept **out of the normal
   `test`/`check` lifecycle** — slow, resource-hungry, not meant for shared CI runners. Pass
   `LoadTestRunner` args through Gradle with `--args`, e.g.
   `./gradlew :tandem-benchmark:loadTest --args="--demo S1,S2,S5,S6"`.
+- **Endurance runs (S9) do not go through the `loadTest` task.** That task pins
+  `src/main/resources/logging.properties`, which raises `com.codingful.tandem` to `FINE` so the relay's
+  per-cycle claim logging is visible — the right default for a run measured in minutes, and unusable for
+  one measured in hours: at 16 workers polling every 100 ms it writes millions of lines, and the log
+  write becomes a load the measurement cannot separate from the system under test. Run it from the
+  distribution instead, with an `INFO` config of your own and the working directory at the repository
+  root (`TandemTestContainer` locates the baseline schema by walking up from it):
+
+  ```
+  ./gradlew :tandem-benchmark:installDist
+  JAVA_OPTS="-Djava.util.logging.config.file=/path/to/endurance-logging.properties" \
+    nohup caffeinate -ims tandem-benchmark/build/install/tandem-benchmark/bin/tandem-benchmark \
+    --duration=21600 --window=1200 --connections=48 S9 > s9.log 2>&1 &
+  ```
+
+  `caffeinate` because a laptop that sleeps mid-run ends it; `--connections=` because the pool is shared
+  by the generator, both relay instances and the lag probe, and a probe that cannot get a connection
+  throws rather than waiting quietly.
 - **Gauge demo:** `./gradlew :tandem-benchmark:lagGaugeDemo` → `LagGaugeDemo.main` (§6.2). Also out of
   `test`/`check`, and out of `loadTest`: it is a ~50s look at the shape of the lag gauges, not a
   measurement.
@@ -1038,9 +1071,11 @@ no measurable time. No product code involved.
     limits, S5's crash-recovery path hasn't actually fired across three runs).
 - **CI smoke:** `SmokeLoadTest` (`@Tag("integration")`, one shared `BenchmarkEnvironment` per class via
   `@TestInstance(PER_CLASS)`) runs `BenchmarkConfig.defaults().toSmoke()` against **S1, S3, S5, S6,
-  S8** — the scenarios that each exercise a structurally distinct code path (ramp, skew, failover,
-  poison, multi-instance `LEASE` coordination); S2/S4 reuse S1's machinery and are exercised only in
-  full runs. Runs in the existing `integrationTest` phase (Docker required), asserting **correctness
+  S8, S9** — the scenarios that each exercise a structurally distinct code path (ramp, skew, failover,
+  poison, multi-instance `LEASE` coordination, windowed endurance); S2/S4 reuse S1's machinery and are
+  exercised only in full runs. S9 under `toSmoke()` is a wiring check and nothing more: its seed ramp
+  shrinks with the run, so it holds the seed rate and compares two 1.5-second windows — enough to prove
+  the ledger, the windowing and the coverage sampling all run, not to observe drift. Runs in the existing `integrationTest` phase (Docker required), asserting **correctness
   only** — the reported throughput/latency numbers in a smoke or demo run are informational, never
   gated (§8). **Measured wall-clock (this Mac, 2026-07-02): ~113 s** with S8 added (container startup
   ≈ 18 s + S6 ≈ 4 s + S5 ≈ 14 s + S1 ≈ 7 s + S3 ≈ 55 s + S8 ≈ small, its `duration` and offered rate are
@@ -1080,7 +1115,9 @@ knob to expose here):
 | `payloadBytes` | 1024 | 1 KB JSON reference payload |
 | `aggregateCardinality` | 1024 | size of the synthetic aggregate-id universe (§4.2) |
 | `warmup` | 30 s | discarded before latency recording (S2) |
-| `duration` | 10 min | steady-state window: S1's sustain gate, S2/S3/S6's drive time, S5's half-phases |
+| `duration` | 10 min | steady-state window: S1's sustain gate, S2/S3/S6's drive time, S5's half-phases, S9's whole run |
+| `window` | 20 min | S9's reporting window — the unit its drift comparison is made *between*; shrunk to `duration / 2` when the run is too short to hold two |
+| `offeredRate` | 0 | S9's fixed rate in events/s; `0` leaves the scenario to seed one from a short ramp |
 | `latencyMode` | `PROXY` | `PROXY` or `ACCURATE` (§5.1) |
 
 **`toSmoke()`** derives the CI variant: `workers ≤ 2`, `batchSize ≤ 20`, `maxConnections ≤ 8`,

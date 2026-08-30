@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,6 +57,8 @@ public final class LoadGenerator implements AutoCloseable {
     private final AtomicLong succeeded = new AtomicLong();
     private final AtomicLong failed = new AtomicLong();
     private final Set<String> insertedKeys = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> lastInsertedSeqs = new ConcurrentHashMap<>();
+    private volatile boolean trackInsertedKeys = true;
 
     private final AtomicReference<Double> targetRatePerSecond = new AtomicReference<>(0.0);
     private volatile boolean running;
@@ -152,6 +155,24 @@ public final class LoadGenerator implements AutoCloseable {
         return insertedKeys;
     }
 
+    /**
+     * Stops accumulating {@link #insertedKeys()}, leaving {@link #lastInsertedSeqs()} as the record of
+     * what was written. For a run long enough that one entry per event would dominate the harness's own
+     * memory ({@link SequenceLedger}); call it before {@link #start} — nothing else changes.
+     */
+    public void stopTrackingInsertedKeys() {
+        this.trackInsertedKeys = false;
+    }
+
+    /**
+     * The last {@code seq} committed for each aggregate — everything written, in memory bounded by the
+     * aggregate cardinality, because an aggregate's committed sequence has no holes (see
+     * {@link SequenceLedger}).
+     */
+    public Map<String, Long> lastInsertedSeqs() {
+        return Map.copyOf(lastInsertedSeqs);
+    }
+
     private void pacerLoop() {
         long nextSubmitAt = System.nanoTime();
         while (running) {
@@ -208,7 +229,10 @@ public final class LoadGenerator implements AutoCloseable {
                 if (commitTimestamps != null) {
                     commitTimestamps.recordCommit(aggregateId, seq, System.nanoTime());
                 }
-                insertedKeys.add(aggregateId + '#' + seq);
+                if (trackInsertedKeys) {
+                    insertedKeys.add(aggregateId + '#' + seq);
+                }
+                lastInsertedSeqs.merge(aggregateId, seq, Math::max);
                 succeeded.incrementAndGet();
             } catch (Exception e) {
                 failed.incrementAndGet();

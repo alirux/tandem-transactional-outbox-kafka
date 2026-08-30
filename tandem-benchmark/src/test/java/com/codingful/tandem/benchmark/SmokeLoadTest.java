@@ -7,6 +7,7 @@ import com.codingful.tandem.benchmark.scenario.S3HotPartition;
 import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
 import com.codingful.tandem.benchmark.scenario.S6PoisonMessage;
 import com.codingful.tandem.benchmark.scenario.S8MultiInstanceLease;
+import com.codingful.tandem.benchmark.scenario.S9Endurance;
 import com.codingful.tandem.benchmark.scenario.Scenario;
 import com.codingful.tandem.benchmark.scenario.ScenarioContext;
 import com.codingful.tandem.benchmark.scenario.ScenarioResult;
@@ -66,6 +67,11 @@ class SmokeLoadTest {
     @Test
     void s8MultiInstanceLeaseSmoke() throws Exception {
         assertPassed(new S8MultiInstanceLease());
+    }
+
+    @Test
+    void s9EnduranceSmoke() throws Exception {
+        assertPassed(new S9Endurance());
     }
 
     private void assertPassed(Scenario scenario) throws Exception {

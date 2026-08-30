@@ -4,9 +4,12 @@ import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
 import com.codingful.tandem.benchmark.LagProbe;
 import com.codingful.tandem.benchmark.LoadGenerator;
+import com.codingful.tandem.benchmark.RelayInstance;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
@@ -20,6 +23,34 @@ final class ScenarioSupport {
         boolean passed() {
             return orderingViolations == 0 && missingKeys.isEmpty();
         }
+    }
+
+    /**
+     * How a set of {@code LEASE} instances have divided the buckets between them at one instant
+     * (S9): how many buckets are owned in total, whether any two instances claim the same one, and the
+     * per-instance shares. {@code covered} counts distinct buckets, so an overlap cannot inflate it.
+     */
+    record Coverage(int covered, boolean disjoint, List<Integer> perInstance) {
+
+        /** Every bucket owned, by exactly one instance — what must keep being true, renewal after renewal. */
+        boolean complete(int bucketCount) {
+            return disjoint && covered == bucketCount;
+        }
+    }
+
+    /** Samples {@code instances}' current bucket ownership (S9 checks it once per window). */
+    static Coverage coverage(List<RelayInstance> instances) {
+        Set<Integer> distinct = new HashSet<>();
+        List<Integer> perInstance = new ArrayList<>();
+        boolean disjoint = true;
+        for (RelayInstance instance : instances) {
+            Set<Integer> owned = instance.bucketSource().ownedBuckets();
+            perInstance.add(owned.size());
+            for (Integer bucket : owned) {
+                disjoint &= distinct.add(bucket);
+            }
+        }
+        return new Coverage(distinct.size(), disjoint, List.copyOf(perInstance));
     }
 
     /** Grace for the co-located consumer to receive what the outbox has already published (see {@link #verify}). */
