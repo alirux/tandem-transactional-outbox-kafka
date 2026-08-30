@@ -353,8 +353,8 @@ interface BucketSource {
   > Assumes a single DB whose `now()` is coherent — a multi-primary / distributed clock would reopen this.
 
   > **Cleanup and lease-reclaim are NOT partitioned by this mechanism.** Both run globally on every
-  > instance regardless of `coordination` mode — see §3.7's note on redundant-but-safe multi-instance
-  > cleanup.
+  > instance regardless of `coordination` mode — see §3.7 on multi-instance cleanup, which is redundant
+  > by design and made concurrency-safe by `SKIP LOCKED`.
 
 ### 3.3 Poll & claim (`OutboxStore.claimBatch`) — Q9 tx1, Q11, E2
 
@@ -527,7 +527,9 @@ DELETE FROM tandem_outbox
  WHERE id IN ( SELECT id FROM tandem_outbox
                 WHERE status IN (2, 4)              -- DONE / DISCARDED
                   AND created_at < :doneBefore        -- relay-computed cutoff, see below
-                ORDER BY id LIMIT :chunk );
+                ORDER BY id
+                FOR UPDATE SKIP LOCKED                -- see the multi-instance note below
+                LIMIT :chunk );
 ```
 Unlike every lease deadline (§3.2), the cutoff is the one timestamp computed on the **relay**
 (`clock.instant() - retention`, hence the injectable `Clock` on `WorkerPool`) rather than with the DB's
@@ -541,11 +543,18 @@ what gets delivered. Do not copy this pattern for anything that gates delivery.
 renewal (§3.2, `LEASE`-partitioned), `cleanup` runs against the **whole** `tandem_outbox` table using the
 same global predicate, and every `WorkerPool` instance schedules its own `cleanupTick` independently —
 regardless of `coordination` mode (`SINGLE` or `LEASE`). With N instances, all N run the same `DELETE`
-on the same candidate window every `cleanupInterval`. This is **safe**: the statement deletes by `id`, so
-a second instance's `DELETE` on ids another instance already removed simply affects zero rows (no error,
-no double-delete). It is **redundant** (N instances doing the same scan/delete instead of one), currently
-accepted rather than fixed — same pattern as `reclaimExpiredLeases` (§3.5), which is also global and
-per-instance. **Possible optimization (not implemented, left for later):** either (a) scope cleanup to
+on the same candidate window every `cleanupInterval`. No row is ever deleted twice: the statement deletes
+by `id`, so a pass over ids another instance already removed simply affects zero rows. It is
+**redundant** (N instances doing the same scan/delete instead of one), currently accepted rather than
+fixed — same pattern as `reclaimExpiredLeases` (§3.5), which is also global and per-instance.
+
+**Concurrent passes are made disjoint by `FOR UPDATE SKIP LOCKED`.** Without a locking clause, two
+passes select overlapping id windows and take their row locks in whatever order the executor reaches
+them, so each can end up waiting on the other's transaction — a deadlock, which the database resolves by
+aborting one pass. `SKIP LOCKED` makes a pass step over the rows another pass holds; those rows are
+collected by the next tick, which is what a retention window means.
+
+**Possible optimization (not implemented, left for later):** either (a) scope cleanup to
 each instance's currently-owned buckets (`bucket_id` predicate via `BucketSource.ownedBuckets()`, cheap
 under `LEASE` since ownership already partitions the fleet, no-op benefit under `SINGLE`), or (b) elect a
 single cleanup runner — e.g. the `LEASE` member with the lowest `owner` id, or a dedicated

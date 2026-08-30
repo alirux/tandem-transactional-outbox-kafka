@@ -1,6 +1,7 @@
 package com.codingful.tandem.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.codingful.tandem.core.LagSnapshot;
 import com.codingful.tandem.core.OutboxMessage;
@@ -10,6 +11,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -280,6 +282,43 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         assertThat(store.cleanup(Instant.now().plus(Duration.ofHours(1)), 10)).isEqualTo(2);
         assertThat(statusOf(3)).isEqualTo(OutboxStatus.PENDING.code());
         assertThat(rowExists(1)).isFalse();
+    }
+
+    /**
+     * Cleanup is not bucket-scoped (§3.7), so every relay instance runs it over the same rows. This
+     * pins the property that makes that safe under concurrency: a pass steps over what another pass
+     * already holds instead of queueing behind it. Two passes that both wait produced real deadlocks —
+     * ~1.4% of passes with two instances over six hours
+     * (docs/benchmark-results/2026-08-30-endurance).
+     */
+    @Test
+    void GIVEN_rows_another_cleanup_pass_is_holding_WHEN_cleanup_runs_THEN_it_deletes_the_rest_without_waiting()
+            throws Exception {
+        for (int i = 1; i <= 6; i++) {
+            insert("order-" + i, 1);
+        }
+        store.markDoneBatch(List.of(1L, 2L, 3L, 4L, 5L, 6L));
+        Instant cutoff = Instant.now().plus(Duration.ofHours(1));
+
+        try (Connection holder = DATA_SOURCE.getConnection()) {
+            holder.setAutoCommit(false);
+            try (Statement lock = holder.createStatement()) {
+                lock.execute("SELECT id FROM tandem_outbox WHERE id IN (1, 2) FOR UPDATE");
+            }
+
+            // Preemptive because the failure mode is a wait, not a wrong answer: without SKIP LOCKED
+            // this call blocks until the holder's transaction ends, which never happens while it is
+            // blocked — a plain assertion would hang the build instead of failing it.
+            int deleted = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> store.cleanup(cutoff, 10));
+
+            assertThat(deleted).isEqualTo(4);
+            assertThat(rowExists(1)).isTrue();
+            assertThat(rowExists(3)).isFalse();
+            holder.rollback();
+        }
+
+        // Skipped, not stranded: whatever a pass steps over is collected by the next one.
+        assertThat(store.cleanup(cutoff, 10)).isEqualTo(2);
     }
 
     @Test

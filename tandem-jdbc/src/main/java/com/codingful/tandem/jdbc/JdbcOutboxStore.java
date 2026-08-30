@@ -116,11 +116,19 @@ public final class JdbcOutboxStore implements OutboxStore {
     // column off the hot path and a pre-column relay working against a migrated database (§1.4).
     private static final String REPLAYS_SQL = "SELECT replays FROM tandem_outbox WHERE id = ?";
 
+    // SKIP LOCKED for the same reason the claim above uses it: more than one relay instance runs
+    // cleanup (it is not bucket-scoped, LLD-jdbc §3.7), so two passes routinely select overlapping id
+    // windows. Without a locking clause each pass takes its row locks in whatever order the executor
+    // reaches them, and two passes deadlock — measured at ~1.4% of passes with two instances
+    // (docs/benchmark-results/2026-08-30-endurance). With SKIP LOCKED a pass simply steps over rows
+    // another pass already holds; they come back on the next pass, which is what retention means.
     private static final String CLEANUP_SQL =
             "DELETE FROM tandem_outbox"
                     + " WHERE id IN (SELECT id FROM tandem_outbox"
                     + "               WHERE status IN (2, 4) AND created_at < ?"
-                    + "               ORDER BY id LIMIT ?)";
+                    + "               ORDER BY id"
+                    + "               FOR UPDATE SKIP LOCKED"
+                    + "               LIMIT ?)";
 
     static final String LEASE_EXPIRED_ERROR = "lease expired (worker crash or stall) before ack";
 
