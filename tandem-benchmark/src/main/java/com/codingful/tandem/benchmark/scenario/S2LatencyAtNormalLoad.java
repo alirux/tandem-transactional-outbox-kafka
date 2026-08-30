@@ -55,6 +55,10 @@ public final class S2LatencyAtNormalLoad implements Scenario {
             RampController ramp = new RampController(env.lagProbe(),
                     ScenarioSupport.observationWindowFor(cfg), quickRampSustainWindow, 0.15, cfg.batchSize());
             RampController.RampResult quick = ramp.findSustainableMax(generator, 100.0, quickRampSearchBudget);
+            // Half of what the ramp reported is half of the *ceiling* only when the ramp bracketed one;
+            // otherwise it is half of a lower bound the budget chose, and the load this scenario then
+            // measures latency at is not the "normal" one it claims to be.
+            ScenarioSupport.RateBasis basis = ScenarioSupport.RateBasis.of(quick);
             double normalLoadRate = Math.max(1.0, quick.sustainedRatePerSecond() * 0.5);
             generator.setRate(normalLoadRate);
 
@@ -68,11 +72,14 @@ public final class S2LatencyAtNormalLoad implements Scenario {
             ScenarioSupport.CorrectnessReport report = ScenarioSupport.verify(generator, consumer);
 
             return new ScenarioResult(id(), report.passed(),
-                    String.format("normal-load rate %.1f/s; p50=%s p95=%s p99=%s p999=%s; ordering violations=%d, missing=%d",
-                            normalLoadRate, snapshot.p50(), snapshot.p95(), snapshot.p99(), snapshot.p999(),
+                    String.format("normal-load rate %.1f/s (%s); p50=%s p95=%s p99=%s p999=%s; "
+                                    + "ordering violations=%d, missing=%d",
+                            normalLoadRate, basis.describe(0.5), snapshot.p50(), snapshot.p95(),
+                            snapshot.p99(), snapshot.p999(),
                             report.orderingViolations(), report.missingKeys().size()),
                     Map.of(
                             "normalLoadRatePerSecond", normalLoadRate,
+                            "rateFromBracketedCeiling", basis == ScenarioSupport.RateBasis.BRACKETED_CEILING ? 1 : 0,
                             "p50Millis", snapshot.p50().toMillis(),
                             "p95Millis", snapshot.p95().toMillis(),
                             "p99Millis", snapshot.p99().toMillis(),

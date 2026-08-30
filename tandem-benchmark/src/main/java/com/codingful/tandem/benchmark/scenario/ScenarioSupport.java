@@ -4,6 +4,7 @@ import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
 import com.codingful.tandem.benchmark.LagProbe;
 import com.codingful.tandem.benchmark.LoadGenerator;
+import com.codingful.tandem.benchmark.RampController;
 import com.codingful.tandem.benchmark.RelayInstance;
 import java.time.Duration;
 import java.time.Instant;
@@ -51,6 +52,38 @@ final class ScenarioSupport {
             }
         }
         return new Coverage(distinct.size(), disjoint, List.copyOf(perInstance));
+    }
+
+    /**
+     * Where a scenario's offered rate came from. A scenario that holds "half of the ceiling" is only
+     * doing that if a ceiling was actually found: when the ramp never observed a rate the host could
+     * not hold, its figure is a lower bound set by the seed and the budget, and half of it is half of
+     * an arbitrary number. The two cases read identically in a result line unless they are named, and
+     * the run is archived either way.
+     */
+    enum RateBasis {
+
+        /** The rate was given on the command line; no search ran. */
+        EXPLICIT,
+        /** The ramp bracketed a ceiling — it saw a rate that held and one that did not. */
+        BRACKETED_CEILING,
+        /** The ramp never found a failing rate, so its figure is a lower bound, not a ceiling. */
+        LOWER_BOUND;
+
+        static RateBasis of(RampController.RampResult result) {
+            return result.bracketed() ? BRACKETED_CEILING : LOWER_BOUND;
+        }
+
+        /** How the offered rate should be described in a result line, given the fraction held of it. */
+        String describe(double fraction) {
+            int percent = (int) Math.round(fraction * 100);
+            return switch (this) {
+                case EXPLICIT -> "rate given explicitly";
+                case BRACKETED_CEILING -> percent + "% of a bracketed ceiling";
+                case LOWER_BOUND -> percent + "% of a LOWER BOUND — the ramp never found a rate this host "
+                        + "could not hold, so this is not " + percent + "% of capacity";
+            };
+        }
     }
 
     /** Grace for the co-located consumer to receive what the outbox has already published (see {@link #verify}). */

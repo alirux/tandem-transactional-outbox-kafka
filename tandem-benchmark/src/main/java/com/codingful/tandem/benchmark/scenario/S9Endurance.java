@@ -107,7 +107,8 @@ public final class S9Endurance implements Scenario {
             generator.stopTrackingInsertedKeys();
             consumer.start();
 
-            double rate = offeredRate(env, cfg, generator);
+            OfferedRate offered = offeredRate(env, cfg, generator);
+            double rate = offered.ratePerSecond();
             generator.setRate(rate);
             ScenarioSupport.awaitUpTo(PARTITION_TIMEOUT,
                     () -> ScenarioSupport.coverage(instances).complete(cfg.bucketCount()));
@@ -115,7 +116,7 @@ public final class S9Endurance implements Scenario {
             Thread.sleep(cfg.warmup().toMillis());
             latency.snapshot();   // discard the warm-up window (HLD-load-testing.md §3)
 
-            List<Window> windows = holdAndSample(ctx, generator, consumer, latency, instances, rate);
+            List<Window> windows = holdAndSample(ctx, generator, consumer, latency, instances, offered);
 
             generator.stop();
             ScenarioSupport.waitForDrain(env.lagProbe(), id(),
@@ -129,12 +130,20 @@ public final class S9Endurance implements Scenario {
             long lost = ledger.lostEvents(written);
             boolean coverageHeld = windows.stream().allMatch(w -> w.coverage().complete(cfg.bucketCount()));
             boolean passed = ledger.orderingViolations() == 0 && lost == 0 && coverageHeld;
-            return new ScenarioResult(id(), passed, summary(windows, rate, lost, ledger, coverageHeld, cfg),
-                    metrics(windows, rate, lost, ledger, coverageHeld));
+            return new ScenarioResult(id(), passed, summary(windows, offered, lost, ledger, coverageHeld, cfg),
+                    metrics(windows, offered, lost, ledger, coverageHeld));
         } finally {
             for (RelayInstance instance : instances) {
                 instance.pool().stop();
             }
+        }
+    }
+
+    /** The load this run held, and what that figure is a fraction of ({@link ScenarioSupport.RateBasis}). */
+    private record OfferedRate(double ratePerSecond, ScenarioSupport.RateBasis basis) {
+
+        String describe() {
+            return basis.describe(LOAD_FRACTION);
         }
     }
 
@@ -155,16 +164,16 @@ public final class S9Endurance implements Scenario {
      * evidence behind.
      */
     private List<Window> holdAndSample(ScenarioContext ctx, LoadGenerator generator, CorrelationConsumer consumer,
-            LatencyRecorder latency, List<RelayInstance> instances, double rate) throws InterruptedException {
+            LatencyRecorder latency, List<RelayInstance> instances, OfferedRate offered) throws InterruptedException {
         BenchmarkConfig cfg = ctx.config();
         Duration window = windowFor(cfg);
         int windowCount = (int) (cfg.duration().toSeconds() / window.toSeconds());
         // The cleanup policy belongs in the run's own log: whether DONE rows were being deleted while
         // the run held decides whether a growing outbox is a finding or the configuration.
-        System.out.printf(Locale.ROOT, "S9: holding %.1f events/s for %s in %d windows of %s; "
+        System.out.printf(Locale.ROOT, "S9: holding %.1f events/s (%s) for %s in %d windows of %s; "
                         + "retention=%s, cleanup every %s in batches of %d%n",
-                rate, cfg.duration(), windowCount, window, cfg.retention(), cfg.cleanupInterval(),
-                cfg.cleanupBatchSize());
+                offered.ratePerSecond(), offered.describe(), cfg.duration(), windowCount, window,
+                cfg.retention(), cfg.cleanupInterval(), cfg.cleanupBatchSize());
 
         List<Window> windows = new ArrayList<>();
         long previousDelivered = consumer.receivedCount();
@@ -206,10 +215,10 @@ public final class S9Endurance implements Scenario {
         return cfg.window().compareTo(half) <= 0 ? cfg.window() : half;
     }
 
-    private static double offeredRate(BenchmarkEnvironment env, BenchmarkConfig cfg, LoadGenerator generator) {
+    private static OfferedRate offeredRate(BenchmarkEnvironment env, BenchmarkConfig cfg, LoadGenerator generator) {
         if (cfg.offeredRate() > 0) {
             generator.start(cfg.offeredRate());
-            return cfg.offeredRate();
+            return new OfferedRate(cfg.offeredRate(), ScenarioSupport.RateBasis.EXPLICIT);
         }
         Duration sustain = ScenarioSupport.minDuration(SEED_RAMP_SUSTAIN, cfg.duration().dividedBy(2));
         Duration observation = ScenarioSupport.maxDuration(Duration.ofSeconds(1),
@@ -218,7 +227,11 @@ public final class S9Endurance implements Scenario {
         RampController ramp = new RampController(env.lagProbe(), observation, sustain, SEED_RAMP_TOLERANCE,
                 cfg.batchSize());
         RampController.RampResult seed = ramp.findSustainableMax(generator, SEED_RATE_PER_SECOND, budget);
-        return Math.max(1.0, seed.sustainedRatePerSecond() * LOAD_FRACTION);
+        // A seed ramp that never found a failing rate reports a lower bound, not a ceiling, and half of
+        // it is half of whatever the budget reached. The run is still valid — a fixed rate held for
+        // hours is what this scenario measures — but it must not claim to be holding half of capacity.
+        return new OfferedRate(Math.max(1.0, seed.sustainedRatePerSecond() * LOAD_FRACTION),
+                ScenarioSupport.RateBasis.of(seed));
     }
 
     private static void awaitDelivery(SequenceLedger ledger, Map<String, Long> written) throws InterruptedException {
@@ -228,14 +241,14 @@ public final class S9Endurance implements Scenario {
         }
     }
 
-    private static String summary(List<Window> windows, double rate, long lost, SequenceLedger ledger,
+    private static String summary(List<Window> windows, OfferedRate offered, long lost, SequenceLedger ledger,
             boolean coverageHeld, BenchmarkConfig cfg) {
         Window first = windows.get(0);
         Window last = windows.get(windows.size() - 1);
-        return String.format(Locale.ROOT, "held %.1f events/s for %s in %d windows; throughput %.1f/s → %.1f/s (%+.1f%%), "
+        return String.format(Locale.ROOT, "held %.1f events/s (%s) for %s in %d windows; throughput %.1f/s → %.1f/s (%+.1f%%), "
                         + "p50 %dms → %dms, p99 %dms → %dms; outbox %dMB → %dMB, heap %dMB → %dMB; "
                         + "bucket coverage held=%s; ordering violations=%d, lost=%d, duplicates=%d",
-                rate, cfg.duration(), windows.size(),
+                offered.ratePerSecond(), offered.describe(), cfg.duration(), windows.size(),
                 first.deliveredPerSecond(windowFor(cfg)), last.deliveredPerSecond(windowFor(cfg)),
                 drift(first.deliveredPerSecond(windowFor(cfg)), last.deliveredPerSecond(windowFor(cfg))),
                 first.latency().p50().toMillis(), last.latency().p50().toMillis(),
@@ -245,12 +258,13 @@ public final class S9Endurance implements Scenario {
                 ledger.orderingViolations(), lost, ledger.duplicates());
     }
 
-    private static Map<String, Object> metrics(List<Window> windows, double rate, long lost,
+    private static Map<String, Object> metrics(List<Window> windows, OfferedRate offered, long lost,
             SequenceLedger ledger, boolean coverageHeld) {
         Window first = windows.get(0);
         Window last = windows.get(windows.size() - 1);
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("offeredRatePerSecond", rate);
+        metrics.put("offeredRatePerSecond", offered.ratePerSecond());
+        metrics.put("offeredRateBasis", offered.basis().name());
         metrics.put("windows", windows.size());
         metrics.put("firstWindowDelivered", first.delivered());
         metrics.put("lastWindowDelivered", last.delivered());
