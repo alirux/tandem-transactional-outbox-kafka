@@ -1,0 +1,142 @@
+=== state at 20:23:06 ===
+ pending | done_awaiting_cleanup | chains |  size  
+---------+-----------------------+--------+--------
+  241820 |                 11682 |   4098 | 379 MB
+(1 row)
+
+
+############ A. the claim as it is today ############
+                                                                                                                           QUERY PLAN                                                                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=32.294..36.912 rows=100 loops=1)
+   Buffers: shared hit=9610 read=3065 dirtied=78 written=489
+   ->  LockRows (actual time=32.293..36.872 rows=100 loops=1)
+         Buffers: shared hit=9610 read=3065 dirtied=78 written=489
+         ->  Nested Loop Anti Join (actual time=32.261..36.087 rows=100 loops=1)
+               Buffers: shared hit=9410 read=3065 written=489
+               ->  Index Scan using tandem_outbox_pkey on tandem_outbox o (actual time=30.927..32.912 rows=111 loops=1)
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[])))
+                     Rows Removed by Filter: 12405
+                     Buffers: shared hit=9113 read=3018 written=484
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.027..0.027 rows=0 loops=111)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+                     Buffers: shared hit=297 read=47 written=5
+ Planning:
+   Buffers: shared hit=364 read=1
+ Planning Time: 6.728 ms
+ Execution Time: 37.213 ms
+(18 rows)
+
+
+############ C. same query ordered by (bucket, id), which the dispatch index already provides ############
+                                                                                     QUERY PLAN                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.259..105.010 rows=100 loops=1)
+   Buffers: shared hit=25070 read=4426 dirtied=72 written=240
+   ->  LockRows (actual time=0.258..104.984 rows=100 loops=1)
+         Buffers: shared hit=25070 read=4426 dirtied=72 written=240
+         ->  Nested Loop Anti Join (actual time=0.222..104.246 rows=100 loops=1)
+               Buffers: shared hit=24870 read=4426 written=240
+               ->  Index Scan using idx_tandem_outbox_dispatch on tandem_outbox o (actual time=0.161..42.617 rows=5879 loops=1)
+                     Index Cond: (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[]))
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())))
+                     Buffers: shared hit=1486 read=4394 written=239
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.010..0.010 rows=1 loops=5879)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+                     Buffers: shared hit=23384 read=32 written=1
+ Planning:
+   Buffers: shared hit=360
+ Planning Time: 5.412 ms
+ Execution Time: 105.133 ms
+(18 rows)
+
+
+############ D. one index scan per bucket, joined laterally, each with its own limit ############
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=648.416..648.436 rows=100 loops=1)
+   Buffers: shared hit=102108 read=20970 dirtied=17 written=6520
+   ->  Sort (actual time=648.415..648.424 rows=100 loops=1)
+         Sort Key: o.id
+         Sort Method: top-N heapsort  Memory: 25kB
+         Buffers: shared hit=102108 read=20970 dirtied=17 written=6520
+         ->  Nested Loop (actual time=0.415..648.018 rows=515 loops=1)
+               Buffers: shared hit=102105 read=20970 dirtied=17 written=6520
+               ->  Function Scan on unnest b (actual time=0.023..0.096 rows=32 loops=1)
+               ->  Limit (actual time=0.063..20.233 rows=16 loops=32)
+                     Buffers: shared hit=102105 read=20970 dirtied=17 written=6520
+                     ->  Nested Loop Anti Join (actual time=0.062..20.227 rows=16 loops=32)
+                           Buffers: shared hit=102105 read=20970 dirtied=17 written=6520
+                           ->  Index Scan using idx_tandem_outbox_dispatch on tandem_outbox o (actual time=0.034..8.180 rows=962 loops=32)
+                                 Index Cond: (bucket = b.bucket)
+                                 Filter: ((next_attempt_at IS NULL) OR (next_attempt_at <= now()))
+                                 Buffers: shared hit=10062 read=20657 dirtied=17 written=6415
+                           ->  Index Only Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.011..0.011 rows=1 loops=30785)
+                                 Index Cond: ((aggregate_id = (o.aggregate_id)::text) AND (id < o.id))
+                                 Heap Fetches: 0
+                                 Buffers: shared hit=92043 read=313 written=105
+ Planning:
+   Buffers: shared hit=393
+ Planning Time: 9.036 ms
+ Execution Time: 648.585 ms
+(25 rows)
+
+
+############ B. the claim as it is today, with an index on (id) WHERE status = 0 ############
+-- creating it concurrently so the write side is not blocked
+CREATE INDEX
+-- built in 1s, size 5360 kB
+ANALYZE
+                                                                                                                           QUERY PLAN                                                                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.162..3.790 rows=100 loops=1)
+   Buffers: shared hit=941 read=128 dirtied=58
+   ->  LockRows (actual time=0.161..3.768 rows=100 loops=1)
+         Buffers: shared hit=941 read=128 dirtied=58
+         ->  Nested Loop Anti Join (actual time=0.146..3.485 rows=100 loops=1)
+               Buffers: shared hit=741 read=128
+               ->  Index Scan using idx_probe_pending_id on tandem_outbox o (actual time=0.087..1.828 rows=111 loops=1)
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[])))
+                     Rows Removed by Filter: 721
+                     Buffers: shared hit=412 read=113
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.014..0.014 rows=0 loops=111)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+                     Buffers: shared hit=329 read=15
+ Planning:
+   Buffers: shared hit=372 read=5
+ Planning Time: 7.221 ms
+ Execution Time: 3.914 ms
+(18 rows)
+
+
+############ A again, for a like-for-like second reading with the new index present ############
+                                                                                                                           QUERY PLAN                                                                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.153..3.296 rows=100 loops=1)
+   Buffers: shared hit=1069
+   ->  LockRows (actual time=0.152..3.273 rows=100 loops=1)
+         Buffers: shared hit=1069
+         ->  Nested Loop Anti Join (actual time=0.117..2.975 rows=100 loops=1)
+               Buffers: shared hit=869
+               ->  Index Scan using idx_probe_pending_id on tandem_outbox o (actual time=0.059..1.431 rows=111 loops=1)
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[])))
+                     Rows Removed by Filter: 721
+                     Buffers: shared hit=525
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.013..0.013 rows=0 loops=111)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+                     Buffers: shared hit=344
+ Planning:
+   Buffers: shared hit=377
+ Planning Time: 6.146 ms
+ Execution Time: 3.645 ms
+(18 rows)
+
+
+-- dropping the probe index so the run continues as it would have
+DROP INDEX
+ANALYZE
+=== finished at 20:23:13 ===

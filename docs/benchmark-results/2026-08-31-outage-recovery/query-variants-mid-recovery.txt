@@ -1,0 +1,42 @@
+=== mid-recovery state at 20:29:32 ===
+ pending | done_awaiting_cleanup 
+---------+-----------------------
+  281019 |                 84841
+(1 row)
+
+############ A at the painful point ############
+                                                                                                                           QUERY PLAN                                                                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=863.986..876.470 rows=100 loops=1)
+   ->  LockRows (actual time=863.984..876.432 rows=100 loops=1)
+         ->  Nested Loop Anti Join (actual time=857.598..875.009 rows=119 loops=1)
+               ->  Index Scan using tandem_outbox_pkey on tandem_outbox o (actual time=857.516..866.375 rows=168 loops=1)
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[])))
+                     Rows Removed by Filter: 84195
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.046..0.046 rows=0 loops=168)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+ Planning Time: 13.372 ms
+ Execution Time: 876.755 ms
+(11 rows)
+
+CREATE INDEX
+ANALYZE
+############ B at the painful point ############
+                                                                                                                           QUERY PLAN                                                                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=9.842..14.593 rows=100 loops=1)
+   ->  LockRows (actual time=9.840..14.571 rows=100 loops=1)
+         ->  Nested Loop Anti Join (actual time=4.710..14.061 rows=200 loops=1)
+               ->  Index Scan using idx_probe_pending_id on tandem_outbox o (actual time=4.631..7.978 rows=301 loops=1)
+                     Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{4,68,132,196,12,76,140,204,20,84,148,212,28,92,156,220,36,100,164,228,44,108,172,236,52,116,180,244,60,124,188,252}'::integer[])))
+                     Rows Removed by Filter: 404
+               ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e (actual time=0.019..0.019 rows=0 loops=301)
+                     Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                     Filter: (status = ANY ('{0,1,3}'::integer[]))
+ Planning Time: 7.161 ms
+ Execution Time: 14.731 ms
+(11 rows)
+
+DROP INDEX
+=== finished at 20:29:47 ===

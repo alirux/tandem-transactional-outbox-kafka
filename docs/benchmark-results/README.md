@@ -66,12 +66,13 @@ Tier`) rather than billed.
 | `2026-08-30-ec2-s1-ab/` | Four alternating ceiling searches, adaptive vs fixed interval | Whether the adaptive backoff costs throughput (it does not, within what this host can resolve). Has its own [README](2026-08-30-ec2-s1-ab/README.md) |
 | `2026-08-30-wakeup/` | S10 on both hosts, plus four alternating ceiling searches on the reference host | What the post-commit wakeup buys on the cold row (8× on the Mac, 10× on the reference host, arms never overlapping), what it costs the write transaction (~0.1 ms on a native host, inside each arm's own spread) and that it costs no throughput this host can resolve. Has its own [README](2026-08-30-wakeup/README.md) |
 | `2026-08-31-endurance-wakeup/` | S9, the same six hours as `2026-08-30-endurance/` with `--wakeup=pg-notify`, on a Mac | What the wakeup holds over six hours: latency a third of the poll baseline's (4.7× at the median, 3.8× at the p99) with throughput, bucket coverage and storage unchanged, zero cleanup deadlocks after the fix, and four EXPLAIN captures that turn out not to describe the relay's own plan. Has its own [README](2026-08-31-endurance-wakeup/README.md) |
+| `2026-08-31-outage-recovery/` | S11 four times on a Mac, plus a query-variant comparison and a WAL-cost measurement | Why an outbox could not catch up after a relay outage, and the partial index that fixed it: a 30-minute outage went from diverging to recovering in seven minutes, for under 1% more WAL per insert. Also records two earlier diagnoses that were measured, plausible and wrong. Has its own [README](2026-08-31-outage-recovery/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples
-(`resources.csv`) and per-container samples (`containers.csv`). `2026-08-30-endurance/` and
-`2026-08-31-endurance-wakeup/` differ: they ran on a different host with a different instrument, and
-name their own files in their READMEs.
+(`resources.csv`) and per-container samples (`containers.csv`). `2026-08-30-endurance/`,
+`2026-08-31-endurance-wakeup/` and `2026-08-31-outage-recovery/` differ: they ran on a different host
+with different instruments, and name their own files in their READMEs.
 
 `2026-08-28-run3-suite/` is split across two log files for one reason worth stating: `loadtest-s1-s4.log`
 is the full-suite run, and `loadtest-s5-s6-s8.log` is the immediate re-run of the last three

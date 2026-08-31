@@ -1,0 +1,97 @@
+Tandem load test — scenarios=[S11], smoke=false, demo=false, duration=PT1H, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=PG_NOTIFY
+--- Running S11 ---
+20:12:28 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-49800-43c0, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:PgNotifyWakeup, maxAttempts:10, rowLeaseMs:60000
+20:12:28 INFO    com.codingful.tandem.jdbc.PgNotifyWakeup - Listening for relay wakeups channel:tandem_wakeup
+S11 outage start: relay down for 900s (steady pending 4)
+20:12:59 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:tandem-host-49800-43c0
+S11 outage end: backlog 358661 rows; restarting the relay
+20:28:00 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:tandem-host-49800-43c0, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:PgNotifyWakeup, maxAttempts:10, rowLeaseMs:60000
+20:28:00 INFO    com.codingful.tandem.jdbc.PgNotifyWakeup - Listening for relay wakeups channel:tandem_wakeup
+20:28:52 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:10000, ok:10000, ko:0
+20:28:52 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:10000, ok:10000, ko:0
+20:28:55 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:10000, ok:10000, ko:0
+20:28:55 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:10000, ok:10000, ko:0
+20:28:56 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:10000, ok:10000, ko:0
+20:28:58 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:10000, ok:10000, ko:0
+20:28:58 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:10000, ok:10000, ko:0
+20:28:59 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:10000, ok:10000, ko:0
+20:30:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:20000, ok:20000, ko:0
+20:30:05 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:20000, ok:20000, ko:0
+20:30:07 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:20000, ok:20000, ko:0
+20:30:09 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:20000, ok:20000, ko:0
+20:30:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:20000, ok:20000, ko:0
+20:30:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:20000, ok:20000, ko:0
+20:30:11 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:20000, ok:20000, ko:0
+20:30:12 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:20000, ok:20000, ko:0
+20:31:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:30000, ok:30000, ko:0
+20:31:43 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:30000, ok:30000, ko:0
+20:31:44 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:30000, ok:30000, ko:0
+20:31:49 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:30000, ok:30000, ko:0
+20:31:50 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:30000, ok:30000, ko:0
+20:31:54 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:30000, ok:30000, ko:0
+20:31:55 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:30000, ok:30000, ko:0
+20:31:56 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:30000, ok:30000, ko:0
+20:33:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:40000, ok:40000, ko:0
+20:33:39 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:40000, ok:40000, ko:0
+20:33:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:40000, ok:40000, ko:0
+20:33:47 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:40000, ok:40000, ko:0
+20:33:54 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:40000, ok:40000, ko:0
+20:33:57 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:40000, ok:40000, ko:0
+20:33:59 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:40000, ok:40000, ko:0
+20:34:00 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:40000, ok:40000, ko:0
+20:35:41 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:50000, ok:50000, ko:0
+20:35:44 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:50000, ok:50000, ko:0
+20:35:44 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:50000, ok:50000, ko:0
+20:35:59 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:50000, ok:50000, ko:0
+20:36:01 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:50000, ok:50000, ko:0
+20:36:10 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:50000, ok:50000, ko:0
+20:36:11 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:50000, ok:50000, ko:0
+20:36:19 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:50000, ok:50000, ko:0
+20:37:42 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:60000, ok:60000, ko:0
+20:37:44 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:60000, ok:60000, ko:0
+20:37:48 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:60000, ok:60000, ko:0
+20:38:25 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:60000, ok:60000, ko:0
+20:38:26 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:60000, ok:60000, ko:0
+20:38:26 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:60000, ok:60000, ko:0
+20:38:38 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:60000, ok:60000, ko:0
+20:38:40 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:60000, ok:60000, ko:0
+20:40:08 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:70000, ok:70000, ko:0
+20:40:08 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:70000, ok:70000, ko:0
+20:40:18 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:70000, ok:70000, ko:0
+20:40:37 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:70000, ok:70000, ko:0
+20:40:42 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:70000, ok:70000, ko:0
+20:40:46 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:70000, ok:70000, ko:0
+20:40:47 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:70000, ok:70000, ko:0
+20:40:52 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:70000, ok:70000, ko:0
+20:42:35 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:80000, ok:80000, ko:0
+20:42:38 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:80000, ok:80000, ko:0
+20:42:48 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:80000, ok:80000, ko:0
+20:42:55 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:80000, ok:80000, ko:0
+20:43:01 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:80000, ok:80000, ko:0
+20:43:09 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:80000, ok:80000, ko:0
+20:43:09 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:80000, ok:80000, ko:0
+20:43:36 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:80000, ok:80000, ko:0
+20:45:22 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:90000, ok:90000, ko:0
+20:45:25 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:90000, ok:90000, ko:0
+20:45:37 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:90000, ok:90000, ko:0
+20:45:40 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:90000, ok:90000, ko:0
+20:45:43 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:90000, ok:90000, ko:0
+20:46:17 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:90000, ok:90000, ko:0
+20:46:23 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:90000, ok:90000, ko:0
+20:46:30 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:90000, ok:90000, ko:0
+20:48:42 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:100000, ok:100000, ko:0
+20:48:44 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:100000, ok:100000, ko:0
+20:48:55 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:100000, ok:100000, ko:0
+20:49:00 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:100000, ok:100000, ko:0
+20:49:04 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:100000, ok:100000, ko:0
+20:49:15 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:100000, ok:100000, ko:0
+20:49:27 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:100000, ok:100000, ko:0
+20:49:48 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:100000, ok:100000, ko:0
+20:52:06 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w7, processed:110000, ok:110000, ko:0
+20:52:09 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w0, processed:110000, ok:110000, ko:0
+20:52:20 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w6, processed:110000, ok:110000, ko:0
+20:52:22 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w4, processed:110000, ok:110000, ko:0
+20:52:24 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w2, processed:110000, ok:110000, ko:0
+20:52:31 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w3, processed:110000, ok:110000, ko:0
+20:52:36 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w1, processed:110000, ok:110000, ko:0
+20:53:08 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-tandem-host-49800-43c0-w5, processed:110000, ok:110000, ko:0
