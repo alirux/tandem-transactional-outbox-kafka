@@ -724,7 +724,9 @@ its design follows from one rule: it may only make discovery faster, never make 
   see. Correctness is untouched; the cost is claim load, and it grows with the instance count.
   Filtering by ownership is not free either, because `BucketSource.ownedBuckets()` is a live query
   (§3.2) and the listener would have to cache it. Under `SINGLE` the question does not arise: one
-  instance owns every bucket.
+  instance owns every bucket. **Measured** at 400 events/s with two instances: ~820 claims/s without
+  the wakeup against ~1290 with it, about half of the increase being wakes for unowned buckets
+  (dispatch-latency §3.4).
 - **Every other failure mode is the polling default.** No adapter, an adapter that cannot connect, a
   connection pooler in transaction-pooling mode silently eating the subscription, a writer emitting
   what this relay does not listen for, a payload it cannot parse: each costs latency and only

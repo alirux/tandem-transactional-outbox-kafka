@@ -319,6 +319,34 @@ Concretely, and in one line each:
 | Worker wait | `WorkerWakeups`, a per-worker flag the idle wait ends on. A signal that arrives while its worker is mid-claim is remembered, not dropped, which is the case the mechanism exists for |
 | Driver footprint | `org.postgresql:postgresql` is `compileOnly` on `tandem-jdbc` and reaches no consumer POM; the one class touching it loads only where the mode is configured |
 
+**What it costs the database, measured.** At 400 events/s under `LEASE` with two instances of eight
+workers, the relay issues **~820 claims/s without the wakeup and ~1290 with it**, two and three per
+delivered event: half as many again, confirmed by three independent PostgreSQL counters (dispatch
+index scans +57%, aggregate index scans +43%, committed transactions +50%). Per worker that is a claim
+every ~20 ms against every ~12 ms, so the wakeup arm sits essentially pinned to its floor. Neither arm
+lost throughput on that host, but this is the cost the §3.2 analysis predicted in words and now has a
+number for, and roughly half of it is the broadcast below rather than the mechanism itself
+([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/)).
+
+**Two ways to buy that cost back, neither built.** They address different halves of it, and the split
+matters: at 3.2 claims per delivered event against 2.0, most of the extra claims are *productive but
+thinner* (the same work in smaller batches), not wasted.
+
+1. **Filter signals by ownership.** The broadcast below is the waste, and dropping signals for buckets
+   this instance does not own removes it entirely. It needs an in-memory copy of the owned set,
+   refreshed on the reclaim tick, since `BucketSource.ownedBuckets()` is a live query; a stale copy
+   drops a signal, which costs one poll interval and nothing else. No effect under `SINGLE`.
+2. **Give a wake a minimum spacing.** Today a signal ends the worker's wait immediately, so nothing
+   bounds how often it claims: `pollIntervalFloor` is not a brake, because the wake bypasses it.
+   Refusing to wake a worker that claimed less than `X` ms ago turns the cost into a choice — at 25 ms
+   that is 40 claims/s per worker, *below* the polling arm's ~50, with discovery still bounded at 25 ms
+   rather than at the ceiling.
+
+An **external cache or signal bus does neither**, and not for want of tuning: the claim is not a read.
+It also enforces the head-of-chain gate and takes exclusive ownership of the row, so a copy held
+elsewhere still has to be followed by the same statement against the database before anything is
+published (§3.5 rejects the bus form on its own grounds).
+
 **One property to know before turning it on under `LEASE`:** the notification is a broadcast, so
 every instance wakes a worker for every signal, including the roughly `(N-1)/N` of them naming buckets
 it does not own. Those wakes find nothing and leave the woken worker polling at its floor, which is
@@ -528,7 +556,11 @@ single-digit milliseconds. Absent that profile, the correct action is R1 plus th
   ran on the reference host (§6). What remains is not a measurement but a limit of the instrument: on a
   fast developer machine S1 cannot bracket a ceiling at all, because the relay outruns the harness's
   own load generator, so that half of the question can only ever be asked on the small host.
-- **Q-H.** Do wakeups deserve a metric of their own? Nothing counts signals received today, so an
-  operator whose pooler silently ate the subscription sees a latency profile that looks like the
-  polling default and no other symptom. A counter is cheap; whether it belongs in the metrics port,
-  which is a published contract, is the actual question.
+- **Q-H.** Do wakeups, and claims generally, deserve a metric? Nothing counts either today: an operator
+  whose pooler silently ate the subscription sees a latency profile that looks like the polling default
+  and no other symptom, and the claim rate itself had to be recovered from PostgreSQL's own counters to
+  be known at all (§3.4). That detour also surfaced something no one had seen: at the plateau the relay
+  alternates between two plans for the claim query, roughly every five to ten minutes, and which one is
+  running cannot be read from outside the database. It is the argument that this is not merely a
+  nicety: what is not counted is not noticed. A counter is cheap; whether it belongs in the metrics
+  port, which is a published contract, is the actual question.

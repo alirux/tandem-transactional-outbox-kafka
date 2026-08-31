@@ -100,6 +100,48 @@ generator can offer, so the search runs out of load before the relay runs out of
 on the reference host precisely because that host's ceiling (~1300/s) is well below the generator's
 own limit.
 
+## What it costs the database: about half as many claims again
+
+S10 and the ceiling searches say nothing about how hard the relay actually queries, because **nothing
+in the product counts a claim** — the per-cycle log line only fires when a claim returns rows, and
+there is no metric. So the count was taken from PostgreSQL's own counters instead, over two
+six-minute S9 runs at 400 events/s under `LEASE` (2 instances × 8 workers, 16 buckets per worker),
+identical but for the wakeup (`s9-claims-poll.log`, `s9-claims-wakeup.log`, sampled every 30 s into
+`claims-poll.tsv` / `claims-wakeup.tsv` by [`sample-claims.sh`](../sample-claims.sh)):
+
+| | claims/s | per delivered event | transactions/s |
+|---|---:|---:|---:|
+| poll | **~820** | 2.0 | 2 365 |
+| wakeup | **~1 290** | 3.2 | 3 543 |
+
+Per worker that is one claim every ~20 ms without the wakeup and every ~12 ms with it, which means
+the wakeup arm sits essentially pinned to its 10 ms floor. **Three independent counters agree on the
+ratio**: dispatch-index scans +57%, aggregate-index scans +43%, committed transactions +50%.
+
+Roughly half of that increase is the `LEASE` broadcast: `LISTEN` delivers every notification to every
+instance, so with two instances about half the wakes are for buckets the woken worker does not own,
+and it finds nothing (LLD-jdbc §3.10). Neither arm lost throughput here — both held 400/s with a p50
+of 17-21 ms — but the extra database work is real and grows with the instance count.
+
+**How the claim count was derived, and its one assumption.** The claim's plan is an Index Scan with
+`bucket = ANY(array)`, a `ScalarArrayOpExpr`, so PostgreSQL descends the index once per array element
+and `idx_scan` advances by one per bucket in the worker's slice. Dividing the dispatch-index rate by
+16 gives the claim rate. The ratio between the arms does not depend on that divisor; the absolute
+number does.
+
+## A second finding: the dispatch index stops being used once the table fills
+
+In **both** arms the `idx_tandem_outbox_dispatch` counter climbs at ~13 000/s and then freezes
+outright (six increments in two minutes) while the aggregate index's rate triples. It happens around
+200 MB / 200k rows, in both runs, which is autoanalyze updating the statistics and the planner
+abandoning the partial index that exists specifically to drive the poll, in favour of driving from
+the anti-join side.
+
+Correctness is unaffected and this is not a wakeup behaviour: it is a property of the claim under a
+full table that had never been observed, precisely because nothing counts claims. The `EXPLAIN` of
+the post-fill plan is not captured here — the container was gone by the time it was asked for — so
+what is archived is the counter evidence, not the plan itself.
+
 ## What this does not say
 
 - **Nothing about a busy stream.** At any rate high enough to keep a worker's slice warm the backoff
@@ -119,3 +161,5 @@ own limit.
 | `s10-mac.log`, `s10-ec2.log` | The harness's stdout for each S10 run, filtered as [the archive README](../README.md) describes |
 | `s1-ab-1-none.log` … `s1-ab-4-none.log` | The four alternating ceiling searches on the reference host, in the order they ran |
 | `s1-ab-mac.log` | The Mac's two attempts, kept as the evidence that the ceiling is not measurable there |
+| `s9-claims-poll.log`, `s9-claims-wakeup.log` | The two six-minute S9 runs the claim count was taken from |
+| `claims-poll.tsv`, `claims-wakeup.tsv` | PostgreSQL's index-scan and transaction counters, sampled every 30 s through each of those runs |
