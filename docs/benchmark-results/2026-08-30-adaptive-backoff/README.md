@@ -2,7 +2,7 @@
 
 The relay's idle wait stopped being a constant. It now starts at `pollIntervalFloor` (10 ms) after
 every claim that returned rows and climbs by `pollBackoffFactor` (2.0) to `pollInterval` (100 ms)
-while claims keep coming back empty ([LLD-jdbc §3.1](../LLD-jdbc.md)). These runs measure both halves
+while claims keep coming back empty ([LLD-jdbc §3.1](../../LLD-jdbc.md)). These runs measure both halves
 of that change on one host: the latency it buys, and the idle load it does not spend.
 
 ## Configuration
@@ -46,7 +46,7 @@ the control's p99.9 moved by a factor of five between replicates. Once most rows
 100 ms sleep, there is less for the host's own jitter to ride on.
 
 **It does not reach a fixed 10 ms interval, and is not meant to.** That cell measured p50 9.3 and
-p99 23 on this host ([relay-sizing §2](../relay-sizing.md)), against 13 and 60 here: inside a
+p99 23 on this host ([relay-sizing §2](../../relay-sizing.md)), against 13 and 60 here: inside a
 stream's short pauses the backoff has already climbed a step or two, so the ceiling still shows in
 the tail. What it buys against that cell is the idle load, 80 queries/s rather than 652.
 
@@ -76,7 +76,7 @@ Each log is the run's own output with Gradle's task lines and the per-row `FINE`
 sizing line, every ramp hold and the PASS line are intact.
 
 Developer Mac with Docker in a VM, not the reference host
-([HLD-load-testing §5](../HLD-load-testing.md)): read the ratios between arms, never the rates. **The
+([HLD-load-testing §5](../../HLD-load-testing.md)): read the ratios between arms, never the rates. **The
 figures published on the site and in the earlier archives were all measured at the fixed 100 ms
 interval** and therefore describe the pre-adaptive default; re-measuring them belongs on the
 reference host, not here.

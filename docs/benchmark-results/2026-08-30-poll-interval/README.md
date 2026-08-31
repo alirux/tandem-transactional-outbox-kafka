@@ -43,6 +43,6 @@ budget.
 | `host-samples.tsv` | per-minute host CPU speed limit, load average, and per-container CPU/memory/IO |
 
 Developer Mac with Docker in a VM, not the reference host
-([HLD-load-testing §5](../HLD-load-testing.md)): read the ratios between cells, never the rates. The
+([HLD-load-testing §5](../../HLD-load-testing.md)): read the ratios between cells, never the rates. The
 host's own CPU speed limit ranged from 55% to 100% during the session, which is what the replication
 and the reversed second pass exist to absorb.

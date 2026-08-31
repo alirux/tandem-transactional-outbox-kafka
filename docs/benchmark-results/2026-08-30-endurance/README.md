@@ -62,4 +62,4 @@ dies of in production are slow ones. Two things came out of this that a short ru
 | `postgres-deadlocks.log` | PostgreSQL's deadlock reports, with both offending statements |
 
 Absolute numbers are indicative, never KPIs: this is not the reference host
-([HLD-load-testing §5](../HLD-load-testing.md)). The run's value is in the *slope*, and there was none.
+([HLD-load-testing §5](../../HLD-load-testing.md)). The run's value is in the *slope*, and there was none.

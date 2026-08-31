@@ -1114,6 +1114,30 @@ and the fix belongs in the assertion.
   `caffeinate` because a laptop that sleeps mid-run ends it; `--connections=` because the pool is shared
   by the generator, both relay instances and the lag probe, and a probe that cannot get a connection
   throws rather than waiting quietly.
+
+  **Do the disk arithmetic before launching, and note that it has two terms, not one.** A run that
+  runs out of disk at hour four has produced nothing.
+
+  - **The outbox** is bounded by retention *only if cleanup is actually deleting*: with
+    `--retention`/`--cleanup-interval` set it plateaus at roughly `rate × row_size × retention`
+    (measured: ~450 MB at 400 events/s, 1 KB payloads, 10-minute retention). Without cleanup it is
+    `rate × row_size × duration` and grows without limit. The first endurance launch was at 1600
+    events/s with cleanup off: ~96 MB/min, ~35 GB over six hours against 13 GB free, and it would have
+    died around hour three.
+  - **The broker's log is the term that is easy to forget, and at the plateau it is the binding one.**
+    Kafka retains every delivered message for its own retention, which outbox cleanup does not touch,
+    so it grows with the whole run while the outbox stays flat. Measured over six hours at 400
+    events/s: free disk fell from 33 GB to about 21 GB, ~2 GB/hour, while `tandem_outbox` never moved
+    off ~450 MB. Size against Kafka retention, not against the outbox.
+
+  Three companion samplers live beside the logging config, all reading PostgreSQL's own counters
+  through `docker exec` because nothing in the product counts these things yet
+  ([dispatch-latency Q-H](dispatch-latency.md)): [`sample-claims.sh`](benchmark-results/sample-claims.sh)
+  (how often the claim runs, and which of its two plans is active),
+  [`sample-vacuum.sh`](benchmark-results/sample-vacuum.sh) (autovacuum/autoanalyze cadence and index
+  sizes) and [`capture-claim-plan.sh`](benchmark-results/capture-claim-plan.sh) (the plan the relay
+  actually executes, via `auto_explain`). Read the header of each before quoting its output: the claim
+  counters have no fixed divisor, and a hand-typed `EXPLAIN` does not return the relay's plan.
 - **Gauge demo:** `./gradlew :tandem-benchmark:lagGaugeDemo` → `LagGaugeDemo.main` (§6.2). Also out of
   `test`/`check`, and out of `loadTest`: it is a ~50s look at the shape of the lag gauges, not a
   measurement.
