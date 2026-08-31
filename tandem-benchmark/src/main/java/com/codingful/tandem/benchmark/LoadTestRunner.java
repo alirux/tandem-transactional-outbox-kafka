@@ -8,6 +8,7 @@ import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
 import com.codingful.tandem.benchmark.scenario.S6PoisonMessage;
 import com.codingful.tandem.benchmark.scenario.S8MultiInstanceLease;
 import com.codingful.tandem.benchmark.scenario.S10ColdBurst;
+import com.codingful.tandem.benchmark.scenario.S11OutageRecovery;
 import com.codingful.tandem.benchmark.scenario.S9Endurance;
 import com.codingful.tandem.benchmark.scenario.Scenario;
 import com.codingful.tandem.benchmark.scenario.ScenarioContext;
@@ -16,6 +17,7 @@ import com.codingful.tandem.jdbc.Wakeup;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,7 +31,7 @@ import java.util.Set;
  * shared environment (LLD-benchmark §8) rather than using the environment's primary {@code SINGLE} pool.
  *
  * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
- * [--poll-interval=<millis>] [--poll-floor=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>]
+ * [--poll-interval=<millis>] [--poll-floor=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>] [--outages=<s,s,s>]
  * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>]
  * [--wakeup=none|pg-notify] [S1,S2,...]}:
  * <ul>
@@ -98,9 +100,11 @@ public final class LoadTestRunner {
     private static final String CLEANUP_INTERVAL_PREFIX = "--cleanup-interval=";
     private static final String CLEANUP_BATCH_PREFIX = "--cleanup-batch=";
     private static final String WAKEUP_PREFIX = "--wakeup=";
+    private static final String OUTAGES_PREFIX = "--outages=";
     private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX,
             POLL_INTERVAL_PREFIX, POLL_FLOOR_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX,
-            RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX, WAKEUP_PREFIX);
+            RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX, WAKEUP_PREFIX,
+            OUTAGES_PREFIX);
 
     public static void main(String[] args) throws Exception {
         List<String> argList = List.of(args);
@@ -173,6 +177,7 @@ public final class LoadTestRunner {
                 .ifPresent(seconds -> config.cleanupInterval(Duration.ofSeconds(seconds)));
         longValue(args, CLEANUP_BATCH_PREFIX).ifPresent(n -> config.cleanupBatchSize(Math.toIntExact(n)));
         stringValue(args, WAKEUP_PREFIX).ifPresent(mode -> config.wakeup(wakeupMode(mode)));
+        stringValue(args, OUTAGES_PREFIX).ifPresent(list -> config.outages(outageList(list)));
         return config.build();
     }
 
@@ -181,6 +186,26 @@ public final class LoadTestRunner {
                 .filter(a -> a.startsWith(prefix))
                 .findFirst()
                 .map(a -> a.substring(prefix.length()).trim());
+    }
+
+    /** Comma-separated seconds, e.g. {@code --outages=900,1200,1800}, taken in the order given (S11). */
+    private static List<Duration> outageList(String value) {
+        List<Duration> outages = new ArrayList<>();
+        for (String part : value.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                outages.add(Duration.ofSeconds(Long.parseLong(trimmed)));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("--outages= takes comma-separated seconds, got: " + value, e);
+            }
+        }
+        if (outages.isEmpty()) {
+            throw new IllegalArgumentException("--outages= needs at least one value, got: " + value);
+        }
+        return outages;
     }
 
     /** {@code none} / {@code pg-notify}, spelled as the Spring property is rather than as the enum is. */
@@ -231,7 +256,8 @@ public final class LoadTestRunner {
                 new S6PoisonMessage(),
                 new S8MultiInstanceLease(),
                 new S9Endurance(),
-                new S10ColdBurst())) {
+                new S10ColdBurst(),
+                new S11OutageRecovery())) {
             byId.put(s.id(), s);
         }
         return Collections.unmodifiableMap(byId);

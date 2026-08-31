@@ -70,6 +70,112 @@ public interface AggregateSelector {
         };
     }
 
+    /**
+     * A population of short-lived aggregates: {@code concurrentAggregates} are active at any moment,
+     * each receives about {@code eventsPerAggregate} events (jittered by {@code quotaJitter}) spread
+     * over its life, and then retires for good and is replaced by an id never used before (S11).
+     *
+     * <p>This is the distribution a real write side produces, and the difference from
+     * {@link #uniform} is not cosmetic: with a fixed cardinality every aggregate's chain grows without
+     * bound, so in a backlog of {@code N} pending rows the head-of-chain gate leaves only
+     * {@code cardinality} of them claimable and the claim's cost per delivered row rises with
+     * {@code N}. Here chain length is bounded by the quota instead, so the share of claimable rows
+     * stays near {@code 1 / eventsPerAggregate} whatever the backlog. A measurement of backlog
+     * recovery is dominated by which of the two it ran under.
+     *
+     * <p>The id space is finite because {@link LoadGenerator} seeds every {@code bench_aggregate} row
+     * before driving load, so {@link #universe()} must be known upfront. Size it with
+     * {@link #universeSizeFor}: running out throws rather than recycling an id, because recycling
+     * would quietly restore the unbounded chains this selector exists to avoid.
+     *
+     * @param namespace            scopes the generated ids, as for the other selectors
+     * @param eventsPerAggregate   mean number of events an aggregate receives before retiring
+     * @param quotaJitter          fraction the quota varies by, uniformly in
+     *                             {@code [1 - jitter, 1 + jitter]}; {@code 0} for a fixed quota
+     * @param concurrentAggregates how many aggregates are active at once, which bounds how many
+     *                             chains the relay can drain in parallel: keep it well above the
+     *                             worker count or the workers starve on the gate rather than on work
+     * @param universeSize         size of the precomputed id space
+     * @throws IllegalArgumentException if any argument is out of range, or {@code universeSize} is
+     *                                  smaller than {@code concurrentAggregates}
+     */
+    static AggregateSelector lifecycle(String namespace, int eventsPerAggregate, double quotaJitter,
+            int concurrentAggregates, int universeSize) {
+        if (eventsPerAggregate < 1) {
+            throw new IllegalArgumentException("eventsPerAggregate must be at least 1");
+        }
+        if (quotaJitter < 0 || quotaJitter >= 1) {
+            throw new IllegalArgumentException("quotaJitter must be in [0, 1)");
+        }
+        if (concurrentAggregates < 1) {
+            throw new IllegalArgumentException("concurrentAggregates must be at least 1");
+        }
+        if (universeSize < concurrentAggregates) {
+            throw new IllegalArgumentException(
+                    "universeSize (" + universeSize + ") must be at least concurrentAggregates ("
+                            + concurrentAggregates + ")");
+        }
+        List<String> ids = idRange(namespace, universeSize);
+        return new AggregateSelector() {
+
+            private final int[] slotId = new int[concurrentAggregates];
+            private final int[] slotRemaining = new int[concurrentAggregates];
+            private int nextUnused;
+
+            {
+                for (int slot = 0; slot < concurrentAggregates; slot++) {
+                    slotId[slot] = nextUnused++;
+                    slotRemaining[slot] = quota();
+                }
+            }
+
+            private int quota() {
+                if (quotaJitter == 0) {
+                    return eventsPerAggregate;
+                }
+                double factor = 1 + ThreadLocalRandom.current().nextDouble(-quotaJitter, quotaJitter);
+                return Math.max(1, (int) Math.round(eventsPerAggregate * factor));
+            }
+
+            @Override
+            public synchronized String nextAggregateId() {
+                int slot = ThreadLocalRandom.current().nextInt(concurrentAggregates);
+                String id = ids.get(slotId[slot]);
+                if (--slotRemaining[slot] <= 0) {
+                    if (nextUnused >= ids.size()) {
+                        throw new IllegalStateException(
+                                "aggregate id space exhausted after " + ids.size()
+                                        + " ids; size it with AggregateSelector.universeSizeFor(...)");
+                    }
+                    slotId[slot] = nextUnused++;
+                    slotRemaining[slot] = quota();
+                }
+                return id;
+            }
+
+            @Override
+            public List<String> universe() {
+                return ids;
+            }
+        };
+    }
+
+    /**
+     * How large an id space {@link #lifecycle} needs to serve {@code expectedEvents}, taking the
+     * shortest quota the jitter allows and leaving one full active set of headroom.
+     *
+     * @param expectedEvents       upper bound on how many events the run will generate
+     * @param eventsPerAggregate   the same mean quota passed to {@link #lifecycle}
+     * @param quotaJitter          the same jitter passed to {@link #lifecycle}
+     * @param concurrentAggregates the same active-set size passed to {@link #lifecycle}
+     */
+    static int universeSizeFor(long expectedEvents, int eventsPerAggregate, double quotaJitter,
+            int concurrentAggregates) {
+        double shortestQuota = Math.max(1, eventsPerAggregate * (1 - quotaJitter));
+        long needed = (long) Math.ceil(expectedEvents / shortestQuota);
+        return (int) Math.min(Integer.MAX_VALUE, needed + concurrentAggregates);
+    }
+
     private static List<String> idRange(String namespace, int cardinality) {
         List<String> ids = new ArrayList<>(cardinality);
         for (int i = 0; i < cardinality; i++) {

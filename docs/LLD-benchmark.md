@@ -204,6 +204,19 @@ header (`BenchmarkHeaders.T0_NANOS`, §5.1).
   aggregate (`universe().get(0)`) and the rest uniformly over the remainder (S3, and S6's poison
   target). "Skewed" here is a simple two-population hot/cold split, not a true rank-based Zipfian
   distribution — sufficient for S3's actual need (one dominant hot key) without a heavier generator.
+- **`lifecycle` is a third distribution, and the only one whose chains stay bounded** (S11). It keeps
+  `concurrentAggregates` active at a time, gives each about `eventsPerAggregate` events (jittered, so
+  chains are not all the same length), then retires it for good and replaces it with an id never used
+  before. This matters far beyond labelling: under `uniform`, cardinality is fixed for the whole run,
+  so every aggregate's chain grows without bound, and in a backlog of `N` pending rows the
+  head-of-chain gate leaves only `cardinality` of them claimable. The share of claimable rows then
+  falls as the backlog grows, and any measurement of backlog recovery ends up describing the
+  generator's aggregate count rather than the relay. A real write side creates entities that emit a
+  handful of events and go quiet, which is what `lifecycle` reproduces: chain length bounded by the
+  quota, chain *count* growing with the backlog. Because `LoadGenerator` seeds every
+  `bench_aggregate` row upfront, `universe()` must be finite: size it with
+  `AggregateSelector.universeSizeFor(...)`, and note that running out **throws** rather than recycling
+  an id, because recycling would quietly restore the unbounded chains the distribution exists to avoid.
 - `LoadGenerator.insertedKeys()` exposes every successfully-committed `aggregateId#seq` — the set every
   scenario's zero-loss check reconciles against.
 
@@ -865,6 +878,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S7** | Causal-ordering overhead | **Deferred — 2nd round** (needs the causal-ordering feature); not implemented |
 | **S8** | Multi-instance `LEASE` coordination + crash recovery | Runs **three** relay instances (`env.newRelayInstance`, each its own producer) under `Coordination.LEASE`; waits for a fair 3-way partition, **kills one** (`WorkerPool.kill()` — an abrupt crash, not `stop()`), and confirms the two survivors reclaim its share and delivery still completes correctly. See §8.2/§8.3 for what this scenario found and fixed along the way |
 | **S10** | The cold row, wakeup on vs off | Four windows inside one run, in the order poll, wakeup, wakeup, poll (ABBA, so a linear host drift cancels). Each window builds its own relay instance and its own write side wired for that arm, holds a low fixed rate (`--rate=`, default 2/s) for `duration / 4`, drains, and reconciles; one shared consumer and one shared `LatencyRecorder` span the run, so each window's snapshot is the interval since the previous. Reports COMMIT→ack **and** the write transaction's own duration per arm |
+| **S11** | Outage recovery | `relayPool().stop()` for an outage taken from a ladder of duration fractions, then `start()` and poll `LagProbe` until pending is back to the steady state; reports backlog, recovery seconds and drain rate per cell. A cell that misses its bound is recorded as not recovered and the ladder **stops there**, so a diverging backlog cannot make the final drain unreachable. The only scenario using `AggregateSelector.lifecycle`: bounded chain length is what makes the recovery curve a property of the relay rather than of the generator (§4.2) |
 | **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows. The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
@@ -1077,15 +1091,18 @@ and the fix belongs in the assertion.
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
   [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--poll-floor=<millis>]
   [--rate=<events/s>]
-  [--window=<seconds>] [--connections=<n>] [--wakeup=none|pg-notify] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
+  [--window=<seconds>] [--connections=<n>] [--wakeup=none|pg-notify] [--outages=<s,s,s>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
-  layered on top), runs the selected scenarios (all six minus the deferred S7 by default) in sequence
+  layered on top), runs the selected scenarios (every one except the deferred S7 by default) in sequence
   against it, and prints a PASS/FAIL line + summary per scenario. `--wakeup=` turns the post-commit
   wakeup on for the whole run, write side and relay together (S10 ignores it: comparing the two arms is
   what that scenario does). Kept **out of the normal
   `test`/`check` lifecycle** — slow, resource-hungry, not meant for shared CI runners. Pass
   `LoadTestRunner` args through Gradle with `--args`, e.g.
-  `./gradlew :tandem-benchmark:loadTest --args="--demo S1,S2,S5,S6"`.
+  `./gradlew :tandem-benchmark:loadTest --args="--demo S1,S2,S5,S6"`. `--outages=` gives S11 its
+  ladder of relay outages in seconds, taken verbatim and **not clamped**: the scenario's own
+  fraction-of-duration ladder is a default for when nobody said what failure to measure, and a caller
+  naming a quarter-hour outage is describing one.
 - **Endurance runs (S9) do not go through the `loadTest` task.** That task pins
   `src/main/resources/logging.properties`, which raises `com.codingful.tandem` to `FINE` so the relay's
   per-cycle claim logging is visible — the right default for a run measured in minutes, and unusable for

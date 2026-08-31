@@ -3,6 +3,7 @@ package com.codingful.tandem.benchmark;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.benchmark.scenario.S10ColdBurst;
+import com.codingful.tandem.benchmark.scenario.S11OutageRecovery;
 import com.codingful.tandem.benchmark.scenario.S1SustainedThroughput;
 import com.codingful.tandem.benchmark.scenario.S3HotPartition;
 import com.codingful.tandem.benchmark.scenario.S5WorkerFailover;
@@ -25,7 +26,9 @@ import org.junit.jupiter.api.TestInstance;
  * poison, multi-instance LEASE coordination); S2/S4 reuse S1's infrastructure and are exercised only
  * in full runs. S10 is included for the same reason the others are: nothing else exercises the
  * post-commit wakeup, and its two arms build their own relay instances with and without a listening
- * connection.
+ * connection. S11 is here for the wiring rather than the measurement: at this duration its outage
+ * cells are a second each, which proves the stop/restart path and the lifecycle population are hooked
+ * up and says nothing about recovery time.
  */
 @Tag("integration")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -80,6 +83,11 @@ class SmokeLoadTest {
     @Test
     void s10ColdBurstSmoke() throws Exception {
         assertPassed(new S10ColdBurst());
+    }
+
+    @Test
+    void s11OutageRecoverySmoke() throws Exception {
+        assertPassed(new S11OutageRecovery());
     }
 
     private void assertPassed(Scenario scenario) throws Exception {

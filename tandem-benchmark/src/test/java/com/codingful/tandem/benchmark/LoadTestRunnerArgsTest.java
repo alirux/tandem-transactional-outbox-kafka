@@ -154,4 +154,24 @@ class LoadTestRunnerArgsTest {
         assertThat(relayConfig.retention()).isEqualTo(Duration.ofDays(14));
         assertThat(relayConfig.cleanupBatchSize()).isEqualTo(1000);
     }
+
+    @Test
+    void GIVEN_an_explicit_outage_ladder_WHEN_the_harness_is_configured_THEN_it_is_taken_in_the_order_given() {
+        BenchmarkConfig config = LoadTestRunner.configFrom(List.of("--outages=900,1200,1800"));
+
+        assertThat(config.outages())
+                .containsExactly(Duration.ofSeconds(900), Duration.ofSeconds(1200), Duration.ofSeconds(1800));
+    }
+
+    @Test
+    void GIVEN_no_outage_ladder_WHEN_the_harness_is_configured_THEN_the_scenario_derives_its_own() {
+        assertThat(LoadTestRunner.configFrom(List.of()).outages()).isEmpty();
+    }
+
+    @Test
+    void GIVEN_an_outage_ladder_that_is_not_seconds_WHEN_the_harness_is_configured_THEN_it_refuses_to_run() {
+        assertThatThrownBy(() -> LoadTestRunner.configFrom(List.of("--outages=900,soon")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("comma-separated seconds");
+    }
 }

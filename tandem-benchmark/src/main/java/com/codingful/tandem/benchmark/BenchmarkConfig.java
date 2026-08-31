@@ -2,6 +2,7 @@ package com.codingful.tandem.benchmark;
 
 import com.codingful.tandem.jdbc.Wakeup;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -35,6 +36,7 @@ public final class BenchmarkConfig {
     private final Duration window;
     private final double offeredRate;
     private final Duration retention;
+    private final List<Duration> outages;
     private final Duration cleanupInterval;
     private final int cleanupBatchSize;
     private final LatencyMode latencyMode;
@@ -57,6 +59,7 @@ public final class BenchmarkConfig {
         this.window = b.window;
         this.offeredRate = b.offeredRate;
         this.retention = b.retention;
+        this.outages = List.copyOf(b.outages);
         this.cleanupInterval = b.cleanupInterval;
         this.cleanupBatchSize = b.cleanupBatchSize;
         this.latencyMode = b.latencyMode;
@@ -171,6 +174,15 @@ public final class BenchmarkConfig {
         return retention;
     }
 
+    /**
+     * Outage lengths S11 works through, longest-running measurement first to last. Empty means the
+     * scenario derives its own ladder from {@link #duration()}; an explicit list is taken as given and
+     * is not clamped, because a caller naming a fifteen-minute outage means it.
+     */
+    public List<Duration> outages() {
+        return outages;
+    }
+
     /** How often the relay's cleanup pass runs. Default 15 min, matching {@code RelayConfig}'s. */
     public Duration cleanupInterval() {
         return cleanupInterval;
@@ -234,6 +246,7 @@ public final class BenchmarkConfig {
                 .window(window)
                 .offeredRate(offeredRate)
                 .retention(retention)
+                .outages(outages)
                 .cleanupInterval(cleanupInterval)
                 .cleanupBatchSize(cleanupBatchSize)
                 .latencyMode(latencyMode)
@@ -299,6 +312,7 @@ public final class BenchmarkConfig {
         private Duration window = Duration.ofMinutes(20);
         private double offeredRate = 0;   // 0 = the scenario finds its own
         private Duration retention = Duration.ofDays(14);        // RelayConfig's own defaults
+        private List<Duration> outages = List.of();
         private Duration cleanupInterval = Duration.ofMinutes(15);
         private int cleanupBatchSize = 1000;
         private LatencyMode latencyMode = LatencyMode.PROXY;
@@ -406,6 +420,18 @@ public final class BenchmarkConfig {
         }
 
         /** How long a {@code DONE} row is kept; must be positive. Default 14 days. */
+        /** Empty leaves S11 to derive its own ladder; a non-empty list is used verbatim. */
+        public Builder outages(List<Duration> outages) {
+            List<Duration> copy = List.copyOf(Objects.requireNonNull(outages, "outages"));
+            copy.forEach(outage -> {
+                if (outage.isNegative() || outage.isZero()) {
+                    throw new IllegalArgumentException("every outage must be positive, got " + outage);
+                }
+            });
+            this.outages = copy;
+            return this;
+        }
+
         public Builder retention(Duration retention) {
             this.retention = Objects.requireNonNull(retention, "retention");
             return this;

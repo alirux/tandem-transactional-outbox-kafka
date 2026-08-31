@@ -210,6 +210,7 @@ statement about the run, not about Tandem.
 | **S8** | Multi-instance `LEASE` coordination | Disjoint bucket ownership; failover between instances | Run three relay instances under `Coordination.LEASE` against one outbox; confirm the partition is disjoint and complete, then kill one abruptly and confirm the survivors reclaim its share with ordering intact |
 | **S9** | Endurance | Nothing drifts over hours; coverage holds across many renewal cycles | Hold a fixed, moderate rate (≈50% of a short seed ramp) under `LEASE` for hours, sliced into reporting windows; compare the last window's throughput and latency against the first, and sample bucket coverage, outbox size, dead tuples and heap every window |
 | **S10** | Cold row, with and without the post-commit wakeup | What the wakeup buys on discovery, and what it costs the write path | Hold a rate low enough that every event arrives into a worker slice already waiting at `pollInterval`; alternate four windows (poll, wakeup, wakeup, poll) inside one run and report COMMIT→ack **and** the write transaction's own duration for each arm |
+| **S11** | Outage recovery | How long an outbox takes to come back after the relay was down, and whether it comes back at all | Stop the relay while the write side keeps going, restart it, and time the return to the steady state; repeat for a ladder of outage lengths, stopping at the first that does not recover inside its bound. Uses a **lifecycle** write-side population (aggregates emit a bounded number of events and retire) rather than a fixed cardinality, because under a fixed cardinality chain length grows with the run and the recovery curve measures the generator |
 
 Each scenario asserts **zero ordering violations** per aggregate (consumer verifies
 `seq` is strictly increasing per `aggregate_id`) and **zero lost events** (every committed
@@ -337,7 +338,7 @@ non-negotiable regardless of performance).
   Tandem publishes as a performance figure has its raw run archived there — a number whose
   measurement cannot be re-examined is not one this project quotes.
 - A *smoke* variant (tiny rate, short duration) **does** run — `SmokeLoadTest`
-  (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9, S10 against `BenchmarkConfig.toSmoke()`, purely
+  (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9, S10, S11 against `BenchmarkConfig.toSmoke()`, purely
   to keep the harness compiling and wired; it asserts correctness, never KPI numbers.
   Measured wall-clock on a developer machine: **~106 s** (LLD-benchmark §9); most of that
   is deliberate idle time (S5's row-lease wait with the relay stopped, S3's drain-tail
