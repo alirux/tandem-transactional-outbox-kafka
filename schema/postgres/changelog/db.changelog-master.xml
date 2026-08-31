@@ -27,5 +27,6 @@
     <include file="v2-replays.sql" relativeToChangelogFile="true"/>
     <include file="v3-managed-seq.sql" relativeToChangelogFile="true"/>
     <include file="v4-optional-seq.sql" relativeToChangelogFile="true"/>
+    <include file="v5-claim-under-backlog.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

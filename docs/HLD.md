@@ -454,6 +454,7 @@ it small even as `DONE` rows accumulate between cleanup passes.
 | Index | Serves | Restricted to |
 |---|---|---|
 | `idx_tandem_outbox_dispatch` | the bucket poll, by bucket then id | `PENDING` |
+| `idx_tandem_outbox_pending_id` | the claim's `ORDER BY id`, without the delivered rows the primary key carries | `PENDING` |
 | `idx_tandem_outbox_aggregate` | the head-of-chain / poison check per aggregate (§6, E2) | `PENDING`, `IN_FLIGHT`, `FAILED` |
 | `idx_tandem_outbox_inflight` | the ~5 s lease-reclaim over expired leases | `IN_FLIGHT` |
 | `idx_tandem_outbox_failed` | the metrics tick's `failed.count` and `blocked.count` readings | `FAILED` |

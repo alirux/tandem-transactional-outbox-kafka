@@ -411,8 +411,22 @@ UPDATE tandem_outbox o
 RETURNING o.*;                                          -- the claimed OutboxRecords
 ```
 - `FOR UPDATE SKIP LOCKED` guards the brief membership-change window (§3.2).
-- The `idx_tandem_outbox_dispatch (bucket, id) WHERE status=0` index drives the scan; the `NOT EXISTS` uses
-  `idx_tandem_outbox_aggregate (aggregate_id, id) WHERE status IN (0,1,3)`.
+- **Which index drives the scan depends on how far behind the outbox is**, and the `ORDER BY o.id` is
+  what decides it. `idx_tandem_outbox_dispatch (bucket, id) WHERE status=0` can seek straight to the
+  owned buckets but yields rows in bucket-major order, so satisfying the sort from it costs a `Sort`;
+  the optimiser therefore prefers an access path already in `id` order (§7.4 records the same
+  preference from the MySQL side). With only the v1 indexes that path is the primary key, which also
+  visits `DONE` rows, and a busy outbox holds far more of those than pending ones. Under a backlog the
+  claim then spends its time crossing delivered rows: measured at 877 ms discarding 84 195 rows on an
+  outbox recovering from an outage. `idx_tandem_outbox_pending_id (id) WHERE status = 0` (v5) is that
+  same `id` order over pending rows only, so the optimiser keeps the sort-free path and stops paying
+  for the delivered ones: 15 ms discarding 404 rows on the same table. The `NOT EXISTS` uses
+  `idx_tandem_outbox_aggregate (aggregate_id, id) WHERE status IN (0,1,3)` throughout.
+- **The `ORDER BY o.id` is load-bearing and must not be relaxed to help the index choice.** Ids grow
+  with time, so an aggregate's oldest row has its lowest id, and that is precisely the row the
+  head-of-chain gate admits: `id` order meets the heads first. Ordering by `(bucket, id)` instead was
+  measured on the same outbox and is worse, not better (105 ms against 37 ms), because a bucket-major
+  walk works through rows the gate then rejects.
 - **Each claimed row is the head of a _distinct_ aggregate** — the `NOT EXISTS` excludes any aggregate
   that has an earlier unfinished row, so a batch is up to `batch_size` distinct aggregates. These are
   independent and are dispatched with **overlapping in-flight sends** in §3.4; `batch_size` is therefore
@@ -817,7 +831,9 @@ default and the code never sets a level. MySQL defaults to `REPEATABLE READ`, an
 the relay **scales negatively**.
 
 The head-of-chain claim (§3.3) makes the optimiser choose **`PRIMARY`** as the access path — not
-`idx_tandem_outbox_dispatch` — in order to satisfy `ORDER BY id LIMIT n`. Under `REPEATABLE READ`
+`idx_tandem_outbox_dispatch` — in order to satisfy `ORDER BY id LIMIT n`. (The same preference has a
+cost on PostgreSQL that has nothing to do with locking, and is why v5 adds
+`idx_tandem_outbox_pending_id`: see §3.3.) Under `REPEATABLE READ`
 every row *examined* takes a next-key lock, whether or not it matches the `WHERE`. Measured with
 one worker of four claiming a batch of 10 from buckets `{0,4}`, over 200 000 rows across 400
 aggregates and B = 8:
