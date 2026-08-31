@@ -1,0 +1,34 @@
+=== Final database snapshot, 2026-08-31 03:52:57 (taken before the run ends and the container is removed) ===
+            indexrelname            |    size    | idx_scan | idx_tup_read | idx_tup_fetch 
+------------------------------------+------------+----------+--------------+---------------
+ idx_tandem_outbox_aggregate        | 232 kB     | 33385085 |   2444603451 |     150863634
+ idx_tandem_outbox_correlation      | 4632 kB    |       36 |      3101828 |        737686
+ idx_tandem_outbox_dispatch         | 1264 kB    | 70123035 |     25806835 |       1223642
+ idx_tandem_outbox_failed           | 8192 bytes |    11670 |            0 |             0
+ idx_tandem_outbox_inflight         | 1128 kB    |     7824 |       130252 |             0
+ tandem_outbox_aggregate_id_seq_key | 27 MB      |  7905493 |      7914865 |       5537937
+ tandem_outbox_pkey                 | 12 MB      | 20198018 |     69345456 |      57541759
+(7 rows)
+
+ n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_del | n_tup_hot_upd | seq_scan | idx_scan  | vacuum_count | autovacuum_count | analyze_count | autoanalyze_count 
+------------+------------+-----------+-----------+-----------+---------------+----------+-----------+--------------+------------------+---------------+-------------------
+     243925 |      34181 |   8171412 |  16342754 |   7927092 |             0 |     1890 | 131631508 |            0 |              341 |             0 |               341
+(1 row)
+
+ status | count  
+--------+--------
+      0 |      1
+      1 |      3
+      2 | 244697
+(3 rows)
+
+ xact_commit | xact_rollback | deadlocks | temp_files |  blks_hit  | blks_read | tup_returned | tup_fetched 
+-------------+---------------+-----------+------------+------------+-----------+--------------+-------------
+    74996152 |             0 |         0 |          0 | 3863636692 | 132241733 |  10597254567 |   237770079
+(1 row)
+
+ outbox_total | db_total 
+--------------+----------
+ 447 MB       | 455 MB
+(1 row)
+

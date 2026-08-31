@@ -1,0 +1,79 @@
+=== EXPLAIN #2 (plateau) started 2026-08-30 22:35:07 ===
+  rows  | total  | dead  |        last_autovacuum        
+--------+--------+-------+-------------------------------
+ 250188 | 446 MB | 44727 | 2026-08-30 20:34:33.307378+00
+(1 row)
+
+--- 2a: EXPLAIN (COSTS OFF), like-for-like with capture #1, at 22:35:08 ---
+                                                                                        QUERY PLAN                                                                                         
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit
+   ->  LockRows
+         ->  Sort
+               Sort Key: o.id
+               ->  Nested Loop Anti Join
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox o
+                           Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}'::integer[])))
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e
+                           Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                           Filter: (status = ANY ('{0,1,3}'::integer[]))
+(10 rows)
+
+--- 2b: EXPLAIN (ANALYZE, BUFFERS), executed, at 22:35:08 ---
+                                                                                        QUERY PLAN                                                                                         
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=189.30..189.32 rows=1 width=20) (actual time=1.468..1.470 rows=0 loops=1)
+   Buffers: shared hit=62
+   ->  LockRows  (cost=189.30..189.32 rows=1 width=20) (actual time=1.466..1.468 rows=0 loops=1)
+         Buffers: shared hit=62
+         ->  Sort  (cost=189.30..189.31 rows=1 width=20) (actual time=0.828..0.829 rows=1 loops=1)
+               Sort Key: o.id
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=59
+               ->  Nested Loop Anti Join  (cost=0.53..189.29 rows=1 width=20) (actual time=0.225..0.502 rows=1 loops=1)
+                     Buffers: shared hit=56
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox o  (cost=0.26..164.98 rows=1 width=30) (actual time=0.128..0.403 rows=1 loops=1)
+                           Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}'::integer[])))
+                           Rows Removed by Filter: 9
+                           Buffers: shared hit=54
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e  (cost=0.26..12.29 rows=1 width=30) (actual time=0.091..0.091 rows=0 loops=1)
+                           Index Cond: (((aggregate_id)::text = (o.aggregate_id)::text) AND (id < o.id))
+                           Filter: (status = ANY ('{0,1,3}'::integer[]))
+                           Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=365
+ Planning Time: 12.242 ms
+ Execution Time: 1.790 ms
+(22 rows)
+
+=== EXPLAIN #2 finished 2026-08-30 22:35:08 ===
+=== index definitions + sizes, 22:35:42 ===
+            indexrelname            |    size    | idx_scan 
+------------------------------------+------------+----------
+ idx_tandem_outbox_aggregate        | 192 kB     |  2014573
+ idx_tandem_outbox_correlation      | 4072 kB    |        6
+ idx_tandem_outbox_dispatch         | 1264 kB    |  3900602
+ idx_tandem_outbox_failed           | 8192 bytes |     1031
+ idx_tandem_outbox_inflight         | 984 kB     |      750
+ tandem_outbox_aggregate_id_seq_key | 26 MB      |  2303937
+ tandem_outbox_pkey                 | 10 MB      |  1258259
+(7 rows)
+
+             indexname              |                                                               indexdef                                                                
+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------
+ tandem_outbox_pkey                 | CREATE UNIQUE INDEX tandem_outbox_pkey ON public.tandem_outbox USING btree (id)
+ tandem_outbox_aggregate_id_seq_key | CREATE UNIQUE INDEX tandem_outbox_aggregate_id_seq_key ON public.tandem_outbox USING btree (aggregate_id, seq)
+ idx_tandem_outbox_dispatch         | CREATE INDEX idx_tandem_outbox_dispatch ON public.tandem_outbox USING btree (bucket, id) WHERE (status = 0)
+ idx_tandem_outbox_aggregate        | CREATE INDEX idx_tandem_outbox_aggregate ON public.tandem_outbox USING btree (aggregate_id, id) WHERE (status = ANY (ARRAY[0, 1, 3]))
+ idx_tandem_outbox_inflight         | CREATE INDEX idx_tandem_outbox_inflight ON public.tandem_outbox USING btree (locked_until) WHERE (status = 1)
+ idx_tandem_outbox_failed           | CREATE INDEX idx_tandem_outbox_failed ON public.tandem_outbox USING btree (aggregate_id, id) WHERE (status = 3)
+ idx_tandem_outbox_correlation      | CREATE INDEX idx_tandem_outbox_correlation ON public.tandem_outbox USING btree (correlation_id)
+(7 rows)
+
+ status | count  
+--------+--------
+      0 |      5
+      1 |      2
+      2 | 252341
+(3 rows)
+

@@ -1,0 +1,51 @@
+=== EXPLAIN #3 (late night) started 2026-08-31 02:00:57 ===
+dispatch idx_scan regime probe: 48604345 -> 48604354 over 30s = 0/s
+  rows  | total  | dead  
+--------+--------+-------
+ 246781 | 452 MB | 71109
+(1 row)
+
+--- 3a: EXPLAIN (COSTS OFF) at 02:01:28 ---
+                                                                                        QUERY PLAN                                                                                         
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit
+   ->  LockRows
+         ->  Sort
+               Sort Key: o.id
+               ->  Nested Loop Anti Join
+                     Join Filter: ((e.id < o.id) AND ((e.aggregate_id)::text = (o.aggregate_id)::text))
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox o
+                           Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}'::integer[])))
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e
+                           Filter: (status = ANY ('{0,1,3}'::integer[]))
+(10 rows)
+
+--- 3b: EXPLAIN (ANALYZE, BUFFERS) at 02:01:28 ---
+                                                                                        QUERY PLAN                                                                                         
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=16.59..16.60 rows=1 width=20) (actual time=0.728..0.729 rows=0 loops=1)
+   Buffers: shared hit=104
+   ->  LockRows  (cost=16.59..16.60 rows=1 width=20) (actual time=0.727..0.728 rows=0 loops=1)
+         Buffers: shared hit=104
+         ->  Sort  (cost=16.59..16.59 rows=1 width=20) (actual time=0.596..0.597 rows=1 loops=1)
+               Sort Key: o.id
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=101
+               ->  Nested Loop Anti Join  (cost=0.50..16.58 rows=1 width=20) (actual time=0.506..0.507 rows=1 loops=1)
+                     Join Filter: ((e.id < o.id) AND ((e.aggregate_id)::text = (o.aggregate_id)::text))
+                     Rows Removed by Join Filter: 6
+                     Buffers: shared hit=98
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox o  (cost=0.25..8.29 rows=1 width=30) (actual time=0.451..0.452 rows=1 loops=1)
+                           Filter: ((status = 0) AND ((next_attempt_at IS NULL) OR (next_attempt_at <= now())) AND (bucket = ANY ('{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}'::integer[])))
+                           Rows Removed by Filter: 5
+                           Buffers: shared hit=49
+                     ->  Index Scan using idx_tandem_outbox_aggregate on tandem_outbox e  (cost=0.25..8.27 rows=1 width=30) (actual time=0.022..0.050 rows=6 loops=1)
+                           Filter: (status = ANY ('{0,1,3}'::integer[]))
+                           Buffers: shared hit=49
+ Planning:
+   Buffers: shared hit=367
+ Planning Time: 13.553 ms
+ Execution Time: 0.880 ms
+(23 rows)
+
+=== EXPLAIN #3 finished 2026-08-31 02:01:28 ===

@@ -1,0 +1,3 @@
+vigorous_chaplygin	confluentinc/cp-kafka:7.6.1
+clever_bohr	postgres:16-alpine
+testcontainers-ryuk-b0b7314d-062f-4965-9dec-9cd64312c536	testcontainers/ryuk:0.12.0
