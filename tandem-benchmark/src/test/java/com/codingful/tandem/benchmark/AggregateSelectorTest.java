@@ -4,11 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -50,19 +51,35 @@ class AggregateSelectorTest {
         List<String> emitted = emit(
                 AggregateSelector.lifecycle(NAMESPACE, QUOTA, JITTER, window, 5_000), 100_000);
 
-        Set<Integer> retiredLengths = Set.copyOf(retiredCounts(emitted, window).values());
+        Collection<Integer> lengths = countById(emitted).values();
 
-        assertThat(retiredLengths).hasSizeGreaterThan(1);
-        assertThat(retiredLengths).allSatisfy(length -> assertThat(length).isBetween(MIN_QUOTA, MAX_QUOTA));
+        // Only the jitter can carry an aggregate past the nominal quota, so the lengths beyond it are
+        // the ones that prove it is applied. An aggregate still active at the end is caught mid-life,
+        // short of its own quota, which is why "the lengths differ" is not the assertion to make here:
+        // that is what a build with the jitter removed walked through, the partially filled active
+        // aggregates supplying the variation it was looking for.
+        Set<Integer> beyondNominal =
+                lengths.stream().filter(length -> length > QUOTA).collect(Collectors.toSet());
+        assertThat(beyondNominal).hasSizeGreaterThan(1);
+        assertThat(lengths).allSatisfy(length -> assertThat(length).isLessThanOrEqualTo(MAX_QUOTA));
     }
 
     @Test
     void GIVEN_a_fixed_quota_WHEN_many_aggregates_retire_THEN_every_length_is_exactly_the_quota() {
         int window = 4;
+        int quota = 10;
         List<String> emitted = emit(
-                AggregateSelector.lifecycle(NAMESPACE, 10, 0, window, 5_000), 10_000);
+                AggregateSelector.lifecycle(NAMESPACE, quota, 0, window, 5_000), 10_000);
 
-        assertThat(Set.copyOf(retiredCounts(emitted, window).values())).containsExactly(10);
+        Collection<Integer> lengths = countById(emitted).values();
+
+        // Which aggregates retired is not observable from their ids: each slot retires at its own
+        // pace, so one started early can still be running long after later ones have come and gone.
+        // What is certain is that only `window` are active at any moment, so at most that many
+        // lengths may be short, and without jitter none of them may run past the quota.
+        assertThat(lengths).hasSizeGreaterThan(window);
+        assertThat(lengths).allSatisfy(length -> assertThat(length).isLessThanOrEqualTo(quota));
+        assertThat(lengths.stream().filter(length -> length < quota)).hasSizeLessThanOrEqualTo(window);
     }
 
     @Test
@@ -152,27 +169,4 @@ class AggregateSelectorTest {
         return counts;
     }
 
-    /**
-     * Counts for aggregates that certainly retired, so a partially filled active one can never be
-     * mistaken for a short quota. Ids are handed out in increasing order and only the last
-     * {@code window} of them can still be active, so everything below that is finished. Filtering by
-     * "count looks big enough" instead is what let a build with the jitter removed pass: the active
-     * aggregates supplied the variation the assertion was looking for.
-     */
-    private static Map<String, Integer> retiredCounts(List<String> emitted, int window) {
-        Map<String, Integer> counts = countById(emitted);
-        int highest = counts.keySet().stream().mapToInt(AggregateSelectorTest::indexOf).max().orElseThrow();
-        Map<String, Integer> retired = new HashMap<>();
-        counts.forEach((id, count) -> {
-            if (indexOf(id) <= highest - window) {
-                retired.put(id, count);
-            }
-        });
-        assertThat(retired).as("the run must retire enough aggregates to assert on").isNotEmpty();
-        return retired;
-    }
-
-    private static int indexOf(String aggregateId) {
-        return Integer.parseInt(aggregateId.substring(aggregateId.lastIndexOf('-') + 1));
-    }
 }
