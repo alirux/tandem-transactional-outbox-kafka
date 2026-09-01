@@ -50,6 +50,14 @@ public final class WorkerPool {
     private final AtomicLongArray lastCycleAtMillis;
     /** Where {@link #wakeupSource} signals land, and what a worker's idle wait ends on. */
     private final WorkerWakeups wakeups;
+    /**
+     * The buckets this instance owned as of the last heartbeat, and the filter every incoming signal
+     * passes ({@link #isWakeable}). A snapshot rather than a live read because {@code LISTEN} is a
+     * broadcast: under {@code LEASE} every instance is told about every bucket, so the filter runs once
+     * per notification, and {@link BucketSource#ownedBuckets()} is a query (§3.2) — asking it that
+     * often would cost more than the wakes it saves.
+     */
+    private volatile Set<Integer> ownedBuckets = Set.of();
     private volatile boolean running;
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
@@ -370,6 +378,35 @@ public final class WorkerPool {
         } catch (Exception e) {
             LOG.log(Level.ERROR, "Bucket heartbeat failed", e);
         }
+        refreshOwnedBuckets();
+    }
+
+    /**
+     * Re-reads {@link #ownedBuckets} on the same cadence ownership itself changes on. A failed read
+     * <b>keeps the previous snapshot</b>: emptying it would silence every wakeup until the next tick,
+     * which is a worse answer than acting on ownership that is a few seconds old — and stale ownership
+     * costs nothing here, since a signal for a bucket this instance no longer owns wakes a worker that
+     * claims nothing, and one for a bucket it has just acquired is simply dropped and found by the
+     * next poll (§3.10).
+     */
+    private void refreshOwnedBuckets() {
+        try {
+            ownedBuckets = Set.copyOf(bucketSource.ownedBuckets());
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Refreshing the wakeup bucket filter failed; keeping the previous"
+                    + " snapshot instanceId:" + instanceId, e);
+        }
+    }
+
+    /**
+     * Whether a signal for {@code bucket} is worth waking a worker for: this instance must own it and
+     * it must not be paused. Under {@code SINGLE} every bucket is owned, so this only ever filters the
+     * paused ones.
+     */
+    private boolean isWakeable(int bucket) {
+        return ownedBuckets.contains(bucket)
+                && !controlSource.wholeRelayPaused()
+                && !controlSource.bucketPaused(bucket);
     }
 
     /**
@@ -483,13 +520,38 @@ public final class WorkerPool {
     }
 
     /**
-     * Starts delivering wakeups into {@link #wakeups}. A source that cannot start must not stop the
+     * Starts delivering wakeups into {@link #wakeups}, through the ownership filter. A signal names a
+     * bucket, not an instance, and {@code LISTEN} delivers it to every listener, so under {@code LEASE}
+     * roughly {@code (N-1)/N} of what arrives here is about buckets some other instance owns. Waking a
+     * worker for those costs a claim that finds nothing — twice over, since the claim re-reads
+     * ownership itself — and it is the largest part of what the wakeup adds to the database
+     * (dispatch-latency §3.4).
+     *
+     * <p>A source that cannot start must not stop the
      * relay: discovery falls back to the poll interval, which bounds it in every configuration anyway
      * (dispatch-latency §2, C2).
      */
     private void startWakeups() {
         try {
-            wakeupSource.start(wakeups);
+            // Populated before the source can deliver anything: the ownership tick would fill it a
+            // moment later anyway, and until then every signal would be dropped as unowned.
+            refreshOwnedBuckets();
+            wakeupSource.start(new WakeupSource.Listener() {
+                @Override
+                public void wake(int bucket) {
+                    if (isWakeable(bucket)) {
+                        wakeups.wake(bucket);
+                    }
+                }
+
+                @Override
+                public void wakeAll() {
+                    // Deliberately unfiltered: a sweep means "something was missed and I cannot say
+                    // which bucket", so every worker checks its own slice, which is where ownership is
+                    // decided anyway.
+                    wakeups.wakeAll();
+                }
+            });
         } catch (Exception e) {
             LOG.log(Level.ERROR, "Starting the wakeup source failed; discovery is the poll loop only"
                     + " instanceId:" + instanceId, e);

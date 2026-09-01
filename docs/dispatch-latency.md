@@ -328,31 +328,42 @@ lost throughput on that host, but this is the cost the §3.2 analysis predicted 
 number for, and roughly half of it is the broadcast below rather than the mechanism itself
 ([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/)).
 
-**Two ways to buy that cost back, neither built.** They address different halves of it, and the split
-matters: at 3.2 claims per delivered event against 2.0, most of the extra claims are *productive but
-thinner* (the same work in smaller batches), not wasted.
+**One of the three ways to buy that cost back is now built.** They address different halves of it,
+and the split matters: at 3.2 claims per delivered event against 2.0, most of the extra claims are
+*productive but thinner* (the same work in smaller batches), not wasted.
 
-1. **Filter signals by ownership.** The broadcast below is the waste, and dropping signals for buckets
-   this instance does not own removes it entirely. It needs an in-memory copy of the owned set,
-   refreshed on the reclaim tick, since `BucketSource.ownedBuckets()` is a live query; a stale copy
-   drops a signal, which costs one poll interval and nothing else. No effect under `SINGLE`.
-2. **Give a wake a minimum spacing.** Today a signal ends the worker's wait immediately, so nothing
-   bounds how often it claims: `pollIntervalFloor` is not a brake, because the wake bypasses it.
-   Refusing to wake a worker that claimed less than `X` ms ago turns the cost into a choice — at 25 ms
-   that is 40 claims/s per worker, *below* the polling arm's ~50, with discovery still bounded at 25 ms
-   rather than at the ceiling.
+1. **Filter signals by ownership (built).** The broadcast below is the waste, and
+   `WorkerPool` now drops a signal whose bucket this instance neither owns nor may claim. It reads a
+   snapshot of the owned set refreshed on the heartbeat tick, because `BucketSource.ownedBuckets()` is
+   a live query and consulting it per notification would cost more than the wakes it saves; a stale
+   snapshot drops a signal, which costs one poll interval and nothing else. A sweep is exempt, since it
+   does not claim to know which bucket. Under `SINGLE` it only ever removes paused buckets.
 
-An **external cache or signal bus does neither**, and not for want of tuning: the claim is not a read.
+2. **Do not reset the ramp on a wake (not built).** A signal puts the woken worker's backoff back at
+   its floor before the claim runs. For a bucket that really has work this changes nothing — the claim
+   finds rows and the ordinary path resets anyway — but for a wake that claims nothing it pins the
+   worker at the floor, which is exactly what a burst of signals for rows it had already taken produces.
+
+3. **Give a wake a minimum spacing (not built).** Even filtered, nothing bounds how often a signal can
+   make a worker claim: `pollIntervalFloor` is not a brake, because the wake bypasses it. Refusing to
+   wake a worker that claimed less than `X` ms ago would turn the remaining cost into a choice — at
+   25 ms that is 40 claims/s per worker, *below* the polling arm's ~50, with discovery still bounded at
+   25 ms rather than at the ceiling. It is the one of the three that trades latency away, which is why
+   it is a knob and not a default.
+
+An **external cache or signal bus does none of them**, and not for want of tuning: the claim is not a read.
 It also enforces the head-of-chain gate and takes exclusive ownership of the row, so a copy held
 elsewhere still has to be followed by the same statement against the database before anything is
 published (§3.5 rejects the bus form on its own grounds).
 
-**One property to know before turning it on under `LEASE`:** the notification is a broadcast, so
-every instance wakes a worker for every signal, including the roughly `(N-1)/N` of them naming buckets
-it does not own. Those wakes find nothing and leave the woken worker polling at its floor, which is
-claim load that scales with the instance count. It is not a correctness question and it does not arise
-under `SINGLE`, where one instance owns everything; it is the one place where the mechanism's cost is
-not simply "one round trip per write".
+**One property to know before turning it on under `LEASE`:** the notification is a broadcast, so every
+instance is told about every bucket, including the roughly `(N-1)/N` of them it does not own. The relay
+filters those out rather than acting on them (item 1 above), so what remains of the broadcast is the
+delivery itself: the notification still crosses the network to every listener and is still drained
+there. That is cheap next to a claim, but it is not nothing, and it is the reason a channel-per-bucket
+scheme would still have something to offer at large instance counts — at the price of making the
+channel name a published contract. It is not a correctness question, and it does not arise under
+`SINGLE`, where one instance owns everything.
 
 Its correctness rests on doing nothing new: a missing signal, a pooler that ate the subscription, a
 relay listening for a mechanism the writer does not emit, or no driver at all, each leave a relay that

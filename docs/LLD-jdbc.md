@@ -730,17 +730,20 @@ its design follows from one rule: it may only make discovery faster, never make 
   Swallowing it would change nothing: a statement that errored has already poisoned the transaction.
   This is the price of emitting from inside the transaction, and it is the same price that buys the
   guarantee a signal never announces a row that does not exist.
-- **Under `LEASE`, a signal reaches every instance, not only the owner.** `LISTEN` is a broadcast:
-  each instance's listener receives every notification and wakes the worker at
-  `bucket % workerCount`, whether or not this instance owns that bucket. The extra wake costs one
-  claim that returns nothing, and it resets that worker's backoff to the floor, so with `N`
-  instances roughly `(N-1)/N` of the signals leave a worker polling at the floor for work it cannot
-  see. Correctness is untouched; the cost is claim load, and it grows with the instance count.
-  Filtering by ownership is not free either, because `BucketSource.ownedBuckets()` is a live query
-  (§3.2) and the listener would have to cache it. Under `SINGLE` the question does not arise: one
-  instance owns every bucket. **Measured** at 400 events/s with two instances: ~820 claims/s without
-  the wakeup against ~1290 with it, about half of the increase being wakes for unowned buckets
-  (dispatch-latency §3.4).
+- **Under `LEASE` a signal reaches every instance, so the pool filters it by ownership.** `LISTEN` is
+  a broadcast: each listener receives every notification, and with `N` instances roughly `(N-1)/N` of
+  them name buckets this one does not own. Acting on those costs a claim that can only find nothing —
+  twice over, since the claim re-reads ownership itself — and it was measured as about half of what
+  the wakeup adds to the database (dispatch-latency §3.4). `WorkerPool` therefore drops a signal whose
+  bucket it neither owns nor may claim (paused, §4.1 of HLD-admin-api), against a **snapshot of the
+  owned set refreshed on the heartbeat tick**: `BucketSource.ownedBuckets()` is a live query (§3.2), so
+  consulting it per notification would cost more than the wakes it saves. A snapshot that is a few
+  seconds stale is harmless in both directions — a signal for a bucket just released wakes a worker
+  that claims nothing, and one for a bucket just acquired is dropped and the row found by the next
+  poll, which is the degradation the whole mechanism is built to tolerate. A **sweep**
+  (`Listener.wakeAll`) is deliberately not filtered: it says only that something was missed, so every
+  worker re-checks its own slice. Under `SINGLE` the filter only ever removes paused buckets, since one
+  instance owns them all.
 - **Every other failure mode is the polling default.** No adapter, an adapter that cannot connect, a
   connection pooler in transaction-pooling mode silently eating the subscription, a writer emitting
   what this relay does not listen for, a payload it cannot parse: each costs latency and only

@@ -3,6 +3,7 @@ package com.codingful.tandem.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.LagSnapshot;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
@@ -183,6 +184,79 @@ class WorkerPoolTest {
 
             awaitUpTo(Duration.ofSeconds(10),
                     () -> "the signalled row delivered, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_signal_for_a_bucket_another_instance_owns_WHEN_it_arrives_THEN_no_worker_is_woken_for_it()
+            throws InterruptedException {
+        // The notification names a bucket, not an instance, and the database sends it to everyone
+        // listening. Acting on the ones this instance does not own is the largest part of what the
+        // wakeup costs under LEASE: a claim that can only find nothing, over a slice that excludes the
+        // bucket it was woken for.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        int ownedBucket = BucketHash.bucketFor("order-1", BUCKETS);
+        int someoneElsesBucket = (ownedBucket + 1) % BUCKETS;
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        // One worker, so every bucket maps to it: without the ownership filter this signal would wake
+        // the very worker holding the pending row, and the test could not tell the two apart.
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
+                BackoffStrategy.fullJitter(), () -> Set.of(ownedBucket), RelayControlSource.NOOP, wakeup);
+
+        pool.start();
+        try {
+            // The row is written only once the worker is parked on its 30-second wait: written before
+            // start() it would be delivered by the pool's very first claim, and the test would be
+            // watching startup rather than the signal.
+            Thread.sleep(300);
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId("order-1").aggregateType("Order").seq(1).payload("p".getBytes()).build());
+
+            wakeup.signal(someoneElsesBucket);
+            Thread.sleep(1_000);
+            assertThat(dispatcher.dispatchCount()).as("a signal for an unowned bucket must wake nobody").isZero();
+
+            wakeup.signal(ownedBucket);
+
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the owned bucket's row delivered, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_subscription_that_missed_signals_WHEN_it_asks_for_a_sweep_THEN_ownership_does_not_filter_it()
+            throws InterruptedException {
+        // A sweep means "something was written while nobody was listening, and I cannot say to which
+        // bucket". Filtering it by ownership would be filtering on the one thing it does not claim to
+        // know, so it must reach every worker and let each one's own slice decide.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        int ownedBucket = BucketHash.bucketFor("order-1", BUCKETS);
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
+                BackoffStrategy.fullJitter(), () -> Set.of(ownedBucket), RelayControlSource.NOOP, wakeup);
+
+        pool.start();
+        try {
+            Thread.sleep(300);   // as above: the row must arrive after the worker is parked
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId("order-1").aggregateType("Order").seq(1).payload("p".getBytes()).build());
+
+            wakeup.signalAll();
+
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the row delivered after the sweep, got " + outbox.statusCounts(),
                     () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
         } finally {
             pool.stop();
@@ -1089,6 +1163,10 @@ class WorkerPoolTest {
 
         void signal(int bucket) {
             listener.wake(bucket);
+        }
+
+        void signalAll() {
+            listener.wakeAll();
         }
 
         int startCalls() {
