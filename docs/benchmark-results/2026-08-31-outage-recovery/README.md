@@ -1,7 +1,7 @@
 # Outage recovery: why a backlog was unrecoverable, and the index that fixed it
 
-Four runs on a Mac, 2026-08-31, all at 400 events/s with `--wakeup=pg-notify`, retention 10 min,
-cleanup every 30 s. The question was how an outbox recovers once the relay has been down. The answer
+Five runs on 2026-08-31, four on a Mac and one on the reference host, all at 400 events/s with
+`--wakeup=pg-notify`, retention 10 min, cleanup every 30 s. The question was how an outbox recovers once the relay has been down. The answer
 changed three times, and each change came from an instrument, not from a better argument.
 
 **The result.** A 30-minute relay outage left the outbox unable to catch up: delivery collapsed below
@@ -15,6 +15,14 @@ recovers in under seven minutes. The index costs under 1% more WAL per insert.
 
 Correctness never wavered in any run at any backlog: zero ordering violations, zero lost, zero
 duplicates, throughout.
+
+**Confirmed on the reference host too**, which runs Docker natively rather than inside a VM. A shorter
+ladder there (2 vCPU, so the outages were 10 and 20 minutes) recovered 239 871 rows in 65.6 s and
+479 328 rows in 139.3 s: **3 656 and 3 440 rows/s, essentially the same rate at twice the backlog**,
+which is the property that was missing before. It is faster than the eight-core Mac on two cores,
+because there is no VM `fsync` penalty on every commit. That host is burstable, so those times are not
+reproducible, and the no-index arm was not run there: this confirms the behaviour on native Docker, it
+does not measure the index's effect on that host.
 
 ## The mechanism
 
@@ -90,9 +98,21 @@ against 111.
 | `query-variants-at-plateau.txt` | four query shapes at 242 k pending, 12 k delivered rows |
 | `query-variants-mid-recovery.txt` | two of them at 281 k pending, 85 k delivered rows, the painful point |
 | `run4-with-index-s11.log` | S11, both cells, with `v5`: both recover |
-| `*-pending.tsv` | pending rows, delivered rows and distinct pending aggregates, every 2 s |
+| `*-pending.tsv` | pending and delivered rows every 2-3 s; the Mac runs also carry distinct pending aggregates, which is how the chain-density reading was tested |
+| `run5-ec2-with-index-s11.log` | the same, with `v5`, on the reference host (native Docker, 2 vCPU, 10 and 20 minute outages) |
 | `index-write-cost.md` | what the index costs the write path, and why S1 could not answer it |
 | `appendix-throwaway-crisis-*` | the earlier throwaway measurement and its own corrections |
+
+**`run5`'s sampler wrote a literal `\t` instead of a tab**, a quoting slip in the remote one-liner;
+the archived file has been repaired to real tabs and given a header, and is otherwise as collected.
+
+**One observation from `run5` worth a look, not a conclusion.** During its recoveries that host
+delivered roughly 3 850 rows/s counting the incoming writes, while S1's measured ceiling on the same
+host is 1 200-1 450 events/s. Not a contradiction: S1 drives the whole system including the generator
+and the write path, whereas a recovery is almost all delivery and consumption. But it suggests the
+published ceiling is dominated by the write side rather than by the relay's delivery capacity, which
+is a different statement from the one the number appears to make, and it deserves its own measurement
+before being asserted.
 
 **`run2`'s first cell is reported as DIVERGING and was not.** S11's divergence check compared each
 sample with the previous one, so a healthy recovery that wobbles upward for thirty seconds — which it
