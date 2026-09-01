@@ -1,0 +1,19 @@
+Tandem load test — scenarios=[S9], smoke=false, demo=false, duration=PT6M, workers=8, pollInterval=PT0.1S, pollFloor=PT0.01S, wakeup=NONE
+--- Running S9 ---
+11:12:04 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s9-instance-1, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+11:12:04 INFO    com.codingful.tandem.jdbc.WorkerPool - Starting relay instanceId:s9-instance-2, workers:8, coordination:LEASE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+11:12:04 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s9-instance-1, count:256
+11:12:06 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released excess buckets owner:s9-instance-1, count:128
+11:12:08 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay claimed buckets owner:s9-instance-2, count:128
+S9: holding 400.0 events/s (rate given explicitly) for PT6M in 2 windows of PT3M; retention=PT10M, cleanup every PT30S in batches of 20000
+S9 window  1 @11:15:34: 399.7/s delivered (399.8/s written), p50=19ms p99=100ms, pending=11 oldest=0s, buckets [128, 128] covered=256/256, outbox 142MB (11MB idx, 83972 rows, 7808 dead), heap=54MB threads=49 load=13.72
+11:18:28 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-s9-instance-1-w7, processed:10000, ok:10000, ko:0
+11:18:34 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-s9-instance-2-w5, processed:10000, ok:10000, ko:0
+11:18:34 INFO    com.codingful.tandem.jdbc.RelayWorker - Relay worker progress workerId:tandem-relay-s9-instance-2-w2, processed:10000, ok:10000, ko:0
+S9 window  2 @11:18:34: 398.8/s delivered (398.8/s written), p50=20ms p99=99ms, pending=16 oldest=0s, buckets [128, 128] covered=256/256, outbox 247MB (17MB idx, 155740 rows, 6707 dead), heap=42MB threads=49 load=29.18
+11:18:35 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released all owned buckets owner:s9-instance-1, count:128
+11:18:35 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s9-instance-1
+11:18:35 INFO    com.codingful.tandem.jdbc.BucketLeaseManager - Relay released all owned buckets owner:s9-instance-2, count:128
+11:18:35 INFO    com.codingful.tandem.jdbc.WorkerPool - Relay stopped instanceId:s9-instance-2
+PASS S9: held 400.0 events/s (rate given explicitly) for PT6M in 2 windows; throughput 399.7/s → 398.8/s (-0.2%), p50 19ms → 20ms, p99 100ms → 99ms; outbox 142MB → 247MB, heap 54MB → 42MB; bucket coverage held=true; ordering violations=0, lost=0, duplicates=0
+All scenarios passed correctness.

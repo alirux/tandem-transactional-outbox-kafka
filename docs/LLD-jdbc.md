@@ -746,7 +746,9 @@ its design follows from one rule: it may only make discovery faster, never make 
   poll, which is the degradation the whole mechanism is built to tolerate. A **sweep**
   (`Listener.wakeAll`) is deliberately not filtered: it says only that something was missed, so every
   worker re-checks its own slice. Under `SINGLE` the filter only ever removes paused buckets, since one
-  instance owns them all.
+  instance owns them all. **Measured** at 400 events/s with two instances: the filter removes 298
+  transactions/s, a third of the wakeup's overhead, with the latency percentiles unchanged
+  (dispatch-latency §3.4).
 - **Every other failure mode is the polling default.** No adapter, an adapter that cannot connect, a
   connection pooler in transaction-pooling mode silently eating the subscription, a writer emitting
   what this relay does not listen for, a payload it cannot parse: each costs latency and only

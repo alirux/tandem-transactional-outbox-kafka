@@ -332,25 +332,38 @@ number for, and roughly half of it is the broadcast below rather than the mechan
 and the split matters: at 3.2 claims per delivered event against 2.0, most of the extra claims are
 *productive but thinner* (the same work in smaller batches), not wasted.
 
-1. **Filter signals by ownership (built).** The broadcast below is the waste, and
+1. **Filter signals by ownership (built, and measured).** The broadcast below is the waste, and
    `WorkerPool` now drops a signal whose bucket this instance neither owns nor may claim. It reads a
    snapshot of the owned set refreshed on the heartbeat tick, because `BucketSource.ownedBuckets()` is
    a live query and consulting it per notification would cost more than the wakes it saves; a stale
    snapshot drops a signal, which costs one poll interval and nothing else. A sweep is exempt, since it
    does not claim to know which bucket. Under `SINGLE` it only ever removes paused buckets.
 
+   Three S9 arms at 400 events/s with two instances, differing only in this filter
+   ([benchmark-results/2026-09-01-wakeup-lease-filter](benchmark-results/2026-09-01-wakeup-lease-filter/)):
+   polling 2348 transactions/s, wakeup unfiltered 3257 (+38.7%), **wakeup filtered 2958 (+26.0%)**. The
+   filter removes **298 transactions/s at no cost in latency** — the two wakeup arms are
+   indistinguishable at both percentiles — which is a third of the wakeup's overhead and 9% of
+   everything the database was doing. It removes less than the arithmetic predicts (400/s, one per
+   event per non-owning instance) because wasted wakes coalesce: a signal arriving while its worker is
+   mid-claim only sets the flag, so several collapse into one wasted claim.
 2. **Do not reset the ramp on a wake (built).** A signal used to put the woken worker's backoff back at
    its floor before the claim ran. For a bucket that really has work this changed nothing — the claim
    finds rows and the ordinary path resets anyway — but for a wake that claims nothing it pinned the
    worker at the floor, which is exactly what a burst of signals for rows it had already taken produced.
    The signal now ends the wait and nothing more.
-
 3. **Give a wake a minimum spacing (not built).** Even filtered, nothing bounds how often a signal can
    make a worker claim: `pollIntervalFloor` is not a brake, because the wake bypasses it. Refusing to
    wake a worker that claimed less than `X` ms ago would turn the remaining cost into a choice — at
    25 ms that is 40 claims/s per worker, *below* the polling arm's ~50, with discovery still bounded at
    25 ms rather than at the ceiling. It is the one of the three that trades latency away, which is why
    it is a knob and not a default.
+
+   **This is what the measured +26% is made of.** Once the unowned wakes are gone, the claims that
+   remain are the ones that find rows: the same 400 events/s delivered in more, smaller batches,
+   because every signal starts a claim rather than letting a few rows accumulate. It is not waste, and
+   no filter reaches it. What it buys, at 400 events/s with two instances, is a 1.6× better median and
+   a 2× better p99 than polling.
 
 An **external cache or signal bus does none of them**, and not for want of tuning: the claim is not a read.
 It also enforces the head-of-chain gate and takes exclusive ownership of the row, so a copy held
