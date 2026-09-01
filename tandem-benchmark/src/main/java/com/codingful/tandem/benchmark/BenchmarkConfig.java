@@ -419,7 +419,6 @@ public final class BenchmarkConfig {
             return this;
         }
 
-        /** How long a {@code DONE} row is kept; must be positive. Default 14 days. */
         /** Empty leaves S11 to derive its own ladder; a non-empty list is used verbatim. */
         public Builder outages(List<Duration> outages) {
             List<Duration> copy = List.copyOf(Objects.requireNonNull(outages, "outages"));
@@ -432,6 +431,7 @@ public final class BenchmarkConfig {
             return this;
         }
 
+        /** How long a {@code DONE} row is kept; must be positive. Default 14 days. */
         public Builder retention(Duration retention) {
             this.retention = Objects.requireNonNull(retention, "retention");
             return this;
