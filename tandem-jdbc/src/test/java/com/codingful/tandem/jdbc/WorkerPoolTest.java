@@ -746,13 +746,17 @@ class WorkerPoolTest {
 
         pool.start();
         try {
-            awaitUpTo(Duration.ofSeconds(20), () -> "blocked:" + metrics.blocked(), () -> metrics.blocked() == 1);
-
             // The backlog gauge keeps counting the same row, on purpose: it is an undelivered event and
             // hiding it would report an empty outbox while the aggregate is stalled. What the two
-            // readings together say is "everything still waiting is waiting on a failure" — which is a
-            // different incident from a relay that cannot keep up, and needs a different response.
-            assertThat(metrics.lag()).isEqualTo(1);
+            // readings together say is "everything still waiting is waiting on a failure", a different
+            // incident from a relay that cannot keep up, and one that needs a different response.
+            //
+            // Both gauges are sampled one after the other inside the same metrics tick, so a tick that
+            // lands while the row is failing can pair a lag read from before the failure with a blocked
+            // count from after it. Wait for the pair to settle instead of for either half alone.
+            awaitUpTo(Duration.ofSeconds(20),
+                    () -> "blocked:" + metrics.blocked() + ", lag:" + metrics.lag(),
+                    () -> metrics.blocked() == 1 && metrics.lag() == 1);
         } finally {
             pool.stop();
         }
