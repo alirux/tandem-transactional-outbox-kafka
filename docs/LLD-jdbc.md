@@ -210,8 +210,11 @@ column stays `NULL` when no correlation id is present, which is every row when t
   restores a fixed interval exactly.
 - **The idle wait is a bounded wait, not a bare sleep** (§3.10). A worker waits on a signal flag of
   its own with exactly the timeout the backoff computed, so a wakeup for one of its buckets ends the
-  wait immediately and puts the backoff back at the floor; with the default `WakeupSource.NONE`
-  nothing ever signals and the wait behaves as the sleep it always was. `pollInterval` therefore
+  wait immediately; with the default `WakeupSource.NONE` nothing ever signals and the wait behaves as
+  the sleep it always was. **The signal ends the wait but does not reset the ramp** — the claim that
+  follows does, and only if it finds something. A wake that claims nothing therefore leaves the worker
+  where it was instead of pinning it at the floor, which is what keeps a burst of signals for rows this
+  worker has already taken from turning its backoff off altogether. `pollInterval` therefore
   stays the ceiling on discovery latency in **every** configuration, wakeup or not, which is the
   single property that keeps the whole mechanism off the correctness path.
 - **Every idle wait carries ±20% jitter.** It only stops workers that started in the same instant

@@ -66,21 +66,6 @@ class PollBackoffTest {
     }
 
     @Test
-    void GIVEN_a_worker_that_had_gone_quiet_WHEN_a_wakeup_ends_its_wait_THEN_the_next_wait_is_the_floor_again() {
-        // What makes the backoff and the wakeup one mechanism rather than two competing for the sleep:
-        // a signal says the bucket is being written to again, so the ramp it climbed while quiet is
-        // stale, exactly as it is after a claim that returned rows.
-        PollBackoff backoff = backoff();
-        for (int i = 0; i < 20; i++) {
-            backoff.waitAfterCycle(0, 0);   // climb to the ceiling and stay there
-        }
-
-        backoff.resetIdle();
-
-        assertThat(backoff.waitAfterCycle(0, 0)).isBetween(8L, 12L);
-    }
-
-    @Test
     void GIVEN_a_floor_configured_above_the_interval_WHEN_a_worker_waits_THEN_the_interval_still_bounds_the_wait() {
         // The ceiling is what an operator sizes the idle load against, so it wins over a floor set
         // carelessly above it rather than silently multiplying that load.

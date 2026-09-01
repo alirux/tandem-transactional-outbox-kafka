@@ -328,7 +328,7 @@ lost throughput on that host, but this is the cost the §3.2 analysis predicted 
 number for, and roughly half of it is the broadcast below rather than the mechanism itself
 ([benchmark-results/2026-08-30-wakeup](benchmark-results/2026-08-30-wakeup/)).
 
-**One of the three ways to buy that cost back is now built.** They address different halves of it,
+**Two of the three ways to buy that cost back are now built.** They address different halves of it,
 and the split matters: at 3.2 claims per delivered event against 2.0, most of the extra claims are
 *productive but thinner* (the same work in smaller batches), not wasted.
 
@@ -339,10 +339,11 @@ and the split matters: at 3.2 claims per delivered event against 2.0, most of th
    snapshot drops a signal, which costs one poll interval and nothing else. A sweep is exempt, since it
    does not claim to know which bucket. Under `SINGLE` it only ever removes paused buckets.
 
-2. **Do not reset the ramp on a wake (not built).** A signal puts the woken worker's backoff back at
-   its floor before the claim runs. For a bucket that really has work this changes nothing — the claim
-   finds rows and the ordinary path resets anyway — but for a wake that claims nothing it pins the
-   worker at the floor, which is exactly what a burst of signals for rows it had already taken produces.
+2. **Do not reset the ramp on a wake (built).** A signal used to put the woken worker's backoff back at
+   its floor before the claim ran. For a bucket that really has work this changed nothing — the claim
+   finds rows and the ordinary path resets anyway — but for a wake that claims nothing it pinned the
+   worker at the floor, which is exactly what a burst of signals for rows it had already taken produced.
+   The signal now ends the wait and nothing more.
 
 3. **Give a wake a minimum spacing (not built).** Even filtered, nothing bounds how often a signal can
    make a worker claim: `pollIntervalFloor` is not a brake, because the wake bypasses it. Refusing to

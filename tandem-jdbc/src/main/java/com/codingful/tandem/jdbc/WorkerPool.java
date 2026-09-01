@@ -273,12 +273,14 @@ public final class WorkerPool {
                 // The loop reports what the cycle did and is told how long to wait; which of the three
                 // waits that is, and how the idle one grows, belongs to PollBackoff (§3.1).
                 long wait = backoff.waitAfterCycle(claimed, worker.inFlight());
-                if (wait > 0 && awaitWakeup(index, wait)) {
-                    // A signal ended the wait, not the backoff: the bucket has just been written to, so
-                    // the next empty claim starts from the floor rather than continuing the idle ramp
-                    // (dispatch-latency §6). With no WakeupSource wired nothing ever signals, and this
-                    // is the plain sleep it has always been.
-                    backoff.resetIdle();
+                if (wait > 0) {
+                    // A signal ends this wait early; it does not reset the ramp. The claim that follows
+                    // does, but only if it finds something (waitAfterCycle above), which is the whole
+                    // difference: a wake that claims nothing leaves the worker where it was instead of
+                    // pinning it at the floor, so a burst of signals for rows this worker has already
+                    // taken cannot turn its backoff off. With no WakeupSource wired nothing ever
+                    // signals, and this is the plain sleep it has always been.
+                    awaitWakeup(index, wait);
                 }
             } catch (Exception perIteration) {
                 LOG.log(Level.ERROR, "Relay worker iteration failed workerIndex:" + index
@@ -567,18 +569,14 @@ public final class WorkerPool {
     }
 
     /**
-     * This worker's idle wait, ended early by a wakeup for one of its buckets.
-     *
-     * @return {@code true} if a signal ended it, {@code false} if the wait simply elapsed — or if the
-     *         thread was interrupted, which a shutdown does and which the loop's own {@code running}
-     *         check handles next
+     * This worker's idle wait, ended early by a wakeup for one of its buckets. An interrupt ends it
+     * too, which a shutdown does and which the loop's own {@code running} check handles next.
      */
-    private boolean awaitWakeup(int index, long millis) {
+    private void awaitWakeup(int index, long millis) {
         try {
-            return wakeups.await(index, millis);
+            wakeups.await(index, millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
         }
     }
 
