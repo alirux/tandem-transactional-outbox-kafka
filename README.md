@@ -196,6 +196,14 @@ the offered rate falls back.
 At the rates where the ceiling sits, what runs out on this host is CPU rather than disk — 94% of
 both cores against under 1% disk utilisation.
 
+**Recovering from a backlog costs what the backlog costs, not what the table costs.** A 30-minute
+relay outage at 400 events/s leaves ~713 000 undelivered rows, and the outbox clears them in
+**405 s**; a 15-minute outage, ~358 000 rows, in 146 s. On the 2 vCPU host 240 000 and 479 000 rows
+cleared at 3 656 and 3 440 rows/s — the same rate at twice the backlog. Zero ordering violations, zero
+lost events and zero duplicates at every backlog. This is what the `v5` schema's partial index over
+pending rows buys, for **+0.6% WAL per insert**; an existing deployment picks it up with the `v5`
+migration.
+
 Treat these as a floor. Those two cores also carry PostgreSQL, Kafka and the load driver alongside
 the relay, and the host is a burstable instance whose ceiling has ranged from 725 to 1450 events/s
 with recent CPU use; latency is stable across the same runs. A host with cores of its own should do
@@ -207,7 +215,8 @@ measured 54 ms before the idle backoff became adaptive
 above the poll term the distribution belongs to the host, not to the knob.
 
 Every figure above is backed by its raw run in
-[docs/benchmark-results/](docs/benchmark-results/) — logs, resource samples, and the script that
+[docs/benchmark-results/](docs/benchmark-results/) — the recovery numbers in
+[2026-08-31-outage-recovery](docs/benchmark-results/2026-08-31-outage-recovery/) — logs, resource samples, and the script that
 redraws these charts from them. The full scenario results are on
 **[tandem.codingful.com/performance](https://tandem.codingful.com/performance/)**.
 

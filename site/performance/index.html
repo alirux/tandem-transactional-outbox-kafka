@@ -235,6 +235,43 @@
 
 <section>
   <div class="wrap prose">
+    <p class="kicker">Recovery</p>
+    <h2>Catching up after the relay has been down</h2>
+    <p>What an outage leaves behind is a backlog: the rows sit in the outbox and wait, and the only
+      question is how long they take to drain. The claim reads pending rows in id order through a
+      partial index of their own (schema <code>v5</code>), so catching up costs what the backlog
+      costs rather than what the table holds.</p>
+
+    <div class="cards" style="max-width:none">
+
+      <div class="card">
+        <h3>405 s for a 30-minute outage</h3>
+        <p>At 400 events/s that is ~713 000 undelivered rows. A 15-minute outage, ~358 000 rows,
+          clears in 146&nbsp;s.</p>
+      </div>
+
+      <div class="card">
+        <h3>Flat in the backlog</h3>
+        <p>On the 2 vCPU host, 239 871 rows cleared at 3 656 rows/s and 479 328 at 3 440 &mdash; the
+          same rate at twice the backlog.</p>
+      </div>
+
+      <div class="card">
+        <h3>+0.6% WAL per insert</h3>
+        <p>What the index costs the write path, measured in WAL bytes. Zero ordering violations, zero
+          lost and zero duplicates at every backlog.</p>
+      </div>
+
+    </div>
+
+    <p class="note" style="margin-top:26px">The recovery times come from a developer machine; the
+      reference-host pair confirms the same behaviour on native Docker. Runs, plans and samples are in
+      <a href="https://github.com/alirux/tandem/tree/main/docs/benchmark-results/2026-08-31-outage-recovery">docs/benchmark-results/2026-08-31-outage-recovery</a>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap prose">
     <p class="kicker">Test environment</p>
     <h2>What produced these numbers</h2>
 
