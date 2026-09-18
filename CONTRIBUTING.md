@@ -38,6 +38,18 @@ To also produce the aggregated coverage report CI publishes to Codecov:
 ./gradlew check :tandem-coverage:aggregatedCoverageReport
 ```
 
+The Testcontainers suites start `postgres:16-alpine` by default. To run them against another
+PostgreSQL major (which is what the `postgres-majors` workflow does, and how the supported-version
+claim stays verified rather than asserted):
+
+```bash
+TANDEM_TEST_POSTGRES_IMAGE=postgres:18-alpine ./gradlew integrationTest
+```
+
+The same variable, or the `tandem.test.postgres.image` system property, points the suites at any
+image exposing PostgreSQL. See the
+[database compatibility matrix](https://tandem-codingful.readthedocs.io/compatibility/).
+
 `tandem-benchmark` is intentionally excluded from `check` (it's a load-testing harness, not a
 published module). Run it explicitly if your change touches the relay's performance
 characteristics:

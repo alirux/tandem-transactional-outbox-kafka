@@ -47,14 +47,56 @@ import org.testcontainers.utility.DockerImageName;
 @SuppressWarnings({"deprecation", "resource"})  // deprecation: legacy KafkaContainer+withKraft; resource: close() manages both containers
 public final class TandemTestContainer implements AutoCloseable {
 
-    private final PostgreSQLContainer<?> postgres =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"));
+    /** The PostgreSQL image every integration test runs against unless one is named explicitly. */
+    public static final String DEFAULT_POSTGRES_IMAGE = "postgres:16-alpine";
+
+    /**
+     * System property naming the PostgreSQL image to start instead of {@link #DEFAULT_POSTGRES_IMAGE};
+     * {@value} as an environment variable is {@code TANDEM_TEST_POSTGRES_IMAGE}.
+     */
+    public static final String POSTGRES_IMAGE_PROPERTY = "tandem.test.postgres.image";
+
+    private static final String POSTGRES_IMAGE_ENV = "TANDEM_TEST_POSTGRES_IMAGE";
+
+    private final PostgreSQLContainer<?> postgres = newPostgresContainer();
     private final KafkaContainer kafka =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1")).withKraft();
 
     private final List<KafkaRelay> relays = new ArrayList<>();
     private final List<KafkaConsumer<?, ?>> consumers = new ArrayList<>();
     private DataSource dataSource;
+
+    /**
+     * The PostgreSQL image the harness starts: the {@value #POSTGRES_IMAGE_PROPERTY} system property,
+     * else the {@code TANDEM_TEST_POSTGRES_IMAGE} environment variable, else
+     * {@link #DEFAULT_POSTGRES_IMAGE}. The override is what lets one run of the same suite verify a
+     * different PostgreSQL major, which is how the supported-version claim is kept honest
+     * (guide/compatibility.md); it also lets an adopter point the harness at the image their own
+     * production runs.
+     *
+     * @return the image coordinate to start, never {@code null} or blank
+     */
+    public static String postgresImage() {
+        String configured = System.getProperty(POSTGRES_IMAGE_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv(POSTGRES_IMAGE_ENV);
+        }
+        return configured == null || configured.isBlank() ? DEFAULT_POSTGRES_IMAGE : configured;
+    }
+
+    /**
+     * A PostgreSQL container on {@link #postgresImage()}, ready to start. Shared with
+     * {@code tandem-jdbc}'s integration base class so both suites land on the same engine.
+     *
+     * @return a configured, not-yet-started container
+     */
+    public static PostgreSQLContainer<?> newPostgresContainer() {
+        // asCompatibleSubstituteFor: Testcontainers refuses an image not named `postgres` unless told
+        // it speaks the same protocol, which is what lets a run be pointed at a vendor's own
+        // distribution rather than only at another major.
+        return new PostgreSQLContainer<>(
+                DockerImageName.parse(postgresImage()).asCompatibleSubstituteFor("postgres"));
+    }
 
     /** Start both containers and apply the baseline schema. */
     public TandemTestContainer start() {

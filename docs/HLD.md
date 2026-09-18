@@ -971,7 +971,7 @@ All throughput/latency targets are stated against the **reference baseline** (si
 | Ordering guarantee | Strict per-aggregate, best-effort cross-aggregate; **zero per-aggregate ordering violations** under all load scenarios |
 | Delivery semantics | At-least-once; consumers must be idempotent; **zero lost events** under all load scenarios |
 | Java compatibility | Java 17+ (LTS) |
-| DB compatibility | PostgreSQL 13+ (primary), MySQL 8.0+ (secondary) |
+| DB compatibility | PostgreSQL 14+ (primary; 14, 16 and 18 CI-verified, and the floor tracks the majors the community still patches), MySQL 8.0+ (secondary). Managed and PostgreSQL-derived engines, and the engines permanently out of scope for want of `SKIP LOCKED`, are stated in [guide/compatibility.md](../guide/compatibility.md) |
 | Kafka compatibility | Kafka client 3.x |
 | Spring Boot | **3.x and 4.x** autoconfiguration (see §10.1); usable without Spring |
 | Dependency footprint | `tandem-core` zero runtime deps; the client-imported write-side carries minimal/ideally-zero external deps (§1.3); no mandatory Spring dependency |

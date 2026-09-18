@@ -812,6 +812,11 @@ all**, so their queries never run. The `config.invalid` fail-fast metric
 
 ## 5. PostgreSQL vs MySQL
 
+This section is about a **different engine**. Engines that *are* PostgreSQL (managed, hosted or
+derived) need none of it: what Tandem requires of an engine, which majors CI verifies, and which
+engines are permanently out of scope are stated in
+[guide/compatibility.md](../guide/compatibility.md).
+
 The MySQL port is **not built** (Q28). This section is the specification it must follow. Everything
 below was **verified by experiment against MySQL 8.4.11 and `postgres:16-alpine`**, not derived from
 documentation — an earlier draft of this section claimed the claim strategy was "already portable",

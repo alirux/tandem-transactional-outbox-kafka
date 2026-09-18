@@ -452,6 +452,15 @@ Already running real traffic through a domain model, not a toy aggregate? The
 precondition, picking a write-side tier, applying the schema to a database that already has data
 in it, and replacing a hand-rolled Kafka producer.
 
+### Database compatibility
+
+Running on Aurora, AlloyDB, Neon, Supabase, CloudNativePG or a managed instance, and wondering
+whether "PostgreSQL" covers it? The
+[database compatibility matrix](https://tandem-codingful.readthedocs.io/compatibility/) states what
+Tandem requires of an engine, which PostgreSQL majors CI verifies, and which engines
+are deliberately out of scope (Aurora DSQL and Spanner have no `SKIP LOCKED`, so the relay's claim
+is not expressible on them).
+
 ### API reference
 
 Javadoc for every published module, served from the artifacts on Maven Central. `latest` follows
@@ -514,6 +523,9 @@ uploads to Codecov.
 ## Build & license
 
 - **Build:** Gradle · **Java:** 17+ · **Published to:** Maven Central (`com.codingful`)
+- **Database:** PostgreSQL 14+ (14, 16 and 18 verified in CI; managed and PostgreSQL-derived
+  engines are covered by the
+  [compatibility matrix](https://tandem-codingful.readthedocs.io/compatibility/))
 - **License:** Apache 2.0
 
 Tandem publishes standard, non-shaded JARs — third-party libraries are not bundled and

@@ -1,5 +1,6 @@
 package com.codingful.tandem.jdbc;
 
+import com.codingful.tandem.test.TandemTestContainer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Base for the JDBC integration tests: a single shared PostgreSQL container (Testcontainers) with the
  * committed baseline DDL applied, reset before each test. Tagged {@code integration} so it runs under
  * {@code integrationTest} (needs Docker), not the Docker-free {@code test} task.
+ *
+ * <p>The container comes from {@link TandemTestContainer#newPostgresContainer()}, so this suite and
+ * the end-to-end one move together when a run is pointed at another engine or major.
  */
 @Tag("integration")
 abstract class AbstractPostgresIT {
@@ -28,7 +32,7 @@ abstract class AbstractPostgresIT {
     static final DataSource DATA_SOURCE;
 
     static {
-        POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+        POSTGRES = TandemTestContainer.newPostgresContainer();
         POSTGRES.start();
         DATA_SOURCE = new SimpleDataSource(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

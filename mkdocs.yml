@@ -27,3 +27,4 @@ markdown_extensions:
 
 nav:
   - Adoption Guide: index.md
+  - Database Compatibility: compatibility.md

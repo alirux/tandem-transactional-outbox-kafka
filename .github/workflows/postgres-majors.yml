@@ -1,0 +1,77 @@
+name: PostgreSQL majors
+
+# The supported-PostgreSQL claim (guide/compatibility.md) is worth exactly what CI verifies, and the
+# CI workflow verifies one image: postgres:16-alpine, the harness default. This one covers the two
+# ENDS of the supported range, so the claim rests on a run rather than on the SQL looking portable.
+#
+# Only the ends, not every major: Tandem's SQL dates to PostgreSQL 10 and nothing in it is
+# version-sensitive today, so the defect worth catching is a FUTURE construct that needs a newer major
+# or is dropped by an older one. Both ends catch that; 15 and 17 sit between two verified majors and
+# would only pay for themselves by finding a defect that skips both neighbours. Keep the ends in sync
+# with the range the guide claims when a major goes end-of-life.
+#
+# Its own workflow rather than a job in ci.yml, because it must not fire on every commit: each full
+# integration run costs ~2.5 minutes, and the defect they guard against (SQL that works on one major
+# and not another) can only arrive with a change to the schema, the JDBC adapter or the test harness.
+# Hence the path filter below, plus a weekly run so the claim stays fresh even in a quiet week and a
+# picked-up upstream image change cannot sit unnoticed.
+#
+# The two path lists are duplicated on purpose: GitHub Actions does not resolve YAML anchors, so a
+# `&name`/`*name` pair here would be taken literally and the filter would never match.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'schema/**'
+      - 'tandem-jdbc/**'
+      - 'tandem-test/**'
+      - 'gradle/libs.versions.toml'
+      - 'build.gradle.kts'
+      - '.github/workflows/postgres-majors.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'schema/**'
+      - 'tandem-jdbc/**'
+      - 'tandem-test/**'
+      - 'gradle/libs.versions.toml'
+      - 'build.gradle.kts'
+      - '.github/workflows/postgres-majors.yml'
+  schedule:
+    # Mondays, 05:00 UTC.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+jobs:
+  integration:
+    name: PostgreSQL ${{ matrix.postgres }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # One failing major must not hide the others: which versions break is the information this
+      # workflow exists to produce.
+      fail-fast: false
+      matrix:
+        postgres: [ '14-alpine', '18-alpine' ]
+
+    env:
+      # Read by TandemTestContainer.postgresImage(), which both the end-to-end harness and the JDBC
+      # integration base class take their image from.
+      TANDEM_TEST_POSTGRES_IMAGE: postgres:${{ matrix.postgres }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Run the integration suites against PostgreSQL ${{ matrix.postgres }}
+        # Every module's integrationTest rather than a hand-listed set, so a module added later is
+        # covered without touching this file. tandem-benchmark is excluded: it is a load-testing
+        # harness on a separate JDK, and it measures rather than verifies.
+        run: ./gradlew integrationTest -x :tandem-benchmark:integrationTest

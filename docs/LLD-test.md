@@ -65,6 +65,20 @@ A Testcontainers helper (tagged `@Tag("integration")`) that:
 so an end-to-end test can: insert in a transaction → run the relay → assert the CloudEvent landed on
 the topic in per-aggregate order.
 
+The PostgreSQL image is `postgres:16-alpine` by default and comes from
+`TandemTestContainer.postgresImage()` (the `tandem.test.postgres.image` system property, else the
+`TANDEM_TEST_POSTGRES_IMAGE` environment variable). `tandem-jdbc`'s `AbstractPostgresIT` reads the
+same method, so one run moves both suites onto another major: that is what the `postgres-majors`
+workflow drives, and it is the only thing separating a CI-verified row of the compatibility matrix
+([guide/compatibility.md](../guide/compatibility.md)) from an assumption.
+
+The image is also declared an **input of every `Test` task** (root `build.gradle.kts`), and that line
+is load-bearing rather than tidy: `org.gradle.caching` is on and `Test` is a cacheable task, so
+without the image in the cache key a run against one major would be served the outputs cached from a
+run against another. Every cell of the matrix would then go green having started no container at all,
+which is the exact failure the verification exists to rule out. With it in the key a repeated run on
+the same image is still `UP-TO-DATE`, so the guard costs nothing.
+
 ## 5. Scope (minimal, for the basic round)
 
 In: the four helpers above — enough to unit-test write-side + relay loop and integration-test the

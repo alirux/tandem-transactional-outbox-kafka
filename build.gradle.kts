@@ -49,8 +49,18 @@ subprojects {
             "testRuntimeOnly"(junitLauncher)
         }
 
+        // The PostgreSQL image the Testcontainers tests start (TandemTestContainer.postgresImage()).
+        // Forwarded to the test JVM so the documented system property reaches it, and declared as a
+        // task input so it reaches the cache key: the build cache is on, Test tasks are cacheable, and
+        // without this a run against one major would be handed the cached result of a run against
+        // another. The postgres-majors matrix would then go green having started no container at all.
+        val postgresImage = providers.systemProperty("tandem.test.postgres.image")
+                .orElse(providers.environmentVariable("TANDEM_TEST_POSTGRES_IMAGE"))
+
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
+            inputs.property("tandemPostgresImage", postgresImage.orElse("default"))
+            postgresImage.orNull?.let { systemProperty("tandem.test.postgres.image", it) }
         }
 
         // `test` runs the Docker-free unit tests; `integrationTest` runs the @Tag("integration")
