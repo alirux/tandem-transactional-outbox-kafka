@@ -55,7 +55,8 @@ public final class WorkerPool {
      * passes ({@link #isWakeable}). A snapshot rather than a live read because {@code LISTEN} is a
      * broadcast: under {@code LEASE} every instance is told about every bucket, so the filter runs once
      * per notification, and {@link BucketSource#ownedBuckets()} is a query (§3.2) — asking it that
-     * often would cost more than the wakes it saves.
+     * often would cost more than the wakes it saves. Left empty, and never refreshed, when no
+     * {@link WakeupSource} is wired: nothing reads it then.
      */
     private volatile Set<Integer> ownedBuckets = Set.of();
     private volatile boolean running;
@@ -390,8 +391,15 @@ public final class WorkerPool {
      * costs nothing here, since a signal for a bucket this instance no longer owns wakes a worker that
      * claims nothing, and one for a bucket it has just acquired is simply dropped and found by the
      * next poll (§3.10).
+     *
+     * <p>With no source wired it does not run at all. The snapshot exists for the filter and nothing
+     * else, so maintaining it there would be a lease query every {@code reclaimInterval} — and, on a
+     * bad day, a warning naming a feature that is off — for a relay that can never consult it.
      */
     private void refreshOwnedBuckets() {
+        if (wakeupSource == WakeupSource.NONE) {
+            return;
+        }
         try {
             ownedBuckets = Set.copyOf(bucketSource.ownedBuckets());
         } catch (Exception e) {

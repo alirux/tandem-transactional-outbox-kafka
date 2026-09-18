@@ -743,7 +743,11 @@ its design follows from one rule: it may only make discovery faster, never make 
   consulting it per notification would cost more than the wakes it saves. A snapshot that is a few
   seconds stale is harmless in both directions — a signal for a bucket just released wakes a worker
   that claims nothing, and one for a bucket just acquired is dropped and the row found by the next
-  poll, which is the degradation the whole mechanism is built to tolerate. A **sweep**
+  poll, which is the degradation the whole mechanism is built to tolerate. A refresh that **fails keeps
+  the previous snapshot** rather than emptying it: ownership a few seconds old costs at most a claim
+  that finds nothing, while an empty snapshot would silence every signal until a refresh succeeded
+  again. With no `WakeupSource` wired the snapshot is **not maintained at all**, since nothing can read
+  it and refreshing it is itself the lease query. A **sweep**
   (`Listener.wakeAll`) is deliberately not filtered: it says only that something was missed, so every
   worker re-checks its own slice. Under `SINGLE` the filter only ever removes paused buckets, since one
   instance owns them all. **Measured** at 400 events/s with two instances: the filter removes 298

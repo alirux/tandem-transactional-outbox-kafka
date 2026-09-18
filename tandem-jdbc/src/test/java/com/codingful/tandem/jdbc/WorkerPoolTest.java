@@ -264,6 +264,175 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_paused_bucket_WHEN_a_signal_names_it_THEN_no_worker_is_woken_for_it() throws InterruptedException {
+        // A pause is an operator saying "claim nothing from this bucket" (HLD-admin-api §4.1), and the
+        // claim already honours it: the bucket is simply not in the worker's slice. Acting on the signal
+        // anyway would cost a cycle per notification for a bucket that cannot yield a row. Nothing is
+        // delivered either way, so the worker's own cycle timestamp is what tells the two apart.
+        int pausedBucket = BucketHash.bucketFor("order-1", BUCKETS);
+        int liveBucket = (pausedBucket + 1) % BUCKETS;
+        MutableControlSource control = new MutableControlSource();
+        control.pauseBucket(pausedBucket);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
+                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
+                BucketSource.embedded(BUCKETS), control, wakeup);
+
+        pool.start();
+        try {
+            Thread.sleep(300);   // the worker must be parked on its 30-second wait, not still starting
+            Instant parked = pool.status().oldestWorkerCycle().orElseThrow();
+
+            wakeup.signal(pausedBucket);
+            Thread.sleep(1_000);
+
+            assertThat(pool.status().oldestWorkerCycle())
+                    .as("a signal for a paused bucket must wake nobody").hasValue(parked);
+
+            // The control: one worker, so the same thread and the same signal path, on a bucket the
+            // operator has not paused.
+            wakeup.signal(liveBucket);
+
+            awaitUpTo(Duration.ofSeconds(10), () -> "a cycle run for the bucket that is not paused",
+                    () -> pool.status().oldestWorkerCycle().orElseThrow().isAfter(parked));
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_paused_relay_WHEN_a_signal_arrives_for_a_bucket_it_owns_THEN_no_worker_is_woken_for_it()
+            throws InterruptedException {
+        // The same reasoning one level up: while the whole relay is paused every slice is empty, so a
+        // signal can only take a worker out of its wait and straight back into it. A write side under
+        // load would otherwise keep the entire pool churning for work nobody may claim.
+        int bucket = BucketHash.bucketFor("order-1", BUCKETS);
+        MutableControlSource control = new MutableControlSource();
+        control.setWholeRelayPaused(true);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
+                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
+                BucketSource.embedded(BUCKETS), control, wakeup);
+
+        pool.start();
+        try {
+            Thread.sleep(300);
+            Instant parked = pool.status().oldestWorkerCycle().orElseThrow();
+
+            wakeup.signal(bucket);
+            Thread.sleep(1_000);
+
+            assertThat(pool.status().oldestWorkerCycle())
+                    .as("a signal must wake nobody while the relay is paused").hasValue(parked);
+
+            control.setWholeRelayPaused(false);   // resumed: the very same signal now reaches its worker
+            wakeup.signal(bucket);
+
+            awaitUpTo(Duration.ofSeconds(10), () -> "a cycle run once the relay is resumed",
+                    () -> pool.status().oldestWorkerCycle().orElseThrow().isAfter(parked));
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_an_ownership_read_that_fails_WHEN_a_signal_arrives_THEN_the_last_known_ownership_still_admits_it()
+            throws InterruptedException {
+        // The snapshot the filter reads is refreshed by a query, and a query can fail. Emptying it on
+        // failure would silence every signal until one succeeds again, which is the worse of the two
+        // wrong answers: ownership a few seconds old costs at most a claim that finds nothing, while a
+        // silenced wakeup costs every row a full poll interval.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        RecordingBucketSource buckets = new RecordingBucketSource(BUCKETS);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
+                .reclaimInterval(Duration.ofMillis(500)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = new WorkerPool(outbox, new RecordingDispatcher(), cfg, TandemMetrics.NOOP,
+                Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets, RelayControlSource.NOOP, wakeup);
+
+        pool.start();
+        try {
+            Thread.sleep(300);   // parked, so the heartbeat is now the only reader of ownership
+            buckets.failReads(true);
+            awaitUpTo(Duration.ofSeconds(5), () -> "the heartbeat's ownership read to have failed",
+                    () -> buckets.failedReads() > 0);
+            // Back up before the signal: the woken worker reads its own slice through this same source,
+            // and a source still failing would fail the claim rather than the filter under test.
+            buckets.failReads(false);
+
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId("order-1").aggregateType("Order").seq(1).payload("p".getBytes()).build());
+            wakeup.signal(outbox.bucketOf(outbox.all().get(0).id()));
+
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the signalled row delivered, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_relay_that_does_not_use_wakeups_WHEN_it_runs_THEN_it_never_reads_ownership_for_them()
+            throws InterruptedException {
+        // Wakeups are opt-in, so the default must pay nothing for them (HLD §1.1). The filter's snapshot
+        // has no other reader, and refreshing it is a lease query every reclaim interval — plus, when
+        // that query fails, a warning naming a feature the operator never turned on.
+        RecordingBucketSource buckets = new RecordingBucketSource(BUCKETS);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
+                .reclaimInterval(Duration.ofMillis(100)).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
+                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets);
+
+        pool.start();
+        try {
+            Thread.sleep(300);   // the worker has taken its slice once and parked; the ticks keep firing
+            int afterStartup = buckets.ownershipReads();
+
+            Thread.sleep(1_000);   // ten heartbeats at this reclaim interval
+
+            assertThat(buckets.ownershipReads())
+                    .as("ownership reads while parked with no wakeup source wired").isEqualTo(afterStartup);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_bucket_heartbeat_that_keeps_failing_WHEN_the_relay_runs_THEN_the_following_ticks_still_run()
+            throws InterruptedException {
+        // A scheduled task that lets an exception escape is never run again, so one failed lease renewal
+        // would end lease renewal, ownership refresh and the wakeup filter with it, permanently and
+        // without a word. That the rest of the tick carries on is what says the failure was contained:
+        // the ownership read the tick makes after the heartbeat keeps happening.
+        RecordingBucketSource buckets = new RecordingBucketSource(BUCKETS);
+        buckets.failHeartbeat(true);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
+                .reclaimInterval(Duration.ofMillis(100)).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
+                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets,
+                RelayControlSource.NOOP, new RecordingWakeupSource());
+
+        pool.start();
+        try {
+            Thread.sleep(300);   // the worker has parked, so the tick is the only ownership reader left
+            int afterStartup = buckets.ownershipReads();
+
+            awaitUpTo(Duration.ofSeconds(5), () -> "the ticks that follow a failed heartbeat",
+                    () -> buckets.ownershipReads() >= afterStartup + 3);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_relay_with_a_wakeup_source_WHEN_it_starts_and_stops_THEN_the_source_follows_its_lifecycle() {
         // Both halves matter and neither fails loudly: a source never started delivers nothing, and one
         // never stopped leaves a connection and a thread behind every relay restart.
@@ -1113,10 +1282,18 @@ class WorkerPoolTest {
         }
     }
 
-    /** A real, in-memory {@link BucketSource} that counts {@link #release()} calls — no mocks. */
+    /**
+     * A real, in-memory {@link BucketSource} that counts what a test needs to tell two behaviours apart
+     * — {@link #release()} calls and ownership reads — and can be made to fail its reads or its
+     * heartbeat, as a lease query against an unreachable database does. No mocks.
+     */
     private static final class RecordingBucketSource implements BucketSource {
         private final Set<Integer> all;
         private final AtomicInteger releaseCalls = new AtomicInteger();
+        private final AtomicInteger ownershipReads = new AtomicInteger();
+        private final AtomicInteger failedReads = new AtomicInteger();
+        private volatile boolean failReads;
+        private volatile boolean failHeartbeat;
 
         RecordingBucketSource(int bucketCount) {
             all = new HashSet<>();
@@ -1127,7 +1304,35 @@ class WorkerPoolTest {
 
         @Override
         public Set<Integer> ownedBuckets() {
+            ownershipReads.incrementAndGet();
+            if (failReads) {
+                failedReads.incrementAndGet();
+                throw new IllegalStateException("reading owned buckets failed");
+            }
             return all;
+        }
+
+        @Override
+        public void heartbeat() {
+            if (failHeartbeat) {
+                throw new IllegalStateException("renewing the bucket leases failed");
+            }
+        }
+
+        void failReads(boolean failing) {
+            this.failReads = failing;
+        }
+
+        void failHeartbeat(boolean failing) {
+            this.failHeartbeat = failing;
+        }
+
+        int ownershipReads() {
+            return ownershipReads.get();
+        }
+
+        int failedReads() {
+            return failedReads.get();
         }
 
         @Override
