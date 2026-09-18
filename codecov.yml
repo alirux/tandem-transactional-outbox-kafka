@@ -1,0 +1,9 @@
+# Codecov rejects a report whose newest coverage session is more than 12 hours old.
+# That check is wrong for this project: CI runs `check` with Gradle's build cache, so a
+# push that changes no Java source restores every test task FROM-CACHE and the JaCoCo
+# session timestamps stay at the original execution. The coverage is still correct for
+# the commit, because the cache keys on the task's inputs, so the only thing the age
+# check achieves here is dropping the whole `java` upload and leaving Codecov reporting
+# the Go CLI alone.
+codecov:
+  max_report_age: false
