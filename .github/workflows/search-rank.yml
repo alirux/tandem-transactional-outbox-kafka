@@ -1,0 +1,49 @@
+name: Search rank
+
+# Appends the GitHub search ranking to tools/search-rank.csv and commits it.
+# GitHub keeps no history of where a repository ranks, so the curve only exists if
+# it is recorded as it happens. See the header of tools/track-search-rank.sh.
+#
+# Weekly, because the ranking only moves when this repository's own metadata changes
+# or when the repositories above it gain stars. After a deliberate change, trigger a
+# run by hand rather than waiting for Monday.
+#
+# A scheduled workflow is disabled automatically after 60 days without repository
+# activity; re-enable it from the Actions tab if that happens.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One run at a time, so two runs can never append to the CSV concurrently.
+concurrency:
+  group: search-rank
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Record the ranking
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: ./tools/track-search-rank.sh
+
+      # The push carries the default token, so it starts no further workflow run.
+      - name: Commit the new rows
+        run: |
+          if git diff --quiet -- tools/search-rank.csv; then
+            echo "No new rows, nothing to commit"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tools/search-rank.csv
+          git commit -m "Record the search ranking for $(date -u +%F)"
+          git push
