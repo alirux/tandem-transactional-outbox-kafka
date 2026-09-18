@@ -445,6 +445,13 @@ what Tandem never logs: [HLD-logging.md](docs/HLD-logging.md).
 
 ## Documentation
 
+### Adoption guide
+
+Already running real traffic through a domain model, not a toy aggregate? The
+[brownfield adoption guide](https://tandem-codingful.readthedocs.io/) walks through the ordering
+precondition, picking a write-side tier, applying the schema to a database that already has data
+in it, and replacing a hand-rolled Kafka producer.
+
 ### API reference
 
 Javadoc for every published module, served from the artifacts on Maven Central. `latest` follows
