@@ -99,6 +99,17 @@ type** — this is not an all-or-nothing choice.
 
 **Pick one based on how much of your domain code you're willing to touch:**
 
+```mermaid
+flowchart TD
+    Q1{"Already publish domain events via<br/>Spring's ApplicationEventPublisher?"}
+    Q1 -->|Yes| T4["Application events<br/>register an OutboxEventMapper per event type"]
+    Q1 -->|No| Q2{"Comfortable having the aggregate<br/>build its own events?"}
+    Q2 -->|Yes| T3["@TransactionalOutbox<br/>aggregate implements TandemAggregate"]
+    Q2 -->|No| Q3{"Want to keep the domain type<br/>a plain object?"}
+    Q3 -->|Yes| T2["Template<br/>TransactionalOutboxTemplate + OutboxCollector"]
+    Q3 -->|No| T1["Plain<br/>inject OutboxRepository, call insert(...)"]
+```
+
 - **Won't touch the domain model at all, want the outbox row explicit at the call site?**
   → **Plain** — inject `OutboxRepository`, call `.insert(...)` inside your existing
   `@Transactional` method. No annotation, no Spring autoconfiguration beyond wiring the bean.
@@ -265,7 +276,22 @@ already gets you the full spread with none of the pinning cost.
 ## 7. What you don't need to change
 
 Pareto's law means the common brownfield case needs less than it looks like from the sections
-above:
+above. The two relay knobs below are the ones adopters ask about most, and for most deployments
+neither needs to move off its default:
+
+```mermaid
+flowchart TD
+    subgraph sg1["bucketCount"]
+        Q1{"Do you expect a genuinely large<br/>fleet of relay workers?"}
+        Q1 -->|No| Default["Keep the default: 256"]
+        Q1 -->|Yes| Custom["Pick it deliberately<br/>it's fixed for the life of the deployment"]
+    end
+    subgraph sg2["Coordination mode"]
+        Q2{"Will more than one relay instance<br/>run against this outbox at once?"}
+        Q2 -->|No| Single["SINGLE<br/>the default — simplest, no extra tables needed"]
+        Q2 -->|Yes| Lease["LEASE<br/>needs tandem_bucket_lease + tandem_relay_member (§4)"]
+    end
+```
 
 - **`bucketCount` (default 256) is fine unless you're running a genuinely large fleet of relay
   workers.** It's fixed for the life of the deployment
