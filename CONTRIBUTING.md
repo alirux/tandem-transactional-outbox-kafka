@@ -174,7 +174,7 @@ to the "why", not the "what" — well-named identifiers should make the "what" o
 
 ## Reporting bugs and proposing features
 
-Use [GitHub Issues](https://github.com/alirux/tandem/issues). For bugs, include Tandem version,
+Use [GitHub Issues](https://github.com/alirux/tandem-transactional-outbox-kafka/issues). For bugs, include Tandem version,
 database/Kafka versions, and a minimal repro if possible. For feature proposals, a short
 description of the use case is more useful up front than a full design.
 

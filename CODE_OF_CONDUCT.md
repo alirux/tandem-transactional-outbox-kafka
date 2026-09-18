@@ -49,7 +49,7 @@ and also applies when an individual is officially representing the project in pu
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported confidentially
-by opening a [private security advisory](https://github.com/alirux/tandem/security/advisories/new)
+by opening a [private security advisory](https://github.com/alirux/tandem-transactional-outbox-kafka/security/advisories/new)
 on this repository — it is the only private channel available on this project, and reports are
 visible only to the maintainer. All complaints will be reviewed and investigated promptly and
 fairly.

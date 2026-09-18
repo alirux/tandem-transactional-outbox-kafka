@@ -6,12 +6,12 @@
 
 **Reliable, strictly-ordered event delivery from your database to Apache Kafka — no CDC, no Kafka Connect, no two-phase commit.**
 
-[![CI](https://github.com/alirux/tandem/actions/workflows/ci.yml/badge.svg)](https://github.com/alirux/tandem/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/alirux/tandem/graph/badge.svg?token=YKA7T7YCFD)](https://codecov.io/github/alirux/tandem)
+[![CI](https://github.com/alirux/tandem-transactional-outbox-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/alirux/tandem-transactional-outbox-kafka/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/alirux/tandem-transactional-outbox-kafka/graph/badge.svg?token=YKA7T7YCFD)](https://codecov.io/github/alirux/tandem-transactional-outbox-kafka)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](#)
 [![Maven Central](https://img.shields.io/maven-central/v/com.codingful/tandem-core.svg?label=maven)](https://central.sonatype.com/artifact/com.codingful/tandem-core)
-[![Status](https://img.shields.io/badge/status-0.x%20—%20API%20evolving-yellow.svg)](https://github.com/alirux/tandem/releases)
+[![Status](https://img.shields.io/badge/status-0.x%20—%20API%20evolving-yellow.svg)](https://github.com/alirux/tandem-transactional-outbox-kafka/releases)
 
 **[tandem.codingful.com](https://tandem.codingful.com)**
 
@@ -72,14 +72,14 @@ Two of the things you end up looking at — both reproduced by a command below, 
 
 ```bash
 # macOS / Linux
-git clone https://github.com/alirux/tandem.git
+git clone https://github.com/alirux/tandem-transactional-outbox-kafka.git tandem
 cd tandem
 ./tandem-sample/run.sh
 ```
 
 ```cmd
 :: Windows
-git clone https://github.com/alirux/tandem.git
+git clone https://github.com/alirux/tandem-transactional-outbox-kafka.git tandem
 cd tandem
 tandem-sample\run.cmd
 ```
@@ -279,7 +279,7 @@ Tandem is published to Maven Central under the `com.codingful` group. Import the
 [BOM](CONTRIBUTING.md#project-layout) to keep module versions aligned, then declare only the
 modules you need (no per-module version). Use the current version from
 [Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-core) (also linked from
-the badge above) or the [Releases](https://github.com/alirux/tandem/releases) page in place of
+the badge above) or the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page in place of
 `x.y.z` below.
 
 **Gradle (Kotlin DSL)**
@@ -325,7 +325,7 @@ relay runs. On Spring Boot, take `tandem-spring-producer` where you write and `t
 where the relay runs — each brings its own tier of the stack and leaves Spring itself to your
 application's versions. See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
 list, and [API reference](#api-reference) for each module's javadoc. What changed between versions,
-breaking changes included, is on the [Releases](https://github.com/alirux/tandem/releases) page.
+breaking changes included, is on the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page.
 
 ### Spring Boot compatibility
 

@@ -126,7 +126,7 @@ subprojects {
         pom {
             name.set(project.name)
             description.set(project.description ?: project.name)
-            url.set("https://github.com/alirux/tandem")
+            url.set("https://github.com/alirux/tandem-transactional-outbox-kafka")
             licenses {
                 license {
                     name.set("The Apache License, Version 2.0")
@@ -140,9 +140,9 @@ subprojects {
                 }
             }
             scm {
-                url.set("https://github.com/alirux/tandem")
-                connection.set("scm:git:https://github.com/alirux/tandem.git")
-                developerConnection.set("scm:git:ssh://git@github.com/alirux/tandem.git")
+                url.set("https://github.com/alirux/tandem-transactional-outbox-kafka")
+                connection.set("scm:git:https://github.com/alirux/tandem-transactional-outbox-kafka.git")
+                developerConnection.set("scm:git:ssh://git@github.com/alirux/tandem-transactional-outbox-kafka.git")
             }
         }
     }

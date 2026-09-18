@@ -10,7 +10,7 @@ Tandem is pre-1.0. Security fixes target the latest published release on Maven C
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
 Use GitHub's private vulnerability reporting for this repository —
-[Report a vulnerability](https://github.com/alirux/tandem/security/advisories/new) (Security tab
+[Report a vulnerability](https://github.com/alirux/tandem-transactional-outbox-kafka/security/advisories/new) (Security tab
 → "Report a vulnerability"). This opens a private advisory visible only to the maintainer until
 a fix is ready, and is the only channel monitored for security reports. Please include:
 
