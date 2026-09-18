@@ -8,6 +8,7 @@ import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.OutboxDispatchException;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.codingful.tandem.core.port.TopicRouter;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,18 +48,20 @@ class KafkaRelayTest {
             .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
             .build();
 
+    private static CloudEventEncoder cloudEventEncoder() {
+        return new CloudEventEncoder(TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of("/tandem/orders"));
+    }
+
     private static MockProducer<String, byte[]> mockProducer(boolean autoComplete) {
         return new MockProducer<>(autoComplete, new StringSerializer(), new ByteArraySerializer());
     }
 
     private static KafkaRelay relayOver(MockProducer<String, byte[]> producer) {
-        return new KafkaRelay(producer, TopicRouter.kebabWithSuffix("-topic"),
-                KafkaRelayConfig.of("/tandem/orders"), new DefaultErrorClassifier(), 30_000);
+        return new KafkaRelay(producer, cloudEventEncoder(), new DefaultErrorClassifier(), 30_000);
     }
 
     private static KafkaRelay relayOver(MockProducer<String, byte[]> producer, TandemSpanRecorder spanRecorder) {
-        return new KafkaRelay(producer, TopicRouter.kebabWithSuffix("-topic"),
-                KafkaRelayConfig.of("/tandem/orders"), new DefaultErrorClassifier(), 30_000, spanRecorder);
+        return new KafkaRelay(producer, cloudEventEncoder(), new DefaultErrorClassifier(), 30_000, spanRecorder);
     }
 
     @Test
@@ -70,6 +73,20 @@ class KafkaRelayTest {
         assertThat(ack).isCompleted();
         assertThat(producer.history()).hasSize(1);
         assertThat(producer.history().get(0).topic()).isEqualTo("order-topic");
+    }
+
+    @Test
+    void GIVEN_a_relay_given_a_format_of_its_own_WHEN_it_publishes_THEN_that_format_shapes_the_event_and_not_the_default_envelope() {
+        MockProducer<String, byte[]> producer = mockProducer(true);
+        byte[] body = "not-a-cloudevent".getBytes(StandardCharsets.UTF_8);
+        KafkaMessageEncoder custom = record -> new ProducerRecord<>("audit", record.aggregateId().value(), body);
+
+        new KafkaRelay(producer, custom, new DefaultErrorClassifier(), 30_000).dispatch(RECORD);
+
+        ProducerRecord<String, byte[]> sent = producer.history().get(0);
+        assertThat(sent.topic()).isEqualTo("audit");
+        assertThat(sent.value()).isEqualTo(body);
+        assertThat(sent.headers().lastHeader("ce_id")).isNull();   // the CloudEvents envelope is gone, not merged in
     }
 
     @Test
@@ -99,7 +116,8 @@ class KafkaRelayTest {
         TopicRouter unroutable = record -> {
             throw new IllegalStateException("no topic for " + record.aggregateType());
         };
-        KafkaRelay relay = new KafkaRelay(producer, unroutable, KafkaRelayConfig.of("/tandem/orders"),
+        KafkaRelay relay = new KafkaRelay(producer,
+                new CloudEventEncoder(unroutable, KafkaRelayConfig.of("/tandem/orders")),
                 new DefaultErrorClassifier(), 30_000);
 
         CompletableFuture<Void> ack = relay.dispatch(RECORD);
@@ -209,8 +227,8 @@ class KafkaRelayTest {
     void GIVEN_instrumented_mode_WHEN_the_producer_rejects_the_send_synchronously_THEN_the_span_ends_with_the_failure() {
         RecordingSpanRecorder spanRecorder = new RecordingSpanRecorder();
         RuntimeException failure = new BufferExhaustedException("buffer full");
-        CompletableFuture<Void> ack = new KafkaRelay(rejectingProducer(failure), TopicRouter.kebabWithSuffix("-topic"),
-                KafkaRelayConfig.of("/tandem/orders"), new DefaultErrorClassifier(), 30_000, spanRecorder)
+        CompletableFuture<Void> ack = new KafkaRelay(rejectingProducer(failure), cloudEventEncoder(),
+                new DefaultErrorClassifier(), 30_000, spanRecorder)
                 .dispatch(RECORD);
 
         catchDispatchException(ack);

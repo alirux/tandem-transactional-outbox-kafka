@@ -73,9 +73,13 @@ directly, while routing/filtering can use the `ce_*` headers without deserializi
 
 ## 5. Where it lives (and what it does NOT touch)
 
-- **Relay-side only.** CloudEvents formatting happens in the **relay**, in `tandem-kafka`,
-  via the official **CloudEvents Java SDK** (`io.cloudevents:cloudevents-kafka`). The
-  dependency lives in `tandem-kafka`.
+- **Relay-side only, and split from the transport.** The envelope is built in the **relay**,
+  via the official **CloudEvents Java SDK**, by `CloudEventFactory` in **`tandem-cloudevents`**
+  (`io.cloudevents:cloudevents-core`). That module decides everything a consumer reads and knows
+  nothing about brokers. The **binding onto the wire** is per transport and belongs to the
+  transport adapter: `tandem-kafka` adds `io.cloudevents:cloudevents-kafka` and writes the `ce_*`
+  headers of §4, and any further adapter (AMQP, whose binding prefixes attributes with
+  `cloudEvents_` instead) brings its own. Neither dependency reaches the client write-side.
 - **No client/write-side dependency.** Consistent with the deployment topology (§3.2), the
   client and `tandem-spring-producer` do **not** depend on CloudEvents. The write-side only
   needs to capture the event **`type`** (and optionally `datacontenttype`) into the outbox;

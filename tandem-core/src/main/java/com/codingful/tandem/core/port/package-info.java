@@ -9,6 +9,11 @@
  * the Admin API's relay observability and control) are implemented by {@code tandem-jdbc}; the
  * publish port ({@link com.codingful.tandem.core.port.OutboxDispatcher}) by {@code tandem-kafka}.
  *
+ * <p>{@link com.codingful.tandem.core.port.MessageEncoder} splits <i>what</i> goes on the wire from
+ * <i>where</i> it goes, so a new format costs an encoder rather than a transport adapter. A format
+ * whose binding differs per transport, CloudEvents among them, is encoded against that transport's own
+ * binding in its adapter instead ({@code KafkaMessageEncoder}).
+ *
  * <p>The optional ports ({@link com.codingful.tandem.core.port.TandemMetrics},
  * {@link com.codingful.tandem.core.port.TracePropagator},
  * {@link com.codingful.tandem.core.port.TandemSpanRecorder}) ship a no-op default and an

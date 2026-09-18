@@ -2,7 +2,11 @@ package com.codingful.tandem.spring.relay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codingful.tandem.core.EncodedMessage;
+import com.codingful.tandem.core.OutboxMessage;
+import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
+import com.codingful.tandem.core.port.MessageEncoder;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
@@ -15,13 +19,18 @@ import com.codingful.tandem.jdbc.PgNotifyWakeup;
 import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
+import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
 import io.micrometer.tracing.propagation.Propagator;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 import javax.sql.DataSource;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -37,6 +46,13 @@ import org.springframework.context.annotation.Configuration;
  * and a broker.
  */
 class TandemRelayAutoConfigurationTest {
+
+    private static final OutboxRecord AUDITED_RECORD = OutboxRecord.builder()
+            .id(1)
+            .message(OutboxMessage.builder().aggregateId("order-1").aggregateType("Order").seq(1)
+                    .payload("{}".getBytes(StandardCharsets.UTF_8)).build())
+            .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+            .build();
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TandemRelayAutoConfiguration.class));
@@ -150,6 +166,50 @@ class TandemRelayAutoConfigurationTest {
 
         wiredRelay().withBean(TopicRouter.class, () -> custom)
                 .run(context -> assertThat(context.getBean(TopicRouter.class)).isSameAs(custom));
+    }
+
+    /**
+     * The portable way to publish a different envelope: the application writes it once against the core
+     * port, naming no broker type, and the relay module binds it to its own transport. The same class
+     * would serve a different transport adapter unchanged, which is the point of the neutral port.
+     */
+    @Test
+    void GIVEN_an_application_that_publishes_its_own_envelope_WHEN_the_context_starts_THEN_the_relay_binds_it_to_kafka() {
+        MessageEncoder portable = record ->
+                new EncodedMessage("audit", record.aggregateId().value(), record.payload(),
+                        Map.of("envelope", "own".getBytes(StandardCharsets.UTF_8)));
+
+        wiredRelay().withBean(MessageEncoder.class, () -> portable).run(context -> {
+            ProducerRecord<String, byte[]> encoded =
+                    context.getBean(KafkaMessageEncoder.class).encode(AUDITED_RECORD);
+
+            assertThat(encoded.topic()).isEqualTo("audit");
+            assertThat(encoded.key()).isEqualTo(AUDITED_RECORD.aggregateId().value());
+            assertThat(encoded.headers().lastHeader("envelope")).isNotNull();
+            assertThat(encoded.headers().lastHeader("ce_id")).isNull();   // the default envelope is gone
+        });
+    }
+
+    @Test
+    void GIVEN_an_application_that_publishes_its_own_format_WHEN_the_context_starts_THEN_it_replaces_the_cloudevents_default() {
+        KafkaMessageEncoder custom = record -> new ProducerRecord<>("audit", record.payload());
+
+        wiredRelay().withBean(KafkaMessageEncoder.class, () -> custom)
+                .run(context -> assertThat(context.getBean(KafkaMessageEncoder.class)).isSameAs(custom));
+    }
+
+    /**
+     * {@code tandem.kafka.source} configures the CloudEvents envelope and nothing else, so an application
+     * publishing its own format is not made to invent a value for a setting its events never carry.
+     */
+    @Test
+    void GIVEN_an_application_that_publishes_its_own_format_WHEN_no_cloudevents_source_is_set_THEN_the_context_still_starts() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withUserConfiguration(UnstartedLifecycle.class)
+                .withPropertyValues("tandem.kafka.producer[bootstrap.servers]=localhost:9092")
+                .withBean(KafkaMessageEncoder.class,
+                        () -> record -> new ProducerRecord<>("audit", record.payload()))
+                .run(context -> assertThat(context).hasSingleBean(OutboxDispatcher.class));
     }
 
     @Test

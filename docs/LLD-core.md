@@ -118,6 +118,30 @@ public final class OutboxRecord {
 }
 ```
 
+### 1.5 `EncodedMessage` (wire-ready message)
+
+What a `MessageEncoder` (§2.4) produces: the shape every broker Tandem publishes to has in common.
+
+```java
+public final class EncodedMessage {
+    private final String destination;        // Kafka topic, AMQP exchange, …
+    private final String key;                // ordering key = aggregate_id; null only where the transport has none
+    private final byte[] body;
+    private final Map<String, byte[]> headers;
+    // accessors
+}
+```
+
+**Headers are `byte[]`**, the one representation no broker loses. Kafka headers are bytes already,
+and a typed property model (AMQP) can narrow bytes to its own types, while the reverse would force
+this value to pick a type system and every other transport to undo it.
+
+**It hands over ownership and copies nothing**, unlike `OutboxMessage` (§1.3). It lives for exactly
+one dispatch on the relay's hot path, between the encoder that built it and the transport adapter
+that writes it, so cloning the body and every header value per message would be pure allocation; an
+encoder must not retain or mutate what it passes. Its `toString` prints `bodyBytes`/`headerNames`
+only, never a value (AGENTS.md logging §5).
+
 ---
 
 ## 2. Ports
@@ -131,6 +155,7 @@ Ports are interfaces **defined by the core** and implemented by adapters (HLD §
 | `OutboxStore` | `tandem-jdbc` | Relay-side persistence (poll/claim/update/cleanup) |
 | `OutboxDispatcher` | `tandem-kafka` | Publish one record to Kafka |
 | `PayloadSerializer` | client / `tandem-spring-producer` (JSON) | Object → bytes |
+| `MessageEncoder` | `tandem-kafka` (`KafkaMessageEncoder`, CloudEvents default) | Record → wire message |
 | `TopicRouter` | `tandem-kafka` (default) | `aggregateType` → topic |
 | `CausalContext` | *(nobody — reserved, see HLD-causal-ordering.md §0)* | Inbound Lamport timestamp |
 | `TracePropagator` | core (no-op) / `tandem-spring-producer`, `tandem-tracing-otel` | Trace capture (§7.1) |
@@ -193,7 +218,7 @@ public interface OutboxDispatcher {
 ever has only one row per aggregate — its head — in flight; LLD-jdbc §3.3/§3.4), not by blocking
 here. `CompletableFuture` is `java.util.concurrent` (JDK), so the zero-dependency rule holds.
 
-### 2.4 Serialization & routing
+### 2.4 Serialization, routing & message format
 
 ```java
 public interface PayloadSerializer {
@@ -207,10 +232,31 @@ public interface TopicRouter {
     /** Default router: kebab-case(aggregateType) + suffix (LLD-kafka §5). */
     static TopicRouter kebabWithSuffix(String suffix) { /* … */ }
 }
+
+public interface MessageEncoder {
+    EncodedMessage encode(OutboxRecord record);   // §1.5; throws ⇒ permanent (LLD-kafka §4)
+}
 ```
 
 There is **no default `PayloadSerializer` in core** (a JSON one needs a JSON library — §1.3).
 A Jackson-based default ships in `tandem-spring-producer`; non-Spring users supply one or pass bytes.
+
+**Format and transport are separate ports.** `MessageEncoder` decides *what* goes on the wire,
+`OutboxDispatcher` *where*, so a new format costs an encoder rather than a transport adapter, and a
+new transport inherits the formats already written. CloudEvents is Tandem's default, not its premise
+(HLD-cloudevents §8), and the payload encoding is orthogonal again: it rides in `datacontenttype`.
+
+A format whose binding differs per transport is the reason the port does not stand alone. CloudEvents
+names its attributes `ce_*` over Kafka and `cloudEvents_*` over AMQP, so its encoder is built against
+the transport's own binding library in that transport's adapter: `KafkaMessageEncoder` in
+`tandem-kafka`, which writes a `ProducerRecord` directly and which `KafkaMessageEncoder.from` also
+lifts a neutral encoder into (LLD-kafka §3). `MessageEncoder` describes the neutral case honestly
+rather than claiming every format has one shape.
+
+What stays shared in that arrangement is the part a consumer actually observes. The CloudEvents
+*envelope* is built once in `tandem-cloudevents`, which knows no broker; only the mapping of its
+attributes onto a given wire lives in the adapter (HLD-cloudevents §5). A second transport adapter
+therefore restates a binding, never the attribute sources, the `type` fallback or the `seq` rule.
 
 ### 2.5 Optional capability ports (no-op defaults in core)
 

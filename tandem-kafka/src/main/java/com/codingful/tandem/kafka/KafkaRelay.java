@@ -17,8 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The publish adapter (LLD-kafka §2): implements {@link OutboxDispatcher} by building a CloudEvent
- * from an {@link OutboxRecord} and sending it <b>asynchronously</b> on one Kafka producer. The
+ * The publish adapter (LLD-kafka §2): implements {@link OutboxDispatcher} by handing an
+ * {@link OutboxRecord} to a {@link KafkaMessageEncoder} ({@link CloudEventEncoder} unless the caller
+ * supplies another) and sending the result <b>asynchronously</b> on one Kafka producer. The
  * returned future completes on the broker ack ({@code acks=all}), or completes <b>exceptionally</b>
  * with an {@code OutboxDispatchException} carrying the retriable/permanent verdict (§4) — never
  * blocking, so the relay overlaps many records of distinct aggregates on a single producer.
@@ -28,7 +29,7 @@ public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(KafkaRelay.class);
 
     private final Producer<String, byte[]> producer;
-    private final CloudEventEncoder encoder;
+    private final KafkaMessageEncoder encoder;
     private final ErrorClassifier classifier;
     private final long deliveryTimeoutMs;
     private final TandemSpanRecorder spanRecorder;
@@ -59,25 +60,44 @@ public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
      */
     public KafkaRelay(Map<String, ?> producerConfig, TopicRouter router, KafkaRelayConfig cfg,
             TandemSpanRecorder spanRecorder) {
+        this(producerConfig, new CloudEventEncoder(router, cfg), spanRecorder);
+    }
+
+    /**
+     * Publishes in a format of the caller's choosing rather than Tandem's default CloudEvents
+     * envelope (LLD-kafka §3): routing and the CloudEvents settings are the encoder's concern, so
+     * this constructor takes neither. A transport-neutral {@link
+     * com.codingful.tandem.core.port.MessageEncoder} reaches here through
+     * {@link KafkaMessageEncoder#from}.
+     *
+     * @param producerConfig raw Kafka producer properties; see {@link #KafkaRelay(Map, TopicRouter, KafkaRelayConfig)}
+     * @param encoder        turns each record into the record to send
+     * @param spanRecorder   emits the {@code tandem.relay.publish} span per record when
+     *                       {@link TandemSpanRecorder#isEnabled()} (HLD-tracing.md §6)
+     * @throws com.codingful.tandem.core.exception.TandemConfigurationException if {@code producerConfig} overrides a mandated safe value
+     * @throws NullPointerException     if {@code encoder} or {@code spanRecorder} is {@code null}
+     */
+    public KafkaRelay(Map<String, ?> producerConfig, KafkaMessageEncoder encoder,
+            TandemSpanRecorder spanRecorder) {
         Map<String, Object> hardened = KafkaProducerConfig.harden(producerConfig);
         this.producer = new KafkaProducer<>(hardened);
-        this.encoder = new CloudEventEncoder(router, cfg);
+        this.encoder = Objects.requireNonNull(encoder, "encoder");
         this.classifier = new DefaultErrorClassifier();
         this.deliveryTimeoutMs = KafkaProducerConfig.deliveryTimeoutMs(hardened);
         this.spanRecorder = Objects.requireNonNull(spanRecorder, "spanRecorder");
     }
 
     /** For tests: inject a producer (e.g. Kafka's {@code MockProducer}) and classifier directly. */
-    KafkaRelay(Producer<String, byte[]> producer, TopicRouter router, KafkaRelayConfig cfg,
+    KafkaRelay(Producer<String, byte[]> producer, KafkaMessageEncoder encoder,
                ErrorClassifier classifier, long deliveryTimeoutMs) {
-        this(producer, router, cfg, classifier, deliveryTimeoutMs, TandemSpanRecorder.NOOP);
+        this(producer, encoder, classifier, deliveryTimeoutMs, TandemSpanRecorder.NOOP);
     }
 
     /** For tests: also inject a {@link TandemSpanRecorder}. */
-    KafkaRelay(Producer<String, byte[]> producer, TopicRouter router, KafkaRelayConfig cfg,
+    KafkaRelay(Producer<String, byte[]> producer, KafkaMessageEncoder encoder,
                ErrorClassifier classifier, long deliveryTimeoutMs, TandemSpanRecorder spanRecorder) {
         this.producer = Objects.requireNonNull(producer, "producer");
-        this.encoder = new CloudEventEncoder(router, cfg);
+        this.encoder = Objects.requireNonNull(encoder, "encoder");
         this.classifier = Objects.requireNonNull(classifier, "classifier");
         this.deliveryTimeoutMs = deliveryTimeoutMs;
         this.spanRecorder = Objects.requireNonNull(spanRecorder, "spanRecorder");

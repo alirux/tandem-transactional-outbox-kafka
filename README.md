@@ -462,6 +462,7 @@ of the version you actually depend on.
 |---|---|
 | [tandem-core](https://javadoc.io/doc/com.codingful/tandem-core/latest/index.html) | Models, ports, exceptions and pure logic (zero runtime dependencies) |
 | [tandem-jdbc](https://javadoc.io/doc/com.codingful/tandem-jdbc/latest/index.html) | Write-side insert and the relay engine (PostgreSQL baseline) |
+| [tandem-cloudevents](https://javadoc.io/doc/com.codingful/tandem-cloudevents/latest/index.html) | The CloudEvents envelope for a stored row, independent of the transport that carries it |
 | [tandem-kafka](https://javadoc.io/doc/com.codingful/tandem-kafka/latest/index.html) | `OutboxDispatcher` over the Kafka producer (CloudEvents binary binding) |
 | [tandem-test](https://javadoc.io/doc/com.codingful/tandem-test/latest/index.html) | In-memory collaborators and the Testcontainers helper |
 | [tandem-spring-producer](https://javadoc.io/doc/com.codingful/tandem-spring-producer/latest/index.html) | Spring Boot autoconfiguration — write-side (outbox INSERT + the convenience tiers) |

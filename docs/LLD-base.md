@@ -31,6 +31,7 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 | `tandem-bom` | `tandem-bom` | |
 | `tandem-core` | `tandem-core` | |
 | `tandem-jdbc` | `tandem-jdbc` | |
+| `tandem-cloudevents` | `tandem-cloudevents` | The CloudEvents envelope; every transport adapter binds it to its own wire format |
 | `tandem-kafka` | `tandem-kafka` | |
 | `tandem-spring-producer` | `tandem-spring-producer` | Write-side Spring autoconfig (JDBC, **no Kafka**) — used by the client (§3.2 HLD). Split by role, no aggregator (Q21, LLD-spring-config §1) |
 | `tandem-spring-relay` | `tandem-spring-relay` | Relay Spring autoconfig (JDBC + Kafka) |
@@ -87,6 +88,7 @@ com.codingful.tandem.<module>[.<sub-package>]
 |---|---|
 | tandem-core | `com.codingful.tandem.core` |
 | tandem-jdbc | `com.codingful.tandem.jdbc` |
+| tandem-cloudevents | `com.codingful.tandem.cloudevents` |
 | tandem-kafka | `com.codingful.tandem.kafka` |
 | tandem-spring-producer | `com.codingful.tandem.spring.producer` |
 | tandem-spring-relay | `com.codingful.tandem.spring.relay` |

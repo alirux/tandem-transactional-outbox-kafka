@@ -11,6 +11,7 @@ plugins {
 val coveredProjects = listOf(
     ":tandem-core",
     ":tandem-jdbc",
+    ":tandem-cloudevents",
     ":tandem-kafka",
     ":tandem-test",
     ":tandem-spring-producer",

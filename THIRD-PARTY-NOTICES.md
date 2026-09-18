@@ -20,7 +20,8 @@ driver among them — do reach whoever declares it, and are listed below.
 |----------------|-----------------------------------------------------|
 | `tandem-core`  | none — JDK only                                     |
 | `tandem-jdbc`  | none beyond `tandem-core`: the PostgreSQL JDBC driver is test-only, and `compileOnly` for the `pg_notify` wakeup adapter, so neither reaches a consumer |
-| `tandem-kafka` | `kafka-clients`, `cloudevents-kafka`, `cloudevents-core`, `slf4j-api` |
+| `tandem-cloudevents` | `cloudevents-core` |
+| `tandem-kafka` | `kafka-clients`, `cloudevents-kafka`, `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
 | `tandem-spring-producer` | none beyond `tandem-jdbc` — **Spring and Jackson are `compileOnly`**, so the application's own versions are used and none is dragged in |
 | `tandem-spring-relay` | none beyond `tandem-jdbc` and `tandem-kafka` — Spring is `compileOnly`, as above. `tandem-micrometer` (below) is also `compileOnly` here, so it adds nothing to this module's own footprint |
 | `tandem-micrometer` | `micrometer-core` |
@@ -46,7 +47,8 @@ compile / runtime classpath is:
 | io.micrometer:micrometer-core            | 1.13.6  | Apache-2.0   |
 | io.opentelemetry:opentelemetry-api       | 1.38.0  | Apache-2.0   |
 
-`cloudevents-core` is pulled in transitively by `cloudevents-kafka`. The three
+`cloudevents-core` is declared directly by `tandem-cloudevents`, and `cloudevents-kafka`
+pulls it in transitively as well. The three
 entries below `slf4j-api` reach only consumers of `tandem-test`; each Testcontainers
 module additionally pulls `org.testcontainers:testcontainers` and its own transitive
 dependencies, which are not enumerated here.

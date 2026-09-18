@@ -2,15 +2,17 @@
 
 **Version:** 0.1 (Draft)  
 **Module:** `tandem-kafka` · package `com.codingful.tandem.kafka`  
-**Depends on:** `tandem-core`, `org.apache.kafka:kafka-clients`, `io.cloudevents:cloudevents-kafka`
-(+ `cloudevents-core`). **Relay-side only** — never on the client write-side (§3.2/§1.3).  
+**Depends on:** `tandem-core`, `tandem-cloudevents` (the envelope, §3),
+`org.apache.kafka:kafka-clients`, `io.cloudevents:cloudevents-kafka`. **Relay-side only**, never on
+the client write-side (§3.2/§1.3).  
 **Resolves:** Q17 (producer failure semantics), Q18 (TopicRouter default), Q19 (CloudEvents
 binding), Q20 (null `type`). See [open-questions-lld.md](open-questions-lld.md).
 
-`tandem-kafka` is the publish adapter: it implements `OutboxDispatcher` (build a CloudEvent from
-an `OutboxRecord`, send to Kafka, complete a future on the ack) and the default `TopicRouter`. The
-relay engine (`tandem-jdbc`) calls it asynchronously and overlaps `batch_size` records of distinct
-aggregates in flight; per-aggregate order is structural (one head per aggregate, HLD §6, Q9/Q10).
+`tandem-kafka` is the publish adapter: it implements `OutboxDispatcher` (bind the CloudEvent that
+`tandem-cloudevents` built for an `OutboxRecord` to a Kafka record, send it, complete a future on the
+ack) and the default `TopicRouter`. The relay engine (`tandem-jdbc`) calls it asynchronously and
+overlaps `batch_size` records of distinct aggregates in flight; per-aggregate order is structural
+(one head per aggregate, HLD §6, Q9/Q10).
 
 ---
 
@@ -83,7 +85,30 @@ CompletableFuture<Void> dispatch(OutboxRecord record) {
 
 ## 3. CloudEvents binding (Q19)
 
-Built with the **CloudEvents Java SDK** (`io.cloudevents:cloudevents-kafka`). Per record:
+**The format is a port, and CloudEvents is its default.** `KafkaRelay` publishes whatever a
+`KafkaMessageEncoder` gives it (`CloudEventEncoder` unless the caller supplies another), so changing
+the envelope costs an encoder rather than a fork of the dispatcher, and routing plus the CloudEvents
+settings become that encoder's concern rather than the relay's.
+
+`KafkaMessageEncoder` writes a `ProducerRecord` directly, which is what the *Kafka-specific* half of
+the format space needs: the CloudEvents binding is per transport (`ce_*` here, `cloudEvents_*` over
+AMQP), so its encoder is built with the SDK's Kafka writer rather than reassembled from a neutral
+value, which would be a second copy of the spec to keep in step. A format with nothing Kafka-specific
+about it implements the transport-neutral `MessageEncoder` (LLD-core §2.4) once and reaches Kafka
+through `KafkaMessageEncoder.from`, and any other transport adapter unchanged.
+
+An encoder that throws is **permanent** either way, classified at the encode site, never by the broker
+error classifier (§4).
+
+**Only the binding is in this module.** The envelope itself is built by `CloudEventFactory` in
+**`tandem-cloudevents`** (HLD-cloudevents §5), which decides every attribute a consumer reads and
+depends on `cloudevents-core` alone. `CloudEventEncoder` is what remains here: route the record, write
+the event binary with `cloudevents-kafka`, copy the passthrough headers. A second transport adapter
+reuses the factory and writes its own binding, instead of restating the attribute sources, the `type`
+fallback and the `seq` rule.
+
+Built with the **CloudEvents Java SDK** (`io.cloudevents:cloudevents-kafka`). Per record, the factory
+supplies the event and this module writes it:
 
 ```java
 var b = CloudEventBuilder.v1()

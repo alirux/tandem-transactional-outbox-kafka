@@ -4,6 +4,8 @@ dependencies {
     api(project(":tandem-core"))
     // Relay-side only — never on the client write-side (§1.3).
     api(libs.kafka.clients)
+    // The envelope itself; this module adds only the Kafka binding on top of it.
+    api(project(":tandem-cloudevents"))
     api(libs.cloudevents.kafka)   // brings cloudevents-core transitively
     // slf4j-api is already a runtime-scope transitive of kafka-clients; declaring it explicitly
     // makes it usable at compile time and pins it to a current version (HLD-logging.md §2.2).

@@ -357,7 +357,7 @@ dedicated relay process, selected by configuration.
 
 | Property | Type | Default |
 |---|---|---|
-| `tandem.kafka.source` | URI | **required** — no default; startup fails, naming the key, if absent |
+| `tandem.kafka.source` | URI | **required** under the default CloudEvents format — no default; startup fails, naming the key, if absent |
 | `tandem.kafka.default-content-type` | String | `application/json` |
 | `tandem.kafka.default-data-schema` | URI | unset (omitted from the envelope) |
 | `tandem.kafka.topic-suffix` | String | `-topic` |
@@ -371,7 +371,9 @@ defaults, and forces the serializers the CloudEvents binary binding requires.
 `tandem.kafka.source` is the only key here with no default. Its absence is checked by the
 autoconfiguration itself and fails context refresh with a message naming `tandem.kafka.source` —
 not with the `NullPointerException` the CloudEvents config would otherwise raise several frames away
-from the configuration that caused it.
+from the configuration that caused it. The check sits on the `KafkaMessageEncoder` bean (§4.4), so it
+applies exactly where the key means something: an application contributing its own encoder publishes
+no CloudEvents envelope and is not asked for a source.
 
 **Tuning the producer stays safe by construction, including the timeout interaction.** The filled-in
 `delivery.timeout.ms` grows to `max(30s, linger.ms + request.timeout.ms)`, so neither setting
@@ -542,7 +544,8 @@ are already defined when Tandem's beans are created. The ordering is declared wi
 listing both generations' coordinates**, never a class literal (§1.1, rule 1).
 
 Every contributed bean is `@ConditionalOnMissingBean`, so an application can replace any single piece —
-most usefully a custom `TopicRouter` — without abandoning the autoconfiguration.
+most usefully a custom `TopicRouter` or `KafkaMessageEncoder` — without abandoning the
+autoconfiguration.
 
 ### 4.1 The `DataSource` both modules bind to
 
@@ -616,18 +619,34 @@ Conditional on `tandem.relay.enabled` (`@ConditionalOnProperty`, matchIfMissing 
 the relay module contributes the engine, each bean `@ConditionalOnMissingBean`:
 
 1. `TopicRouter` = `TopicRouter.kebabWithSuffix(tandem.kafka.topic-suffix)`;
-2. `OutboxDispatcher` = `new KafkaRelay(producerMap, topicRouter, kafkaRelayConfig, spanRecorder)` —
+2. `KafkaMessageEncoder` = the published wire format (LLD-kafka §3), resolved in three steps.
+   A **`MessageEncoder` bean**, if the application contributes one, is lifted with
+   `KafkaMessageEncoder.from`; a **`KafkaMessageEncoder` bean** takes precedence over both; otherwise
+   `new CloudEventEncoder(topicRouter, kafkaRelayConfig)`, the default.
+
+   **The `MessageEncoder` bean is the one an application should reach for.** It is the core's neutral
+   port (LLD-core §2.4), so the envelope is written once, names no broker type, and the same class
+   serves whatever transport adapter it is deployed against, which is the whole point of separating
+   format from transport. `KafkaMessageEncoder` exists for a format that genuinely needs Kafka in its
+   signature, as Tandem's own CloudEvents binding does. Either way the hardened producer, the
+   `tandem.kafka.*` binding and the span wiring are kept; replacing the `OutboxDispatcher` wholesale
+   would mean rebuilding all three by hand.
+
+   This bean is also where **`tandem.kafka.source` is required**, and only on the CloudEvents default:
+   the key configures that envelope and nothing else, so an application publishing its own is not asked
+   to invent a value for a setting its events never carry;
+3. `OutboxDispatcher` = `new KafkaRelay(producerMap, encoder, spanRecorder)` —
    the constructor is where the producer hardening runs and the effective `delivery.timeout.ms` is
    fixed; `spanRecorder` is whatever `TandemSpanRecorder` bean exists, or `TandemSpanRecorder.NOOP`;
-3. `OutboxStore` = `new JdbcOutboxStore(dataSource, tandem.relay.max-attempts)`;
-4. `TandemMetrics` = `TandemMetrics.NOOP` (a real Micrometer bean overrides it once `tandem-micrometer`
+4. `OutboxStore` = `new JdbcOutboxStore(dataSource, tandem.relay.max-attempts)`;
+5. `TandemMetrics` = `TandemMetrics.NOOP` (a real Micrometer bean overrides it once `tandem-micrometer`
    exists — hence `@ConditionalOnMissingBean`);
-5. `BucketSource` = `BucketSource.forCoordination(relayConfig, dataSource)` — returns the in-process
+6. `BucketSource` = `BucketSource.forCoordination(relayConfig, dataSource)` — returns the in-process
    owner under `SINGLE`, the lease/member-backed one under `LEASE`, per `tandem.relay.coordination`;
-6. `TandemSpanRecorder` = `MicrometerTandemSpanRecorder`, **only** when
+7. `TandemSpanRecorder` = `MicrometerTandemSpanRecorder`, **only** when
    `tandem.tracing.publish-span=true` and the application has a `Propagator` bean (§2.6); absent, the
    relay emits no span and instrumented mode stays off;
-7. `WorkerPool` = the full-topology constructor
+8. `WorkerPool` = the full-topology constructor
    `new WorkerPool(outboxStore, outboxDispatcher, relayConfig, tandemMetrics, Clock.systemUTC(), BackoffStrategy.fullJitter(), bucketSource)`.
 
 `tandem.relay.enabled=false` contributes none of these — the supported way to load the relay module

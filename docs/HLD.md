@@ -46,7 +46,7 @@ Where a component has a clear functional core with at least one port and one ada
 | Hexagonal role | Tandem |
 |---|---|
 | Functional core | `tandem-core` — models, contracts, pure logic (Lamport merge, status state machine); zero external runtime deps |
-| Ports (defined by the core) | `OutboxRepository` (persistence), `OutboxDispatcher` (publish), `PayloadSerializer`, `TopicRouter`, `CausalContext`, `TracePropagator` (default no-op), `TandemMetrics` (default no-op) |
+| Ports (defined by the core) | `OutboxRepository` (persistence), `OutboxDispatcher` (publish), `PayloadSerializer`, `MessageEncoder` (wire format), `TopicRouter`, `CausalContext`, `TracePropagator` (default no-op), `TandemMetrics` (default no-op) |
 | Driven (outbound) adapters | `tandem-jdbc` (JDBC persistence), `tandem-kafka` (Kafka publish), `tandem-test` `InMemoryOutbox` (in-memory persistence) |
 | Driving (inbound) adapters | `tandem-spring-producer` usage tiers (template, annotation, Spring events); `tandem-admin` REST layer over `AdminService` |
 | Observability / consumer-side adapters | `tandem-micrometer` (metrics), `tandem-tracing-otel` (trace capture), `tandem-kafka-streams`, `tandem-flink` |

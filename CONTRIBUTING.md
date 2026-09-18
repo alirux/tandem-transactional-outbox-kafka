@@ -100,6 +100,7 @@ python3 tandem-cli/hack/fake-admin-api.py 8080
 | `tandem-bom` | Bill of Materials — version constraints for every published module, no code. |
 | `tandem-core` | Ports and domain types — no I/O, no external dependencies. |
 | `tandem-jdbc` | Write-side outbox INSERT, relay polling/claiming, PostgreSQL adapter. |
+| `tandem-cloudevents` | The CloudEvents envelope for a stored row, with no transport binding of its own. |
 | `tandem-kafka` | CloudEvents publication to Kafka. |
 | `tandem-test` | Test helpers (`InMemoryOutbox`, `RecordingDispatcher`, `TandemTestContainer`). |
 | `tandem-spring-producer` | Spring Boot autoconfiguration for the write side, plus its usage tiers. Never pulls Kafka. |

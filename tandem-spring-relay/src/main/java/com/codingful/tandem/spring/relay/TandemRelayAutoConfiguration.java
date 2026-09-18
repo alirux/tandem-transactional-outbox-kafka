@@ -1,6 +1,7 @@
 package com.codingful.tandem.spring.relay;
 
 import com.codingful.tandem.core.exception.TandemConfigurationException;
+import com.codingful.tandem.core.port.MessageEncoder;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
@@ -14,6 +15,8 @@ import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
+import com.codingful.tandem.kafka.CloudEventEncoder;
+import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
 import io.micrometer.tracing.propagation.Propagator;
@@ -38,7 +41,8 @@ import org.springframework.context.annotation.Bean;
  * {@code DataSourceAutoConfiguration} and gated on a single {@code DataSource} candidate; the whole
  * configuration is conditional on {@code tandem.relay.enabled} (default true), the supported way to load
  * the module without running a relay. Every bean is {@link ConditionalOnMissingBean}, so an application
- * can replace any piece — most usefully a custom {@link TopicRouter}.
+ * can replace any piece — most usefully a custom {@link TopicRouter}, or a
+ * {@link MessageEncoder} that publishes an envelope other than CloudEvents.
  *
  * <p>The ordering is declared by <b>name</b> for both generations: Boot 4 moved
  * {@code DataSourceAutoConfiguration} into {@code spring-boot-jdbc} and every tracing autoconfiguration
@@ -163,22 +167,47 @@ public class TandemRelayAutoConfiguration {
         return new MicrometerTandemSpanRecorder(propagator.getObject());
     }
 
+    /**
+     * The published wire format (LLD-kafka §3), Tandem's CloudEvents binary binding unless the
+     * application contributes an encoder of its own, which it does in one of two ways.
+     *
+     * <p>A {@link MessageEncoder} bean is the portable one and the one to reach for: the application
+     * writes its envelope once against the core port, names no broker type, and the same class serves
+     * whatever transport adapter it is deployed against. It is lifted onto Kafka here.
+     *
+     * <p>A {@link KafkaMessageEncoder} bean is for a format that genuinely needs Kafka in its
+     * signature, as Tandem's own CloudEvents binding does, and takes precedence over both. Either way
+     * the hardened producer, the {@code tandem.kafka.*} properties and the span wiring that
+     * {@link #tandemOutboxDispatcher} assembles are kept.
+     */
     @Bean
     @ConditionalOnMissingBean
-    OutboxDispatcher tandemOutboxDispatcher(TandemKafkaProperties kafka, TopicRouter topicRouter,
-            ObjectProvider<TandemSpanRecorder> spanRecorder) {
+    KafkaMessageEncoder tandemMessageEncoder(TandemKafkaProperties kafka, TopicRouter topicRouter,
+            ObjectProvider<MessageEncoder> portableEncoder) {
+        MessageEncoder portable = portableEncoder.getIfAvailable();
+        if (portable != null) {
+            return KafkaMessageEncoder.from(portable);
+        }
         // tandem.kafka.source is the one key with no default. Checked here so the failure names the
         // property the operator has to set, instead of surfacing as a NullPointerException from the
-        // CloudEvents config, several frames away from the configuration that caused it.
+        // CloudEvents config, several frames away from the configuration that caused it. Reached only
+        // on the CloudEvents default: an application publishing its own envelope carries no source
+        // attribute, so it is not asked for one.
         if (kafka.source() == null) {
             throw new TandemConfigurationException("Missing required configuration: `tandem.kafka.source`"
                     + " — the CloudEvents source URI identifying this application (e.g. /orders/service)."
                     + " Set it in your application configuration (LLD-spring-config §2.3).");
         }
+        return new CloudEventEncoder(topicRouter,
+                new KafkaRelayConfig(kafka.source(), kafka.defaultContentType(), kafka.defaultDataSchema()));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    OutboxDispatcher tandemOutboxDispatcher(TandemKafkaProperties kafka, KafkaMessageEncoder encoder,
+            ObjectProvider<TandemSpanRecorder> spanRecorder) {
         Map<String, Object> producerConfig = new HashMap<>(kafka.producer());
-        KafkaRelayConfig kafkaConfig =
-                new KafkaRelayConfig(kafka.source(), kafka.defaultContentType(), kafka.defaultDataSchema());
-        return new KafkaRelay(producerConfig, topicRouter, kafkaConfig,
+        return new KafkaRelay(producerConfig, encoder,
                 spanRecorder.getIfAvailable(() -> TandemSpanRecorder.NOOP));
     }
 

@@ -13,6 +13,10 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Covers the Kafka binding only. Which attributes the envelope carries, and where each one comes
+ * from, belongs to {@code CloudEventFactory} in {@code tandem-cloudevents} and is asserted there.
+ */
 class CloudEventEncoderTest {
 
     private static final String SOURCE = "/tandem/orders";
@@ -48,36 +52,6 @@ class CloudEventEncoderTest {
         assertThat(header(encoded, CloudEventsHeaders.CE_PARTITION_KEY)).isEqualTo("order-7");
         assertThat(header(encoded, TandemHeaders.CONTENT_TYPE)).isEqualTo("application/json");
         assertThat(header(encoded, "correlation-id")).isEqualTo("corr-9");
-    }
-
-    @Test
-    void GIVEN_an_event_written_without_a_sequence_number_WHEN_encoded_THEN_the_seq_extension_is_absent_rather_than_zero() {
-        OutboxRecord record = recordOf(OutboxMessage.builder()
-                .aggregateId("order-8").aggregateType("Order").unsequenced()
-                .payload("{}".getBytes(StandardCharsets.UTF_8)).build()).build();
-
-        ProducerRecord<String, byte[]> encoded = encoder.encode(record);
-
-        assertThat(header(encoded, CloudEventsHeaders.CE_SEQ)).isNull();
-        // Everything a consumer still needs is there: ce_id is what they deduplicate on.
-        assertThat(header(encoded, "ce_id")).isEqualTo("42");
-        assertThat(header(encoded, CloudEventsHeaders.CE_PARTITION_KEY)).isEqualTo("order-8");
-    }
-
-    @Test
-    void GIVEN_a_record_without_a_type_WHEN_encoded_THEN_the_cloudevent_type_falls_back_to_the_aggregate_type() {
-        OutboxRecord record = recordOf(OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build()).build();
-
-        assertThat(header(encoder.encode(record), "ce_type")).isEqualTo("Order");
-    }
-
-    @Test
-    void GIVEN_no_stored_content_type_WHEN_encoded_THEN_the_configured_default_is_used() {
-        OutboxRecord record = recordOf(OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build()).build();
-
-        assertThat(header(encoder.encode(record), TandemHeaders.CONTENT_TYPE)).isEqualTo("application/json");
     }
 
     @Test

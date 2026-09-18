@@ -10,6 +10,7 @@ dependencies {
     constraints {
         api(project(":tandem-core"))
         api(project(":tandem-jdbc"))
+        api(project(":tandem-cloudevents"))
         api(project(":tandem-kafka"))
         api(project(":tandem-test"))
         api(project(":tandem-spring-producer"))
