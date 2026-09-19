@@ -1,10 +1,29 @@
-site_name: Tandem — User Guide
-site_description: Adopting and operating Tandem — task-oriented guides, separate from the HLD/LLD design documents
+site_name: Tandem User Guide
+site_description: "Adopting and operating Tandem: task-oriented guides, separate from the HLD/LLD design documents"
 docs_dir: guide
 # NOT the default 'site/': that directory holds the hand-written tandem.codingful.com site, and a
 # plain `mkdocs build` cleans its output directory first, which would delete the CNAME, the
 # how-it-works page and every problem-type page.
 site_dir: .mkdocs-site
+
+repo_url: https://github.com/alirux/tandem-transactional-outbox-kafka
+repo_name: alirux/tandem-transactional-outbox-kafka
+# docs_dir is guide/, not docs/, so the "edit this page" target has to be spelled out.
+edit_uri: edit/main/guide/
+
+copyright: >
+  Maintained by <a href="https://www.linkedin.com/in/alberto-lirussi/">Alberto Lirussi</a> ·
+  Tandem under the <a href="https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/LICENSE">Apache License 2.0</a> ·
+  this documentation under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/alirux/tandem-transactional-outbox-kafka
+      name: Tandem on GitHub
+    - icon: material/web
+      link: https://tandem.codingful.com
+      name: tandem.codingful.com
 
 theme:
   name: material
@@ -14,8 +33,17 @@ theme:
   features:
     - navigation.tabs
     - navigation.top
+    - content.action.edit
     - toc.integrate
     - content.code.copy
+
+# A chapter that links to a heading another chapter has renamed is the way this guide breaks as
+# it grows, so make it a build failure rather than a dead link on the published site. Paired with
+# fail_on_warning in .readthedocs.yaml, which turns these warnings into a failed build.
+validation:
+  links:
+    not_found: warn
+    anchors: warn
 
 markdown_extensions:
   - admonition
@@ -29,6 +57,10 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 
+# Adding a chapter: drop a new .md file in guide/ and add one line below. Each chapter is
+# self-contained and numbers its own sections, so a new one never renumbers or re-anchors an
+# existing page, and already-published links keep working.
 nav:
-  - Adoption Guide: index.md
+  - Home: index.md
+  - Adoption Guide: adoption.md
   - Database Compatibility: compatibility.md

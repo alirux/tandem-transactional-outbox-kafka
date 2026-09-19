@@ -56,7 +56,7 @@ practice. Two optional features need more than that, and both **degrade instead 
 - **`lockedWrite()`** needs `pg_advisory_xact_lock()` and `hashtext()`. `hashtext()` is an internal
   PostgreSQL function, so it is the first thing to check on a derived engine. Without it you keep
   whatever serialization your own write path already provides
-  ([§3.2 of the adoption guide](index.md#32-where-seq-comes-from-and-whether-you-need-tandems-lock)).
+  ([§3.2 of the adoption guide](adoption.md#32-where-seq-comes-from-and-whether-you-need-tandems-lock)).
 
 ---
 

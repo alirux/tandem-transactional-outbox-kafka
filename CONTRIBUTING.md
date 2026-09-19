@@ -194,4 +194,6 @@ description of the use case is more useful up front than a full design.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the
-[Apache License 2.0](LICENSE), the same license as the rest of the project.
+[Apache License 2.0](LICENSE), the same license as the rest of the project. The one exception is
+the user guide in `guide/`, which is published under [CC BY 4.0](LICENSE-docs); contributions to
+it are licensed under those terms.

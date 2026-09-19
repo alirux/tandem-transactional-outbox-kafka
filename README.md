@@ -448,9 +448,9 @@ what Tandem never logs: [HLD-logging.md](docs/HLD-logging.md).
 ### Adoption guide
 
 Already running real traffic through a domain model, not a toy aggregate? The
-[brownfield adoption guide](https://tandem-codingful.readthedocs.io/) walks through the ordering
-precondition, picking a write-side tier, applying the schema to a database that already has data
-in it, and replacing a hand-rolled Kafka producer.
+[brownfield adoption guide](https://tandem-codingful.readthedocs.io/adoption/) walks through the
+ordering precondition, picking a write-side tier, applying the schema to a database that already
+has data in it, and replacing a hand-rolled Kafka producer.
 
 ### Database compatibility
 
@@ -526,7 +526,9 @@ uploads to Codecov.
 - **Database:** PostgreSQL 14+ (14, 16 and 18 verified in CI; managed and PostgreSQL-derived
   engines are covered by the
   [compatibility matrix](https://tandem-codingful.readthedocs.io/compatibility/))
-- **License:** Apache 2.0
+- **License:** Apache 2.0 ([LICENSE](LICENSE)); the
+  [user guide](https://tandem-codingful.readthedocs.io/) is published under
+  [CC BY 4.0](LICENSE-docs)
 
 Tandem publishes standard, non-shaded JARs — third-party libraries are not bundled and
 are resolved separately from Maven Central under their own licenses. The runtime footprint

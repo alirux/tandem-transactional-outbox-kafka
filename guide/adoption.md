@@ -359,6 +359,8 @@ stuck row is a visible, fixable problem; a silently reordered aggregate is not.
 
 ## 10. Where to go next
 
+- [Database compatibility](compatibility.md) to confirm the engine you run, managed or
+  self-hosted, is one Tandem supports, and what the operational caveats are.
 - [README — Usage](https://github.com/alirux/tandem/blob/main/README.md#usage) for the exact code
   shape of each tier.
 - [README — Known issues & limitations](https://github.com/alirux/tandem/blob/main/README.md#known-issues--limitations)
