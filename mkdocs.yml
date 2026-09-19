@@ -68,4 +68,5 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Adoption Guide: adoption.md
+  - Message Format: message-format.md
   - Database Compatibility: compatibility.md

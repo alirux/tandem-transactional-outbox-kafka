@@ -24,6 +24,7 @@ walkthrough of the message flow.
 | Chapter | Topics |
 |---|---|
 | [Adoption Guide](adoption.md) | Ordering precondition, write-side tiers, `seq` modes and the write lock, applying the schema to a database with data in it, strangler cutover, aggregate-less events, rollout order. |
+| [Publishing Your Own Message Format](message-format.md) | The format and transport seams, writing a portable encoder, wiring it in plain Java and in Spring, what the ordering key means per broker, and the compatibility rules a published envelope carries. |
 | [Database Compatibility](compatibility.md) | What Tandem requires of an engine, PostgreSQL versions, managed and PostgreSQL-derived engines, connection poolers, what is out of scope and why, checking your own engine. |
 
 Every chapter stands on its own and numbers its own sections, so it can be read, bookmarked and

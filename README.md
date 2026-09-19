@@ -231,8 +231,12 @@ redraws these charts from them. The full scenario results are on
   events and backs off when it goes quiet, so low delivery latency does not cost a tight poll
   running all day against an idle database. Defaults, both bounds and the measurements behind them:
   [relay-sizing.md](docs/relay-sizing.md).
-- **CloudEvents by default** — messages are published using the CNCF CloudEvents envelope
-  (binary mode), interoperable with the wider ecosystem.
+- **CloudEvents by default, and both halves of that are a port**: messages are published using the
+  CNCF CloudEvents envelope (binary mode), interoperable with the wider ecosystem. The envelope is a
+  default, not a premise. Publish your own by implementing one interface that names no broker type,
+  and the same class runs on every transport adapter. The transport is a port too, with
+  `tandem-kafka` and `tandem-rabbitmq` on it. How to write either:
+  [Publishing Your Own Message Format](https://tandem-codingful.readthedocs.io/message-format/).
 - **First-class, per-aggregate replay** — re-publish a single aggregate's history through a
   programmatic Java API (`ReplayService`).
 - **Pluggable metrics port** — `TandemMetrics` reports the signals an operator alerts on: backlog
@@ -453,6 +457,13 @@ Already running real traffic through a domain model, not a toy aggregate? The
 [brownfield adoption guide](https://tandem-codingful.readthedocs.io/adoption/) walks through the
 ordering precondition, picking a write-side tier, applying the schema to a database that already
 has data in it, and replacing a hand-rolled Kafka producer.
+
+### Publishing your own message format
+
+Consumers that already read a different envelope, or a broker that is not Kafka? The
+[message format guide](https://tandem-codingful.readthedocs.io/message-format/) covers the two seams
+Tandem exposes, writing an encoder that is portable across transports, wiring it in plain Java and in
+Spring, and the compatibility rules a published envelope carries from its first deployment.
 
 ### Database compatibility
 

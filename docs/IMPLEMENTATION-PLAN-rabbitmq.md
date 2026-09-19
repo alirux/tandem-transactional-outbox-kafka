@@ -1,7 +1,8 @@
 # Tandem — Implementation Plan: RabbitMQ connector
 
 **Version:** 1.0
-**Status:** Planned. No phase started.
+**Status:** Phases 0 to 5 implemented. Phase 6 (independent version and release path) is deliberately
+open: its gate needs a floor that is not on Maven Central yet (D7, D8).
 **Scope:** a second transport adapter on the `OutboxDispatcher` port, `tandem-rabbitmq`, carrying its
 own version and its own release cadence; plus the guide page on extending the published envelope,
 deferred here from the message-format port. Spans `tandem-core` (documentation only), the new module,
@@ -36,7 +37,7 @@ freedom the library still takes with breaking changes does not extend to this mo
 
 ---
 
-## 1. Phase 0 — Guard rails and pins · **S**
+## 1. Phase 0 — Guard rails and pins · **S** · **done**
 
 No connector code. Three changes that are cheap now and expensive later, plus the version pins.
 
@@ -66,7 +67,7 @@ Testcontainers BOM already pinned.
 
 ---
 
-## 2. Phase 1 — The LLD, before any code · **S/M**
+## 2. Phase 1 — The LLD, before any code · **S/M** · **done**
 
 `docs/LLD-rabbitmq.md`, on the shape of [LLD-kafka.md](LLD-kafka.md). What it must settle, because
 each item is a contract a consumer or an operator depends on:
@@ -107,7 +108,7 @@ publication guarantees in Kafka's terms alone.
 
 ---
 
-## 3. Phase 2 — The adapter · **M**
+## 3. Phase 2 — The adapter · **M** · **done**
 
 | File | Change |
 |---|---|
@@ -129,7 +130,7 @@ genuine gaps, per the pre-commit rule.
 
 ---
 
-## 4. Phase 3 — Integration · **M**
+## 4. Phase 3 — Integration · **M** · **done**
 
 `RabbitRelayIT`, tagged `integration`, on a real broker through `RabbitMQContainer`, held in this
 module's test sources (D4). What it must prove, beyond the unit suite:
@@ -143,11 +144,18 @@ module's test sources (D4). What it must prove, beyond the unit suite:
   rescues it.
 - A broker restart mid-run is retriable and the run drains.
 
+**Scope, decided while writing it.** The IT covers the adapter against a real broker, which is the
+same scope `KafkaRelayIT` has; the database-to-broker end-to-end stays in `tandem-test`'s `EndToEndIT`
+and remains Kafka's, because extending it would mean putting RabbitMQ into `tandem-test` and D4 rules
+that out. Two cases named above are unit tests instead, where they are deterministic rather than
+timing-dependent: the lost confirm (a real broker confirms, so the deadline cannot be provoked without
+a network proxy) and the dropped connection.
+
 **Done-ness:** `./gradlew :tandem-rabbitmq:check` green with Docker available.
 
 ---
 
-## 5. Phase 4 — Registration · **S**
+## 5. Phase 4 — Registration · **S** · **done**
 
 The checklist from AGENTS.md, with the two variations D5 and D6 introduce:
 
@@ -156,7 +164,7 @@ The checklist from AGENTS.md, with the two variations D5 and D6 introduce:
 | `settings.gradle.kts` | Add |
 | `tandem-bom` | **Do not add** (D6) |
 | `tandem-coverage` `coveredProjects` | Add. The module is built and tested in this repository like any other |
-| `README.md` API reference | Add, stating the independent version explicitly rather than implying the BOM covers it |
+| `README.md` API reference | **Deferred to the first release**: each row links a javadoc.io page, which exists only for a published artifact. The module is instead named in the README's feature list and its documentation section |
 | `CONTRIBUTING.md` layout, `docs/LLD-base.md` | Add |
 | `THIRD-PARTY-NOTICES.md` | Add the per-module table: `amqp-client`, `slf4j-api` |
 | AGENTS.md registration checklist | Add the rule for independently versioned modules: outside the BOM, inside coverage, version stated explicitly wherever the module is documented |
@@ -166,7 +174,7 @@ written down where a future contributor will read it.
 
 ---
 
-## 6. Phase 4b — `tandem-spring-relay` stops redistributing Kafka · **M**
+## 6. Phase 4b — `tandem-spring-relay` stops redistributing Kafka · **M** · **done**
 
 `tandem-spring-relay` declares `api(project(":tandem-kafka"))`, so every Spring application using the
 relay autoconfiguration inherits the Kafka client whether it publishes to Kafka or not. Now that the
@@ -213,7 +221,7 @@ application still boots with `tandem-kafka` declared explicitly.
 
 ---
 
-## 7. Phase 5 — The guide · **S/M**
+## 7. Phase 5 — The guide · **S/M** · **done**
 
 `guide/message-format.md`, plus its entry in `mkdocs.yml`. This is the half of backlog item 42 that
 was deferred from the message-format port on purpose: it is written better with a second real
