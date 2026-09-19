@@ -13,6 +13,7 @@ val coveredProjects = listOf(
     ":tandem-jdbc",
     ":tandem-cloudevents",
     ":tandem-kafka",
+    ":tandem-rabbitmq",
     ":tandem-test",
     ":tandem-spring-producer",
     ":tandem-spring-relay",

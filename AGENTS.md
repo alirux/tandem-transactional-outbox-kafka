@@ -264,12 +264,21 @@ release). When you add a module, walk the whole list in the same change:
 | Register it in | Why, and what breaks if you forget |
 |---|---|
 | `settings.gradle.kts` | Gradle ignores the directory entirely otherwise. |
-| `tandem-bom/build.gradle.kts` | **Published modules only.** The BOM's job is to let a consumer declare any Tandem module without a version; a module missing there cannot be used that way. |
+| `tandem-bom/build.gradle.kts` | **Published modules on the library's own version only.** The BOM's job is to let a consumer declare any Tandem module without a version; a module missing there cannot be used that way. An **independently versioned** module (see below) is deliberately excluded, and the omission is recorded as a comment there so nobody "fixes" it. |
 | `tandem-coverage`'s `coveredProjects` | **Published, tested modules only.** Only the aggregated report attributes cross-module hits to the owning class, and it is the single report CI uploads to Codecov — a module missing there never reaches Codecov at all. |
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
 | `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules that must NOT be published.** The dependency graph CI submits is scoped to the published runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. |
 | `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
 | `THIRD-PARTY-NOTICES.md` per-module table | **Published modules only.** It documents what a consumer actually inherits; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
+
+**Independently versioned modules** (today: `tandem-rabbitmq`, plus the Go `tandem-cli`) follow the same
+checklist with three changes, because their version is not the library's: they stay **out of `tandem-bom`**,
+they stay **in `coveredProjects`** (they are built and tested in this repository like any other module), and
+every place that documents them states their version explicitly instead of implying the BOM covers it. Until
+such a module's own release workflow exists it also belongs in `notYetPublishedModules` in the root
+`build.gradle.kts`, which removes its publishing tasks so a library `v*` tag cannot publish it by accident,
+and it stays out of the README's API reference table, whose rows link a javadoc.io page that exists only for
+a published artifact.
 
 Unpublished leaf apps (`tandem-sample*`, `tandem-benchmark`) stay out of the BOM and out of coverage
 aggregation on purpose: no meaningful coverage, and no `integrationTest` phase for the aggregated report

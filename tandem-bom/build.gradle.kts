@@ -18,5 +18,9 @@ dependencies {
         api(project(":tandem-micrometer"))
         api(project(":tandem-tracing-otel"))
         api(project(":tandem-admin"))
+        // tandem-rabbitmq is deliberately absent: it carries its own version and its own release
+        // cadence (LLD-rabbitmq §9), and this BOM's promise is one aligned version for everything it
+        // lists. Pinning it here would force a BOM release on every connector release. A consumer
+        // declares it with its own version.
     }
 }

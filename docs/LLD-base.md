@@ -33,6 +33,7 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 | `tandem-jdbc` | `tandem-jdbc` | |
 | `tandem-cloudevents` | `tandem-cloudevents` | The CloudEvents envelope; every transport adapter binds it to its own wire format |
 | `tandem-kafka` | `tandem-kafka` | |
+| `tandem-rabbitmq` | `tandem-rabbitmq` | AMQP 0.9.1 publish adapter. **Independently versioned** (`rabbitmq-v*`), so it is outside `tandem-bom` (LLD-rabbitmq §9) |
 | `tandem-spring-producer` | `tandem-spring-producer` | Write-side Spring autoconfig (JDBC, **no Kafka**) — used by the client (§3.2 HLD). Split by role, no aggregator (Q21, LLD-spring-config §1) |
 | `tandem-spring-relay` | `tandem-spring-relay` | Relay Spring autoconfig (JDBC + Kafka) |
 | `tandem-relay` | `tandem-relay` | Prebuilt **standalone runnable** relay (Spring Boot app over `tandem-spring-relay`) — split topology (§3.2 HLD) |
@@ -108,6 +109,7 @@ com.codingful.tandem.<module>[.<sub-package>]
 | tandem-jdbc | `com.codingful.tandem.jdbc` |
 | tandem-cloudevents | `com.codingful.tandem.cloudevents` |
 | tandem-kafka | `com.codingful.tandem.kafka` |
+| tandem-rabbitmq | `com.codingful.tandem.rabbitmq` |
 | tandem-spring-producer | `com.codingful.tandem.spring.producer` |
 | tandem-spring-relay | `com.codingful.tandem.spring.relay` |
 | tandem-relay | `com.codingful.tandem.relay` |

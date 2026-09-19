@@ -22,8 +22,19 @@ val junitLauncher = libs.junit.platform.launcher
 // only produces the aggregated JaCoCo report (no Java sources, no artifact to publish).
 val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-benchmark", "tandem-coverage")
 
+// Modules that ARE libraries in every other respect — java-library convention, tests, coverage
+// aggregation — but must not be published by a `v*` tag, because they carry their own version and
+// their own release workflow (IMPLEMENTATION-PLAN-rabbitmq.md §1). The set gates only the two
+// publishing blocks below, never the java-library convention.
+//
+// Why a set here rather than an exclusion in the release workflow: `release.yml` publishes every
+// module that applies the publishing plugin, and a Maven Central version can never be deleted or
+// overwritten. A workflow flag can be forgotten at tag time; a module that has no publishing task
+// at all cannot be published by accident.
+val notYetPublishedModules = setOf("tandem-rabbitmq")
+
 subprojects {
-    if (name !in unpublishedModules) {
+    if (name !in unpublishedModules && name !in notYetPublishedModules) {
         apply(plugin = "com.vanniktech.maven.publish")
     }
 
@@ -130,7 +141,8 @@ subprojects {
     }
 
     // Common Maven Central / POM metadata. Per-module name+description come from the subproject.
-    if (name !in unpublishedModules) configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+    if (name !in unpublishedModules && name !in notYetPublishedModules)
+        configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
         publishToMavenCentral()
         signAllPublications()
         pom {

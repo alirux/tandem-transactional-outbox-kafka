@@ -201,7 +201,9 @@ The outbox is essential for one specific class of service: those whose emitted e
 ```
 tandem-core             zero external runtime deps; defines models + ports
 tandem-jdbc   ──▶ core   JDBC adapter: outbox INSERT + polling/lease/cleanup (NO Kafka)
+tandem-cloudevents ─▶ core   the CloudEvents envelope, with no transport binding of its own
 tandem-kafka  ──▶ core   Kafka publish adapter (implements the OutboxDispatcher port)
+tandem-rabbitmq ─▶ core  AMQP 0.9.1 publish adapter (same port; its own version, LLD-rabbitmq §9)
 
 # Spring autoconfig — split by role so the client can avoid Kafka (§3.2); no aggregator
 tandem-spring-producer  ──▶ tandem-jdbc                  write-side tiers (client; NO Kafka)
@@ -366,22 +368,26 @@ Tandem applies the pattern to *outbox-table polling* (a bucket is an internal re
 
 > Per-aggregate dynamic claim (opaque UUID workers, advisory lock per aggregate) was analysed in [q8-worker-model-decision.md](q8-worker-model-decision.md) and **not chosen**: more elastic, but its ordering correctness is condition-dependent and lock-based, with *silent* failure modes. Single-leader sequential relay (Eventuate-style) was also rejected — it forgoes the parallelism that is Tandem's reason for existing.
 
-### 4.4 Idempotent Kafka Producer Required
+### 4.4 A Publish Adapter Must Be Configured for No Loss and No Reordering
 
-**Decision:** The Kafka producer must be configured with `enable.idempotence=true` and `acks=all`.
+**Decision:** The Kafka producer must be configured with `enable.idempotence=true` and `acks=all`. Every
+other publish adapter carries the same obligation in its own protocol's terms: on AMQP 0.9.1 that is
+publisher confirms, persistent delivery and the `mandatory` flag (LLD-rabbitmq §1).
 
 **Rationale:** With `max.in.flight.requests.per.connection > 1` (the default), retried batches can be reordered even from a single thread. Idempotent producer mode prevents this at the cost of a sequence number per partition.
 
 **Alternative:** `max.in.flight.requests.per.connection=1` also prevents reordering but halves throughput on high-latency connections.
 
-**Enforcement:** Tandem sets these as defaults and **fails fast** (`TandemConfigurationException` at startup) if the user overrides them to unsafe values (`acks=0/1`, idempotence off, `max.in.flight > 5`) — the no-loss and ordering guarantees depend on them (LLD-kafka §1).
+**Enforcement:** Tandem sets these as defaults and **fails fast** (`TandemConfigurationException` at startup) if the user overrides them to unsafe values (`acks=0/1`, idempotence off, `max.in.flight > 5`) — the no-loss and ordering guarantees depend on them (LLD-kafka §1). The same posture applies to every adapter: a setting the guarantee rests on is not a setting an operator can weaken silently.
 
-### 4.5 Mark DONE Only After Kafka Ack
+**What does not carry across:** Kafka's partition key keeps an aggregate's events ordered even under competing consumers. AMQP has no partitions, so `tandem-rabbitmq` preserves *publish* order and leaves consumer-observed order to a queue arrangement the operator chooses (LLD-rabbitmq §7). The relay's own guarantee is identical on both; what differs is what the broker does with it afterwards.
 
-**Decision:** `status=DONE` is written to the database only after receiving a successful producer ack from Kafka (`acks=all`).
+### 4.5 Mark DONE Only After the Broker Acks
+
+**Decision:** `status=DONE` is written to the database only after the broker has durably acknowledged the message: a producer ack under `acks=all` on Kafka, a publisher confirm for a persistent message on AMQP.
 
 **Rationale:** The failure modes are asymmetric:
-- Mark DONE before ack, then Kafka unavailable → **event permanently lost**
+- Mark DONE before ack, then the broker unavailable → **event permanently lost**
 - Mark DONE after ack, relay crashes before marking → **duplicate on restart**, recoverable
 
 Duplicates are a known, managed outcome. Data loss is not.

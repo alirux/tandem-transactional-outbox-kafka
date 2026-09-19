@@ -114,6 +114,7 @@ python3 tandem-cli/hack/fake-admin-api.py 8080
 | `tandem-jdbc` | Write-side outbox INSERT, relay polling/claiming, PostgreSQL adapter. |
 | `tandem-cloudevents` | The CloudEvents envelope for a stored row, with no transport binding of its own. |
 | `tandem-kafka` | CloudEvents publication to Kafka. |
+| `tandem-rabbitmq` | CloudEvents publication to RabbitMQ over AMQP 0.9.1. Versioned and released independently of the library (`rabbitmq-v*`), so it is not in `tandem-bom`. |
 | `tandem-test` | Test helpers (`InMemoryOutbox`, `RecordingDispatcher`, `TandemTestContainer`). |
 | `tandem-spring-producer` | Spring Boot autoconfiguration for the write side, plus its usage tiers. Never pulls Kafka. |
 | `tandem-spring-relay` | Spring Boot autoconfiguration for the relay, started with the application. |
