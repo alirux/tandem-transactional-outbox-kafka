@@ -34,8 +34,8 @@ class TandemMicrometerAutoConfigurationTest {
     // opening a database connection at context refresh — this test is about which TandemMetrics bean
     // wins, not about the relay actually starting.
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(
-                    TandemMicrometerAutoConfiguration.class, TandemRelayAutoConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(TandemMicrometerAutoConfiguration.class,
+                    TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
             .withBean(DataSource.class, NoopDataSource::new)
             .withUserConfiguration(TandemRelayAutoConfigurationTest.UnstartedLifecycle.class)
             .withPropertyValues(

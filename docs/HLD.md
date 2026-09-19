@@ -207,7 +207,8 @@ tandem-rabbitmq ─▶ core  AMQP 0.9.1 publish adapter (same port; its own vers
 
 # Spring autoconfig — split by role so the client can avoid Kafka (§3.2); no aggregator
 tandem-spring-producer  ──▶ tandem-jdbc                  write-side tiers (client; NO Kafka)
-tandem-spring-relay     ──▶ tandem-jdbc + tandem-kafka   relay autoconfig
+tandem-spring-relay     ──▶ tandem-jdbc                  relay autoconfig; the publish adapter is
+                                                         optional and wired if present, never carried
 tandem-relay (runnable) ──▶ tandem-spring-relay          prebuilt standalone relay app
 
 tandem-bom              version alignment only, no code

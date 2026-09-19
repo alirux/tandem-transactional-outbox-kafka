@@ -617,7 +617,27 @@ concurrent writers at all: [LLD-spring-producer.md](LLD-spring-producer.md) §7.
 ### 4.4 `tandem-spring-relay` beans
 
 Conditional on `tandem.relay.enabled` (`@ConditionalOnProperty`, matchIfMissing = true, default true),
-the relay module contributes the engine, each bean `@ConditionalOnMissingBean`:
+the relay module contributes the engine, each bean `@ConditionalOnMissingBean`.
+
+**The transport is not part of it.** `tandem-kafka` is a `compileOnly` dependency of this module, like
+Spring and `tandem-micrometer`, so an application relaying to another broker does not inherit the Kafka
+client (HLD §1.3). Beans 1 to 3 below therefore live in a **separate `TandemKafkaAutoConfiguration`**,
+ordered `before` `TandemRelayAutoConfiguration` and gated at **class level** on the Kafka classes, on a
+single `DataSource` candidate and on there being no `OutboxDispatcher` already. The gate has to be on
+the class: those beans name Kafka types in their signatures, which Spring resolves while introspecting
+the configuration class, before any method-level condition is evaluated (§1.1 rule 2). Ordering it
+`before` is what makes the back-off one Spring guarantees, since that guarantee holds across ordered
+autoconfiguration classes and not across the `@Bean` methods of one class. `TandemMicrometerAutoConfiguration`
+is wired the same way for the same reason.
+
+When nothing contributes an `OutboxDispatcher`, neither that class nor the application,
+`TandemRelayAutoConfiguration` fails with a message naming what to declare, rather than letting the
+relay surface as an unsatisfied `WorkerPool` dependency that names an interface instead of a jar.
+
+A `FilteredClassLoader` test does not prove any of this: it leaves the configuration class loaded by
+the parent loader, so a Kafka type left in a `@Bean` signature would still resolve. The **`noKafkaTest`
+source set** runs the module on a classpath that genuinely lacks the adapter, and is wired into
+`check` (same role `jacksonThreeTest` plays in `tandem-admin`, §1.3).
 
 1. `TopicRouter` = `TopicRouter.kebabWithSuffix(tandem.kafka.topic-suffix)`;
 2. `KafkaMessageEncoder` = the published wire format (LLD-kafka §3), resolved in three steps.

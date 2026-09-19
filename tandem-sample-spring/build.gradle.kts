@@ -57,6 +57,9 @@ dependencies {
     // (so the relay runs itself, wired by Spring, rather than being assembled by hand).
     implementation(project(":tandem-spring-producer"))
     implementation(project(":tandem-spring-relay"))
+    // The transport is a port: tandem-spring-relay wires whichever adapter is on the classpath and
+    // redistributes none, so the application names the one it publishes to.
+    implementation(project(":tandem-kafka"))
     // [DEMO-ONLY] Lets the sample also demonstrate the Admin API's read endpoints against the same
     // outbox the tiers above just wrote to. spring-boot-starter-web is what actually keeps the app
     // running as a server after SampleRunner's CommandLineRunner finishes.

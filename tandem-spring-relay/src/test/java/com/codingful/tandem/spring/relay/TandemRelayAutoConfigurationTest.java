@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -55,7 +56,8 @@ class TandemRelayAutoConfigurationTest {
             .build();
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(TandemRelayAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(
+                    TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class));
 
     /**
      * The wired engine, with the pool left unstarted. The autoconfigured {@link RelayLifecycle} would
@@ -210,6 +212,21 @@ class TandemRelayAutoConfigurationTest {
                 .withBean(KafkaMessageEncoder.class,
                         () -> record -> new ProducerRecord<>("audit", record.payload()))
                 .run(context -> assertThat(context).hasSingleBean(OutboxDispatcher.class));
+    }
+
+    /**
+     * The case a second transport adapter creates: the application publishes elsewhere entirely and
+     * contributes its own {@link OutboxDispatcher}. It must not be made to set a Kafka property for a
+     * producer it never builds.
+     */
+    @Test
+    void GIVEN_an_application_publishing_to_another_broker_WHEN_it_contributes_its_own_dispatcher_THEN_no_kafka_setting_is_demanded() {
+        OutboxDispatcher ownDispatcher = record -> CompletableFuture.completedFuture(null);
+
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withUserConfiguration(UnstartedLifecycle.class)
+                .withBean(OutboxDispatcher.class, () -> ownDispatcher)
+                .run(context -> assertThat(context.getBean(OutboxDispatcher.class)).isSameAs(ownDispatcher));
     }
 
     @Test

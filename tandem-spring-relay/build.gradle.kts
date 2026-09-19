@@ -1,9 +1,16 @@
-description = "Tandem Spring Boot autoconfiguration — relay engine + CloudEvents publishing (JDBC + Kafka)"
+description = "Tandem Spring Boot autoconfiguration — relay engine, wiring whichever publish adapter is on the classpath"
 
 dependencies {
-    // Real, redistributed dependencies: the JDBC relay engine and the Kafka publish adapter.
+    // The only redistributed dependency: the JDBC relay engine, which every relay needs whatever it
+    // publishes to.
     api(project(":tandem-jdbc"))
-    api(project(":tandem-kafka"))
+
+    // Optional, like Spring and Micrometer below: the transport is a port, so this module wires
+    // whichever adapter is on the classpath instead of carrying one (HLD §1.3). An application
+    // relaying to RabbitMQ must not inherit the Kafka client. TandemKafkaAutoConfiguration is gated
+    // on these classes and is never loaded without them; the noKafkaTest source set below proves the
+    // rest of the module loads on a classpath that genuinely lacks them.
+    compileOnly(project(":tandem-kafka"))
 
     // Spring is compile-only so no Spring version is propagated to the consumer — the application
     // brings its own Boot 3.x or 4.x and the JVM binds at runtime (LLD-spring-config §1.1).
@@ -32,6 +39,9 @@ dependencies {
     // AbstractDataSource is the real base the wiring tests' stub DataSource extends (test-only).
     testImplementation(libs.spring.jdbc)
     testImplementation(project(":tandem-test"))
+    // tandem-test brings tandem-kafka transitively; declared explicitly because this module's tests
+    // assert the Kafka wiring directly and should not depend on another module's dependency graph.
+    testImplementation(project(":tandem-kafka"))
     // Real Micrometer classes on the test classpath, so the wiring tests can prove the conditional
     // fires with a real MeterRegistry bean present and backs off to NOOP without one.
     testImplementation(project(":tandem-micrometer"))
@@ -136,6 +146,47 @@ val bootFourTest = tasks.register<Test>("bootFourTest") {
     shouldRunAfter(tasks.named("test"))
 }
 
+// ---------------------------------------------------------------------------------------------------
+// The no-Kafka gate (IMPLEMENTATION-PLAN-rabbitmq.md §6)
+//
+// tandem-kafka is compileOnly here, so the module must load and wire a relay on a classpath that does
+// not contain it. A FilteredClassLoader context-runner test cannot prove that: it leaves the
+// configuration class loaded by the parent loader, so a Kafka type in a @Bean signature still
+// resolves and the test stays green (verified once already, for the Micrometer Tracing bridge). Only a
+// genuinely Kafka-free classpath does, which is what this source set is. Same role jacksonThreeTest
+// plays in tandem-admin.
+// ---------------------------------------------------------------------------------------------------
+val noKafka = sourceSets.create("noKafkaTest") {
+    compileClasspath += mainOutput
+    runtimeClasspath += mainOutput
+}
+listOf("noKafkaTestCompileClasspath", "noKafkaTestRuntimeClasspath").forEach { name ->
+    configurations[name].exclude(group = "com.codingful", module = "tandem-kafka")
+    configurations[name].exclude(group = "org.apache.kafka", module = "kafka-clients")
+}
+
+dependencies {
+    "noKafkaTestImplementation"(platform(libs.spring.boot.dependencies))
+    "noKafkaTestImplementation"(libs.spring.boot.autoconfigure)
+    "noKafkaTestImplementation"(libs.spring.boot.test)
+    "noKafkaTestImplementation"(libs.spring.jdbc)
+    "noKafkaTestImplementation"(libs.slf4j.api)
+    "noKafkaTestImplementation"(project(":tandem-jdbc"))
+    "noKafkaTestImplementation"(platform(libs.junit.bom))
+    "noKafkaTestImplementation"(libs.junit.jupiter)
+    "noKafkaTestRuntimeOnly"(libs.junit.platform.launcher)
+    "noKafkaTestImplementation"(libs.assertj.core)
+}
+
+val noKafkaTest = tasks.register<Test>("noKafkaTest") {
+    description = "Runs the relay autoconfiguration on a classpath with no Kafka adapter at all."
+    group = "verification"
+    testClassesDirs = noKafka.output.classesDirs
+    classpath = noKafka.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter(tasks.named("test"))
+}
+
 tasks.named("check") {
-    dependsOn(bootLatestThreeTest, bootFourTest)
+    dependsOn(bootLatestThreeTest, bootFourTest, noKafkaTest)
 }

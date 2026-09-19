@@ -66,7 +66,8 @@ class TandemRelayIntegrationTest {
         infrastructure.createTopic(TOPIC, 4);
 
         new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(TandemRelayAutoConfiguration.class))
+                .withConfiguration(AutoConfigurations.of(
+                        TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
                 .withBean(DataSource.class, () -> infrastructure.dataSource())
                 // A second SmartLifecycle bean must not make the relay's own lifecycle back off (that
                 // would leave the relay unstarted) — a real Boot app always has other lifecycle beans.

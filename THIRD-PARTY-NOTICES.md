@@ -24,7 +24,7 @@ driver among them — do reach whoever declares it, and are listed below.
 | `tandem-kafka` | `kafka-clients`, `cloudevents-kafka`, `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
 | `tandem-rabbitmq` | `amqp-client`, `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
 | `tandem-spring-producer` | none beyond `tandem-jdbc` — **Spring and Jackson are `compileOnly`**, so the application's own versions are used and none is dragged in |
-| `tandem-spring-relay` | none beyond `tandem-jdbc` and `tandem-kafka` — Spring is `compileOnly`, as above. `tandem-micrometer` (below) is also `compileOnly` here, so it adds nothing to this module's own footprint |
+| `tandem-spring-relay` | none beyond `tandem-jdbc` — Spring is `compileOnly`, as above, and so are `tandem-kafka` and `tandem-micrometer`: the transport is a port, so the application declares the publish adapter it uses and inherits no other one |
 | `tandem-micrometer` | `micrometer-core` |
 | `tandem-tracing-otel` | `opentelemetry-api` |
 | `tandem-admin` | none beyond `tandem-jdbc` — Spring is `compileOnly`, as above. Of Jackson it compiles against the **annotations only** (`jackson-annotations`, also `compileOnly`), never a JSON binding: Boot 3 supplies Jackson 2 and Boot 4 supplies Jackson 3, and the annotations are what both carry |
