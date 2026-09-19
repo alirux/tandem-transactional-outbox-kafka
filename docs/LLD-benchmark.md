@@ -1283,10 +1283,10 @@ and the fix belongs in the assertion.
     limits, S5's crash-recovery path hasn't actually fired across three runs).
 - **CI smoke:** `SmokeLoadTest` (`@Tag("integration")`, one shared `BenchmarkEnvironment` per class via
   `@TestInstance(PER_CLASS)`) runs `BenchmarkConfig.defaults().toSmoke()` against **S1, S3, S5, S6,
-  S8, S9, S10** — the scenarios that each exercise a structurally distinct code path (ramp, skew,
-  failover, poison, multi-instance `LEASE` coordination, windowed endurance, the post-commit wakeup);
-  S2/S4 reuse S1's machinery and are
-  exercised only in full runs. S9 under `toSmoke()` is a wiring check and nothing more: its seed ramp
+  S8, S9, S10, S11** — the scenarios that each exercise a structurally distinct code path (ramp, skew,
+  failover, poison, multi-instance `LEASE` coordination, windowed endurance, the post-commit wakeup,
+  outage recovery over a lifecycle population); S2/S4 reuse S1's machinery and are exercised only in
+  full runs. S9 under `toSmoke()` is a wiring check and nothing more: its seed ramp
   shrinks with the run, so it holds the seed rate and compares two 1.5-second windows — enough to prove
   the ledger, the windowing and the coverage sampling all run, not to observe drift. Runs in the existing `integrationTest` phase (Docker required), asserting **correctness
   only** — the reported throughput/latency numbers in a smoke or demo run are informational, never
@@ -1294,8 +1294,10 @@ and the fix belongs in the assertion.
   ≈ 18 s + S6 ≈ 4 s + S5 ≈ 14 s + S1 ≈ 7 s + S3 ≈ 55 s + S8 ≈ small, its `duration` and offered rate are
   tiny under `toSmoke()`). **S10 adds ≈ 35 s** (2026-08-30): it is four windows, each starting and
   stopping a relay of its own, so it is the one smoke case whose floor is structural rather than a
-  matter of its rate. Not a hard CI budget, but useful context for anyone tuning it further. Both
-  `test` and `integrationTest` print live `PASSED`/`FAILED` lines per test method in the console
+  matter of its rate. **S11 adds ≈ 9 s** (2026-09-19): at this duration its cells are a second each, so
+  what it proves is the stop/restart path and the lifecycle population, not a recovery time. Not a hard
+  CI budget, but useful context for anyone tuning it further. Both `test` and `integrationTest` print
+  live `PASSED`/`FAILED` lines per test method in the console
   (`testLogging`, §2) — Gradle's `Test` task prints nothing per-test by default otherwise.
 - **CI smoke over AMQP:** `RabbitSmokeLoadTest` is the same class of check against `--broker=rabbit`
   (§3.1), running **S1, S5, S6, S8, S12**: the ramp, failover and its duplicates, the poison gate, two
@@ -1340,7 +1342,7 @@ knob to expose here):
 | `warmup` | 30 s | discarded before latency recording (S2) |
 | `duration` | 10 min | steady-state window: S1's sustain gate, S2/S3/S6's drive time, S5's half-phases, S9's whole run |
 | `window` | 20 min | S9's reporting window — the unit its drift comparison is made *between*; shrunk to `duration / 2` when the run is too short to hold two |
-| `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10, S11); `0` leaves each to pick its own |
+| `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10, S11, S12); `0` leaves each to pick its own |
 | `wakeup` | `NONE` | one knob for one mechanism (`--wakeup=pg-notify`): it wires `Wakeup.PG_NOTIFY` into every `LoadGenerator`'s repository **and** a `WakeupSource` into every relay the environment builds, since either alone does nothing. S10 overrides it per arm |
 | `latencyMode` | `PROXY` | `PROXY` or `ACCURATE` (§5.1) |
 | `broker` | `KAFKA` | which broker the run publishes to (`--broker=`, §3.1). The default is not a free choice: the archived results are Kafka's, and a run that silently changed transport would be quoted beside them |
