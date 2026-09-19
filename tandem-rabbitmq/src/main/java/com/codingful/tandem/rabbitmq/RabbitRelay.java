@@ -285,6 +285,25 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
     }
 
     /**
+     * How many publishes this adapter is still waiting for the broker to settle.
+     *
+     * <p>Every one of them holds an entry in a map of this adapter's own until a confirm, a return, a
+     * timeout or a channel shutdown resolves it, so the count is also where a resolution path that
+     * forgot to release its entry would show: over a long run it would climb and never come back down.
+     * An idle adapter reports zero.
+     *
+     * @return the number of unsettled publishes, never negative
+     */
+    public int inFlightConfirms() {
+        return pending.size();
+    }
+
+    /** For tests: the second index, which every resolution path must release together with the first. */
+    int trackedMessageIds() {
+        return tagsByMessageId.size();
+    }
+
+    /**
      * Reports the confirm timeout to the relay so the {@code rowLease > deliveryTimeout} invariant is
      * validated against the deadline this adapter really enforces (§3, LLD-jdbc §3.5).
      */

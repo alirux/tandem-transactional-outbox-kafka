@@ -4,12 +4,12 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import com.codingful.tandem.benchmark.RampController;
 import java.time.Duration;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S1 — sustained max throughput (HLD-load-testing.md §4): ramps the offered rate until the lag age
@@ -31,9 +31,9 @@ public final class S1SustainedThroughput implements Scenario {
         BenchmarkEnvironment env = ctx.environment();
         BenchmarkConfig cfg = ctx.config();
         env.relayPool().start();
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s1");
+        try (EventReceiver receiver = env.newReceiver("bench-s1");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

@@ -96,8 +96,9 @@ refinements — surfaced by this plan — have been folded back into HLD §10:
 **Definition:** wall-clock from the domain transaction's commit to the producer ack for
 that event.
 
-`t1` is captured by a **correlation consumer**: a Kafka consumer, co-located with the
-harness, that receives every published event and records its receive time. The relay
+`t1` is captured by a **correlation consumer**: a consumer co-located with the harness that receives
+every published event and records its receive time. It reads whichever broker the run publishes to
+(§4), holding no client type of its own, so the verdict is decided by the same code in both cases. The relay
 itself records nothing — measurement needs no product hook. The delta therefore includes
 the broker→consumer hop, so it slightly *over*-estimates the COMMIT→ack KPI — acceptable
 and conservative. The same consumer doubles as the correctness verifier (§4):
@@ -211,6 +212,7 @@ statement about the run, not about Tandem.
 | **S9** | Endurance | Nothing drifts over hours; coverage holds across many renewal cycles | Hold a fixed, moderate rate (≈50% of a short seed ramp) under `LEASE` for hours, sliced into reporting windows; compare the last window's throughput and latency against the first, and sample bucket coverage, outbox size, dead tuples and heap every window |
 | **S10** | Cold row, with and without the post-commit wakeup | What the wakeup buys on discovery, and what it costs the write path | Hold a rate low enough that every event arrives into a worker slice already waiting at `pollInterval`; alternate four windows (poll, wakeup, wakeup, poll) inside one run and report COMMIT→ack **and** the write transaction's own duration for each arm |
 | **S11** | Outage recovery | How long an outbox takes to come back after the relay was down, and whether it comes back at all | Stop the relay while the write side keeps going, restart it, and time the return to the steady state; repeat for a ladder of outage lengths, stopping at the first that does not recover inside its bound. Uses a **lifecycle** write-side population (aggregates emit a bounded number of events and retire) rather than a fixed cardinality, because under a fixed cardinality chain length grows with the run and the recovery curve measures the generator |
+| **S12** | Broker outage | Delivery and ordering across an interruption of the broker itself; no bookkeeping left behind | Freeze the broker under steady load and thaw it: confirm every event still arrives in order once it answers again, that nothing was quarantined by burning its retry ladder, and that the dispatcher is left waiting on nothing. S11 stops the relay, which publishes nothing while it is down; this leaves publishes in flight with no answer coming, which is the half of the dispatcher a stopped relay never exercises |
 
 Each scenario asserts **zero ordering violations** per aggregate (consumer verifies
 `seq` is strictly increasing per `aggregate_id`) and **zero lost events** (every committed
@@ -239,6 +241,16 @@ garbage collection the loudest signal in the measurement.
 
 Drift is **reported, not asserted**: `passed` stays correctness-only (§6), because on a
 non-reference host (§5.1) a throughput slope can belong to the host rather than to Tandem.
+
+**The same scenarios run against a second broker, and that is a correctness run, not a comparison.**
+Because `passed` is correctness-only for every scenario, the suite is already an assertion about the
+relay and its dispatcher rather than about a transport, so pointing it at RabbitMQ
+(`--broker=rabbit`, LLD-benchmark §3.1) gates the AMQP connector under the real relay loop: concurrent
+claims from several workers, retry and quarantine, `LEASE` coordination between instances, an
+interrupted broker. What such a run does **not** produce is a number to set beside Kafka's. The
+harness reads AMQP through one queue and one consumer, which is what keeps per-aggregate ordering
+observable and also caps delivered throughput at what a single consumer thread drains; a figure from
+that arrangement describes the arrangement. Published numbers stay Kafka's.
 
 ---
 
@@ -340,6 +352,9 @@ non-negotiable regardless of performance).
 - A *smoke* variant (tiny rate, short duration) **does** run — `SmokeLoadTest`
   (`@Tag("integration")`) covers S1, S3, S5, S6, S8, S9, S10, S11 against `BenchmarkConfig.toSmoke()`, purely
   to keep the harness compiling and wired; it asserts correctness, never KPI numbers.
+  `RabbitSmokeLoadTest` is its AMQP counterpart, running S1, S5, S6, S8 and S12 against
+  `--broker=rabbit`: the same assertions, for the half of the connector its own suite cannot reach
+  (LLD-benchmark §3.1).
   Measured wall-clock on a developer machine: **~106 s** (LLD-benchmark §9); most of that
   is deliberate idle time (S5's row-lease wait with the relay stopped, S3's drain-tail
   polling), not CPU load — consistent with §5.1's point that a developer-machine run is

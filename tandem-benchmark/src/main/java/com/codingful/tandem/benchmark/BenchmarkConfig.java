@@ -41,6 +41,7 @@ public final class BenchmarkConfig {
     private final int cleanupBatchSize;
     private final LatencyMode latencyMode;
     private final Wakeup wakeup;
+    private final Broker broker;
 
     private BenchmarkConfig(Builder b) {
         this.bucketCount = b.bucketCount;
@@ -64,6 +65,7 @@ public final class BenchmarkConfig {
         this.cleanupBatchSize = b.cleanupBatchSize;
         this.latencyMode = b.latencyMode;
         this.wakeup = b.wakeup;
+        this.broker = b.broker;
     }
 
     /** Must match the value baked into every row by the write-side (LLD-jdbc §2.1). Default 256. */
@@ -214,6 +216,16 @@ public final class BenchmarkConfig {
         return wakeup;
     }
 
+    /**
+     * Which broker the run publishes to. Default {@link Broker#KAFKA}: the relay engine is
+     * transport-neutral and every scenario's verdict is correctness-only, so a second broker is a run
+     * of the same scenarios rather than a suite of its own. But the archived numbers are Kafka's, and
+     * a run that silently changed transport would be quoted as if they were comparable (§3.1).
+     */
+    public Broker broker() {
+        return broker;
+    }
+
     public static BenchmarkConfig defaults() {
         return builder().build();
     }
@@ -250,7 +262,8 @@ public final class BenchmarkConfig {
                 .cleanupInterval(cleanupInterval)
                 .cleanupBatchSize(cleanupBatchSize)
                 .latencyMode(latencyMode)
-                .wakeup(wakeup);
+                .wakeup(wakeup)
+                .broker(broker);
     }
 
     /**
@@ -317,6 +330,7 @@ public final class BenchmarkConfig {
         private int cleanupBatchSize = 1000;
         private LatencyMode latencyMode = LatencyMode.PROXY;
         private Wakeup wakeup = Wakeup.NONE;
+        private Broker broker = Broker.KAFKA;
 
         private Builder() {
         }
@@ -454,6 +468,12 @@ public final class BenchmarkConfig {
 
         public Builder wakeup(Wakeup wakeup) {
             this.wakeup = Objects.requireNonNull(wakeup, "wakeup");
+            return this;
+        }
+
+        /** Which broker the run publishes to. Default {@link Broker#KAFKA}. */
+        public Builder broker(Broker broker) {
+            this.broker = Objects.requireNonNull(broker, "broker");
             return this;
         }
 

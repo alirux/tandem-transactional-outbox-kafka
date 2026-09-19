@@ -57,6 +57,9 @@ public final class LagProbe {
     private static final String HAS_FAILED_ROW_SQL =
             "SELECT EXISTS(SELECT 1 FROM tandem_outbox WHERE aggregate_id = ? AND status = 3)";
 
+    private static final String FAILED_FOR_NAMESPACE_SQL =
+            "SELECT count(*) FROM tandem_outbox WHERE aggregate_id LIKE ? AND status = 3";
+
     private final DataSource dataSource;
 
     public LagProbe(DataSource dataSource) {
@@ -168,6 +171,25 @@ public final class LagProbe {
             }
         } catch (SQLException e) {
             throw new IllegalStateException("lag probe (hasFailedRow) failed", e);
+        }
+    }
+
+    /**
+     * How many rows of {@code namespace} were quarantined to {@code FAILED} (S12). A broker outage
+     * long enough to burn a row's whole retry ladder ends with that row terminal rather than
+     * delivered, which reads as a lost event in the correctness report; counting them says which of
+     * the two happened without having to go to the table by hand.
+     */
+    public long failedForNamespace(String namespace) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(FAILED_FOR_NAMESPACE_SQL)) {
+            ps.setString(1, namespace + "-%");
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("lag probe (failedForNamespace) failed", e);
         }
     }
 

@@ -4,6 +4,7 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LagProbe;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
@@ -14,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S11 — outage recovery (HLD-load-testing.md §4, LLD-benchmark §8). The relay is stopped while the
@@ -103,9 +103,9 @@ public final class S11OutageRecovery implements Scenario {
         double rate = cfg.offeredRate() > 0 ? cfg.offeredRate() : NOMINAL_RATE_PER_SECOND;
 
         env.relayPool().start();
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s11");
+        try (EventReceiver receiver = env.newReceiver("bench-s11");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      population(cfg, rate), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

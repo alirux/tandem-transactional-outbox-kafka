@@ -275,8 +275,11 @@ produces a staged deployment containing this module and nothing else.
 - RabbitMQ autoconfiguration and `tandem.rabbitmq.*` properties (D3). A separate item once the
   adapter has users.
 - AMQP 1.0, JMS, and any second transport beyond this one.
-- Benchmark scenarios against RabbitMQ. The published numbers are Kafka's and stay that way until
-  someone asks for a comparison.
+- A performance comparison with Kafka. The published numbers are Kafka's and stay that way. The
+  benchmark harness *can* run every scenario against RabbitMQ (`--broker=rabbit`, LLD-benchmark §3.1),
+  because each scenario's verdict is correctness-only, and that is what it is for: gating this adapter
+  under the real relay loop. Its throughput and latency figures describe the harness's single-queue
+  topology, not the broker.
 - A dedicated `tandem-spring-rabbitmq` autoconfiguration. It would itself need an independent version, since it would depend on the connector.
 - Renaming the repository, whose name still says Kafka.
 

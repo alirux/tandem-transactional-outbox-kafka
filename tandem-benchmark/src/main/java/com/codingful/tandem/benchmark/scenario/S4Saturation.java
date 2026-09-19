@@ -4,11 +4,11 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import java.time.Duration;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S4 — saturation / backpressure (HLD-load-testing.md §4): offers a rate far beyond anything the
@@ -33,9 +33,9 @@ public final class S4Saturation implements Scenario {
         BenchmarkConfig cfg = ctx.config();
         env.relayPool().start();
 
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s4");
+        try (EventReceiver receiver = env.newReceiver("bench-s4");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

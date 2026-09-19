@@ -144,7 +144,7 @@ public final class TracingDashboardDemo {
                         cfg.maxConnections(), selector, cfg.payloadBytes(), null, cfg.wakeup(), tracePropagator,
                         (aggregateId, work) -> runWithWriteSpan(tracer, aggregateId, work));
                      ConsumerSpanBridge consumerBridge =
-                             new ConsumerSpanBridge(env.newConsumer("tracing-demo"), openTelemetry, tracer)) {
+                             new ConsumerSpanBridge(env.newKafkaConsumer("tracing-demo"), openTelemetry, tracer)) {
 
                     intro(observability, highlighted, highlightedCorrelationId);
                     relayInstance.pool().start();

@@ -4,13 +4,13 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S6 — poison message (HLD-load-testing.md §4): one aggregate's dispatches are permanently failed
@@ -38,9 +38,9 @@ public final class S6PoisonMessage implements Scenario {
         String poisonAggregateId = selector.universe().get(0);
         env.faultInjector().poisonAggregate(poisonAggregateId);
 
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s6");
+        try (EventReceiver receiver = env.newReceiver("bench-s6");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      selector, cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

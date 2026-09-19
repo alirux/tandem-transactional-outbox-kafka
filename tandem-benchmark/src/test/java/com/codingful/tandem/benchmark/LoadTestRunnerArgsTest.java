@@ -156,6 +156,28 @@ class LoadTestRunnerArgsTest {
     }
 
     @Test
+    void GIVEN_no_broker_argument_WHEN_the_harness_is_configured_THEN_it_publishes_to_the_broker_the_numbers_were_measured_on() {
+        // Not a free choice of default: a run that silently changed transport would still be archived
+        // and quoted beside the numbers measured on the other one.
+        assertThat(LoadTestRunner.configFrom(List.of()).broker()).isEqualTo(Broker.KAFKA);
+    }
+
+    @Test
+    void GIVEN_a_run_asking_for_the_amqp_connector_WHEN_the_harness_is_configured_THEN_it_publishes_over_amqp() {
+        assertThat(LoadTestRunner.configFrom(List.of("--broker=rabbit")).broker()).isEqualTo(Broker.RABBIT);
+        assertThat(LoadTestRunner.configFrom(List.of("--broker=rabbitmq")).broker()).isEqualTo(Broker.RABBIT);
+        assertThat(LoadTestRunner.configFrom(List.of("--broker=KAFKA")).broker()).isEqualTo(Broker.KAFKA);
+    }
+
+    @Test
+    void GIVEN_a_broker_nobody_implemented_WHEN_the_harness_is_configured_THEN_it_refuses_to_run() {
+        assertThatThrownBy(() -> LoadTestRunner.configFrom(List.of("--broker=pulsar")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("--broker=")
+                .hasMessageContaining("pulsar");
+    }
+
+    @Test
     void GIVEN_an_explicit_outage_ladder_WHEN_the_harness_is_configured_THEN_it_is_taken_in_the_order_given() {
         BenchmarkConfig config = LoadTestRunner.configFrom(List.of("--outages=900,1200,1800"));
 

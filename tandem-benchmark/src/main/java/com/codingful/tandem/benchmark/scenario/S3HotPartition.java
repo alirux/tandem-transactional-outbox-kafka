@@ -4,13 +4,13 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LagProbe;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import com.codingful.tandem.core.BucketHash;
 import java.time.Duration;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S3 — hot partition / skew (HLD-load-testing.md §4): a skewed aggregate distribution concentrates
@@ -51,9 +51,9 @@ public final class S3HotPartition implements Scenario {
         AggregateSelector selector = AggregateSelector.skewed(id(), cfg.aggregateCardinality(), HOT_FRACTION);
         String hotAggregateId = selector.universe().get(0);
 
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s3");
+        try (EventReceiver receiver = env.newReceiver("bench-s3");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      selector, cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

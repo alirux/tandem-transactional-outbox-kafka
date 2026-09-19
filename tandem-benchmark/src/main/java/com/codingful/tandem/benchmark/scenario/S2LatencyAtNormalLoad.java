@@ -5,13 +5,13 @@ import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CommitTimestamps;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LatencySnapshot;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import com.codingful.tandem.benchmark.RampController;
 import java.time.Duration;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S2 — latency at normal load (HLD-load-testing.md §4): holds ≈50% of a quick sustainable-rate
@@ -38,8 +38,8 @@ public final class S2LatencyAtNormalLoad implements Scenario {
                 cfg.latencyMode() == BenchmarkConfig.LatencyMode.ACCURATE ? new CommitTimestamps() : null;
         LatencyRecorder latency = new LatencyRecorder(Duration.ofSeconds(10));
 
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s2");
-             CorrelationConsumer consumer = new CorrelationConsumer(kafkaConsumer, latency, commitTimestamps);
+        try (EventReceiver receiver = env.newReceiver("bench-s2");
+             CorrelationConsumer consumer = new CorrelationConsumer(receiver, latency, commitTimestamps);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(),
                      commitTimestamps, cfg.wakeup())) {

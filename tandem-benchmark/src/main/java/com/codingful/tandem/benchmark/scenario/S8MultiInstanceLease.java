@@ -4,6 +4,7 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LoadGenerator;
 import com.codingful.tandem.benchmark.RelayInstance;
@@ -15,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S8 — multi-instance {@code LEASE} coordination, including a simulated crash (HLD §3.2 axis 2;
@@ -72,9 +72,9 @@ public final class S8MultiInstanceLease implements Scenario {
             instance.pool().start();
         }
 
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s8");
+        try (EventReceiver receiver = env.newReceiver("bench-s8");
              CorrelationConsumer consumer = new CorrelationConsumer(
-                     kafkaConsumer, new LatencyRecorder(Duration.ofSeconds(10)), null);
+                     receiver, new LatencyRecorder(Duration.ofSeconds(10)), null);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();

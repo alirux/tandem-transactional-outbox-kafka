@@ -50,12 +50,19 @@ tandem-benchmark/
   src/main/java/com/codingful/tandem/benchmark/
     BenchmarkConfig.java                // §10 — the harness sizing knobs + toSmoke()/toDemo()
     AggregateSelector.java              // §4.2 — namespaced uniform/skewed aggregate-id generators
-    BenchmarkHeaders.java               // the harness-owned Kafka header name (proxy latency, §5.1)
+    BenchmarkHeaders.java               // the harness-owned header name (proxy latency, §5.1)
+    Broker.java                         // §3.1 — which broker a run publishes to (--broker=)
+    BrokerHarness.java                  // §3.1 — the broker seam: container, topology, dispatchers, receivers
+    KafkaBrokerHarness.java             // §3.1 — Kafka container + topic + KafkaRelay dispatchers
+    RabbitBrokerHarness.java            // §3.1 — RabbitMQ container + one-queue topology + RabbitRelay dispatchers
+    EventReceiver.java / ReceivedEvent.java  // §5 — the broker-neutral read side the correlator holds
+    DockerPause.java                    // §3.1 — freeze/thaw a broker container (S12)
+    BaselineSchema.java                 // §3   — applies the committed tandem_* DDL to the benchmark DB
     CommitTimestamps.java               // §5.1 — the ACCURATE-mode in-process side-channel
     TransactionalUnitOfWork.java        // §4.1 — thread-bound-connection transaction join, no Spring
     LoadGenerator.java                  // §4   — the driver
     LatencySnapshot.java / LatencyRecorder.java  // §5.1 — HdrHistogram wrapper (p50/p95/p99/p99.9)
-    CorrelationConsumer.java            // §5   — Kafka consumer: latency capture + correctness verifier
+    CorrelationConsumer.java            // §5   — latency capture + correctness verifier, over an EventReceiver
     BenchmarkMetrics.java               // §6   — in-process TandemMetrics adapter (counters only)
     LagProbe.java                       // §6.1 — direct-SQL lag/backlog observation
     FaultInjector.java / FaultInjectingDispatcher.java  // §8 — the fault seam: permanent/retriable/stall
@@ -66,11 +73,12 @@ tandem-benchmark/
     ManagedSeqCostProbe.java            // §6.5 — prices managedSeq() against the other two seq modes
     RampController.java                 // §7   — adaptive lag-feedback rate controller (S1)
     BenchmarkEnvironment.java           // §3   — containers + Hikari + relay wiring
-    RelayInstance.java                  // §3   — one simulated relay instance (pool + BucketSource + producer), S8
+    RelayInstance.java                  // §3   — one simulated relay instance (pool + BucketSource + dispatcher), S8
     scenario/Scenario.java, ScenarioContext.java, ScenarioResult.java, ScenarioSupport.java
     scenario/S1SustainedThroughput.java … S6PoisonMessage.java, S8MultiInstanceLease.java
     LoadTestRunner.java                 // §9   — the `loadTest` entrypoint (selects & runs scenarios)
   src/test/java/…/SmokeLoadTest.java    // §9   — @Tag("integration") tiny-rate wiring check for CI
+  src/test/java/…/RabbitSmokeLoadTest.java  // §9 — the same check over AMQP (§3.1)
 ```
 
 `build.gradle.kts` mirrors `tandem-sample` (plain `java` + `application`, not the published-module
@@ -98,26 +106,19 @@ prints nothing per-test by default).
 
 A dedicated environment — **not** `TandemTestContainer.newRelay`, whose `DataSource` opens a fresh,
 unpooled connection per call and so cannot bound the driver's real concurrency (§4.2 needs a sized
-connection pool). It composes a `TandemTestContainer` instance for container lifecycle + baseline-DDL
-application, but layers its own **HikariCP-pooled** `DataSource` (sized to
-`BenchmarkConfig.maxConnections`) on top, and assembles the relay directly rather than through the test
-helper's convenience factories.
+connection pool). It layers its own **HikariCP-pooled** `DataSource` (sized to
+`BenchmarkConfig.maxConnections`) over its own Postgres container, and assembles the relay directly
+rather than through the test helper's convenience factories.
 
-- Starts a real **PostgreSQL 16** and a real **Kafka** (KRaft) container (via the composed
-  `TandemTestContainer`), applies the committed baseline DDL, then applies the benchmark's own
-  `bench-schema.sql` (the `bench_aggregate` table, §4.1) over the Hikari pool.
-- **Producer config: no explicit override needed for the mandated values.** `KafkaRelay` hardens
-  *any* producer config to `acks=all` + `enable.idempotence=true` by default (LLD-kafka §1,
-  `KafkaProducerConfig.harden`) — so simply not overriding them already gets the production config.
-  `BenchmarkEnvironment` only sets `bootstrap.servers` and, when the config calls for a non-default
-  `delivery.timeout.ms` (the smoke variant, §10), `delivery.timeout.ms` itself. **Discovered while
-  implementing:** Kafka's producer validates `delivery.timeout.ms ≥ linger.ms + request.timeout.ms`
-  at construction time (`request.timeout.ms` defaults to 30 s) — so shrinking `delivery.timeout.ms`
-  below that floor also requires shrinking `request.timeout.ms` to match, or the producer refuses to
-  construct. `BenchmarkEnvironment` sets `request.timeout.ms = min(30_000, deliveryTimeoutMs)`
-  alongside it.
-- Wraps the real `KafkaRelay` in a `FaultInjectingDispatcher` (§8) — always constructed, a pure
-  pass-through until a scenario (S6) arms it via `FaultInjector`.
+- Starts a real **PostgreSQL 16** container (`TandemTestContainer.newPostgresContainer()`), applies
+  the committed baseline DDL (`BaselineSchema`, reading `schema/postgres/tandem-baseline.sql` from
+  the repository rather than a copy of it), then applies the benchmark's own `bench-schema.sql` (the
+  `bench_aggregate` table, §4.1) over the Hikari pool.
+- **The broker is not started here.** It belongs to a `BrokerHarness` chosen per run (§3.1), which is
+  also why `TandemTestContainer` is no longer composed for the container lifecycle: that helper always
+  starts Kafka, including for a run that publishes to RabbitMQ.
+- Wraps whatever dispatcher the harness supplies in a `FaultInjectingDispatcher` (§8), always
+  constructed, a pure pass-through until a scenario (S6) arms it via `FaultInjector`.
 - Assembles the primary relay with the **full** `WorkerPool` constructor (not the 3-arg
   `SINGLE`-only convenience one), so a real `BenchmarkMetrics` and
   `Clock.systemUTC()`/`BackoffStrategy.fullJitter()` are wired in explicitly, and its `BucketSource` is
@@ -130,16 +131,19 @@ helper's convenience factories.
   the shared sizing every relay instance in the environment uses. S8 layers
   `.coordination(LEASE).instanceId(...).bucketLease(...)` on top of this to build its own additional
   instances without duplicating the shared config.
-- **`newRelayInstance(RelayConfig)`** builds an *additional*, independent relay instance — its own
-  Kafka producer (a separate `KafkaRelay`, as a real separate relay process would have) and its own
-  `BucketSource` (per that config's `coordination`), sharing this environment's
-  `DataSource`/`JdbcOutboxStore` (as real instances sharing one DB do). Returns a `RelayInstance(pool,
-  bucketSource, producer)` record; the caller starts/stops the pool, and this environment closes the
-  producer on `close()`. This is what lets S8 simulate more than one relay instance against one outbox.
+- **`newRelayInstance(RelayConfig)`** builds an *additional*, independent relay instance: its own
+  dispatcher from the broker harness (a separate connection to the broker, as a real separate relay
+  process would have) and its own `BucketSource` (per that config's `coordination`), sharing this
+  environment's `DataSource`/`JdbcOutboxStore` (as real instances sharing one DB do). Returns a
+  `RelayInstance(pool, bucketSource, producer)` record typed on the `OutboxDispatcher` port; the
+  caller starts/stops the pool, and the harness closes the dispatcher. This is what lets S8 simulate
+  more than one relay instance against one outbox.
 - Exposes: the pooled `DataSource` (for `LoadGenerator`/`LagProbe`), the `JdbcOutboxStore` (S5 calls
   `reclaimExpiredLeases()` on it directly), the `WorkerPool` (caller `start()`/`stop()`s it per
   scenario), `BenchmarkMetrics`, `LagProbe`, `FaultInjector`, `relayConfigBuilder()`,
-  `newRelayInstance(...)`, and `newConsumer(groupId)` for a `CorrelationConsumer`'s Kafka consumer.
+  `newRelayInstance(...)`, `newReceiver(group)` for a `CorrelationConsumer`'s read side, and
+  `newKafkaConsumer(group)` for the one caller that needs Kafka's own record (the tracing demo's
+  consumer-side span bridge, §6.4; it refuses on a non-Kafka run rather than returning something else).
 - **Not implemented (deferred):** a Postgres session/instance-tuning hook (`shared_buffers`,
   `synchronous_commit`) for matching the §5 reference baseline. An early draft of this LLD described
   one; it was never built — the module only targets correctness/behaviour verification today, and the
@@ -148,6 +152,52 @@ helper's convenience factories.
 
 Co-location (DB + relay + broker + harness in one host/JVM) satisfies the single-clock requirement for
 latency (HLD-load-testing.md §2.3) and is also what makes the ACCURATE latency path (§5.1) possible.
+
+### 3.1 `BrokerHarness`: which broker a run publishes to
+
+`--broker=kafka|rabbit` (default `kafka`). The relay engine is transport-neutral and every scenario's
+verdict is correctness-only (§8, `ScenarioResult`), so running the suite against a second broker is a
+matter of supplying the two ends rather than of writing a second suite. `BrokerHarness` is those two
+ends: the container and its topology, the dispatchers the relays publish through, and the receivers
+the harness correlates on. It owns every client it hands out and closes them all.
+
+- **`KafkaBrokerHarness`** starts the Kafka (KRaft) container and creates the 16-partition benchmark
+  topic. **Producer config: no explicit override is needed for the mandated values.** `KafkaRelay`
+  hardens *any* producer config to `acks=all` + `enable.idempotence=true` (LLD-kafka §1,
+  `KafkaProducerConfig.harden`), so not overriding them already gets the production config. The
+  harness sets `bootstrap.servers` and, when the config calls for a non-default
+  `delivery.timeout.ms` (the smoke variant, §10), that value too. Kafka's producer validates
+  `delivery.timeout.ms ≥ linger.ms + request.timeout.ms` at construction (`request.timeout.ms`
+  defaults to 30 s), so a smaller delivery timeout also requires `request.timeout.ms =
+  min(30_000, deliveryTimeoutMs)` alongside it, or the producer refuses to construct.
+- **`RabbitBrokerHarness`** starts the RabbitMQ container and declares **one durable topic exchange,
+  one durable queue bound to `#`, read by one consumer**. Two consequences, both deliberate. That
+  topology is what makes per-aggregate ordering observable: the relay already serialises an
+  aggregate's rows, so a single ordered queue read by a single consumer preserves what was published,
+  while competing consumers on one queue would interleave an aggregate's own events and report
+  violations the relay never committed. And it caps delivered throughput at what one consumer thread
+  drains, which is why such a run gates correctness and says nothing about the broker's capacity
+  (HLD-load-testing.md §4). The topology must exist **before the first dispatch**: Tandem never
+  declares topology (LLD-rabbitmq §1) and publishes are mandatory, so an unbound exchange returns the
+  message and the relay fails the row permanently. The confirm timeout is the run's
+  `deliveryTimeoutMs`, the same knob Kafka's `delivery.timeout.ms` takes, so both brokers enforce the
+  deadline the row lease was sized against.
+- **`inFlightPublishes()`** reports what the dispatchers are still waiting on the broker to settle, or
+  `empty` when the client does not expose it. Empty is not zero, and the distinction is the point: the
+  AMQP adapter tracks unsettled publishes in maps of its own (`RabbitRelay.inFlightConfirms()`), so it
+  has somewhere to leak, and a run ending at zero has shown something a run that cannot see it has
+  not. Kafka's producer keeps its in-flight batches to itself, so there the count is absent and S12
+  gates delivery alone.
+- **`interruptBroker()`/`restoreBroker()`** freeze and thaw the container (`DockerPause`, S12).
+  `docker pause` sends `SIGSTOP`: ports stay open, connections stay established, and nothing answers,
+  which is a hung broker rather than a closed socket and the harder of the two for a client to notice.
+  Deliberately not a container stop: Testcontainers maps a fresh random host port on restart, so a
+  stopped broker is one no client could reconnect to whatever its recovery logic does.
+- **`resetBetweenScenarios()`** is the broker-side half of §8's isolation. AMQP purges the queue, so a
+  scenario that ends with a backlog does not deliver it to the next one. Kafka does nothing: a topic is
+  a log, each scenario reads it from the beginning under a group of its own, and what the previous one
+  published is re-read harmlessly because every scenario addresses aggregates seeded from its own id
+  (§4.3).
 
 ---
 
@@ -258,16 +308,31 @@ worth keeping: **isolating failures is not the same as isolating state.**
 
 ## 5. `CorrelationConsumer` — latency capture + correctness verifier
 
-A single Kafka consumer per scenario, co-located with the harness, subscribed to the one benchmark
-topic (`BenchmarkEnvironment.TOPIC`). It is the one component that observes the *output* of the
-pipeline, and it does double duty (HLD-load-testing.md §2.2): the relay records nothing — measurement
-needs **no product hook**.
+A single consumer per scenario, co-located with the harness, reading everything the run publishes. It
+is the one component that observes the *output* of the pipeline, and it does double duty
+(HLD-load-testing.md §2.2): the relay records nothing, so measurement needs **no product hook**.
 
-For each received CloudEvent it reads the key (`aggregate_id`), the `ce_seq` header (the CloudEvents
-`seq` extension in Kafka binary-mode encoding — read via `CloudEventsHeaders.CE_SEQ`, the same constant
-`tandem-kafka` uses, parsed as a UTF-8 string), and the harness's own `bench-t0-nanos` header (passed
-through verbatim by the relay's header-passthrough, since it's just an ordinary stored header — LLD-jdbc
-§2).
+It holds **no client type of its own**. The broker harness (§3.1) supplies an `EventReceiver`, and
+each received message reaches the correlator as a `ReceivedEvent(aggregateId, seq, t0Nanos,
+receivedNanos)`: the broker-neutral subset correctness is decided on, so that the deciding code is the
+same whichever transport the run used. The receiver is poll-shaped although AMQP pushes and Kafka
+polls, because draining a buffer is expressible over both while a callback is not expressible over a
+consumer that must be polled to make progress. Each implementation stamps `receivedNanos` where its
+own transport hands the event over, which on a pushed transport is not the moment the harness gets
+round to draining it.
+
+Where the three fields come from:
+
+| Field | Kafka | AMQP |
+|---|---|---|
+| `aggregateId` | the record key | the `cloudEvents_partitionkey` header |
+| `seq` | the `ce_seq` header | the `cloudEvents_seq` header |
+| `t0Nanos` | the harness's own `bench-t0-nanos` header | the same header |
+
+Both `seq` names are read through `CloudEventsHeaders` (`CE_SEQ`, `AMQP_SEQ`), the same constants the
+adapters write, so the two bindings' prefixes are declared once. `bench-t0-nanos` is passed through
+verbatim by the relay's header-passthrough on both transports, being an ordinary stored header
+(LLD-jdbc §2).
 
 - **Correctness (all scenarios).** Per `aggregate_id`, track the high-watermark `seq` seen and flag a
   violation only when a **strictly lower** `seq` arrives — **not** when the same `seq` repeats.
@@ -885,6 +950,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S10** | The cold row, wakeup on vs off | Four windows inside one run, in the order poll, wakeup, wakeup, poll (ABBA, so a linear host drift cancels). Each window builds its own relay instance and its own write side wired for that arm, holds a low fixed rate (`--rate=`, default 2/s) for `duration / 4`, drains, and reconciles; one shared consumer and one shared `LatencyRecorder` span the run, so each window's snapshot is the interval since the previous. Reports COMMIT→ack **and** the write transaction's own duration per arm |
 | **S11** | Outage recovery | `relayPool().stop()` for an outage taken from a ladder of duration fractions, then `start()` and poll `LagProbe` until pending is back to the steady state; reports backlog, recovery seconds and drain rate per cell. Holds a fixed rate throughout (`--rate=`, default 200/s): a write side that never stops is the premise, so a zero rate would stop the relay over an outbox nobody is filling and report the recovery of a backlog that never existed. A cell that misses its bound is recorded as not recovered and the ladder **stops there**, so a diverging backlog cannot make the final drain unreachable. The only scenario using `AggregateSelector.lifecycle`: bounded chain length is what makes the recovery curve a property of the relay rather than of the generator (§4.2) |
 | **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows. The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
+| **S12** | Broker outage | Holds a modest fixed rate, freezes the **broker** with `DockerPause` for `min(20s, duration/5)`, thaws it and drains. Gates the usual zero-loss and zero-reordering, plus `BrokerHarness.inFlightPublishes()` back to zero where the client exposes it (§3.1). Reports rows quarantined to `FAILED` separately from missing ones: an outage long enough to burn a row's whole retry ladder ends with that row terminal rather than delivered, which is correct behaviour and a different finding from loss. Sized well inside the retry budget so that stays the exception |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
 single worker thread among several — only whole-instance `stop()`/`start()`. S5 therefore simulates an
@@ -1096,7 +1162,8 @@ and the fix belongs in the assertion.
 - **Full runs:** `./gradlew :tandem-benchmark:loadTest` → `LoadTestRunner.main([--smoke|--demo]
   [--duration=<seconds>] [--workers=<n>] [--poll-interval=<millis>] [--poll-floor=<millis>]
   [--rate=<events/s>]
-  [--window=<seconds>] [--connections=<n>] [--wakeup=none|pg-notify] [--outages=<s,s,s>] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
+  [--window=<seconds>] [--connections=<n>] [--wakeup=none|pg-notify] [--outages=<s,s,s>]
+  [--broker=kafka|rabbit] [S1,S2,...])`, which builds a `BenchmarkEnvironment` from
   `BenchmarkConfig.defaults()` (or `.toSmoke()`/`.toDemo()`, optionally with `.withDuration(...)`
   layered on top), runs the selected scenarios (every one except the deferred S7 by default) in sequence
   against it, and prints a PASS/FAIL line + summary per scenario. `--wakeup=` turns the post-commit
@@ -1107,7 +1174,9 @@ and the fix belongs in the assertion.
   `./gradlew :tandem-benchmark:loadTest --args="--demo S1,S2,S5,S6"`. `--outages=` gives S11 its
   ladder of relay outages in seconds, taken verbatim and **not clamped**: the scenario's own
   fraction-of-duration ladder is a default for when nobody said what failure to measure, and a caller
-  naming a quarter-hour outage is describing one.
+  naming a quarter-hour outage is describing one. `--broker=` selects the broker for the whole run
+  (§3.1); the default is `kafka`, because the archived results are Kafka's and a run that silently
+  changed transport would be quoted beside them.
 - **Endurance runs (S9) do not go through the `loadTest` task.** That task pins
   `src/main/resources/logging.properties`, which raises `com.codingful.tandem` to `FINE` so the relay's
   per-cycle claim logging is visible — the right default for a run measured in minutes, and unusable for
@@ -1228,6 +1297,13 @@ and the fix belongs in the assertion.
   matter of its rate. Not a hard CI budget, but useful context for anyone tuning it further. Both
   `test` and `integrationTest` print live `PASSED`/`FAILED` lines per test method in the console
   (`testLogging`, §2) — Gradle's `Test` task prints nothing per-test by default otherwise.
+- **CI smoke over AMQP:** `RabbitSmokeLoadTest` is the same class of check against `--broker=rabbit`
+  (§3.1), running **S1, S5, S6, S8, S12**: the ramp, failover and its duplicates, the poison gate, two
+  instances on one outbox, an interrupted broker. It exists because the AMQP connector's own suite
+  drives `dispatch` directly, one row at a time, waiting for each ack, so the relay loop around it
+  never reaches the connector there. It starts a Postgres and a RabbitMQ container of its own: which
+  broker a run publishes to is fixed when the environment is built, so the two suites cannot share
+  one. **Measured wall-clock (this Mac, 2026-09-19): ~58 s.**
 - **Official numbers** come from the reference host (§5 baseline), on a schedule or before a release;
   results are archived for regression tracking. Developer-machine runs are correctness/behaviour only
   (HLD-load-testing.md §5.1).
@@ -1256,7 +1332,7 @@ knob to expose here):
 | `pollIntervalFloor` | 10 ms | where that backoff restarts after a claim that returned rows, so what a row of a live stream waits; equal to `pollInterval` reproduces a fixed interval |
 | `batchSize` | 100 | per-shard in-flight window |
 | `rowLease` | 60 s | relay row lease; must stay `> deliveryTimeoutMs` |
-| `deliveryTimeoutMs` | 30000 | Kafka producer `delivery.timeout.ms`, actually wired into the producer config (§3) |
+| `deliveryTimeoutMs` | 30000 | the deadline the dispatcher really enforces on a publish, wired into the client rather than only into the row-lease check: Kafka's `delivery.timeout.ms`, AMQP's publisher-confirm timeout (§3.1) |
 | `maxAttempts` | 10 | retriable failures before `FAILED` |
 | `maxConnections` | 32 | Hikari pool size = the true in-flight-transaction limit (§4.2) |
 | `payloadBytes` | 1024 | 1 KB JSON reference payload |
@@ -1267,6 +1343,7 @@ knob to expose here):
 | `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10, S11); `0` leaves each to pick its own |
 | `wakeup` | `NONE` | one knob for one mechanism (`--wakeup=pg-notify`): it wires `Wakeup.PG_NOTIFY` into every `LoadGenerator`'s repository **and** a `WakeupSource` into every relay the environment builds, since either alone does nothing. S10 overrides it per arm |
 | `latencyMode` | `PROXY` | `PROXY` or `ACCURATE` (§5.1) |
+| `broker` | `KAFKA` | which broker the run publishes to (`--broker=`, §3.1). The default is not a free choice: the archived results are Kafka's, and a run that silently changed transport would be quoted beside them |
 
 **`toSmoke()`** derives the CI variant: `workers ≤ 2`, `batchSize ≤ 20`, `maxConnections ≤ 8`,
 `aggregateCardinality ≤ 32`, `warmup = 1 s`, `duration = 3 s`, `deliveryTimeoutMs = 4000`,

@@ -9,6 +9,7 @@ import com.codingful.tandem.benchmark.scenario.S6PoisonMessage;
 import com.codingful.tandem.benchmark.scenario.S8MultiInstanceLease;
 import com.codingful.tandem.benchmark.scenario.S10ColdBurst;
 import com.codingful.tandem.benchmark.scenario.S11OutageRecovery;
+import com.codingful.tandem.benchmark.scenario.S12BrokerOutage;
 import com.codingful.tandem.benchmark.scenario.S9Endurance;
 import com.codingful.tandem.benchmark.scenario.Scenario;
 import com.codingful.tandem.benchmark.scenario.ScenarioContext;
@@ -30,7 +31,7 @@ import java.util.Set;
  * (multi-instance {@code LEASE} coordination) builds its own additional relay instances on top of the
  * shared environment (LLD-benchmark §8) rather than using the environment's primary {@code SINGLE} pool.
  *
- * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--duration=<seconds>] [--workers=<n>]
+ * <p>Usage: {@code LoadTestRunner [--smoke|--demo] [--broker=kafka|rabbit] [--duration=<seconds>] [--workers=<n>]
  * [--poll-interval=<millis>] [--poll-floor=<millis>] [--rate=<events/s>] [--window=<seconds>] [--connections=<n>] [--outages=<s,s,s>]
  * [--retention=<seconds>] [--cleanup-interval=<seconds>] [--cleanup-batch=<n>]
  * [--wakeup=none|pg-notify] [S1,S2,...]}:
@@ -63,6 +64,11 @@ import java.util.Set;
  *       run of hours grows the outbox without bound and never exercises the churn a production outbox
  *       actually lives in. Size the batch against the write rate: {@code rate × interval} rows at
  *       minimum.</li>
+ *   <li>{@code --broker=kafka|rabbit}: which broker the run publishes to (LLD-benchmark §3.1).
+ *       {@code rabbit} runs the same scenarios against the AMQP connector and gates the same
+ *       correctness properties; its throughput and latency figures belong to the harness's
+ *       single-queue topology, not to the broker, and are not comparable with the archived Kafka
+ *       numbers.</li>
  *   <li>{@code --wakeup=none|pg-notify} — the post-commit wakeup (dispatch-latency.md §3.4), for the
  *       whole run: it wires the emission into every generator's write side and a listening connection
  *       into every relay, because either one alone signals into the void. Default {@code none}, which
@@ -100,11 +106,12 @@ public final class LoadTestRunner {
     private static final String CLEANUP_INTERVAL_PREFIX = "--cleanup-interval=";
     private static final String CLEANUP_BATCH_PREFIX = "--cleanup-batch=";
     private static final String WAKEUP_PREFIX = "--wakeup=";
+    private static final String BROKER_PREFIX = "--broker=";
     private static final String OUTAGES_PREFIX = "--outages=";
     private static final Set<String> VALUE_PREFIXES = Set.of(DURATION_PREFIX, WORKERS_PREFIX,
             POLL_INTERVAL_PREFIX, POLL_FLOOR_PREFIX, RATE_PREFIX, WINDOW_PREFIX, CONNECTIONS_PREFIX,
             RETENTION_PREFIX, CLEANUP_INTERVAL_PREFIX, CLEANUP_BATCH_PREFIX, WAKEUP_PREFIX,
-            OUTAGES_PREFIX);
+            OUTAGES_PREFIX, BROKER_PREFIX);
 
     public static void main(String[] args) throws Exception {
         List<String> argList = List.of(args);
@@ -118,7 +125,8 @@ public final class LoadTestRunner {
                 + ", duration=" + config.duration() + ", workers=" + config.workers()
                 + ", pollInterval=" + config.pollInterval()
                 + ", pollFloor=" + config.pollIntervalFloor()
-                + ", wakeup=" + config.wakeup());
+                + ", wakeup=" + config.wakeup()
+                + ", broker=" + config.broker());
 
         try (BenchmarkEnvironment env = new BenchmarkEnvironment(config).start()) {
             ScenarioContext ctx = new ScenarioContext(env, config);
@@ -177,6 +185,7 @@ public final class LoadTestRunner {
                 .ifPresent(seconds -> config.cleanupInterval(Duration.ofSeconds(seconds)));
         longValue(args, CLEANUP_BATCH_PREFIX).ifPresent(n -> config.cleanupBatchSize(Math.toIntExact(n)));
         stringValue(args, WAKEUP_PREFIX).ifPresent(mode -> config.wakeup(wakeupMode(mode)));
+        stringValue(args, BROKER_PREFIX).ifPresent(name -> config.broker(broker(name)));
         stringValue(args, OUTAGES_PREFIX).ifPresent(list -> config.outages(outageList(list)));
         return config.build();
     }
@@ -206,6 +215,16 @@ public final class LoadTestRunner {
             throw new IllegalArgumentException("--outages= needs at least one value, got: " + value);
         }
         return outages;
+    }
+
+    /** {@code kafka} / {@code rabbit}, spelled as an operator would name the broker. */
+    private static Broker broker(String value) {
+        return switch (value.toLowerCase(java.util.Locale.ROOT)) {
+            case "kafka" -> Broker.KAFKA;
+            case "rabbit", "rabbitmq" -> Broker.RABBIT;
+            default -> throw new IllegalArgumentException(
+                    BROKER_PREFIX + " expects kafka or rabbit, got: " + value);
+        };
     }
 
     /** {@code none} / {@code pg-notify}, spelled as the Spring property is rather than as the enum is. */
@@ -257,7 +276,8 @@ public final class LoadTestRunner {
                 new S8MultiInstanceLease(),
                 new S9Endurance(),
                 new S10ColdBurst(),
-                new S11OutageRecovery())) {
+                new S11OutageRecovery(),
+                new S12BrokerOutage())) {
             byId.put(s.id(), s);
         }
         return Collections.unmodifiableMap(byId);

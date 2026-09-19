@@ -4,6 +4,7 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LagProbe;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LatencySnapshot;
@@ -23,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S9 — endurance: a moderate load held for hours under {@code LEASE} coordination, reported window by
@@ -98,10 +98,10 @@ public final class S9Endurance implements Scenario {
         }
 
         LatencyRecorder latency = new LatencyRecorder(Duration.ofSeconds(10));
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s9");
+        try (EventReceiver receiver = env.newReceiver("bench-s9");
              // Key tracking off: over hours the reconciliation set, not the outbox, would be what the
              // harness spends its memory on (SequenceLedger).
-             CorrelationConsumer consumer = new CorrelationConsumer(kafkaConsumer, latency, null, false);
+             CorrelationConsumer consumer = new CorrelationConsumer(receiver, latency, null, false);
              LoadGenerator generator = new LoadGenerator(env.dataSource(), cfg.bucketCount(), cfg.maxConnections(),
                      AggregateSelector.uniform(id(), cfg.aggregateCardinality()), cfg.payloadBytes(), null, cfg.wakeup())) {
             generator.stopTrackingInsertedKeys();

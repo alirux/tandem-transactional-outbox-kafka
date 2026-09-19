@@ -12,8 +12,6 @@ import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
-import com.codingful.tandem.kafka.KafkaRelay;
-import com.codingful.tandem.kafka.KafkaRelayConfig;
 import com.codingful.tandem.test.TandemTestContainer;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -25,16 +23,9 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import javax.sql.DataSource;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
  * Dedicated container + wiring environment for the benchmark (LLD-benchmark §3) — <b>not</b>
@@ -43,36 +34,34 @@ import org.apache.kafka.common.serialization.StringDeserializer;
  * class wires a Hikari-pooled {@link DataSource} and assembles the relay directly, with a
  * {@link FaultInjector} seam for S6.
  *
- * <p>The Kafka producer already defaults to the mandated {@code acks=all} +
- * {@code enable.idempotence=true} — {@link KafkaRelay} hardens any producer config to those values
- * (LLD-kafka §1), so no override is needed here to get the production config.
+ * <p>It owns the database; the broker is a {@link BrokerHarness} chosen per run (§3.1), which is why
+ * the containers are started separately rather than through {@code TandemTestContainer}: that helper
+ * always starts Kafka, including for a run that publishes to RabbitMQ.
  */
 public final class BenchmarkEnvironment implements AutoCloseable {
 
-    public static final String TOPIC = "tandem-benchmark-events";
-    private static final int TOPIC_PARTITIONS = 16;
-
     private final BenchmarkConfig config;
-    private final TandemTestContainer containers = new TandemTestContainer();
+    private final PostgreSQLContainer<?> postgres = TandemTestContainer.newPostgresContainer();
+    private final BrokerHarness broker;
     private final FaultInjector faultInjector = new FaultInjector();
-    private final List<KafkaRelay> extraProducers = new ArrayList<>();
 
     private HikariDataSource dataSource;
     private JdbcOutboxStore store;
-    private KafkaRelay relay;
     private WorkerPool relayPool;
     private BenchmarkMetrics metrics;
     private LagProbe lagProbe;
 
     public BenchmarkEnvironment(BenchmarkConfig config) {
         this.config = config;
+        this.broker = BrokerHarness.forBroker(config.broker(), config);
     }
 
     public BenchmarkEnvironment start() {
-        containers.start();
+        postgres.start();
         dataSource = pooledDataSource();
+        BaselineSchema.applyTo(dataSource);
         applyBenchSchema();
-        containers.createTopic(TOPIC, TOPIC_PARTITIONS);
+        broker.start();
 
         // Bucket-count guard (LLD-bucket-count-guard §7): the explicit assembly-level startup check,
         // run once against the plain pooled DataSource. The write-side (LoadGenerator's repository) and
@@ -84,8 +73,8 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         metrics = new BenchmarkMetrics();
         lagProbe = new LagProbe(dataSource);
 
-        relay = new KafkaRelay(producerConfig(), record -> TOPIC, KafkaRelayConfig.of("/tandem/benchmark"));
-        OutboxDispatcher dispatcher = new FaultInjectingDispatcher(relay, faultInjector);
+        OutboxDispatcher dispatcher =
+                new FaultInjectingDispatcher(broker.newDispatcher(TandemSpanRecorder.NOOP), faultInjector);
 
         // relayConfigBuilder() defaults coordination to RelayConfig's own default (SINGLE), matching
         // every scenario except S8 (which builds its own LEASE-coordinated instances via
@@ -104,7 +93,7 @@ public final class BenchmarkEnvironment implements AutoCloseable {
      * {@code .coordination(LEASE).instanceId(...)} on top to build its own additional instances.
      */
     public RelayConfig.Builder relayConfigBuilder() {
-        return relayConfigBuilder(config, relay.deliveryTimeoutMs());
+        return relayConfigBuilder(config, broker.deliveryTimeoutMillis());
     }
 
     /**
@@ -129,8 +118,8 @@ public final class BenchmarkEnvironment implements AutoCloseable {
     }
 
     /**
-     * Builds an additional, independent relay instance — its own Kafka producer, its own
-     * {@link BucketSource} per {@code relayCfg.coordination()} — sharing this environment's
+     * Builds an additional, independent relay instance (its own connection to the broker, its own
+     * {@link BucketSource} per {@code relayCfg.coordination()}), sharing this environment's
      * {@code DataSource}/{@code JdbcOutboxStore} (as real instances share one DB). For scenarios
      * simulating more than one relay instance against one outbox (S8: {@code LEASE} coordination,
      * HLD §3.2 axis 2 — the "N embedded replicas" case a naive {@code SINGLE} deployment gets wrong).
@@ -177,9 +166,7 @@ public final class BenchmarkEnvironment implements AutoCloseable {
      */
     public RelayInstance newRelayInstance(RelayConfig relayCfg, TandemMetrics instanceMetrics,
             TandemSpanRecorder spanRecorder, WakeupSource wakeupSource) {
-        KafkaRelay producer = new KafkaRelay(producerConfig(), record -> TOPIC,
-                KafkaRelayConfig.of("/tandem/benchmark"), spanRecorder);
-        extraProducers.add(producer);
+        OutboxDispatcher producer = broker.newDispatcher(spanRecorder);
         OutboxDispatcher dispatcher = new FaultInjectingDispatcher(producer, faultInjector);
         // Wrapped here, not on the shared `store` field: only an instance built through this method can
         // ever have its claims stalled (S9), so env.relayPool() and every S1-S8 scenario built from
@@ -190,16 +177,6 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         WorkerPool pool = new WorkerPool(faultInjectingStore, dispatcher, relayCfg, instanceMetrics, Clock.systemUTC(),
                 BackoffStrategy.fullJitter(), bucketSource, RelayControlSource.NOOP, wakeupSource);
         return new RelayInstance(pool, bucketSource, producer);
-    }
-
-    private Map<String, Object> producerConfig() {
-        Map<String, Object> producerConfig = new HashMap<>();
-        producerConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, containers.bootstrapServers());
-        producerConfig.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, (int) config.deliveryTimeoutMs());
-        // Kafka requires delivery.timeout.ms >= linger.ms + request.timeout.ms; request.timeout.ms
-        // defaults to 30s, so a smaller deliveryTimeoutMs (the smoke config) must shrink it too.
-        producerConfig.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) Math.min(30_000, config.deliveryTimeoutMs()));
-        return producerConfig;
     }
 
     public BenchmarkConfig config() {
@@ -232,6 +209,11 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         return faultInjector;
     }
 
+    /** The broker half of this environment, for the scenarios that act on the broker itself (S12). */
+    public BrokerHarness broker() {
+        return broker;
+    }
+
     /**
      * Empties every table the scenarios write to, so each one starts from the state the first one
      * found (LLD-benchmark §8).
@@ -242,6 +224,9 @@ public final class BenchmarkEnvironment implements AutoCloseable {
      * which then measures its own load plus the leftovers. That made results order-dependent, and it
      * stayed hidden while an exception from one scenario aborted the whole batch; isolating the
      * exceptions is what exposed it. Isolating the exception is not the same as isolating the state.
+     *
+     * <p>The broker is reset the same way and for the same reason, as far as it can be: what one
+     * scenario left undelivered is not the next one's traffic ({@link BrokerHarness#resetBetweenScenarios}).
      *
      * <p>Called between scenarios, with every relay pool already stopped. {@code bench_aggregate} is
      * included because its version counters would otherwise keep climbing across scenarios that
@@ -254,6 +239,7 @@ public final class BenchmarkEnvironment implements AutoCloseable {
      * ownership columns are reset, which is what "no one owns anything yet" actually means here.
      */
     public void resetBetweenScenarios() {
+        broker.resetBetweenScenarios();
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("TRUNCATE TABLE tandem_outbox, bench_aggregate");
@@ -264,23 +250,31 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         }
     }
 
-    /** A consumer subscribed to the benchmark topic, reading from the beginning. Caller closes it. */
-    public KafkaConsumer<String, byte[]> newConsumer(String groupId) {
-        Map<String, Object> consumerConfig = new HashMap<>();
-        consumerConfig.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, containers.bootstrapServers());
-        consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        consumerConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        KafkaConsumer<String, byte[]> consumer =
-                new KafkaConsumer<>(consumerConfig, new StringDeserializer(), new ByteArrayDeserializer());
-        consumer.subscribe(List.of(TOPIC));
-        return consumer;
+    /** A receiver over everything this run publishes, whatever the broker. Caller closes it. */
+    public EventReceiver newReceiver(String group) {
+        return broker.newReceiver(group);
+    }
+
+    /**
+     * The raw Kafka consumer, for the tracing demo alone: its consumer-side span bridge reads
+     * {@code traceparent} off Kafka's own record, which is a Kafka artefact and not something the
+     * harness's neutral {@link ReceivedEvent} carries. Caller closes it.
+     *
+     * @throws IllegalStateException if this run is not against Kafka
+     */
+    public KafkaConsumer<String, byte[]> newKafkaConsumer(String group) {
+        if (!(broker instanceof KafkaBrokerHarness kafka)) {
+            throw new IllegalStateException("The tracing demo reads Kafka records directly; "
+                    + "it needs --broker=kafka, got broker:" + config.broker());
+        }
+        return kafka.newKafkaConsumer(group);
     }
 
     private HikariDataSource pooledDataSource() {
         HikariConfig hikari = new HikariConfig();
-        hikari.setJdbcUrl(containers.postgresJdbcUrl());
-        hikari.setUsername(containers.postgresUsername());
-        hikari.setPassword(containers.postgresPassword());
+        hikari.setJdbcUrl(postgres.getJdbcUrl());
+        hikari.setUsername(postgres.getUsername());
+        hikari.setPassword(postgres.getPassword());
         hikari.setMaximumPoolSize(config.maxConnections());
         hikari.setPoolName("tandem-benchmark");
         return new HikariDataSource(hikari);
@@ -308,15 +302,10 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         if (relayPool != null) {
             relayPool.stop();
         }
-        if (relay != null) {
-            relay.close();
-        }
-        for (KafkaRelay producer : extraProducers) {
-            producer.close();
-        }
+        broker.close();
         if (dataSource != null) {
             dataSource.close();
         }
-        containers.close();
+        postgres.stop();
     }
 }

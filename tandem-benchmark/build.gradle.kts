@@ -28,6 +28,12 @@ dependencies {
     // (Postgres + Kafka) runtime transitively — reused for container lifecycle + baseline DDL.
     implementation(project(":tandem-test"))
 
+    // The AMQP connector and its broker container: the harness can run every scenario against RabbitMQ
+    // (--broker=rabbit) to gate the connector's correctness under the real relay loop. Benchmark-only,
+    // like everything else here.
+    implementation(project(":tandem-rabbitmq"))
+    implementation(libs.testcontainers.rabbitmq)
+
     // The real Micrometer adapter, driven by the metrics dashboard demo (§6.3) against a Prometheus
     // registry — the point being to look at the signals a consumer's dashboard actually receives,
     // not at an in-process double. Benchmark-only: this module is never published.

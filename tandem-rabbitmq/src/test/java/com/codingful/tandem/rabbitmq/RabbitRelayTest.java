@@ -240,6 +240,54 @@ class RabbitRelayTest {
     }
 
     @Test
+    void GIVEN_rows_waiting_on_the_broker_WHEN_the_relay_is_asked_what_is_unsettled_THEN_it_counts_them() {
+        RabbitRelay relay = relay();
+
+        relay.dispatch(record(1, "order-1"));
+        relay.dispatch(record(2, "order-2"));
+        assertThat(relay.inFlightConfirms()).isEqualTo(2);
+
+        channel.confirm(channel.last().deliveryTag());
+        assertThat(relay.inFlightConfirms()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_rows_settled_by_every_route_there_is_WHEN_the_dust_settles_THEN_the_relay_is_tracking_nothing() {
+        // The point is not that each row completed (the tests above pin that), but that nothing is
+        // left behind it. Each way out holds an entry in two indexes, and a route that released only
+        // one of them would look perfectly healthy for the length of any test but this one: the count
+        // would climb for the life of the process, which on a long run is the whole failure.
+        RabbitRelay relay = relay();
+
+        CompletableFuture<Void> confirmed = relay.dispatch(record(1, "order-1"));
+        channel.confirm(channel.last().deliveryTag());
+        CompletableFuture<Void> nacked = relay.dispatch(record(2, "order-2"));
+        channel.nack(channel.last().deliveryTag());
+        CompletableFuture<Void> returned = relay.dispatch(record(3, "order-3"));
+        channel.returnUnroutable(channel.last().properties().getMessageId(), 312, "NO_ROUTE");
+        channel.confirm(channel.last().deliveryTag());
+        CompletableFuture<Void> refused = relay.dispatch(record(4, "order-4"));
+        channel.shutdown(new IOException("connection reset"));
+
+        assertThat(confirmed).isCompletedWithValue(null);
+        assertThat(failureOf(nacked).isRetriable()).isTrue();
+        assertThat(failureOf(returned).isRetriable()).isFalse();
+        assertThat(failureOf(refused).isRetriable()).isTrue();
+        assertThat(relay.inFlightConfirms()).isZero();
+        assertThat(relay.trackedMessageIds()).isZero();
+    }
+
+    @Test
+    void GIVEN_a_row_the_broker_never_answered_for_WHEN_its_deadline_passes_THEN_nothing_is_left_tracking_it() {
+        RabbitRelay relay = relayWithConfirmTimeout(50);
+
+        failureOf(relay.dispatch(record(1, "order-1")));
+
+        assertThat(relay.inFlightConfirms()).isZero();
+        assertThat(relay.trackedMessageIds()).isZero();
+    }
+
+    @Test
     void GIVEN_a_return_for_a_row_that_is_no_longer_in_flight_WHEN_it_arrives_THEN_it_is_ignored() {
         RabbitRelay relay = relay();
 

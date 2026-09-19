@@ -100,6 +100,14 @@ the confirm arrives, so the steady-state cost is one cancellation per message. T
 reported through `deliveryTimeoutMillis()`, which makes the `rowLease` invariant meaningful for this
 adapter too, with the same startup diagnostic and no second value for an operator to keep in sync.
 
+The same reasoning makes the size of that bookkeeping worth exposing. `inFlightConfirms()` reports how
+many publishes are still unsettled: every one of them holds an entry in the pending map and one in the
+message-id index, and a resolution path that released only one of the two would look healthy for the
+length of any short test while the count climbed for the life of the process. An idle adapter reports
+zero, which is what the unit suite asserts after driving a row out through each route there is
+(confirm, nack, return, timeout, channel shutdown) and what the benchmark's broker-outage scenario
+asserts after an interruption (LLD-benchmark §3.1, §8).
+
 ---
 
 ## 4. Failure semantics

@@ -4,6 +4,7 @@ import com.codingful.tandem.benchmark.AggregateSelector;
 import com.codingful.tandem.benchmark.BenchmarkConfig;
 import com.codingful.tandem.benchmark.BenchmarkEnvironment;
 import com.codingful.tandem.benchmark.CorrelationConsumer;
+import com.codingful.tandem.benchmark.EventReceiver;
 import com.codingful.tandem.benchmark.LatencyRecorder;
 import com.codingful.tandem.benchmark.LatencySnapshot;
 import com.codingful.tandem.benchmark.LoadGenerator;
@@ -18,7 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
 /**
  * S10 — the cold row, and the only scenario that measures the post-commit wakeup
@@ -78,8 +78,8 @@ public final class S10ColdBurst implements Scenario {
 
         LatencyRecorder latency = new LatencyRecorder(Duration.ofSeconds(30));
         List<Window> windows = new ArrayList<>();
-        try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s10");
-             CorrelationConsumer consumer = new CorrelationConsumer(kafkaConsumer, latency, null)) {
+        try (EventReceiver receiver = env.newReceiver("bench-s10");
+             CorrelationConsumer consumer = new CorrelationConsumer(receiver, latency, null)) {
             consumer.start();
             System.out.printf(Locale.ROOT, "S10: %.1f events/s for %s per window, four windows in the order"
                             + " %s; pollInterval=%s, pollFloor=%s, workers=%d%n",
