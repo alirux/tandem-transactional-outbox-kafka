@@ -47,6 +47,24 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 | `tandem-sample-spring` | *(not published)* | Runnable Spring Boot tutorial — the write-side tiers plus the autoconfigured relay |
 | `tandem-coverage` | *(not published)* | Build-only — the project-wide aggregated JaCoCo report |
 
+### Dependency graph and vulnerability alerts
+
+CI submits a GitHub dependency graph on every push to `main` (`gradle/actions/dependency-submission`),
+and that graph is what Dependabot raises security alerts against. It is deliberately **scoped to the
+redistributed footprint**: only the published modules, and within them only `runtimeClasspath`, the
+closest Gradle equivalent of the published POM's compile + runtime scopes. An alert therefore means
+something an adopter inherits, which is the same surface [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)
+tracks by hand.
+
+Left out on purpose: test and build-time tooling, `compileOnly` dependencies (Spring, Jackson,
+Micrometer Tracing: none of them reaches a published POM), the two extra Boot lines of the
+compatibility matrix, and the unpublished sample and benchmark apps, whose own server runtime would
+otherwise dominate the alert list without any adopter ever seeing it. Those classpaths are still kept
+off known-vulnerable versions where it costs nothing, through version floors in the catalog and
+`constraints` in the module that pulls the coordinate, but they no longer generate alerts. The Go
+modules under `tandem-cli/` are unaffected: GitHub reads their `go.mod` directly rather than through
+this submission.
+
 ---
 
 ## 2. Key Gradle Plugins

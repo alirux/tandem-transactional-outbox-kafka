@@ -146,15 +146,16 @@ One thing the matrix deliberately does **not** cover, so nobody reads more into 
 `RelayLifecycle` those tests neutralise). It is covered by `BucketCountGuardIT` and by each module's
 integration test.
 
-#### 1.2.1 Why Dependabot does not touch any of the three pins
+#### 1.2.1 Why nothing bumps any of the three pins automatically
 
 All three catalog entries (`spring-boot`, `spring-boot-v3-latest`, `spring-boot-v4`) resolve to the same
 Maven coordinate, `org.springframework.boot:spring-boot-dependencies` — only the pinned version differs.
 Dependabot's `ignore` matches by coordinate, not by version-catalog key, so there is no way to tell it
 "leave the frozen baseline alone but keep bumping the two trackers": a rule scoped to that coordinate
-silences all three identically. [.github/dependabot.yml](../.github/dependabot.yml) therefore ignores the
-coordinate outright, and all three numbers are moved by hand, in the same deliberate way as any other
-change to this file: `spring-boot` only moves when the project is intentionally raising its declared
+silences all three identically. The repository runs no Dependabot version updates at all, so the
+question is moot in practice, but it is the reason a narrower rule could not have been written even if
+it did. All three numbers are moved by hand, in the same deliberate way as any other change to this
+file: `spring-boot` only moves when the project is intentionally raising its declared
 minimum supported version (a compatibility-contract change, not a routine bump); `spring-boot-v3-latest`
 and `spring-boot-v4` move whenever a newer patch exists on their line, checked periodically rather than
 on every upstream release. Whichever one changes, the accompanying doc references in this section, in

@@ -45,6 +45,21 @@ jobs:
         # dependency graph only needs to track the default branch anyway.
         if: github.event_name == 'push'
         uses: gradle/actions/dependency-submission@v5
+        with:
+          # Scope the graph to what an adopter actually inherits: the runtime classpath of the
+          # published modules. Without these two filters the action submits every resolvable
+          # configuration of every project, so the alerts are dominated by coordinates nobody
+          # downstream ever sees: test-only tooling, compileOnly Spring (never in a published POM),
+          # the two extra Boot lines of the compatibility matrix, and the sample app's own server
+          # runtime. `runtimeClasspath` is the closest Gradle equivalent of the published POM's
+          # compile + runtime scopes, which is exactly the redistributed footprint the project
+          # already tracks by hand in THIRD-PARTY-NOTICES.md.
+          #
+          # What this trades away: a vulnerability confined to test or build tooling no longer
+          # raises an alert here. That is deliberate, not an oversight. Go is unaffected, since
+          # GitHub reads tandem-cli's go.mod files directly rather than through this submission.
+          dependency-graph-include-configurations: ^runtimeClasspath$
+          dependency-graph-exclude-projects: ^:?tandem-(sample|sample-spring|benchmark|coverage)$
 
   tandem-cli:
     # tandem-cli is a separate Go module (tandem-cli/go.mod) entirely outside the Gradle

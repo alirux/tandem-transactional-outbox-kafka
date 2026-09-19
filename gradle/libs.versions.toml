@@ -5,8 +5,9 @@ postgresql = "42.7.12"
 # Spring modules compile once against the lowest supported Boot 3.x line (LLD-spring-config §1.1);
 # the three-line matrix (§1.2) re-runs the unit tests against the latest Boot 3.x patch (Framework
 # 6.2.x, otherwise never exercised between the 6.1.x baseline and the 7.x line) and a Boot 4.x line
-# too. All three keep Java 17. Dependabot is intentionally NOT wired to any of these three (see
-# .github/dependabot.yml) — each is a deliberate compatibility-contract decision, not a routine bump.
+# too. All three keep Java 17. Nothing bumps any of these three automatically (the repository runs no
+# Dependabot version updates at all): each is a deliberate compatibility-contract decision, not a
+# routine bump. See LLD-spring-config §1.2.1.
 spring-boot = "3.3.13"
 spring-boot-v3-latest = "3.5.16"
 spring-boot-v4 = "4.1.1"
