@@ -9,7 +9,7 @@ postgresql = "42.7.12"
 # .github/dependabot.yml) — each is a deliberate compatibility-contract decision, not a routine bump.
 spring-boot = "3.3.13"
 spring-boot-v3-latest = "3.5.16"
-spring-boot-v4 = "4.1.0"
+spring-boot-v4 = "4.1.1"
 # kafka-clients aligned to the version cloudevents-kafka targets (binding compatibility).
 kafka = "3.9.2"
 # tandem-micrometer's own baseline — not tied to any Spring BOM (the module has no Spring dependency
@@ -41,6 +41,21 @@ testcontainers = "1.21.4"
 # Testcontainers' tar-only usage, but tandem-test is published, so consumers inherit the flagged
 # coordinate on their runtime classpath. Constrained up in tandem-test/build.gradle.kts.
 commons-compress = "1.28.0"
+# Not dependencies Tandem declares: only version floors for coordinates that a pinned dependency drags
+# in at a flagged version, constrained up where they appear (same pattern as lz4 and commons-compress
+# above). None of them reaches a published POM. Tomcat, Log4j and the Jackson 2 line come from the Boot
+# 3.3.x baseline BOM, on the sample app's runtime and on compile/test classpaths; Rhino comes from
+# swagger-request-validator's JSON-schema validator (test-only); commons-lang3 comes from the isolated
+# `liquibase` configuration that generates the baseline SQL at build time. Each floor can be dropped
+# once the dependency that pulls it ships the patched version itself.
+# Tomcat: the advisories are fixed in 10.1.58, a version Apache never published, so the floor is the
+# first release above it that exists.
+tomcat = "10.1.60"
+log4j = "2.25.5"
+# Jackson 2: the whole BOM rather than the flagged artifact alone, so the family stays aligned.
+jackson = "2.21.4"
+rhino = "1.7.14.1"
+commons-lang3 = "3.18.0"
 # Benchmark-only (leaf app, not part of any published library footprint).
 hdrhistogram = "2.2.2"
 hikaricp = "5.1.0"
@@ -156,6 +171,17 @@ testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
 testcontainers-kafka = { module = "org.testcontainers:kafka" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat" }
+# Released in lockstep with tomcat-embed-core, constrained together so the three never diverge.
+tomcat-embed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcat" }
+tomcat-embed-websocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcat" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-to-slf4j = { module = "org.apache.logging.log4j:log4j-to-slf4j", version.ref = "log4j" }
+# Imported as a platform, not declared as a dependency: it raises the managed Jackson 2 version above
+# what the Boot 3.3.x baseline BOM pins, and contributes no jar of its own.
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
+rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
 
 hdrhistogram = { module = "org.hdrhistogram:HdrHistogram", version.ref = "hdrhistogram" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }

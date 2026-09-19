@@ -17,6 +17,11 @@ dependencies {
     // Optional payload serializer — auto-configured only when Jackson is on the consumer's classpath
     // (LLD-spring-producer §2); never forced, hence compile-only.
     compileOnly(libs.jackson.databind)
+    // Jackson 2 is pinned above what the Boot 3.3.x baseline BOM manages (2.17.3, flagged): the
+    // module compiles against ObjectMapper.writeValueAsBytes alone, identical across the two lines,
+    // and Jackson stays compile-only, so neither the compile baseline nor the published footprint
+    // changes. The application still binds its own Jackson at runtime.
+    compileOnly(platform(libs.jackson.bom))
     // Optional distributed-trace-context bridge — auto-configured only when the application already runs
     // Micrometer Tracing (HLD-tracing.md §5); never forced, hence compile-only.
     compileOnly(libs.micrometer.tracing)
@@ -35,6 +40,7 @@ dependencies {
     testImplementation(libs.spring.aspects)
     testImplementation(libs.spring.boot.test)
     testImplementation(libs.jackson.databind)
+    testImplementation(platform(libs.jackson.bom))
     // A real tracer and a real W3C propagator, so the bridge is proven against a genuine traceparent
     // rather than a hand-written stand-in — and so each matrix line exercises its own Boot generation's
     // micrometer-tracing and OpenTelemetry SDK releases.

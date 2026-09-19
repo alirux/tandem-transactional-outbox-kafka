@@ -28,6 +28,31 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-json")  // Jackson — enables the object-payload tier
     implementation("org.springframework.boot:spring-boot-starter-aop")   // enables the @TransactionalOutbox aspect
 
+    // CVE remediation, same constrain-up pattern as tandem-kafka's lz4 and tandem-test's
+    // commons-compress: the Boot 3.3.x baseline BOM manages Tomcat, Log4j and Jackson 2 at versions
+    // that carry advisories fixed only in a later line this BOM never reaches. Nothing here is
+    // redistributed, since this module is not published, but it is a real runtime classpath and it is
+    // what the dependency graph CI submits reports. The Jackson BOM is imported rather than
+    // constrained so the whole Jackson 2 family moves together; it contributes no jar of its own.
+    implementation(platform(libs.jackson.bom))
+    constraints {
+        implementation(libs.tomcat.embed.core) {
+            because("CVE remediation: Tomcat 10.1.x below 10.1.58 carries critical advisories")
+        }
+        implementation(libs.tomcat.embed.el) {
+            because("Kept in lockstep with tomcat-embed-core")
+        }
+        implementation(libs.tomcat.embed.websocket) {
+            because("Kept in lockstep with tomcat-embed-core")
+        }
+        implementation(libs.log4j.api) {
+            because("CVE remediation: log4j-api below 2.25.5 carries a moderate advisory")
+        }
+        implementation(libs.log4j.to.slf4j) {
+            because("Kept in lockstep with log4j-api")
+        }
+    }
+
     // The Tandem Spring modules under demonstration: the write-side tiers and the relay autoconfig
     // (so the relay runs itself, wired by Spring, rather than being assembled by hand).
     implementation(project(":tandem-spring-producer"))

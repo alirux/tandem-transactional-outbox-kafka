@@ -23,6 +23,14 @@ dependencies {
 
     liquibase(libs.liquibase.core)
     liquibase(libs.picocli) { version { require("4.7.7") } }
+    // liquibase-core still resolves commons-lang3 3.17.0, which carries a moderate ReDoS advisory
+    // fixed in 3.18.0. Build-time only: this configuration never reaches a compile or runtime
+    // classpath, let alone the published POM, but it is part of the dependency graph CI submits.
+    constraints {
+        liquibase(libs.commons.lang3) {
+            because("CVE remediation: commons-lang3 below 3.18.0 carries a moderate ReDoS advisory")
+        }
+    }
 }
 
 // The schema's source of truth is the Liquibase changelog under schema/postgres/changelog; the flat

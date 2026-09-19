@@ -1,7 +1,7 @@
 # Tandem — LLD: Spring modules & configuration contract (`tandem-spring-producer`, `tandem-spring-relay`)
 
 **Version:** 1.6
-**Status:** Implemented and released — both modules built and tested against Boot 3.3.13, **3.5.16**, **and** 4.1.0
+**Status:** Implemented and released — both modules built and tested against Boot 3.3.13, **3.5.16**, **and** 4.1.1
 **Companion to:** [HLD.md](HLD.md) §3.1, §3.2, §10.1; [LLD-jdbc.md](LLD-jdbc.md); [LLD-kafka.md](LLD-kafka.md); [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md)
 
 Defines the **foundation** of the Spring Boot integration: which modules exist, the configuration
@@ -107,7 +107,7 @@ the autoconfiguration tests against **all three lines**, locally and in CI alike
 project convention that `check` is the single source of truth). Versions are pinned in the version
 catalog: baseline **Boot 3.3.13** (Framework 6.1.x, `test`), the latest **Boot 3.x patch** (`3.5.16` at
 the time of writing, Framework 6.2.x, `bootLatestThreeTest`), and the latest **Boot 4.x**
-(`4.1.0` at the time of writing, Framework 7.0.x, `bootFourTest`). The baseline stays the *lowest*
+(`4.1.1` at the time of writing, Framework 7.0.x, `bootFourTest`). The baseline stays the *lowest*
 supported 3.x line, deliberately never auto-bumped (§1.2.1); the other two each track their own line's
 newest release. This closes a gap the two-line matrix left open: Framework 6.2.x sits *between* the two
 lines that were actually tested, and is not merely an untested midpoint — some upstream Spring Framework
@@ -115,7 +115,7 @@ CVE fixes ship starting at 6.2.x and are never backported to 6.1.x, so 6.1.x-onl
 compatibility with the line most consumers who track CVEs will actually run in production. All three
 lines run on the same **Java 17** toolchain, which is not a coincidence to be rechecked by experiment:
 Boot 4.x officially requires "at least Java 17" (and supports up to 26), so Tandem's Java 17 baseline
-stays valid across all three. Boot 4.1.0 also requires Framework 7.0.8 or above, which is what the 4.x
+stays valid across all three. Boot 4.1.1 also requires Framework 7.0.9 or above, which is what the 4.x
 classpath resolves.
 
 `bootLatestThreeTest` and `bootFourTest` each reuse the **already-compiled** test and main classes and only
@@ -219,7 +219,7 @@ trusting any statement here). `spring-boot-starter-web` → `spring-boot-starter
 |---|---|---|
 | 3.3.13 / 3.5.16 | `com.fasterxml.jackson.core:jackson-databind` 2.x | yes, it *is* the binding |
 | 4.0.0 / 4.0.2 | `tools.jackson.core:jackson-databind` **3.0.x** | **no** — only `jackson-annotations` 2.20 |
-| 4.1.0 | `tools.jackson.core:jackson-databind` **3.1.x** | **no** — only `jackson-annotations` 2.21 |
+| 4.1.1 | `tools.jackson.core:jackson-databind` **3.1.x** | **no** — only `jackson-annotations` 2.21 |
 
 Two consequences that are easy to get wrong:
 

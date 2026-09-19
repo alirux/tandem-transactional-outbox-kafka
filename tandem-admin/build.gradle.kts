@@ -44,6 +44,19 @@ dependencies {
     testImplementation(libs.openapi.request.validator.core)
     testImplementation(libs.slf4j.api)
 
+    // Test-only CVE remediation for what the pinned swagger-request-validator drags in: its Swagger
+    // parser pulls a Jackson 2 line below the patched one, and its JSON-schema validator pulls Rhino
+    // 1.7.7.2 (used for ECMA-262 regex validation). Neither reaches the published POM, since both live
+    // on test classpaths only, but both show up in the dependency graph CI submits. The Jackson BOM is
+    // imported rather than constrained so the whole family moves together, and it also lifts the
+    // Boot 3.3.x baseline's own Jackson off its flagged version.
+    testImplementation(platform(libs.jackson.bom))
+    constraints {
+        testImplementation(libs.rhino) {
+            because("CVE remediation: rhino below 1.7.14.1 carries a low-severity advisory")
+        }
+    }
+
     // Integration tests: a real PostgreSQL via Testcontainers + the JDBC driver at runtime.
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
@@ -113,6 +126,17 @@ dependencies {
     bootFourTestRuntimeClasspath(libs.junit.jupiter)
     bootFourTestRuntimeClasspath(libs.junit.platform.launcher)
     bootFourTestRuntimeClasspath(libs.assertj.core)
+
+    // The same Rhino floor as the baseline test classpath above: swagger-request-validator drags the
+    // flagged version onto every line of the matrix, not just the baseline one.
+    constraints {
+        "bootLatestThreeTestRuntimeClasspath"(libs.rhino) {
+            because("CVE remediation: rhino below 1.7.14.1 carries a low-severity advisory")
+        }
+        "bootFourTestRuntimeClasspath"(libs.rhino) {
+            because("CVE remediation: rhino below 1.7.14.1 carries a low-severity advisory")
+        }
+    }
 }
 
 val sourceSets = the<SourceSetContainer>()
