@@ -8,6 +8,7 @@
 
 [![CI](https://github.com/alirux/tandem-transactional-outbox-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/alirux/tandem-transactional-outbox-kafka/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/alirux/tandem-transactional-outbox-kafka/graph/badge.svg?token=YKA7T7YCFD)](https://codecov.io/github/alirux/tandem-transactional-outbox-kafka)
+[![Docs](https://img.shields.io/readthedocs/tandem-codingful)](https://tandem-codingful.readthedocs.io/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](#)
 [![Maven Central](https://img.shields.io/maven-central/v/com.codingful/tandem-core.svg?label=maven)](https://central.sonatype.com/artifact/com.codingful/tandem-core)
