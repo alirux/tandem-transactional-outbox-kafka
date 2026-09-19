@@ -27,6 +27,11 @@ extra:
 
 theme:
   name: material
+  # Symlinks into docs/, which is where this repository keeps its images: one source of truth
+  # shared with site/build.sh. The favicon is a square crop because a browser tab squashes a
+  # non-square image; the header has room for the wide logo.
+  favicon: assets/favicon.png
+  logo: assets/logo.png
   palette:
     - scheme: default
       primary: indigo

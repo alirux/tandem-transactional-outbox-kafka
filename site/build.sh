@@ -27,6 +27,7 @@ mkdir -p "$out/assets"
 
 # Images, single-sourced from docs/ and renamed to site-local names.
 cp "$repo_root/docs/tandem-logo-blackbg-shade.png" "$out/assets/logo.png"
+cp "$repo_root/docs/tandem-favicon.png"            "$out/assets/favicon.png"
 cp "$repo_root/docs/tandem-architecture.svg"       "$out/assets/architecture.svg"
 cp "$repo_root/docs/tandem-cli-status-watch.png"   "$out/assets/cli-status-watch.png"
 cp "$repo_root/docs/tandem-metrics-dashboard.png"  "$out/assets/metrics-dashboard.png"
