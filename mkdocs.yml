@@ -1,6 +1,10 @@
 site_name: Tandem — User Guide
 site_description: Adopting and operating Tandem — task-oriented guides, separate from the HLD/LLD design documents
 docs_dir: guide
+# NOT the default 'site/': that directory holds the hand-written tandem.codingful.com site, and a
+# plain `mkdocs build` cleans its output directory first, which would delete the CNAME, the
+# how-it-works page and every problem-type page.
+site_dir: .mkdocs-site
 
 theme:
   name: material
