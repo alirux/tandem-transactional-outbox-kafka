@@ -218,6 +218,10 @@ header (`BenchmarkHeaders.T0_NANOS`, §5.1).
   `bench_aggregate` row upfront, `universe()` must be finite: size it with
   `AggregateSelector.universeSizeFor(...)`, and note that running out **throws** rather than recycling
   an id, because recycling would quietly restore the unbounded chains the distribution exists to avoid.
+  Size it from an **upper bound** of the run's wall clock, never a typical one: S11 sums its warmup and,
+  per cell, the outage, the cell's own recovery bound and the settle, because an exhausted id space
+  throws on the generator's thread and so stops the write side silently, in whichever cell overran the
+  estimate.
 - `LoadGenerator.insertedKeys()` exposes every successfully-committed `aggregateId#seq` — the set every
   scenario's zero-loss check reconciles against.
 
@@ -879,7 +883,7 @@ polls), and small duration helpers (`observationWindowFor`, `sustainWindowFor`, 
 | **S7** | Causal-ordering overhead | **Deferred — 2nd round** (needs the causal-ordering feature); not implemented |
 | **S8** | Multi-instance `LEASE` coordination + crash recovery | Runs **three** relay instances (`env.newRelayInstance`, each its own producer) under `Coordination.LEASE`; waits for a fair 3-way partition, **kills one** (`WorkerPool.kill()` — an abrupt crash, not `stop()`), and confirms the two survivors reclaim its share and delivery still completes correctly. See §8.2/§8.3 for what this scenario found and fixed along the way |
 | **S10** | The cold row, wakeup on vs off | Four windows inside one run, in the order poll, wakeup, wakeup, poll (ABBA, so a linear host drift cancels). Each window builds its own relay instance and its own write side wired for that arm, holds a low fixed rate (`--rate=`, default 2/s) for `duration / 4`, drains, and reconciles; one shared consumer and one shared `LatencyRecorder` span the run, so each window's snapshot is the interval since the previous. Reports COMMIT→ack **and** the write transaction's own duration per arm |
-| **S11** | Outage recovery | `relayPool().stop()` for an outage taken from a ladder of duration fractions, then `start()` and poll `LagProbe` until pending is back to the steady state; reports backlog, recovery seconds and drain rate per cell. A cell that misses its bound is recorded as not recovered and the ladder **stops there**, so a diverging backlog cannot make the final drain unreachable. The only scenario using `AggregateSelector.lifecycle`: bounded chain length is what makes the recovery curve a property of the relay rather than of the generator (§4.2) |
+| **S11** | Outage recovery | `relayPool().stop()` for an outage taken from a ladder of duration fractions, then `start()` and poll `LagProbe` until pending is back to the steady state; reports backlog, recovery seconds and drain rate per cell. Holds a fixed rate throughout (`--rate=`, default 200/s): a write side that never stops is the premise, so a zero rate would stop the relay over an outbox nobody is filling and report the recovery of a backlog that never existed. A cell that misses its bound is recorded as not recovered and the ladder **stops there**, so a diverging backlog cannot make the final drain unreachable. The only scenario using `AggregateSelector.lifecycle`: bounded chain length is what makes the recovery curve a property of the relay rather than of the generator (§4.2) |
 | **S9** | Endurance | Two `LEASE` instances holding a fixed rate for `duration`, sliced into `window`-long reporting windows. The rate comes from `--rate=` or from a seed ramp with a **budget of its own** (3 min, not scaled to `duration`), and the run states which — and, for a ramp that did not bracket, that its load is not half of capacity; correctness is tracked by `SequenceLedger` in memory bounded by the aggregate cardinality; every window samples latency, delivered/written counts, lag, bucket coverage, `tandem_outbox` size and dead tuples, heap and thread count, and prints them as it goes |
 
 **S5's duplicate bound is wider than the HLD's ideal statement.** `WorkerPool` exposes no API to kill a
@@ -1260,7 +1264,7 @@ knob to expose here):
 | `warmup` | 30 s | discarded before latency recording (S2) |
 | `duration` | 10 min | steady-state window: S1's sustain gate, S2/S3/S6's drive time, S5's half-phases, S9's whole run |
 | `window` | 20 min | S9's reporting window — the unit its drift comparison is made *between*; shrunk to `duration / 2` when the run is too short to hold two |
-| `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10); `0` leaves each to pick its own |
+| `offeredRate` | 0 | the fixed rate in events/s for the scenarios that hold one rather than search for it (S9, S10, S11); `0` leaves each to pick its own |
 | `wakeup` | `NONE` | one knob for one mechanism (`--wakeup=pg-notify`): it wires `Wakeup.PG_NOTIFY` into every `LoadGenerator`'s repository **and** a `WakeupSource` into every relay the environment builds, since either alone does nothing. S10 overrides it per arm |
 | `latencyMode` | `PROXY` | `PROXY` or `ACCURATE` (§5.1) |
 

@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 
@@ -54,6 +55,16 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
  */
 public final class S11OutageRecovery implements Scenario {
 
+    /**
+     * The rate the write side holds, unless {@code --rate=} overrides it. A write side that never
+     * stops is this scenario's premise, so there is no meaningful zero: an outage over an outbox
+     * nobody is filling leaves no backlog to recover from, and reports the recovery of one anyway.
+     * Modest rather than near the host's ceiling, because what makes a recovery readable is the
+     * headroom between the offered rate and the drain rate: offered close to capacity, the backlog
+     * crawls down (or diverges) for reasons belonging to the host rather than to the claim.
+     */
+    private static final double NOMINAL_RATE_PER_SECOND = 200.0;
+
     /** Events one aggregate emits over its life, before it retires and is replaced by a new one. */
     private static final int EVENTS_PER_AGGREGATE = 100;
 
@@ -89,7 +100,7 @@ public final class S11OutageRecovery implements Scenario {
     public ScenarioResult run(ScenarioContext ctx) throws Exception {
         BenchmarkEnvironment env = ctx.environment();
         BenchmarkConfig cfg = ctx.config();
-        double rate = cfg.offeredRate();
+        double rate = cfg.offeredRate() > 0 ? cfg.offeredRate() : NOMINAL_RATE_PER_SECOND;
 
         env.relayPool().start();
         try (KafkaConsumer<String, byte[]> kafkaConsumer = env.newConsumer("bench-s11");
@@ -99,6 +110,8 @@ public final class S11OutageRecovery implements Scenario {
                      population(cfg, rate), cfg.payloadBytes(), null, cfg.wakeup())) {
             consumer.start();
             generator.start(rate);
+            System.out.printf(Locale.ROOT, "S11: %.1f events/s held throughout, outage ladder %s%n",
+                    rate, ladderFor(cfg));
             Thread.sleep(cfg.warmup().toMillis());
 
             List<Cell> cells = new ArrayList<>();
@@ -117,7 +130,7 @@ public final class S11OutageRecovery implements Scenario {
 
             ScenarioSupport.CorrectnessReport report = ScenarioSupport.verify(generator, consumer);
             return new ScenarioResult(id(), report.passed(), summary(cells, report),
-                    metrics(cells, concurrentAggregates(cfg), report));
+                    metrics(cells, rate, concurrentAggregates(cfg), report));
         } finally {
             env.relayPool().stop();
         }
@@ -135,16 +148,16 @@ public final class S11OutageRecovery implements Scenario {
 
         // Progress goes to stdout, not to a logger: it is the scenario's report, same rule as every
         // other scenario's result line. Without it a run with a long ladder is silent for an hour.
-        System.out.printf("S11 outage start: relay down for %ds (steady pending %d)%n",
+        System.out.printf(Locale.ROOT, "S11 outage start: relay down for %ds (steady pending %d)%n",
                 outage.toSeconds(), steadyPending);
         env.relayPool().stop();
         Thread.sleep(outage.toMillis());
         long backlog = probe.inProgressForNamespace(id()).pending();
-        System.out.printf("S11 outage end: backlog %d rows; restarting the relay%n", backlog);
+        System.out.printf(Locale.ROOT, "S11 outage end: backlog %d rows; restarting the relay%n", backlog);
 
         // "Recovered" is a return to the steady state, not to zero: the write side never stopped.
         long target = Math.max(steadyPending * 2, Math.round(rate * 2));
-        Duration bound = ScenarioSupport.maxDuration(Duration.ofMinutes(1), outage.multipliedBy(20));
+        Duration bound = boundFor(outage);
 
         Instant start = Instant.now();
         env.relayPool().start();
@@ -177,7 +190,7 @@ public final class S11OutageRecovery implements Scenario {
         }
         Duration recovery = Duration.between(start, Instant.now());
         boolean recovered = remaining <= target;
-        System.out.printf("S11 %s: %d rows, %.1fs, %d still pending%n",
+        System.out.printf(Locale.ROOT, "S11 %s: %d rows, %.1fs, %d still pending%n",
                 recovered ? "recovered" : (diverging ? "DIVERGING" : "did not recover"),
                 backlog, recovery.toMillis() / 1000.0, remaining);
         return new Cell(outage, backlog, recovery, recovered, diverging, remaining, bound);
@@ -186,11 +199,16 @@ public final class S11OutageRecovery implements Scenario {
     private AggregateSelector population(BenchmarkConfig cfg, double rate) {
         // Sized from the ladder the run will actually work through, not from `duration`: with an
         // explicit `--outages=` the duration is only a drain bound, and sizing off it seeds tens of
-        // thousands of aggregates a run never reaches. Recovery and settle are allowed for by
-        // doubling the ladder, and the whole thing is doubled again as headroom, because an exhausted
-        // id space throws and spare ids cost almost nothing.
-        Duration ladder = ladderFor(cfg).stream().reduce(Duration.ZERO, Duration::plus);
-        Duration wallClock = cfg.warmup().plus(ladder.multipliedBy(2)).multipliedBy(2);
+        // thousands of aggregates a run never reaches. Every phase of a cell is bounded (the outage,
+        // then a recovery no longer than boundFor(outage), then the settle), so their sum is the
+        // longest the write side can stay up, and an id space sized from it cannot run out. Running
+        // out matters more than the spare ids cost: it throws on the generator's own thread, so the
+        // write side stops silently, and it would do so during whichever cell ran long enough to
+        // overshoot the estimate, the one cell whose measurement needs the write side still there.
+        Duration wallClock = cfg.warmup();
+        for (Duration outage : ladderFor(cfg)) {
+            wallClock = wallClock.plus(outage).plus(boundFor(outage)).plus(settleFor(cfg));
+        }
         long expectedEvents = Math.round(rate * wallClock.toSeconds()) + 1;
         int active = concurrentAggregates(cfg);
         int universe = AggregateSelector.universeSizeFor(
@@ -219,6 +237,14 @@ public final class S11OutageRecovery implements Scenario {
         return ScenarioSupport.minDuration(MAX_OUTAGE, ScenarioSupport.maxDuration(floor, scaled));
     }
 
+    /**
+     * How long a cell waits for the recovery before recording it as unrecovered, and what the id
+     * space is sized against ({@link #population}), so the two cannot drift apart.
+     */
+    private static Duration boundFor(Duration outage) {
+        return ScenarioSupport.maxDuration(Duration.ofMinutes(1), outage.multipliedBy(20));
+    }
+
     private static Duration settleFor(BenchmarkConfig cfg) {
         return ScenarioSupport.minDuration(NOMINAL_SETTLE, cfg.duration().dividedBy(2));
     }
@@ -234,26 +260,29 @@ public final class S11OutageRecovery implements Scenario {
                 text.append("; ");
             }
             if (cell.recovered()) {
-                text.append(String.format("%ds outage -> %d rows recovered in %.1fs (%.0f rows/s)",
+                text.append(String.format(Locale.ROOT, "%ds outage -> %d rows recovered in %.1fs (%.0f rows/s)",
                         cell.outage().toSeconds(), cell.backlog(),
                         cell.recovery().toMillis() / 1000.0, cell.drainRatePerSecond()));
             } else if (cell.diverging()) {
-                text.append(String.format("%ds outage -> %d rows DIVERGING (%d pending and still growing after %.0fs)",
+                text.append(String.format(Locale.ROOT,
+                        "%ds outage -> %d rows DIVERGING (%d pending and still growing after %.0fs)",
                         cell.outage().toSeconds(), cell.backlog(), cell.remaining(),
                         cell.recovery().toMillis() / 1000.0));
             } else {
-                text.append(String.format("%ds outage -> %d rows DID NOT recover within %ds (%d still pending)",
+                text.append(String.format(Locale.ROOT,
+                        "%ds outage -> %d rows DID NOT recover within %ds (%d still pending)",
                         cell.outage().toSeconds(), cell.backlog(), cell.bound().toSeconds(), cell.remaining()));
             }
         }
-        text.append(String.format("; ordering violations=%d, missing=%d",
+        text.append(String.format(Locale.ROOT, "; ordering violations=%d, missing=%d",
                 report.orderingViolations(), report.missingKeys().size()));
         return text.toString();
     }
 
-    private static Map<String, Object> metrics(List<Cell> cells, int concurrentAggregates,
+    private static Map<String, Object> metrics(List<Cell> cells, double rate, int concurrentAggregates,
             ScenarioSupport.CorrectnessReport report) {
         Map<String, Object> metrics = new LinkedHashMap<>();
+        metrics.put("offeredRatePerSecond", rate);
         metrics.put("eventsPerAggregate", EVENTS_PER_AGGREGATE);
         metrics.put("quotaJitter", QUOTA_JITTER);
         metrics.put("concurrentAggregates", concurrentAggregates);
