@@ -2,7 +2,8 @@
 
 **Version:** 1.0
 **Status:** Phases 0 to 5 implemented. Phase 6 (independent version and release path) is deliberately
-open: its gate needs a floor that is not on Maven Central yet (D7, D8).
+open: it needs the next library release, which is the first one carrying the core constant the
+connector reads (D7, D8).
 **Scope:** a second transport adapter on the `OutboxDispatcher` port, `tandem-rabbitmq`, carrying its
 own version and its own release cadence; plus the guide page on extending the published envelope,
 deferred here from the message-format port. Spans `tandem-core` (documentation only), the new module,
@@ -31,8 +32,8 @@ freedom the library still takes with breaking changes does not extend to this mo
 | D4 | The RabbitMQ container lives in this module's own test sources, never in `tandem-test` | `tandem-test` is published and already exposes Kafka and Testcontainers as `api`. Adding RabbitMQ there would impose it on every consumer of the test helpers |
 | D5 | Independent version, tagged `rabbitmq-v<semver>`, starting at `rabbitmq-v0.1.0` | The connector tracks the port (`OutboxDispatcher`, `MessageEncoder`), not the implementation behind it. A library release that leaves those interfaces alone cannot break it, and it can fix bugs with no library release at all. Same shape as `cli-v*`, whose glob separation already works |
 | D6 | The connector is not in `tandem-bom` | The BOM promises one aligned version for every module. Pinning an independently versioned module there would force a BOM release on every connector release, recreating the coupling the independent version removes |
-| D7 | Build the independent release path last (§8), not first | Its centrepiece is a floor verified against a published coordinate, and no such coordinate exists yet (`tandem-cloudevents` is not on Central). Built now the gate would be born disabled. Three guard rails (§1) cover the interval |
-| D8 | Develop now, release after the next library release | `tandem-cloudevents` must be on Central before the connector can declare a floor on it. Nothing else blocks the work |
+| D7 | Build the independent release path last (§8), not first | Its centrepiece is a floor verified against a published coordinate, and the coordinate the connector can actually floor on is not published yet (see D8). Built earlier the gate would have been born disabled. Three guard rails (§1) cover the interval |
+| D8 | Develop now, release after the next library release | `v0.9.0` put `tandem-core` and `tandem-cloudevents` on Central, but the connector reads `CloudEventsHeaders.AMQP_BINARY_PREFIX`, added to the core *after* that tag. The floor is therefore the next library release, which is also the one carrying the §6 breaking change. Nothing else blocks the work |
 | D9 | `tandem-spring-relay` stops redistributing `tandem-kafka` (§6) | With the transport a port, an autoconfiguration module must wire whichever adapter is present, not carry one. Today every Spring relay application inherits the Kafka client whether it publishes to Kafka or not. Breaking for consumers, so it lands in the same library release the connector floors on |
 
 ---
@@ -243,8 +244,9 @@ line saying the transport is a port. The wider repositioning is backlog item 47 
 
 ## 8. Phase 6 — Independent version and release path · **M**
 
-Runs last, immediately before the first connector release, once a library release has put
-`tandem-cloudevents` on Central (D8).
+Runs last, immediately before the first connector release, once a library release has published the
+core the connector floors on (D8: `v0.9.0` is not it, since the AMQP binding prefix landed after that
+tag).
 
 - **Published coordinates with an explicit floor** replace the project dependencies. A project
   dependency would stamp the connector's own version into the POM as the core's version, which is the
