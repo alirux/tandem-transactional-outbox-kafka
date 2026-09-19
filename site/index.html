@@ -185,7 +185,8 @@ cd tandem
       <div class="card">
         <h3>A client that stays light</h3>
         <p>The part your application imports is the outbox INSERT. <code>tandem-core</code> has
-          zero runtime dependencies; Kafka, CloudEvents and tracing live on the relay side.</p>
+          zero runtime dependencies; Kafka, CloudEvents and tracing live on the relay side. Nothing
+          on that path holds a lock, so it runs unchanged on virtual threads.</p>
       </div>
     </div>
   </div>

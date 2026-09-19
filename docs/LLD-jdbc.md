@@ -189,12 +189,15 @@ column stays `NULL` when no correlation id is present, which is every row when t
 
 ### 3.1 Worker model & lifecycle
 
-- A **WorkerPool** of `workersPerInstance` threads (default `cores × 2`). Each worker owns a subset
-  of buckets and runs the poll loop. The loop **claims and dispatches back-to-back while work
-  remains**, re-claiming as in-flight slots free (§3.4); the idle backoff is applied *only* when a
-  claim returns no rows — it is **not** a per-batch sleep. A fixed per-cycle sleep would cap a shard
-  at `batch_size / pollInterval` (e.g. 1 000/s), an order of magnitude under the throughput target
-  (HLD §10); the continuous claim-while-busy loop removes that ceiling.
+- A **WorkerPool** of `workersPerInstance` threads (default `cores × 2`), **platform threads and
+  deliberately so** ([virtual-threads-decision.md](virtual-threads-decision.md)): the dispatch port is
+  asynchronous, so no thread is held per in-flight message, and a measured comparison found nothing
+  to win. Each worker owns a subset of buckets and runs the poll loop. The loop **claims and
+  dispatches back-to-back while work remains**, re-claiming as in-flight slots free (§3.4); the idle
+  backoff is applied *only* when a claim returns no rows — it is **not** a per-batch sleep. A fixed
+  per-cycle sleep would cap a shard at `batch_size / pollInterval` (e.g. 1 000/s), an order of
+  magnitude under the throughput target (HLD §10); the continuous claim-while-busy loop removes that
+  ceiling.
 - **All four waits live in one place** (`PollBackoff`): the loop reports what each cycle did (rows
   claimed, publishes still in flight, or an exception) and is told how long to wait, so no timing
   policy sits in the worker loop itself. The four are: nothing at all while work remains, 5 ms while

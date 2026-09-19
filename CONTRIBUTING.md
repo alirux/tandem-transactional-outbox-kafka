@@ -154,6 +154,7 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [LLD-cli.md](docs/LLD-cli.md) | `tandem-cli` — the Go command-line frontend over the Admin API |
 | [LLD-relay.md](docs/LLD-relay.md) | `tandem-relay` — the prebuilt standalone relay deployable (image + jar); designed, not implemented |
 | [HLD-load-testing.md](docs/HLD-load-testing.md) · [LLD-benchmark.md](docs/LLD-benchmark.md) | Throughput/latency verification plan + the `tandem-benchmark` harness that implements it |
+| [virtual-threads-decision.md](docs/virtual-threads-decision.md) | Why the relay's workers stay platform threads, measured rather than argued, and what an application running on virtual threads needs to know (nothing) |
 | [HLD-causal-ordering.md](docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |
 | [HLD-managed-seq.md](docs/HLD-managed-seq.md) | The three per-message `seq` modes — `seq(long)` (the aggregate's own version), `managedSeq()` (Tandem-assigned) and `unsequenced()` (no number at all) — what each one costs and detects, and how to choose. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
 | [dispatch-latency.md](docs/dispatch-latency.md) | Commit-to-publish latency: where it comes from, the adaptive idle backoff, and the opt-in post-commit wakeup |

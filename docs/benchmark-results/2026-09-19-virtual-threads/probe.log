@@ -1,0 +1,488 @@
+Virtual-thread probe — java=25.0.2, cores=12, rate=400.0/s, warmup=PT25S, window=PT1M, replicates=3, cells=[8, 24, 64], maxConnections=32
+
+=== 8w platform #1 ===
+Sept 19, 2026 12:20:55 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-1630, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:22:23 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-1630
+8w platform #1     p50=  11.8 p95=  39.4 p99=  60.5 p999=  96.0 ms | delivered= 399.4/s | cpu=  4.5% | threads= 42 (relay  9) | pinned=0 | violations=0 missing=0 | samples=24070
+
+=== 8w virtual #1 ===
+Sept 19, 2026 12:22:23 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-6fe2, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:23:51 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w virtual #1      p50=  10.1 p95=  39.8 p99=  67.9 p999=  90.8 ms | delivered= 400.0/s | cpu=  4.2% | threads= 36 (relay  1) | pinned=0 | violations=0 missing=0 | samples=24006
+INFO: Relay stopped instanceId:tandem-host-66813-6fe2
+
+=== 8w virtual #2 ===
+Sept 19, 2026 12:23:51 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-5018, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:25:19 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w virtual #2      p50=  13.5 p95= 129.9 p99= 566.8 p999=1608.5 ms | delivered= 365.2/s | cpu=  5.0% | threads= 37 (relay  1) | pinned=0 | violations=0 missing=0 | samples=21916
+INFO: Relay stopped instanceId:tandem-host-66813-5018
+
+=== 8w platform #2 ===
+Sept 19, 2026 12:25:19 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-6f1d, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:26:47 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w platform #2     p50=  12.2 p95=  41.1 p99=  70.6 p999= 144.8 ms | delivered= 396.0/s | cpu=  4.9% | threads= 46 (relay  9) | pinned=0 | violations=0 missing=0 | samples=23770
+INFO: Relay stopped instanceId:tandem-host-66813-6f1d
+
+=== 8w platform #3 ===
+Sept 19, 2026 12:26:47 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-dc11, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:28:15 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-dc11
+8w platform #3     p50=  11.6 p95=  40.6 p99=  69.7 p999= 108.4 ms | delivered= 398.5/s | cpu=  4.6% | threads= 47 (relay  9) | pinned=0 | violations=0 missing=0 | samples=23911
+
+=== 8w virtual #3 ===
+Sept 19, 2026 12:28:15 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-e5cc, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:29:43 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w virtual #3      p50=  11.0 p95=  38.9 p99=  64.2 p999= 113.0 ms | delivered= 398.6/s | cpu=  5.0% | threads= 40 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23917
+INFO: Relay stopped instanceId:tandem-host-66813-e5cc
+
+=== 24w platform #1 ===
+Sept 19, 2026 12:29:43 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-42d3, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:31:10 PM com.codingful.tandem.jdbc.WorkerPool stop
+24w platform #1    p50=  20.4 p95=  82.2 p99= 105.5 p999= 142.6 ms | delivered= 398.5/s | cpu=  5.1% | threads= 65 (relay 25) | pinned=0 | violations=0 missing=0 | samples=23913
+
+=== 24w virtual #1 ===
+INFO: Relay stopped instanceId:tandem-host-66813-42d3
+Sept 19, 2026 12:31:10 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-5034, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+[tandem-relay-tandem-host-66813-5034-w12] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@5de5fbe3 marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+Sept 19, 2026 12:32:38 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:12, instanceId:tandem-host-66813-5034
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+24w virtual #1     p50=  18.5 p95=  78.1 p99=  97.3 p999= 118.0 ms | delivered= 399.5/s | cpu=  5.3% | threads= 42 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23975
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+=== 24w virtual #2 ===
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 12:32:38 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-5034
+Sept 19, 2026 12:32:38 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-5067, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:34:06 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-5067
+24w virtual #2     p50=  18.7 p95=  78.0 p99=  96.5 p999= 116.5 ms | delivered= 399.7/s | cpu=  5.4% | threads= 42 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23988
+
+=== 24w platform #2 ===
+Sept 19, 2026 12:34:06 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-8464, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:35:33 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-8464
+24w platform #2    p50=  20.1 p95=  81.2 p99= 101.7 p999= 126.2 ms | delivered= 399.4/s | cpu=  4.4% | threads= 68 (relay 25) | pinned=0 | violations=0 missing=0 | samples=23967
+
+=== 24w platform #3 ===
+Sept 19, 2026 12:35:34 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-360d, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:37:01 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-360d
+24w platform #3    p50=  19.8 p95=  79.6 p99= 101.6 p999= 126.1 ms | delivered= 399.9/s | cpu=  4.7% | threads= 69 (relay 25) | pinned=0 | violations=0 missing=0 | samples=23997
+
+=== 24w virtual #3 ===
+Sept 19, 2026 12:37:01 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-f7bd, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+[tandem-relay-tandem-host-66813-f7bd-w8] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@31c316a1 marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+Sept 19, 2026 12:38:29 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:8, instanceId:tandem-host-66813-f7bd
+24w virtual #3     p50=  18.0 p95=  77.9 p99=  96.5 p999= 116.3 ms | delivered= 399.6/s | cpu=  5.1% | threads= 46 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23979
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+=== 64w platform #1 ===
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 12:38:29 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-f7bd
+Sept 19, 2026 12:38:29 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-1ab6, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:39:57 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w platform #1    p50=  32.5 p95=  99.0 p99= 116.7 p999= 127.1 ms | delivered= 399.8/s | cpu=  5.1% | threads=111 (relay 65) | pinned=0 | violations=0 missing=0 | samples=23991
+INFO: Relay stopped instanceId:tandem-host-66813-1ab6
+
+=== 64w virtual #1 ===
+Sept 19, 2026 12:39:57 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-e771, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:41:24 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-e771
+64w virtual #1     p50=  31.5 p95=  93.6 p99= 111.0 p999= 121.7 ms | delivered= 399.5/s | cpu=  6.5% | threads= 48 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23977
+
+=== 64w virtual #2 ===
+Sept 19, 2026 12:41:24 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-81ac, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+[tandem-relay-tandem-host-66813-81ac-w9] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@6836adac marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+[tandem-relay-tandem-host-66813-81ac-w20] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@7d9c0ccc marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+64w virtual #2     p50=  31.0 p95=  94.1 p99= 110.9 p999= 120.8 ms | delivered= 399.7/s | cpu=  6.5% | threads= 49 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23986
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+=== 64w platform #2 ===
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+Sept 19, 2026 12:42:52 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:20, instanceId:tandem-host-66813-81ac
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 12:42:52 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:9, instanceId:tandem-host-66813-81ac
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 12:42:52 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-81ac
+Sept 19, 2026 12:42:52 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-29c, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:44:20 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w platform #2    p50=  31.1 p95=  97.7 p99= 116.1 p999= 128.4 ms | delivered= 399.8/s | cpu=  5.0% | threads=114 (relay 65) | pinned=0 | violations=0 missing=0 | samples=23991
+INFO: Relay stopped instanceId:tandem-host-66813-29c
+
+=== 64w platform #3 ===
+Sept 19, 2026 12:44:20 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-c37, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 12:45:47 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w platform #3    p50=  32.5 p95=  98.9 p99= 116.8 p999= 128.4 ms | delivered= 399.7/s | cpu=  5.0% | threads=115 (relay 65) | pinned=0 | violations=0 missing=0 | samples=23985
+INFO: Relay stopped instanceId:tandem-host-66813-c37
+
+=== 64w virtual #3 ===
+Sept 19, 2026 12:45:48 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-66813-2f40, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+[tandem-relay-tandem-host-66813-2f40-w54] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@24f86c7a marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+64w virtual #3     p50=  30.9 p95=  94.2 p99= 110.6 p999= 121.0 ms | delivered= 399.7/s | cpu=  6.4% | threads= 52 (relay  1) | pinned=0 | violations=0 missing=0 | samples=23984
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+=== Summary (median of replicates per arm) ===
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+cell       arm             p50	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+      p95      p99    p99.9  delivered     cpu relayThr    pinned
+	... 18 more
+Sept 19, 2026 12:47:15 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:54, instanceId:tandem-host-66813-2f40
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 12:47:15 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-66813-2f40
+8w         platform       11.8     40.6     69.7    108.4      398.5    4.6%        9         0
+8w         virtual        11.0     39.8     67.9    113.0      398.6    5.0%        1         0
+24w        platform       20.1     81.2    101.7    126.2      399.4    4.7%       25         0
+24w        virtual        18.5     78.0     96.5    116.5      399.6    5.3%        1         0
+64w        platform       32.5     98.9    116.7    128.4      399.8    5.0%       65         0
+64w        virtual        31.0     94.1    110.9    121.0      399.7    6.5%        1         0
+
+Correctness across every arm: orderingViolations=0, missing=0

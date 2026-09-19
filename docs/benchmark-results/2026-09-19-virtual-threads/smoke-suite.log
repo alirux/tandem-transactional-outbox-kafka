@@ -1,0 +1,56 @@
+> Task :tandem-tracing-otel:processResources NO-SOURCE
+> Task :tandem-test:processResources NO-SOURCE
+> Task :tandem-micrometer:processResources NO-SOURCE
+> Task :tandem-kafka:processResources NO-SOURCE
+> Task :tandem-cloudevents:processResources NO-SOURCE
+> Task :tandem-benchmark:processResources UP-TO-DATE
+> Task :tandem-jdbc:processResources UP-TO-DATE
+> Task :tandem-benchmark:processTestResources NO-SOURCE
+> Task :tandem-core:compileJava UP-TO-DATE
+> Task :tandem-core:processResources NO-SOURCE
+> Task :tandem-core:classes UP-TO-DATE
+> Task :tandem-core:jar UP-TO-DATE
+> Task :tandem-cloudevents:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:compileJava UP-TO-DATE
+> Task :tandem-cloudevents:classes UP-TO-DATE
+> Task :tandem-tracing-otel:classes UP-TO-DATE
+> Task :tandem-micrometer:compileJava UP-TO-DATE
+> Task :tandem-micrometer:classes UP-TO-DATE
+> Task :tandem-cloudevents:jar UP-TO-DATE
+> Task :tandem-jdbc:compileJava UP-TO-DATE
+> Task :tandem-tracing-otel:jar UP-TO-DATE
+> Task :tandem-micrometer:jar UP-TO-DATE
+> Task :tandem-jdbc:classes UP-TO-DATE
+> Task :tandem-jdbc:jar UP-TO-DATE
+> Task :tandem-kafka:compileJava UP-TO-DATE
+> Task :tandem-kafka:classes UP-TO-DATE
+> Task :tandem-kafka:jar UP-TO-DATE
+> Task :tandem-test:compileJava UP-TO-DATE
+> Task :tandem-test:classes UP-TO-DATE
+> Task :tandem-test:jar UP-TO-DATE
+> Task :tandem-benchmark:compileJava UP-TO-DATE
+> Task :tandem-benchmark:classes UP-TO-DATE
+> Task :tandem-benchmark:compileTestJava
+> Task :tandem-benchmark:testClasses
+
+> Task :tandem-benchmark:integrationTest
+
+SmokeLoadTest > s9EnduranceSmoke() PASSED
+
+SmokeLoadTest > s10ColdBurstSmoke() PASSED
+
+SmokeLoadTest > s6PoisonMessageSmoke() PASSED
+
+SmokeLoadTest > s5WorkerFailoverSmoke() PASSED
+
+SmokeLoadTest > s1SustainedThroughputSmoke() PASSED
+
+SmokeLoadTest > s3HotPartitionSmoke() PASSED
+
+SmokeLoadTest > s8MultiInstanceLeaseSmoke() PASSED
+
+SmokeLoadTest > s11OutageRecoverySmoke() PASSED
+
+BUILD SUCCESSFUL in 2m 6s
+19 actionable tasks: 2 executed, 17 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html

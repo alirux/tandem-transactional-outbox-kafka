@@ -582,7 +582,11 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   paused/resumed at runtime, but tunables like `pollInterval` need a restart to change.
 
 - **Blocking JDBC only.** The relay is a thread-per-worker pool over a `DataSource`; R2DBC and
-  reactive pipelines are not supported.
+  reactive pipelines are not supported. This is not a limit on *your* runtime: an application on
+  virtual threads is supported and needs no configuration, because Tandem's write path holds no
+  monitor and so cannot pin a carrier, and the relay keeps its own platform threads whatever the
+  host is configured to use. Measured and reasoned in
+  [virtual-threads-decision.md](docs/virtual-threads-decision.md).
 
 - **Throughput has been measured only on a burstable host.** Its capacity changes with recent CPU
   use, so the measured ceiling has ranged from 725 to 1450 events/s; latency is stable across the same

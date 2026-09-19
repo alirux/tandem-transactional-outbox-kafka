@@ -8,8 +8,8 @@
 + AssertJ (test scope, for the CI smoke run).  
 **Toolchain:** **JDK 25** (per-module override; the rest of Tandem stays Java 17). Justified because
 this module is **not published** — no consumer sees its bytecode — and the load driver benefits from
-virtual threads (§4.2), which need Java 21+ and, for blocking JDBC, the Java 24+ no-pinning fix. It
-depends on the Java 17 artifacts unchanged (a newer JVM runs older bytecode).  
+virtual threads (§4.2), which need Java 21 or later. It depends on the Java 17 artifacts unchanged
+(a newer JVM runs older bytecode).  
 **Companion to:** [HLD-load-testing.md](HLD-load-testing.md) — this LLD implements that plan.  
 **Published:** No. Internal harness only (LLD-base §1 reserves `tandem-benchmark` as *not published*),
 so its heavy dependencies (HdrHistogram, HikariCP, load-driver code) never leak into the released
@@ -187,10 +187,11 @@ header (`BenchmarkHeaders.T0_NANOS`, §5.1).
 - The unit of work runs on a **virtual thread** (`Executors.newVirtualThreadPerTaskExecutor()`), one per
   offered insert. The work is blocking (a JDBC transaction), so virtual threads fit: the driver can have
   many inserts *in flight or waiting for a connection* without a large platform-thread pool, and it
-  never becomes the bottleneck while the DB is the limiter. This needs the Java 25 toolchain (§2) — on
-  Java 17 there are no virtual threads, and even on 21–23 PgJDBC's `synchronized` blocks would *pin* the
-  carrier on every JDBC call; the Java 24+ no-pinning fix (JEP 491) is what makes virtual-thread JDBC
-  actually scale here.
+  never becomes the bottleneck while the DB is the limiter. This needs a Java 21+ toolchain (§2), since
+  Java 17 has no virtual threads at all. Pinning is not a concern at the pinned driver version:
+  PgJDBC's query path has used `ResourceLock` rather than `synchronized` since 42.5.1, and JDK 24's
+  JEP 491 removes monitor pinning generally. Against an older driver on JDK 21 to 23, every JDBC call
+  would pin the carrier instead ([virtual-threads-decision.md](virtual-threads-decision.md) §6).
 - **Real concurrency is bounded by a `Semaphore` sized to `BenchmarkConfig.maxConnections`**, matching
   the DataSource pool — not by the virtual-thread count. A fixed-cadence pacer thread computes the next
   submit tick from the target rate, submits an insert task if a permit is free (skipping the tick

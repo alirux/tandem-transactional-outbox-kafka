@@ -304,6 +304,11 @@ flowchart TD
 - **You don't need `tandem-kafka` at all on the write side.** `tandem-jdbc` alone (the write-side
   insert) has no Kafka dependency; only wherever the relay runs needs `tandem-kafka`
   ([README — Add the dependency](https://github.com/alirux/tandem/blob/main/README.md#add-the-dependency)).
+- **You don't need to turn off virtual threads.** If your application runs on them, the outbox
+  insert runs on a virtual thread and never pins a carrier: Tandem's write path contains no
+  `synchronized` at all. The relay is unaffected either way, since it creates its own platform
+  threads regardless of what the application is configured to use
+  ([virtual-threads-decision.md](https://github.com/alirux/tandem/blob/main/docs/virtual-threads-decision.md)).
 - **You don't need to migrate every aggregate type at once.** Tiers, `seq` source, and
   `lockedWrite()` are all chosen per aggregate type (and per message, for the flags) — adopt one
   aggregate, verify it in production, then move to the next.

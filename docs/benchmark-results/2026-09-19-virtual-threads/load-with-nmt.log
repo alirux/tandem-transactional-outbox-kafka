@@ -1,0 +1,208 @@
+Virtual-thread probe — java=25.0.2, cores=12, rate=400.0/s, warmup=PT25S, window=PT1M, replicates=3, cells=[8, 24, 64], maxConnections=32
+
+=== 8w platform #1 ===
+Sept 19, 2026 2:29:13 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-b375, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:30:42 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-b375
+8w platform #1     p50=  14.1 p95=  43.6 p99=  77.8 p999= 119.3 ms | delivered= 395.5/s | cpu=  5.9% | threads= 43 (relay  9) | pinned=0 | threadMem= 4.3MB heap= 40.8MB rss=  193MB | violations=0 missing=0 | samples=23878
+
+=== 8w virtual #1 ===
+Sept 19, 2026 2:30:42 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-1b17, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:32:11 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w virtual #1      p50=  11.9 p95=  40.3 p99=  68.7 p999=  96.9 ms | delivered= 397.7/s | cpu=  5.5% | threads= 36 (relay  1) | pinned=0 | threadMem= 3.4MB heap= 46.8MB rss=  216MB | violations=0 missing=0 | samples=23868
+INFO: Relay stopped instanceId:tandem-host-74763-1b17
+
+=== 8w virtual #2 ===
+Sept 19, 2026 2:32:11 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-5107, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+8w virtual #2      p50=  11.2 p95=  41.0 p99=  72.4 p999= 125.9 ms | delivered= 396.5/s | cpu=  4.9% | threads= 38 (relay  1) | pinned=0 | threadMem= 3.3MB heap= 50.5MB rss=  249MB | violations=0 missing=0 | samples=23793
+Sept 19, 2026 2:33:40 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-5107
+
+=== 8w platform #2 ===
+Sept 19, 2026 2:33:40 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-6717, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+8w platform #2     p50=  11.8 p95=  40.3 p99=  65.4 p999= 100.1 ms | delivered= 399.3/s | cpu=  4.4% | threads= 46 (relay  9) | pinned=0 | threadMem= 3.7MB heap= 56.1MB rss=  199MB | violations=0 missing=0 | samples=23974
+Sept 19, 2026 2:35:09 PM com.codingful.tandem.jdbc.WorkerPool stop
+
+INFO: Relay stopped instanceId:tandem-host-74763-6717
+=== 8w platform #3 ===
+Sept 19, 2026 2:35:09 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-a322, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:36:38 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w platform #3     p50=  11.4 p95=  39.2 p99=  66.3 p999=  96.6 ms | delivered= 399.0/s | cpu=  4.3% | threads= 47 (relay  9) | pinned=0 | threadMem= 3.6MB heap= 57.9MB rss=  270MB | violations=0 missing=0 | samples=23944
+INFO: Relay stopped instanceId:tandem-host-74763-a322
+
+=== 8w virtual #3 ===
+Sept 19, 2026 2:36:38 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-aa41, workers:8, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:38:06 PM com.codingful.tandem.jdbc.WorkerPool stop
+8w virtual #3      p50=  10.0 p95=  38.3 p99=  67.4 p999=  92.7 ms | delivered= 398.9/s | cpu=  4.2% | threads= 41 (relay  1) | pinned=0 | threadMem= 3.8MB heap= 65.6MB rss=  251MB | violations=0 missing=0 | samples=23941
+INFO: Relay stopped instanceId:tandem-host-74763-aa41
+
+=== 24w platform #1 ===
+Sept 19, 2026 2:38:06 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-93b4, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:39:35 PM com.codingful.tandem.jdbc.WorkerPool stop
+24w platform #1    p50=  18.2 p95=  77.8 p99=  98.3 p999= 118.5 ms | delivered= 399.6/s | cpu=  4.2% | threads= 66 (relay 25) | pinned=0 | threadMem= 4.3MB heap= 67.4MB rss=  275MB | violations=0 missing=0 | samples=23982
+INFO: Relay stopped instanceId:tandem-host-74763-93b4
+
+=== 24w virtual #1 ===
+Sept 19, 2026 2:39:35 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-e6e8, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:41:03 PM com.codingful.tandem.jdbc.WorkerPool stop
+24w virtual #1     p50=  18.2 p95=  77.5 p99=  96.3 p999= 115.1 ms | delivered= 399.6/s | cpu=  5.2% | threads= 43 (relay  1) | pinned=0 | threadMem= 3.7MB heap= 73.0MB rss=  293MB | violations=0 missing=0 | samples=23983
+
+INFO: Relay stopped instanceId:tandem-host-74763-e6e8
+=== 24w virtual #2 ===
+Sept 19, 2026 2:41:03 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-c78b, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:42:32 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-c78b
+24w virtual #2     p50=  18.2 p95=  77.7 p99=  96.1 p999= 117.0 ms | delivered= 399.3/s | cpu=  5.1% | threads= 44 (relay  1) | pinned=0 | threadMem= 4.0MB heap= 76.6MB rss=  300MB | violations=0 missing=0 | samples=23960
+
+=== 24w platform #2 ===
+Sept 19, 2026 2:42:32 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-899d, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:44:00 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-899d
+24w platform #2    p50=  19.0 p95=  79.4 p99= 100.7 p999= 121.0 ms | delivered= 399.7/s | cpu=  3.9% | threads= 69 (relay 25) | pinned=0 | threadMem= 6.2MB heap= 80.3MB rss=  318MB | violations=0 missing=0 | samples=23988
+
+=== 24w platform #3 ===
+Sept 19, 2026 2:44:00 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-6c0, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:45:29 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-6c0
+24w platform #3    p50=  19.3 p95=  79.8 p99= 101.0 p999= 121.0 ms | delivered= 399.8/s | cpu=  3.9% | threads= 70 (relay 25) | pinned=0 | threadMem= 6.3MB heap= 84.0MB rss=  327MB | violations=0 missing=0 | samples=23989
+
+=== 24w virtual #3 ===
+Sept 19, 2026 2:45:29 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-c3c0, workers:24, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:46:57 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-c3c0
+24w virtual #3     p50=  25.6 p95=  91.4 p99= 127.9 p999= 192.8 ms | delivered= 399.2/s | cpu=  5.4% | threads= 46 (relay  1) | pinned=0 | threadMem= 4.3MB heap= 89.9MB rss=  353MB | violations=0 missing=0 | samples=23958
+
+=== 64w platform #1 ===
+Sept 19, 2026 2:46:57 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-3107, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:48:26 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w platform #1    p50=  33.9 p95= 105.1 p99= 174.9 p999= 763.4 ms | delivered= 385.4/s | cpu=  5.4% | threads=112 (relay 65) | pinned=0 | threadMem= 5.7MB heap= 93.4MB rss=  367MB | violations=0 missing=0 | samples=23127
+
+INFO: Relay stopped instanceId:tandem-host-74763-3107
+=== 64w virtual #1 ===
+Sept 19, 2026 2:48:26 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-aef1, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:49:55 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w virtual #1     p50=  31.1 p95=  93.5 p99= 111.1 p999= 120.5 ms | delivered= 399.6/s | cpu=  6.2% | threads= 49 (relay  1) | pinned=0 | threadMem= 4.6MB heap= 99.3MB rss=  386MB | violations=0 missing=0 | samples=23979
+
+INFO: Relay stopped instanceId:tandem-host-74763-aef1
+=== 64w virtual #2 ===
+Sept 19, 2026 2:49:55 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-dbab, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:51:23 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w virtual #2     p50=  31.9 p95=  96.1 p99= 113.4 p999= 126.0 ms | delivered= 399.3/s | cpu=  6.5% | threads= 50 (relay  1) | pinned=0 | threadMem= 4.7MB heap=103.1MB rss=  395MB | violations=0 missing=0 | samples=23961
+
+INFO: Relay stopped instanceId:tandem-host-74763-dbab
+=== 64w platform #2 ===
+Sept 19, 2026 2:51:23 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-8a1f, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:52:52 PM com.codingful.tandem.jdbc.WorkerPool stop
+64w platform #2    p50=  32.1 p95=  99.7 p99= 118.2 p999= 129.6 ms | delivered= 399.7/s | cpu=  5.3% | threads=115 (relay 65) | pinned=0 | threadMem=10.2MB heap=104.6MB rss=  421MB | violations=0 missing=0 | samples=23988
+
+INFO: Relay stopped instanceId:tandem-host-74763-8a1f
+=== 64w platform #3 ===
+Sept 19, 2026 2:52:52 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-b21c, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+Sept 19, 2026 2:54:21 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-b21c
+64w platform #3    p50=  33.4 p95= 100.9 p99= 120.1 p999= 139.5 ms | delivered= 399.4/s | cpu=  5.4% | threads=116 (relay 65) | pinned=0 | threadMem= 5.7MB heap=106.4MB rss=  419MB | violations=0 missing=0 | samples=23974
+
+=== 64w virtual #3 ===
+Sept 19, 2026 2:54:21 PM com.codingful.tandem.jdbc.WorkerPool start
+INFO: Starting relay instanceId:tandem-host-74763-5681, workers:64, coordination:SINGLE, bucketCount:256, batchSize:100, pollIntervalMs:100, pollIntervalFloorMs:10, pollBackoffFactor:2.0, wakeup:none, maxAttempts:10, rowLeaseMs:60000
+[tandem-relay-tandem-host-74763-5681-w50] [WARN] com.zaxxer.hikari.pool.ProxyConnection - tandem-benchmark - Connection org.postgresql.jdbc.PgConnection@57b5efc6 marked as broken because of SQLSTATE(08006), ErrorCode(0)
+org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+Sept 19, 2026 2:55:49 PM com.codingful.tandem.jdbc.WorkerPool runWorker
+SEVERE: Relay worker iteration failed workerIndex:50, instanceId:tandem-host-74763-5681
+com.codingful.tandem.core.exception.TandemException: claimBatch failed
+64w virtual #3     p50=  31.8 p95=  95.3 p99= 113.6 p999= 126.9 ms | delivered= 398.9/s | cpu=  6.5% | threads= 53 (relay  1) | pinned=0 | threadMem= 4.9MB heap=112.1MB rss=  430MB | violations=0 missing=0 | samples=23939
+	at com.codingful.tandem.jdbc.Jdbc.lambda$run$0(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:93)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:74)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.claimBatch(JdbcOutboxStore.java:158)
+	at com.codingful.tandem.benchmark.FaultInjectingOutboxStore.claimBatch(FaultInjectingOutboxStore.java:48)
+	at com.codingful.tandem.jdbc.RelayWorker.claimAndDispatch(RelayWorker.java:99)
+
+	at com.codingful.tandem.jdbc.WorkerPool.runWorker(WorkerPool.java:260)
+=== Summary (median of replicates per arm) ===
+	at com.codingful.tandem.jdbc.WorkerPool.lambda$startWorkerThread$2(WorkerPool.java:233)
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:456)
+cell       arm             p50      p95      p99    p99.9  delivered     cpu relayThr  threadMem      heap      rss    pinned
+Caused by: org.postgresql.util.PSQLException: An I/O error occurred while sending to the backend.
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:458)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:534)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:437)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:139)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at com.codingful.tandem.jdbc.Jdbc.withResultSet(Jdbc.java:125)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$1(JdbcOutboxStore.java:165)
+	at com.codingful.tandem.jdbc.Jdbc.withStatement(Jdbc.java:112)
+	at com.codingful.tandem.jdbc.JdbcOutboxStore.lambda$claimBatch$2(JdbcOutboxStore.java:159)
+	at com.codingful.tandem.jdbc.Jdbc.run(Jdbc.java:91)
+	... 7 more
+Caused by: java.net.SocketException: Closed by interrupt
+	at java.base/java.net.Socket$SocketInputStream.implRead(Socket.java:981)
+	at java.base/java.net.Socket$SocketInputStream.read(Socket.java:964)
+	at org.postgresql.core.VisibleBufferedInputStream.readMore(VisibleBufferedInputStream.java:192)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:159)
+	at org.postgresql.core.VisibleBufferedInputStream.ensureBytes(VisibleBufferedInputStream.java:144)
+	at org.postgresql.core.VisibleBufferedInputStream.read(VisibleBufferedInputStream.java:76)
+	at org.postgresql.core.PGStream.receiveChar(PGStream.java:487)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2343)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:431)
+	... 18 more
+
+Sept 19, 2026 2:55:49 PM com.codingful.tandem.jdbc.WorkerPool stop
+INFO: Relay stopped instanceId:tandem-host-74763-5681
+8w         platform       11.8     40.3     66.3    100.1      399.0    4.4%        9      3.7MB    56.1MB    199MB         0
+8w         virtual        11.2     40.3     68.7     96.9      397.7    4.9%        1      3.4MB    50.5MB    249MB         0
+24w        platform       19.0     79.4    100.7    121.0      399.7    3.9%       25      6.2MB    80.3MB    318MB         0
+24w        virtual        18.2     77.7     96.3    117.0      399.3    5.2%        1      4.0MB    76.6MB    300MB         0
+64w        platform       33.4    100.9    120.1    139.5      399.4    5.4%       65      5.7MB   104.6MB    419MB         0
+64w        virtual        31.8     95.3    113.4    126.0      399.3    6.5%        1      4.7MB   103.1MB    395MB         0
+
+Correctness across every arm: orderingViolations=0, missing=0
