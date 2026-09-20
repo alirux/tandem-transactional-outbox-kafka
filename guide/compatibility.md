@@ -1,8 +1,5 @@
 # Tandem Database Compatibility
 
-**Version:** 1.0
-**Status:** Guide (documentation only, no code or contract change)
-
 ---
 
 ## 0. The question this page answers

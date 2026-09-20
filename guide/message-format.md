@@ -1,8 +1,5 @@
 # Publishing Your Own Message Format
 
-**Version:** 1.0
-**Status:** Guide, documentation only
-
 ---
 
 ## 0. Who this page is for
