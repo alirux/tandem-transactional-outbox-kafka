@@ -31,7 +31,7 @@ builds:
       - goos: windows
         goarch: arm64
     ldflags:
-      - -s -w -X github.com/alirux/tandem/tandem-cli/internal/cmd.Version={{ .Version }}
+      - -s -w -X github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/cmd.Version={{ .Version }}
 
 archives:
   - id: tandem-cli

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 // execute runs a fresh root command end to end (LLD-cli.md §10): real cobra parsing, real

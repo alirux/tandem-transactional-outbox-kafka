@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alirux/tandem/tandem-cli/internal/auth"
-	"github.com/alirux/tandem/tandem-cli/internal/client"
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
-	"github.com/alirux/tandem/tandem-cli/internal/output"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/auth"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/client"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/output"
 )
 
 // Command help follows insertion order rather than cobra's default alphabetical sort.

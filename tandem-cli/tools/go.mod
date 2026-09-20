@@ -1,4 +1,4 @@
-module github.com/alirux/tandem/tandem-cli/tools
+module github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/tools
 
 go 1.25.0
 

@@ -7,8 +7,8 @@ import (
 	"context"
 	"os"
 
-	"github.com/alirux/tandem/tandem-cli/internal/cmd"
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/cmd"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 func main() {

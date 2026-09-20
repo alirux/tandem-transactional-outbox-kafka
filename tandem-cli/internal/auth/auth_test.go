@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 func TestResolve_missingBaseURLIsAUsageError(t *testing.T) {

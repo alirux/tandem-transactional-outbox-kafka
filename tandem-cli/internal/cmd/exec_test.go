@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 func TestDo_transportErrorIsAConnectionFailure(t *testing.T) {

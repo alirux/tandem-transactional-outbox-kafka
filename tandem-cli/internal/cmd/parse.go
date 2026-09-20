@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 // parseInt parses a positional integer argument, reporting a bad one as a usage error

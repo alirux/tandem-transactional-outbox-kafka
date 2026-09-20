@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra/doc"
 
-	"github.com/alirux/tandem/tandem-cli/internal/cmd"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/cmd"
 )
 
 const outDir = "docs/cli"

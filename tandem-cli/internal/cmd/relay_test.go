@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alirux/tandem/tandem-cli/internal/client"
-	"github.com/alirux/tandem/tandem-cli/internal/output"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/client"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/output"
 )
 
 func TestRelayStatus_humanRendersState(t *testing.T) {

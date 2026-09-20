@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alirux/tandem/tandem-cli/internal/client"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/client"
 )
 
 func TestOutboxSummary_humanRendersCountsAndLag(t *testing.T) {

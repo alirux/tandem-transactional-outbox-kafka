@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
 )
 
 // do reads an Admin API call's result - the (*http.Response, error) pair every generated

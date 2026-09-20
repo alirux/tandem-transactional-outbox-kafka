@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 
-	"github.com/alirux/tandem/tandem-cli/internal/exitcode"
-	"github.com/alirux/tandem/tandem-cli/internal/output"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/exitcode"
+	"github.com/alirux/tandem-transactional-outbox-kafka/tandem-cli/internal/output"
 )
 
 // decode unmarshals an Admin API response body into T, classifying a parse failure as
