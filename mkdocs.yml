@@ -69,17 +69,22 @@ markdown_extensions:
 # existing page, and already-published links keep working.
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Consuming Events: consuming-events.md
-  - Adoption Guide: adoption.md
-  - Message Format: message-format.md
-  - Observability: observability.md
-  - Performance and Sizing: performance-and-sizing.md
-  - Reliability and Topology: reliability.md
-  - Advanced Integration: advanced-integration.md
-  - Testing and Upgrades: testing-and-upgrades.md
-  - Admin API: admin-api.md
-  - Command Line: cli.md
-  - Configuration Reference: configuration.md
-  - Troubleshooting: troubleshooting.md
-  - Database Compatibility: compatibility.md
+  - Start:
+      - Getting Started: getting-started.md
+      - Consuming Events: consuming-events.md
+      - Adoption Guide: adoption.md
+  - Run in production:
+      - Reliability and Topology: reliability.md
+      - Observability: observability.md
+      - Performance and Sizing: performance-and-sizing.md
+      - Testing and Upgrades: testing-and-upgrades.md
+  - Operate:
+      - Admin API: admin-api.md
+      - Command Line: cli.md
+      - Troubleshooting: troubleshooting.md
+  - Go deeper:
+      - Advanced Integration: advanced-integration.md
+      - Message Format: message-format.md
+  - Reference:
+      - Configuration Reference: configuration.md
+      - Database Compatibility: compatibility.md
