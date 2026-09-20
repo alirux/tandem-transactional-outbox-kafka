@@ -1,0 +1,3 @@
+hopeful_shirley	rabbitmq:4.1-alpine
+pedantic_chandrasekhar	postgres:16-alpine
+testcontainers-ryuk-d0636fc5-1bfb-4f7b-9801-d28bec7050a5	testcontainers/ryuk:0.12.0

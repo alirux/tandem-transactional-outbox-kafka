@@ -69,13 +69,15 @@ Tier`) rather than billed.
 | `2026-08-31-outage-recovery/` | S11 five times, four on a Mac and one on the reference host, plus a query-variant comparison and a WAL-cost measurement | Why an outbox could not catch up after a relay outage, and the partial index that fixed it: a 30-minute outage went from diverging to recovering in seven minutes, for under 1% more WAL per insert. Also records two earlier diagnoses that were measured, plausible and wrong. Has its own [README](2026-08-31-outage-recovery/README.md) |
 | `2026-09-01-wakeup-lease-filter/` | Three S9 arms: polling, wakeup, wakeup with the ownership filter | What filtering the `LEASE` broadcast is worth (298 transactions/s, a third of the wakeup's overhead, at no latency cost) and what it leaves (+26% over polling, which is thinner claims rather than waste). Has its own [README](2026-09-01-wakeup-lease-filter/README.md) |
 | `2026-09-19-virtual-threads/` | 18 alternating arms, relay workers on platform against virtual threads, plus the scenario suite on virtual workers, on a Mac | Whether the relay gains anything from virtual threads (it does not: identical delivery, 1 ms at the median, 9% to 30% more CPU, under 5 MB of thread stacks saved at 64 workers) and what changes if it used them (an interrupt at shutdown aborts the query in flight). Has its own [README](2026-09-19-virtual-threads/README.md) |
+| `2026-09-20-endurance-rabbitmq/` | S9, ninety minutes at a fixed 400 events/s over the **AMQP connector**, on a Mac | That the RabbitMQ connector holds under the real relay loop over time: no drift in throughput, latency, bucket coverage or storage, and the confirm bookkeeping flat at its resting size. A correctness run, not a comparison with Kafka. Has its own [README](2026-09-20-endurance-rabbitmq/README.md) |
 | `superseded/` | One earlier full-suite run | Evidence for a harness defect, not results — see below |
 
 Each directory holds the harness's own stdout (`loadtest*.log`), host resource samples
 (`resources.csv`) and per-container samples (`containers.csv`). `2026-08-30-endurance/`,
-`2026-08-31-endurance-wakeup/`, `2026-08-31-outage-recovery/`, `2026-09-01-wakeup-lease-filter/` and
-`2026-09-19-virtual-threads/` differ: they ran on a different host or through a purpose-built probe
-rather than the scenario harness, and name their own files in their READMEs.
+`2026-08-31-endurance-wakeup/`, `2026-08-31-outage-recovery/`, `2026-09-01-wakeup-lease-filter/`,
+`2026-09-19-virtual-threads/` and `2026-09-20-endurance-rabbitmq/` differ: they ran on a different
+host, against a different broker, or through a purpose-built probe rather than the scenario harness,
+and name their own files in their READMEs.
 
 `2026-08-28-run3-suite/` is split across two log files for one reason worth stating: `loadtest-s1-s4.log`
 is the full-suite run, and `loadtest-s5-s6-s8.log` is the immediate re-run of the last three
