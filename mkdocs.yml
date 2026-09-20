@@ -74,6 +74,7 @@ nav:
   - Adoption Guide: adoption.md
   - Message Format: message-format.md
   - Observability: observability.md
+  - Performance and Sizing: performance-and-sizing.md
   - Reliability and Topology: reliability.md
   - Advanced Integration: advanced-integration.md
   - Testing and Upgrades: testing-and-upgrades.md
