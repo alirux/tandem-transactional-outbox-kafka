@@ -474,6 +474,12 @@ this page, one per column of the tabs above:
 ./tandem-sample-spring/run.sh   # Spring Boot
 ```
 
+Both start their own PostgreSQL and Kafka with Testcontainers, so Docker must be running. The Spring
+sample also turns on the [Admin API](admin-api.md#5-a-worked-case-recovering-a-failed-event) and
+leaves one row `FAILED` on purpose, so once its narration ends you can practise finding, replaying
+and discarding it with `curl` or [`tandem-cli`](cli.md#4-a-worked-case-recovering-a-failed-event)
+against a real outbox. It prints the exact commands, with that row's id.
+
 ---
 
 ## 11. Before you go to production

@@ -460,6 +460,11 @@ esac
 
 An alert says `FAILED` is above zero.
 
+!!! tip "Try it without touching a real outbox"
+    `./tandem-sample-spring/run.sh` (Docker required) starts an application with the Admin API on
+    `http://localhost:8080` and a row it has deliberately left `FAILED`. Point the CLI at it and run
+    the steps below against a throwaway database.
+
 ```bash
 # 1. How bad is it?
 tandem-cli outbox summary

@@ -151,6 +151,14 @@ Metrics are published through a small interface with no library behind it by def
 application already exports to (Prometheus, OTLP, Datadog and so on) receives Tandem's meters. They
 are relay-side: enable them **where the relay runs**, and the write side never inherits Micrometer.
 
+!!! tip "See every meter on a live dashboard"
+    `./gradlew :tandem-benchmark:metricsDashboardDemo` (Docker required) runs a real Micrometer,
+    Prometheus and Grafana pipeline through nine scripted situations: no relay running, a drain,
+    steady load, a failing aggregate, two unserialised writers to one aggregate, a second instance
+    joining, a stuck worker, a crash with rows in flight and the recovery. It holds the dashboard open
+    until you press Enter (or pass `--args="--hold=<seconds>"`), so each alert in
+    [section 3.3](#33-alerts-worth-having) can be watched firing on a graph before it matters.
+
 ### 3.1 Turning them on
 
 === "Spring Boot"
@@ -284,6 +292,12 @@ consumer's trace would start from nothing and look unrelated to the request that
 Tandem fixes this in two steps. At write time it **captures** the current trace context and stores
 it with the event. At publish time the relay puts it on the Kafka message, so a consumer continues
 the same trace. Optionally, the relay also emits one span of its own.
+
+!!! tip "Open a whole trace as a waterfall"
+    `./gradlew :tandem-benchmark:tracingDashboardDemo` (Docker required) exports real OpenTelemetry
+    spans to a real Tempo, read through Grafana: one trace runs from the write through the outbox
+    wait and `tandem.relay.publish` to the consumer. The caller's own span and the consumer are the
+    demo's stand-ins; the propagation and the relay span are the shipped product.
 
 ### 4.2 Two levels, both off by default
 

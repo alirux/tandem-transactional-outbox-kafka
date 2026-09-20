@@ -270,7 +270,8 @@ on reached a steady table size with autovacuum keeping pace
 ## 9. Measuring it on your own hardware
 
 Do not trust these figures for your hardware; reproduce the ones you depend on. The load-test harness
-takes every setting on this page, so you can measure your own database and broker:
+in the repository's `tandem-benchmark` module takes every setting on this page, so you can measure
+your own database and broker:
 
 ```bash
 ./gradlew :tandem-benchmark:loadTest --args="--demo --duration=90 --workers=4 --poll-interval=25 --poll-floor=5 S2"

@@ -856,6 +856,12 @@ problem document, so check that a response body is JSON before you parse it.
 
 An alert says `FAILED` is above zero. Here is the whole path with the Python helper from §2.
 
+!!! tip "Try it without touching a real outbox"
+    `./tandem-sample-spring/run.sh` (Docker required) boots an application with the Admin API on
+    port 8080 and a row it has deliberately left `FAILED`. When its narration ends it keeps running
+    and prints the commands to call, including that row's id, so everything below can be tried on a
+    throwaway database.
+
 ```python
 # 1. How bad is it?
 summary = call("GET", "/outbox/summary")
