@@ -56,6 +56,8 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -67,6 +69,16 @@ markdown_extensions:
 # existing page, and already-published links keep working.
 nav:
   - Home: index.md
+  - Getting Started: getting-started.md
+  - Consuming Events: consuming-events.md
   - Adoption Guide: adoption.md
   - Message Format: message-format.md
+  - Observability: observability.md
+  - Reliability and Topology: reliability.md
+  - Advanced Integration: advanced-integration.md
+  - Testing and Upgrades: testing-and-upgrades.md
+  - Admin API: admin-api.md
+  - Command Line: cli.md
+  - Configuration Reference: configuration.md
+  - Troubleshooting: troubleshooting.md
   - Database Compatibility: compatibility.md

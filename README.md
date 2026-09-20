@@ -451,6 +451,12 @@ what Tandem never logs: [HLD-logging.md](docs/HLD-logging.md).
 
 ## Documentation
 
+### Getting started
+
+New to Tandem? The [getting started guide](https://tandem-codingful.readthedocs.io/getting-started/)
+walks the common path, PostgreSQL to Kafka with the default CloudEvents envelope, step by step with
+Spring Boot and without it.
+
 ### Adoption guide
 
 Already running real traffic through a domain model, not a toy aggregate? The
@@ -473,6 +479,35 @@ whether "PostgreSQL" covers it? The
 Tandem requires of an engine, which PostgreSQL majors CI verifies, and which engines
 are deliberately out of scope (Aurora DSQL and Spanner have no `SKIP LOCKED`, so the relay's claim
 is not expressible on them).
+
+### Reliability, advanced integration, testing and upgrades
+
+Beyond the basics: how Tandem behaves under failure and how to shape a deployment
+([reliability and topology](https://tandem-codingful.readthedocs.io/reliability/)), the Kafka producer,
+write tiers and extension points
+([advanced integration](https://tandem-codingful.readthedocs.io/advanced-integration/)), and how to
+test your use of the outbox and upgrade safely
+([testing and upgrades](https://tandem-codingful.readthedocs.io/testing-and-upgrades/)).
+
+### Consuming events, configuration and troubleshooting
+
+Reading what Tandem publishes correctly ([consuming events](https://tandem-codingful.readthedocs.io/consuming-events/)),
+every `tandem.*` property in one place ([configuration reference](https://tandem-codingful.readthedocs.io/configuration/)),
+and a symptom-first guide for when something does not work
+([troubleshooting](https://tandem-codingful.readthedocs.io/troubleshooting/)).
+
+### Observability
+
+Want to see what the relay is doing, alert on a stuck outbox, or follow an event from the database
+write to the consumer? The [observability guide](https://tandem-codingful.readthedocs.io/observability/)
+covers logs, metrics and distributed traces, and how to join them through the correlation id.
+
+### Admin API and command line
+
+Need to see a stuck outbox, replay or discard a failed event, or pause the relay? The
+[Admin API guide](https://tandem-codingful.readthedocs.io/admin-api/) covers every endpoint with
+curl, Python, JavaScript and Java examples, and the
+[command line guide](https://tandem-codingful.readthedocs.io/cli/) does the same for `tandem-cli`.
 
 ### API reference
 
