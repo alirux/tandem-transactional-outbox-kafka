@@ -4,3 +4,8 @@ date,query,position,stars,forks
 2026-09-18,"outbox pattern java",17,5,0
 2026-09-18,"outbox kafka postgresql",11,5,0
 2026-09-18,"transactional outbox",90,5,0
+2026-09-21,"transactional outbox kafka",15,5,0
+2026-09-21,"transactional outbox spring",,5,0
+2026-09-21,"outbox pattern java",17,5,0
+2026-09-21,"outbox kafka postgresql",11,5,0
+2026-09-21,"transactional outbox",91,5,0
