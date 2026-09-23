@@ -71,9 +71,9 @@ nav:
   - Home: index.md
   - Start:
       - Getting Started: getting-started.md
-      - Publishing to RabbitMQ: rabbitmq.md
       - Consuming Events: consuming-events.md
       - Adoption Guide: adoption.md
+      - Publishing to RabbitMQ: rabbitmq.md
   - Run in production:
       - Reliability and Topology: reliability.md
       - Observability: observability.md

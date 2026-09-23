@@ -38,14 +38,14 @@ walkthrough of the message flow.
 
 ### Start
 
-First use, publishing to RabbitMQ, what consumers receive, and what to check before adopting.
+First use, what consumers receive, what to check before adopting, and publishing to RabbitMQ.
 
 | Chapter | Topics |
 |---|---|
 | [Getting Started](getting-started.md) | First use, step by step with Spring Boot and with plain Java: dependencies, schema, writing an event in your transaction, starting the relay, the settings you will touch, checking the result, idempotent consumers. |
-| [Publishing to RabbitMQ](rabbitmq.md) | The RabbitMQ connector: its own version outside the BOM, preparing the exchange and bindings, the relay wiring in Spring and in plain Java, what lands on the broker, keeping the order on the consumer side, failure handling, upgrading it. |
 | [Consuming Events](consuming-events.md) | What a consumer receives (key, value, every header), what it can and cannot rely on, reading an event in Java, Spring Kafka and Python, idempotency, ordering, failed processing, continuing the trace. |
 | [Adoption Guide](adoption.md) | Ordering precondition, write-side tiers, `seq` modes and the write lock, applying the schema to a database with data in it, strangler cutover, aggregate-less events, rollout order. |
+| [Publishing to RabbitMQ](rabbitmq.md) | The RabbitMQ connector: its own version outside the BOM, preparing the exchange and bindings, the relay wiring in Spring and in plain Java, what lands on the broker, keeping the order on the consumer side, failure handling, upgrading it. |
 
 ### Run in production
 
