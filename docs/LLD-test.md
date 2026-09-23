@@ -65,6 +65,12 @@ A Testcontainers helper (tagged `@Tag("integration")`) that:
 so an end-to-end test can: insert in a transaction → run the relay → assert the CloudEvent landed on
 the topic in per-aggregate order.
 
+`newRelay(RelayConfig, TopicRouter, KafkaRelayConfig)` publishes the default CloudEvents envelope;
+`newRelay(RelayConfig, KafkaMessageEncoder)` publishes through the given encoder instead (a neutral
+`MessageEncoder` lifted with `KafkaMessageEncoder.from`). The first delegates to the second with a
+`CloudEventEncoder`, so both share the bucket-count guard, the store and the dispatcher's lifecycle.
+`EndToEndIT` runs the application-encoder path with the worked example of §6.
+
 The PostgreSQL image is `postgres:16-alpine` by default and comes from
 `TandemTestContainer.postgresImage()` (the `tandem.test.postgres.image` system property, else the
 `TANDEM_TEST_POSTGRES_IMAGE` environment variable). `tandem-jdbc`'s `AbstractPostgresIT` reads the
@@ -81,6 +87,56 @@ the same image is still `UP-TO-DATE`, so the guard costs nothing.
 
 ## 5. Scope (minimal, for the basic round)
 
-In: the four helpers above — enough to unit-test write-side + relay loop and integration-test the
-full path. Out (later): MySQL container variants, causal-ordering/admin test fixtures,
+In: the four helpers above, enough to unit-test write-side + relay loop and integration-test the
+full path, and the encoder contract kit of §6. Out (later): MySQL container variants, causal-ordering/admin test fixtures,
 property-based/fuzz harnesses.
+
+## 6. `MessageEncoderContract`: the encoder contract kit
+
+A check an application's encoder author runs in their own test suite, holding any `MessageEncoder` to
+the invariants of HLD-alternative-envelope §3 (LLD-alternative-envelope §3). It lives in `main`, next to
+`InMemoryOutbox`, because it is for application authors and must be in the published jar.
+
+```java
+MessageEncoderContract.of(encoder, MessageEncoderContract.header(RawHeaders.ID))
+        .consumesHeaders(RawHeaders.ID, RawHeaders.TYPE)   // row headers the envelope turns into attributes
+        .declaresOwnOrderingKey("reason")                  // only when the key is deliberately not aggregate_id
+        .records(rows)                                     // optional; replaces the built-in fixtures
+        .verify();                                         // one AssertionError listing every violation
+```
+
+**Framework-neutral:** it throws `AssertionError` and depends on nothing beyond `tandem-core`, so it puts
+no test framework on the application's classpath. The event id extractor is mandatory, since only the
+envelope knows where it keeps its id.
+
+| # | Check | Fails when |
+|---|---|---|
+| 1 | The encoder accepts every fixture | `encode` throws or returns `null` |
+| 2 | Two encodes of one row are equal | destination, key, body or a header value differs |
+| 3 | The event id is present and stable | the extractor returns `null`, blank, or two different values |
+| 4 | Distinct rows have distinct event ids | two rows with different ids yield one event id |
+| 5 | The ordering key is the aggregate id | `key` differs from `aggregate_id`, unless declared |
+| 6 | Row headers reach the wire | a header not declared consumed is missing, or its value is not the row value's UTF-8 bytes |
+
+A violation names the check, the row id and the offending field names, never a payload or a header
+value (AGENTS.md, Logging §5). Not checked: purity beyond determinism, and the permanence of an
+encoding failure, a dispatcher property the relay tests pin.
+
+**Built-in fixtures:** three rows of one aggregate with distinct ids, built as the store builds a row
+(content type as both the typed field and the `content-type` header), each carrying `content-type`,
+`dataschema`, `traceparent`, `tracestate`, `correlation-id` and an application header: one sequenced and
+typed, one unsequenced, one untyped. The last two are the shapes a naive encoder breaks on.
+
+**Transport-bound encoders** (`KafkaMessageEncoder`, `RabbitMessageEncoder`) are run by adapting their
+output to an `EncodedMessage` in the calling test; the kit has no overload per transport. The built-in
+envelopes run against it: `RawMessageEncoder` here, `CloudEventEncoder` in `tandem-kafka` and
+`CloudEventAmqpEncoder` in `tandem-rabbitmq` (which declares its own ordering key, since AMQP carries
+none).
+
+**Worked example:** `DebeziumStyleEncoder` (`com.codingful.tandem.test.encoder`) lives in the
+**`testFixtures`** source set, which is never published: an illustration of an application's own
+envelope, verified here and walked through in `guide/message-format.md`, not a supported artifact. It
+drives the custom-encoder end-to-end tests on both transports (`EndToEndIT`, `RabbitRelayIT`).
+
+A new check can turn an application's green encoder test red on upgrade, so a release that adds one is
+listed under **Breaking** (LLD-alternative-envelope §8).

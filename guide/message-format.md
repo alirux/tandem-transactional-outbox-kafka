@@ -59,7 +59,12 @@ themselves.
 
     Implement **`KafkaMessageEncoder`** or **`RabbitMessageEncoder`**. Only when the format genuinely
     needs the transport in its signature, which in practice means a binding library that writes the
-    broker's own message type. Tandem's own CloudEvents encoders are in this category. §5.
+    broker's own message type. Tandem's own CloudEvents encoders are in this category. §7.
+
+=== "No envelope at all"
+
+    Your consumers want the payload as it is, plus the event id and type. Tandem ships that encoder:
+    **`RawMessageEncoder`**, wired like any other. §4.
 
 ---
 
@@ -74,8 +79,12 @@ public final class OrderEventEncoder implements MessageEncoder {
     @Override
     public EncodedMessage encode(OutboxRecord record) {
         Map<String, byte[]> headers = new LinkedHashMap<>();
-        headers.put("event-type", record.type().getBytes(UTF_8));
-        headers.put("event-version", "2".getBytes(UTF_8));
+        headers.put("event-id", String.valueOf(record.id()).getBytes(UTF_8));
+        // type is optional on the row: fall back to the aggregate type, as the default envelope does
+        String type = record.type() != null ? record.type() : record.aggregateType();
+        headers.put("event-type", type.getBytes(UTF_8));
+        // pass the row headers through: traceparent, correlation-id and your own travel here
+        record.headers().forEach((name, value) -> headers.putIfAbsent(name, value.getBytes(UTF_8)));
 
         return new EncodedMessage(
                 "orders",                            // destination
@@ -85,6 +94,11 @@ public final class OrderEventEncoder implements MessageEncoder {
     }
 }
 ```
+
+Two details in it are easy to get wrong. A row may be written without a `type`, so `record.type()` can
+be `null`, and an encoder that dereferences it fails that row for good (§5). And an encoder that does
+not copy `record.headers()` silently drops trace continuation and the correlation id on the consumer
+side. Before deploying, run it against the contract kit (§5, rule 4): it checks both.
 
 That class is the whole change. Wired onto Kafka:
 
@@ -102,8 +116,9 @@ var relay = new RabbitRelay(connectionFactory, config,
         TandemSpanRecorder.NOOP);
 ```
 
-On Spring, there is no wiring to write at all. Contribute the bean and the relay autoconfiguration
-lifts it onto whichever adapter is on your classpath:
+On Spring with Kafka, there is no wiring to write at all. Contribute the bean and the relay
+autoconfiguration lifts it onto Kafka (`tandem.kafka.source` is then not required, since it only
+configures the default envelope):
 
 ```java
 @Bean
@@ -111,6 +126,9 @@ MessageEncoder orderEventEncoder() {
     return new OrderEventEncoder();
 }
 ```
+
+On RabbitMQ there is no autoconfiguration: build the `RabbitRelay` yourself, as above, with
+`RabbitMessageEncoder.from`.
 
 !!! note "What `destination` and `key` mean per transport"
     `destination` is the stream your consumers subscribe to: the **topic** on Kafka, the **routing
@@ -123,9 +141,68 @@ MessageEncoder orderEventEncoder() {
     for the two arrangements that preserve consumer-side order. Use `aggregateId` unless you know
     exactly why you are not.
 
+!!! warning "What each transport does with your message"
+    **Kafka** takes the key verbatim. A wrong key breaks per-aggregate order, silently: nothing fails,
+    events of one aggregate just land on different partitions.
+
+    **AMQP** (`RabbitMessageEncoder.from`) drops the key, because AMQP has no partition key; order is a
+    matter of topology. It narrows every header value from bytes to a UTF-8 string, sets no
+    `contentType` property (a `content-type` row header travels as a plain header), and overwrites
+    `messageId` and `deliveryMode` itself, because the relay needs them for return correlation and
+    persistence. An encoder cannot break those two, and cannot set them either.
+
 ---
 
-## 4. Three rules your encoder must follow
+## 4. Raw passthrough: no envelope at all
+
+`RawMessageEncoder` publishes the stored payload as it is, with the few headers a consumer needs to
+deduplicate and dispatch. Choose it when your consumers read plain payloads and a CloudEvents envelope
+would be noise to them, or when you migrate from a system that published payloads bare. It is opt-in:
+nothing selects it but your own wiring, and the default stays CloudEvents.
+
+```java
+// Kafka: the router you already use, so no topic changes
+var relay = new KafkaRelay(producerConfig,
+        KafkaMessageEncoder.from(new RawMessageEncoder(TopicRouter.kebabWithSuffix("-topic"))),
+        TandemSpanRecorder.NOOP);
+
+// RabbitMQ, ordered topology: route by aggregate id
+var relay = new RabbitRelay(connectionFactory, config,
+        RabbitMessageEncoder.from(new RawMessageEncoder(r -> r.aggregateId().value()), config.exchange()),
+        TandemSpanRecorder.NOOP);
+```
+
+On Spring with Kafka, a `@Bean MessageEncoder` returning `new RawMessageEncoder(topicRouter)`, with the
+`TopicRouter` bean the Kafka autoconfiguration contributes injected into it, is all the wiring there is.
+
+!!! warning "On AMQP the router decides ordering"
+    Lifted onto AMQP, the destination becomes the routing key. The ordered topology (a consistent-hash
+    exchange) needs the **aggregate id** as routing key. With the default router every event of a type
+    would share the routing key `order-topic`, and per-aggregate order on the consumer side would be
+    lost with no signal. Any other router is a choice to give that order up.
+
+**What a consumer of a raw stream reads.** This is a published contract, frozen under the rules of §8:
+
+| Part | Content |
+|---|---|
+| **Body** | The stored payload, unchanged. |
+| **Key** | The aggregate id (Kafka only; AMQP has none). The ordering key is **not** repeated as data. |
+| `tandem-id` | The outbox row id, as decimal text: the event id to deduplicate on. A replay republishes the same id. |
+| `tandem-type` | The event type; the aggregate type when the row stored none. |
+| Every row header | Copied verbatim, in stored order: `content-type`, `dataschema`, `traceparent`, `tracestate`, `correlation-id` and your own. |
+| `content-type` | Always present when the event has a content type: the stored header, or the content type the event was written with. |
+
+There is no sequence number, even for a row written with one.
+
+!!! danger "`tandem-*` header names are reserved"
+    Raw's own headers share one namespace with yours. A row header named `tandem-id` or `tandem-type`
+    does not reach the wire, and any header raw adds later will be named `tandem-*` too. Do not name
+    your own headers with that prefix. Nothing rejects such a header at insert; it just disappears
+    from the published message.
+
+---
+
+## 5. Four rules your encoder must follow
 
 1. **It must be a pure function of the record.** It is called once per dispatch, from several relay
    worker threads at once. No shared mutable state, no caches keyed on anything but the record.
@@ -135,10 +212,72 @@ MessageEncoder orderEventEncoder() {
    so the dispatcher fails it rather than scheduling a retry. That is the behaviour you want: a retry
    ladder would block that aggregate's whole chain while the row still looked merely pending. Make
    sure you throw only for genuinely unencodable rows, never for a transient dependency.
+4. **Run the contract kit in your test suite.** `MessageEncoderContract`, in `tandem-test`, holds your
+   encoder to what Tandem's guarantees rest on: every row shape encodes (unsequenced and untyped rows
+   included), two encodes of one row are equal, the event id is present, stable and distinct per row,
+   the key is the aggregate id, and row headers reach the wire.
+
+   ```java
+   MessageEncoderContract.of(new OrderEventEncoder(), MessageEncoderContract.header("event-id"))
+           .verify();
+   ```
+
+   Declare the row headers your envelope turns into attributes of its own with `consumesHeaders(...)`,
+   and a deliberate key other than the aggregate id with `declaresOwnOrderingKey("why")`, so the
+   deviation reads as a sentence in your test. `verify()` throws one `AssertionError` listing every
+   violation, so it works under any test framework. To run a transport-bound encoder (§7), adapt its
+   output to an `EncodedMessage` in your test.
 
 ---
 
-## 5. When the format needs the transport
+## 6. A worked example
+
+Tandem's repository carries one complete custom envelope, exercised end to end on Kafka and on
+RabbitMQ: [`DebeziumStyleEncoder`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/tandem-test/src/testFixtures/java/com/codingful/tandem/test/encoder/DebeziumStyleEncoder.java).
+It produces the shape Debezium's outbox event router produces: the topic
+`outbox.event.<aggregate type>`, the aggregate id as key, the payload as body, an `id` header with the
+event id, and every row header passed through.
+
+```java
+public final class DebeziumStyleEncoder implements MessageEncoder {
+
+    public static final String ID_HEADER = "id";
+
+    @Override
+    public EncodedMessage encode(OutboxRecord record) {
+        Map<String, byte[]> headers = new LinkedHashMap<>();
+        headers.put(ID_HEADER, String.valueOf(record.id()).getBytes(UTF_8));
+        record.headers().forEach((name, value) -> {
+            if (!name.equals(ID_HEADER)) {
+                headers.put(name, value.getBytes(UTF_8));
+            }
+        });
+        return new EncodedMessage("outbox.event." + record.aggregateType(), record.aggregateId().value(),
+                record.payload(), headers);
+    }
+}
+```
+
+Its test is the kit, declaring the one header name the envelope claims for itself:
+
+```java
+MessageEncoderContract.of(new DebeziumStyleEncoder(), MessageEncoderContract.header(DebeziumStyleEncoder.ID_HEADER))
+        .consumesHeaders(DebeziumStyleEncoder.ID_HEADER)
+        .verify();
+```
+
+That is the whole cost of a custom envelope: one class of twenty lines and one test.
+
+!!! warning "An illustration, not a Debezium implementation"
+    The class shows the shape; it is neither faithful to Debezium nor supported by Tandem, and it is
+    not published. If you migrate from Debezium, the first thing to reconcile is the id: **Debezium's
+    `id` is typically a UUID, where this one is Tandem's numeric row id**, so consumers deduplicating on
+    `id` see a different value space. And a consumer built on Spring Messaging must read `id` from the
+    raw transport header: Spring reserves `id` on the message it builds and replaces it with its own.
+
+---
+
+## 7. When the format needs the transport
 
 Some formats cannot be expressed as neutral bytes plus headers, because their specification is defined
 *per transport*. CloudEvents is the example: the same attribute is a `ce_` header on Kafka and a
@@ -155,7 +294,7 @@ writing the binding on top of it is far less code than restating the attribute s
 
 ---
 
-## 6. What you owe your consumers afterwards
+## 8. What you owe your consumers afterwards
 
 The moment your encoder runs in production, its output is a contract, with the same standing as a REST
 API. Tandem treats its own envelope this way and you should treat yours the same, because a relay, its
@@ -177,7 +316,7 @@ moment you do the additive, supposedly safe thing.
 
 ---
 
-## 7. What not to do
+## 9. What not to do
 
 - **Do not implement `OutboxDispatcher` to change the envelope.** §1.
 - **Do not put business data in the ordering key.** It decides partitioning and therefore ordering;

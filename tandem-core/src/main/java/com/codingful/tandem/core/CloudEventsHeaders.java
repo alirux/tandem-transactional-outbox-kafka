@@ -7,7 +7,8 @@ package com.codingful.tandem.core;
  * core because the consumer-side adapters read these exact names off the wire (HLD §1.4) — they must
  * never drift.
  *
- * <p>Only Tandem's own extensions are named here. The standard attributes (id/source/type/subject/time)
+ * <p>Tandem's own extensions are named here, plus the binary forms of the standard {@code id}
+ * attribute, which a consumer deduplicates on. The other standard attributes (source/type/subject/time)
  * are written by the CloudEvents SDK on Kafka and composed from {@link #AMQP_BINARY_PREFIX} plus the
  * attribute's own spec name on AMQP, where the SDK ships no 0.9.1 binding.
  */
@@ -27,7 +28,16 @@ public final class CloudEventsHeaders {
      */
     public static final String AMQP_BINARY_PREFIX = "cloudEvents_";
 
-    /** Per-aggregate sequence (always present). Extension {@code seq} → header {@code ce_seq}. */
+    /** The standard {@code id} attribute (the outbox row id) as a Kafka binary-mode header: {@code ce_id}. */
+    public static final String CE_ID = BINARY_PREFIX + "id";
+
+    /** The standard {@code id} attribute (the outbox row id) as an AMQP binary-mode header: {@code cloudEvents_id}. */
+    public static final String AMQP_ID = AMQP_BINARY_PREFIX + "id";
+
+    /**
+     * Per-aggregate sequence. Extension {@code seq} → header {@code ce_seq}. Present only when the row
+     * carries a number; a row written unsequenced publishes none (HLD-managed-seq §4.5).
+     */
     public static final String EXT_SEQ = "seq";
     public static final String CE_SEQ = BINARY_PREFIX + EXT_SEQ;
     public static final String AMQP_SEQ = AMQP_BINARY_PREFIX + EXT_SEQ;
@@ -49,4 +59,17 @@ public final class CloudEventsHeaders {
      */
     public static final String EXT_LOGICAL_CLOCK = "logicalclock";
     public static final String CE_LOGICAL_CLOCK = BINARY_PREFIX + EXT_LOGICAL_CLOCK;
+
+    /**
+     * Causation id: the event that caused this one. Extension {@code causationid} → header
+     * {@code ce_causationid}. It differs from the row-header name {@link TandemHeaders#CAUSATION_ID}
+     * because CloudEvents extension names admit only lowercase letters and digits.
+     *
+     * <p><b>Reserved, a name only.</b> Nothing reads or writes this constant: like
+     * {@link #EXT_LOGICAL_CLOCK} it belongs to the cross-aggregate causal-ordering feature (HLD §9),
+     * designed but not implemented. Declared here so the on-the-wire name cannot drift if the feature
+     * is ever built. Inventory: {@code docs/HLD-causal-ordering.md} §0.
+     */
+    public static final String EXT_CAUSATION_ID = "causationid";
+    public static final String CE_CAUSATION_ID = BINARY_PREFIX + EXT_CAUSATION_ID;
 }

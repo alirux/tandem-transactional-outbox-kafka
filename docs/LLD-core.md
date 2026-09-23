@@ -155,7 +155,7 @@ Ports are interfaces **defined by the core** and implemented by adapters (HLD §
 | `OutboxStore` | `tandem-jdbc` | Relay-side persistence (poll/claim/update/cleanup) |
 | `OutboxDispatcher` | `tandem-kafka` | Publish one record to Kafka |
 | `PayloadSerializer` | client / `tandem-spring-producer` (JSON) | Object → bytes |
-| `MessageEncoder` | `tandem-kafka` (`KafkaMessageEncoder`, CloudEvents default) | Record → wire message |
+| `MessageEncoder` | core (`RawMessageEncoder`, opt-in) / `tandem-kafka` (`KafkaMessageEncoder`, CloudEvents default) | Record → wire message |
 | `TopicRouter` | `tandem-kafka` (default) | `aggregateType` → topic |
 | `CausalContext` | *(nobody — reserved, see HLD-causal-ordering.md §0)* | Inbound Lamport timestamp |
 | `TracePropagator` | core (no-op) / `tandem-spring-producer`, `tandem-tracing-otel` | Trace capture (§7.1) |
@@ -257,6 +257,33 @@ What stays shared in that arrangement is the part a consumer actually observes. 
 *envelope* is built once in `tandem-cloudevents`, which knows no broker; only the mapping of its
 attributes onto a given wire lives in the adapter (HLD-cloudevents §5). A second transport adapter
 therefore restates a binding, never the attribute sources, the `type` fallback or the `seq` rule.
+
+**`RawMessageEncoder`** is the one `MessageEncoder` the core ships: the raw passthrough envelope
+(HLD-alternative-envelope §6), opt-in, wired by the application like any custom encoder and lifted onto
+each transport by its adapter. It lives here because it needs nothing but the JDK and is shared by both
+transport adapters, like `TopicRouter.kebabWithSuffix`; it adds relay-side code to the client jar but no
+dependency, which is what the footprint rule constrains (HLD §1.3).
+
+```java
+public final class RawMessageEncoder implements MessageEncoder {
+    public RawMessageEncoder(TopicRouter router);   // destination: the topic on Kafka, the routing key on AMQP
+}
+```
+
+It emits the stored payload as body, `aggregate_id` as key, `tandem-id` (the row id) and `tandem-type`
+(`type`, falling back to `aggregate_type`) first, then every row header in stored order except one named
+`tandem-id` or `tandem-type`, then `content-type` from the record's typed field if the row stored no such
+header. No `seq`. The wire names are declared once in **`RawHeaders`** (`PREFIX = "tandem-"`, `ID`,
+`TYPE`); the prefix is reserved for raw's own headers, so applications must not name row headers
+`tandem-*`, a rule stated in the javadoc and not enforced at insert (LLD-alternative-envelope §2.2). On
+AMQP the router decides ordering: the ordered topology needs `r -> r.aggregateId().value()`.
+
+**`CloudEventsHeaders`** names the binary-mode forms of Tandem's extensions (`ce_seq`,
+`ce_partitionkey`, and their `cloudEvents_*` AMQP forms), the binary forms of the standard `id`
+attribute (`CE_ID` = `ce_id`, `AMQP_ID` = `cloudEvents_id`), and two reserved names, `logicalclock` and
+`causationid` (`ce_logicalclock`, `ce_causationid`), which nothing emits (HLD-causal-ordering §0).
+`causationid` differs from the row-header name `TandemHeaders.CAUSATION_ID` (`causation_id`) because
+CloudEvents extension names admit only lowercase letters and digits.
 
 ### 2.5 Optional capability ports (no-op defaults in core)
 

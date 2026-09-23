@@ -1,12 +1,15 @@
 package com.codingful.tandem.test;
 
 import com.codingful.tandem.core.port.OutboxStore;
+import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.codingful.tandem.core.port.TopicRouter;
 import com.codingful.tandem.jdbc.BucketCountGuard;
 import com.codingful.tandem.jdbc.JdbcOutboxRepository;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.WorkerPool;
+import com.codingful.tandem.kafka.CloudEventEncoder;
+import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
 import java.io.IOException;
@@ -154,12 +157,21 @@ public final class TandemTestContainer implements AutoCloseable {
      * the caller {@code start()}s and {@code stop()}s the returned pool.
      */
     public WorkerPool newRelay(RelayConfig cfg, TopicRouter router, KafkaRelayConfig kafkaCfg) {
+        return newRelay(cfg, new CloudEventEncoder(router, kafkaCfg));
+    }
+
+    /**
+     * A relay wired end to end as {@link #newRelay(RelayConfig, TopicRouter, KafkaRelayConfig)} is,
+     * publishing through the given encoder instead of the CloudEvents default. A transport-neutral
+     * encoder reaches here through {@link KafkaMessageEncoder#from}.
+     */
+    public WorkerPool newRelay(RelayConfig cfg, KafkaMessageEncoder encoder) {
         // Relay-side bucket-count guard (LLD-bucket-count-guard §7): an explicit assembly step, since
         // WorkerPool is port-only (no DataSource). Fails fast if this relay's bucketCount differs from
         // the value the write-side established. Mirrors how tandem-spring-relay will wire it in autoconfig.
         BucketCountGuard.check(dataSource, cfg.bucketCount());
         OutboxStore store = newStore(cfg.maxAttempts());
-        KafkaRelay relay = new KafkaRelay(producerConfig(), router, kafkaCfg);
+        KafkaRelay relay = new KafkaRelay(producerConfig(), encoder, TandemSpanRecorder.NOOP);
         relays.add(relay);
         return new WorkerPool(store, relay, cfg);
     }

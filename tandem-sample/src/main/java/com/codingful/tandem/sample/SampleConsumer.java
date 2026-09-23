@@ -37,6 +37,9 @@ import org.apache.kafka.common.header.Header;
  *
  * <p>The relay only publishes seq N+1 after the broker has acknowledged seq N. Therefore events
  * for the same {@code aggregateId} always arrive in strict {@code ce_seq} order.
+ *
+ * <p>It reads the default CloudEvents envelope on purpose: an application that wires an envelope of
+ * its own reads that envelope's headers instead ({@code guide/message-format.md}).
  */
 public final class SampleConsumer {
 

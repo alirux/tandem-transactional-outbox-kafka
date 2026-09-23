@@ -11,7 +11,8 @@ public interface TopicRouter {
 
     /**
      * @param record the row about to be published
-     * @return the destination Kafka topic name
+     * @return the destination: the topic on Kafka, the routing key when a neutral encoder is lifted
+     *         onto AMQP
      */
     String topicFor(OutboxRecord record);
 

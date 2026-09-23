@@ -334,6 +334,12 @@ adapters write, so the two bindings' prefixes are declared once. `bench-t0-nanos
 verbatim by the relay's header-passthrough on both transports, being an ordinary stored header
 (LLD-jdbc §2).
 
+**Bound to the default envelope by design.** The harnesses verify order and correlation through the
+CloudEvents attributes because the benchmark measures the relay, and the default envelope is the one
+every user runs. A custom envelope's cost is its own encoder's, outside the benchmark's question;
+publishing through one is covered end to end by `EndToEndIT` and `RabbitRelayIT`
+(LLD-alternative-envelope §5).
+
 - **Correctness (all scenarios).** Per `aggregate_id`, track the high-watermark `seq` seen and flag a
   violation only when a **strictly lower** `seq` arrives — **not** when the same `seq` repeats.
   **Discovered during CI-smoke verification:** an early version flagged `newSeq <= previousSeq` as a

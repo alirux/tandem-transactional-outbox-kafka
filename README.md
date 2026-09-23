@@ -234,7 +234,9 @@ redraws these charts from them. The full scenario results are on
 - **CloudEvents by default, and both halves of that are a port**: messages are published using the
   CNCF CloudEvents envelope (binary mode), interoperable with the wider ecosystem. The envelope is a
   default, not a premise. Publish your own by implementing one interface that names no broker type,
-  and the same class runs on every transport adapter. The transport is a port too, with
+  and the same class runs on every transport adapter; a contract kit in `tandem-test` checks it keeps
+  Tandem's guarantees. A raw passthrough encoder (the payload as is, with its event id and type) ships
+  opt-in. The transport is a port too, with
   `tandem-kafka` and `tandem-rabbitmq` on it. How to write either:
   [Publishing Your Own Message Format](https://tandem-codingful.readthedocs.io/message-format/).
 - **First-class, per-aggregate replay** — re-publish a single aggregate's history through a
@@ -468,7 +470,8 @@ has data in it, and replacing a hand-rolled Kafka producer.
 
 Consumers that already read a different envelope, or a broker that is not Kafka? The
 [message format guide](https://tandem-codingful.readthedocs.io/message-format/) covers the two seams
-Tandem exposes, writing an encoder that is portable across transports, wiring it in plain Java and in
+Tandem exposes, the opt-in raw passthrough envelope, writing an encoder that is portable across
+transports and checking it with the contract kit, a worked example, wiring it in plain Java and in
 Spring, and the compatibility rules a published envelope carries from its first deployment.
 
 ### Database compatibility

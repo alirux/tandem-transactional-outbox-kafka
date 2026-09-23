@@ -14,7 +14,10 @@ must do about the guarantees that come with it.
     delivery is at least once?**
 
 It covers Kafka with the default CloudEvents envelope. The consumer is your own code, in whatever
-language you use: Tandem has no consumer library to depend on, and needs none.
+language you use: Tandem has no consumer library to depend on, and needs none. If the application
+publishes with the raw passthrough encoder instead, what arrives is described in
+[Raw passthrough](message-format.md#4-raw-passthrough-no-envelope-at-all); the rules on idempotency
+and order below apply unchanged, with `tandem-id` in place of `ce_id`.
 
 ---
 

@@ -74,6 +74,9 @@ import java.util.Map;
  *       (Testcontainers, topic creation, the Kafka consumer that prints results). None of it
  *       ships with Tandem or appears in a real application.</li>
  * </ul>
+ *
+ * <p>The sample publishes and reads the default CloudEvents envelope on purpose: it is the one every
+ * application gets unless it wires an envelope of its own ({@code guide/message-format.md}).
  */
 public final class SampleApplication {
 

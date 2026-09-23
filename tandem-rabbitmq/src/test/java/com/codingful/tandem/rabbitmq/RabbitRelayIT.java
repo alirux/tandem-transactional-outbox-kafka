@@ -9,6 +9,8 @@ import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.OutboxDispatchException;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
+import com.codingful.tandem.core.port.TandemSpanRecorder;
+import com.codingful.tandem.test.encoder.DebeziumStyleEncoder;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -38,17 +40,22 @@ class RabbitRelayIT {
     private static final String ORDER_ROUTING_KEY = "order-topic";
     private static final String SOURCE = "/tandem/orders";
     private static final String PREFIX = CloudEventsHeaders.AMQP_BINARY_PREFIX;
+    private static final String EXAMPLE_QUEUE = "outbox-event-order";
+    /** Where the worked-example encoder routes {@code Order}: Debezium's default route, here the routing key. */
+    private static final String EXAMPLE_ROUTING_KEY = "outbox.event.Order";
 
     @BeforeAll
     static void startBroker() throws Exception {
         RABBIT.start();
         // Tandem declares no topology (LLD-rabbitmq §1), so the test plays the operator: one topic
-        // exchange, one queue, one binding.
+        // exchange, and a queue bound to it for each routing key the tests publish to.
         try (Connection connection = connectionFactory().newConnection();
              Channel channel = connection.createChannel()) {
             channel.exchangeDeclare(EXCHANGE, BuiltinExchangeType.TOPIC, true);
             channel.queueDeclare(ORDER_QUEUE, true, false, false, null);
             channel.queueBind(ORDER_QUEUE, EXCHANGE, ORDER_ROUTING_KEY);
+            channel.queueDeclare(EXAMPLE_QUEUE, true, false, false, null);
+            channel.queueBind(EXAMPLE_QUEUE, EXCHANGE, EXAMPLE_ROUTING_KEY);
         }
     }
 
@@ -77,17 +84,22 @@ class RabbitRelayIT {
                 .build();
     }
 
-    /** Polls the queue until a message shows up or the deadline passes. */
+    /** Polls the order queue until a message shows up or the deadline passes. */
     private static GetResponse consumeOne(Channel channel) throws Exception {
+        return consumeOne(channel, ORDER_QUEUE);
+    }
+
+    /** Polls {@code queue} until a message shows up or the deadline passes. */
+    private static GetResponse consumeOne(Channel channel, String queue) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            GetResponse response = channel.basicGet(ORDER_QUEUE, true);
+            GetResponse response = channel.basicGet(queue, true);
             if (response != null) {
                 return response;
             }
             Thread.sleep(50);
         }
-        throw new AssertionError("No message arrived on " + ORDER_QUEUE + " within the deadline");
+        throw new AssertionError("No message arrived on " + queue + " within the deadline");
     }
 
     @Test
@@ -135,6 +147,34 @@ class RabbitRelayIT {
                 arrived.add(headerText(consumeOne(consumer), CloudEventsHeaders.AMQP_SEQ));
             }
             assertThat(arrived).containsExactly("1", "2", "3", "4", "5");
+        }
+    }
+
+    @Test
+    void GIVEN_an_application_encoder_WHEN_the_relay_publishes_through_it_THEN_the_message_arrives_on_its_routing_key_with_its_headers_as_text()
+            throws Exception {
+        List<OutboxRecord> rows = List.of(order(301, "order-custom", 1), order(302, "order-custom", 2));
+        RabbitRelayConfig cfg = RabbitRelayConfig.of(SOURCE, EXCHANGE);
+
+        try (Connection connection = connectionFactory().newConnection();
+             Channel consumer = connection.createChannel();
+             RabbitRelay relay = new RabbitRelay(connectionFactory(), cfg,
+                     RabbitMessageEncoder.from(new DebeziumStyleEncoder(), EXCHANGE), TandemSpanRecorder.NOOP)) {
+
+            for (OutboxRecord row : rows) {
+                relay.dispatch(row).get(10, TimeUnit.SECONDS);
+            }
+
+            for (OutboxRecord row : rows) {
+                GetResponse delivered = consumeOne(consumer, EXAMPLE_QUEUE);
+                assertThat(delivered.getEnvelope().getRoutingKey()).isEqualTo(EXAMPLE_ROUTING_KEY);
+                assertThat(delivered.getBody()).isEqualTo(row.payload());
+                // The AMQP client hands header values back as LongString: the lift narrowed them to
+                // UTF-8 text, which is what this compares.
+                assertThat(headerText(delivered, DebeziumStyleEncoder.ID_HEADER)).isEqualTo(String.valueOf(row.id()));
+                assertThat(headerText(delivered, TandemHeaders.CORRELATION_ID))
+                        .isEqualTo(row.headers().get(TandemHeaders.CORRELATION_ID));
+            }
         }
     }
 

@@ -1,7 +1,8 @@
 # Tandem: Alternative Publication Envelope (Analysis)
 
 **Version:** 0.6  
-**Status:** Settled. Every decision of §8 is answered; §7 is the work that follows from them.  
+**Status:** Implemented. Every decision of §8 is answered, every step of §7 has shipped, and every
+gap of §4 is closed.  
 **Companion to:** [HLD-cloudevents.md](HLD-cloudevents.md), [LLD-core.md](LLD-core.md) §2.4,
 [LLD-kafka.md](LLD-kafka.md) §3, [../guide/message-format.md](../guide/message-format.md),
 [alternative-envelope-candidates.md](alternative-envelope-candidates.md)  
@@ -38,6 +39,8 @@ envelope must keep, the gaps, and the options with a recommendation.
 | `CloudEventFactory` | `tandem-cloudevents` | Decides every CloudEvents attribute; knows no broker |
 | `CloudEventEncoder`, `CloudEventAmqpEncoder` | `tandem-kafka`, `tandem-rabbitmq` | The default envelope, bound to each transport's own CloudEvents binding |
 | Spring wiring | `TandemKafkaAutoConfiguration` | A `MessageEncoder` bean is lifted onto Kafka; the `tandem.kafka.source` requirement applies only when the default encoder is used |
+| `RawMessageEncoder`, `RawHeaders` | `tandem-core` | The raw passthrough envelope of §6, opt-in (step 2) |
+| `MessageEncoderContract` | `tandem-test` | The contract kit an encoder author runs against their encoder (step 3) |
 
 The write side stores only `type`, `content-type`, `dataschema` and headers. It carries no
 CloudEvents dependency, so the minimal client footprint (AGENTS.md, Minimal client footprint) holds
@@ -75,32 +78,32 @@ Step 4 adds this asymmetry to the guide.
 
 ## 4. Gaps
 
-1. **Raw passthrough is specified but not implemented.** Its contract is §6; the code contains no
+1. **Closed by step 2.** **Raw passthrough is specified but not implemented.** Its contract is §6; the code contains no
    encoder for it and no test. Structured mode is outside this gap: it is not implemented and not
    planned, because its purpose is surviving a hop that drops headers and neither transport Tandem
    publishes to does that; an application that needs it writes one encoder of its own (§8 decision
    2).
-2. **No contract for encoders.** The guide states three rules (§4 of the guide) in prose. Nothing in
+2. **Closed by step 3.** **No contract for encoders.** The guide states three rules (§4 of the guide) in prose. Nothing in
    `tandem-test` lets an encoder author verify them or the invariants of §3.
-3. **The guide over-claims RabbitMQ on Spring.** It states that the relay autoconfiguration lifts a
+3. **Closed by step 4.** **The guide over-claims RabbitMQ on Spring.** It states that the relay autoconfiguration lifts a
    `MessageEncoder` bean onto whichever adapter is on the classpath. Only Kafka has an
    autoconfiguration; on RabbitMQ the application wires the dispatcher by hand and the bean is not
    lifted.
-4. **The guide's example encoder drops every row header and fails on a row with no `type`.** An
+4. **Closed by step 4.** **The guide's example encoder drops every row header and fails on a row with no `type`.** An
    application that copies it loses trace continuation and correlation id on the consumer side without
    any signal. The example also reads `record.type()` without the fallback to `aggregate_type` that
    `CloudEventFactory` applies, so a row with a null `type` throws, and the dispatcher fails that row
    permanently.
-5. **Trace headers are documented inconsistently.** LLD-kafka §3.3 and HLD-cloudevents §3 map them
+5. **Closed by step 7.** **Trace headers are documented inconsistently.** LLD-kafka §3.3 and HLD-cloudevents §3 map them
    onto the CloudEvents distributed-tracing extension, and LLD-kafka §6, HLD-cloudevents §8 and the
    open-decisions table of HLD.md list their naming as deferred. The code emits them as bare
    `traceparent` and `tracestate`, and the consumer guide documents them that way.
-6. **No end-to-end test with a custom encoder.** The seam is covered per junction (encoder lift,
+6. **Closed by step 6.** **No end-to-end test with a custom encoder.** The seam is covered per junction (encoder lift,
    relay dispatch, autoconfiguration) but never through a real broker.
-7. **Tooling assumes CloudEvents.** The benchmark harnesses and scenarios, both sample modules and
+7. **Closed by step 8.** **Tooling assumes CloudEvents.** The benchmark harnesses and scenarios, both sample modules and
    `EndToEndIT` read `ce_*` headers on Kafka; the RabbitMQ harness reads the `cloudEvents_*` form.
    With another envelope the benchmark measures nothing and the end-to-end test cannot verify order.
-8. **The `causationid` extension is documented but never emitted.** HLD §4.8 and HLD-cloudevents §3
+8. **Closed by step 1.** **The `causationid` extension is documented but never emitted.** HLD §4.8 and HLD-cloudevents §3
    describe `ce_causationid`. The code has only the reserved row-header name
    `TandemHeaders.CAUSATION_ID`, and the javadoc of `CloudEventsHeaders.EXT_SEQ` says `seq` is "always
    present", which contradicts HLD-cloudevents §3.

@@ -1,6 +1,7 @@
 # Tandem: Alternative Publication Envelope (LLD)
 
-**Version:** 0.1 (Draft)  
+**Version:** 0.1  
+**Status:** Implemented  
 **Implements:** [HLD-alternative-envelope.md](HLD-alternative-envelope.md) §7, steps 1 to 8  
 **Modules touched:** `tandem-core` (the raw encoder, its header names), `tandem-test` (the contract
 kit, the worked example, the end-to-end test), `tandem-kafka` and `tandem-rabbitmq` (tests only),

@@ -22,8 +22,8 @@ Tandem-specific extensions, and where the dependency lives.
   ([HLD-alternative-envelope.md](HLD-alternative-envelope.md) §8, decision 2).
 - A **raw passthrough** encoder (no CloudEvents envelope, payload as-is) is the escape hatch for
   existing consumers and migration; CloudEvents is the *standard*, not a hard lock-in. It is
-  specified in [HLD-alternative-envelope.md](HLD-alternative-envelope.md) §6 and **opt-in, not yet
-  implemented**.
+  specified in [HLD-alternative-envelope.md](HLD-alternative-envelope.md) §6 and **implemented,
+  opt-in** (`RawMessageEncoder` in `tandem-core`).
 
 ---
 
@@ -54,8 +54,9 @@ Tandem-specific extensions, and where the dependency lives.
 | `dataschema` | optional | stored `dataschema` header / config (optional) | URI to the payload schema; for schema-registry users (§7) |
 | `data` | — | `payload` | the serialized event body |
 | `partitionkey` | extension | `aggregate_id` | = Kafka record key; preserves ordering |
-| `traceparent` / `tracestate` | extension (Distributed Tracing) | from `headers` (§7.1) | |
-| `seq`, `logicalclock`, `causationid` | extension (Tandem) | outbox columns / `headers` (the `logicalclock` extension carries the `lamport` value) | optional; binary-mode headers `ce_seq` / `ce_logicalclock` / `ce_causationid`. **`ce_seq` is present only when the row carries a number** — a row written `unsequenced()` publishes none, and consumers deduplicate on `ce_id`, which is unique by construction and always present (HLD-managed-seq §4.5) |
+| `traceparent` / `tracestate` | passthrough header | from `headers` (§7.1) | bare names, copied from the row like any other row header; not the CloudEvents distributed-tracing extension (§8) |
+| `seq` | extension (Tandem) | outbox `seq` column | binary-mode header `ce_seq`. **Present only when the row carries a number**: a row written `unsequenced()` publishes none, and consumers deduplicate on `ce_id`, which is unique by construction and always present (HLD-managed-seq §4.5) |
+| `logicalclock`, `causationid` | extension (Tandem), **reserved** | none | never emitted. Wire names (`ce_logicalclock`, `ce_causationid`) declared in `CloudEventsHeaders` so they cannot drift; they belong to the unbuilt causal-ordering surface (HLD-causal-ordering §0) |
 
 The **Kafka record key remains `aggregate_id`** (= `partitionkey`), so the full ordering
 chain (DB lock → `seq` → worker shard → Kafka partition) is unchanged.
@@ -68,7 +69,7 @@ chain (DB lock → `seq` → worker shard → Kafka partition) is unchanged.
 |---|---|---|---|---|
 | **Binary** (default) | Kafka `ce_*` headers | message body (raw payload) | the data's type, e.g. `application/json` | **Implemented**, and the only mode the relay emits |
 | **Structured** | inside the body | inside the body | `application/cloudevents+json` | **Not implemented, not planned** (§1) |
-| **Raw** (escape hatch) | not emitted, beyond `tandem-id` and `tandem-type` | message body (raw payload) | the data's type | **Specified, opt-in, not yet implemented** (HLD-alternative-envelope §6) |
+| **Raw** (escape hatch) | not emitted, beyond `tandem-id` and `tandem-type` | message body (raw payload) | the data's type | **Implemented, opt-in** (`RawMessageEncoder`, HLD-alternative-envelope §6) |
 
 Binary mode is recommended for Kafka: consumers that only want the payload read the body
 directly, while routing/filtering can use the `ce_*` headers without deserializing.
@@ -147,14 +148,11 @@ entry. **JSON** users typically rely on the `type` version alone and may omit `d
 - **Content mode:** binary, the only mode the relay implements. Structured is not implemented and
   not planned; it belongs to a custom encoder if an application ever needs it (§1, §4).
 - **Standard, not lock-in:** CloudEvents is the default + a **raw passthrough** escape hatch,
-  specified in HLD-alternative-envelope §6 and opt-in.
+  specified in HLD-alternative-envelope §6, implemented and opt-in.
+- **Trace headers:** bare `traceparent` / `tracestate`, passed through like any other row header,
+  not the `ce_`-prefixed distributed-tracing extension. Changing the emitted names would break every
+  consumer that reads them today (HLD §1.4).
 - **`type` storage:** a dedicated `type` column (queryable; also serves the Admin API search).
 - **`id` source:** the **outbox `id`** (globally unique, supports consumer dedup).
 - **`source` convention:** a **single configured URI** (`tandem.kafka.source`); per-`aggregate_type`
   derivation can be added later (additive, non-breaking).
-
-**Deferred (post basic round):**
-
-| Area | Note |
-|---|---|
-| Trace extension headers | Bare `traceparent` / `tracestate` vs. `ce_`-prefixed — decide when tracing (`tandem-tracing-otel`) lands; tracing is off in the basic round |

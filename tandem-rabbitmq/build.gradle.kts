@@ -17,6 +17,9 @@ dependencies {
 
     // Unit tests drive a hand-written in-memory Channel double, not a mock framework.
     testImplementation(project(":tandem-test"))
+    // The worked-example encoder the custom-envelope case publishes through; test-only, so this
+    // module's own versioning is unaffected.
+    testImplementation(testFixtures(project(":tandem-test")))
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.rabbitmq)

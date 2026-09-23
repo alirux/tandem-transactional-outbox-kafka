@@ -122,7 +122,7 @@ var b = CloudEventBuilder.v1()
     .withData(record.payload())                     // raw bytes
     .withExtension("seq", record.seq())             // only when record.hasSeq() — see below
     .withExtension("partitionkey", record.aggregateId().value());  // always = key
-// trace extensions (traceparent/tracestate) copied from stored headers when present (§7.1)
+// traceparent/tracestate are not extensions: they pass through with the other row headers (§3.3)
 // no `logicalclock` extension: causal ordering is unbuilt and gets no code on this path
 // (HLD-causal-ordering.md §0.3)
 CloudEvent ce = b.build();
@@ -138,7 +138,8 @@ ProducerRecord<…> pr = KafkaMessageFactory.createWriter(topic, key=aggregateId
 - **Structured (not implemented, not planned):** the whole CloudEvent (JSON) → body, `content-type:
   application/cloudevents+json`. The SDK writes it with `writeStructured`, so an application that
   needs it implements one encoder of its own (HLD-cloudevents §1).
-- **Raw (escape hatch; specified, opt-in, not yet implemented):** no envelope, so the body is the
+- **Raw (escape hatch; implemented, opt-in, `RawMessageEncoder` in `tandem-core`, lifted onto Kafka
+  with `KafkaMessageEncoder.from`):** no envelope, so the body is the
   payload, the key is `aggregate_id`, a `tandem-id` and a `tandem-type` header travel alongside, and the stored
   `headers` pass through as Kafka headers. Contract: HLD-alternative-envelope §6.
 
@@ -153,8 +154,9 @@ Event **versioning** lives in the `type` (`.v{n}` suffix), not in the topic — 
 
 ### 3.3 Header combination
 The Kafka record headers in binary mode = the `ce_*` attribute headers + `content-type` + the stored
-`headers` (e.g. `correlation-id`). Trace headers (`traceparent`/`tracestate`) from the stored
-`headers` are mapped to the CloudEvents Distributed-Tracing extension. The causal-ordering value
+`headers` (e.g. `correlation-id`), except `content-type` and `dataschema`, which the envelope carries
+as attributes. Trace headers (`traceparent`/`tracestate`) pass through as bare headers like any other
+row header; they are not mapped to the CloudEvents Distributed-Tracing extension (§6). The causal-ordering value
 *would be* carried as the CloudEvents extension **`logicalclock`** → header **`ce_logicalclock`** in
 binary mode, read by the consumer-side adapters (`tandem-kafka-streams` / `tandem-flink`). **None of
 that ships**: the feature is designed but not built, so no published event carries the header and
@@ -214,5 +216,6 @@ Override via a custom `TopicRouter` bean, or a static `aggregateType → topic` 
 - **`id` source** → the **outbox `id`** (globally unique, supports consumer dedup). Settled.
 - **`source` convention** → a **single configured URI** (`tandem.kafka.source`, e.g. `/tandem/orders`).
   Per-`aggregate_type` derivation can be added later without breaking consumers (additive).
-- **Trace extension header naming** → **deferred**: it only applies when tracing is enabled (off in the
-  basic round). Decide bare `traceparent` vs `ce_traceparent` when `tandem-tracing-otel` lands (§7.1).
+- **Trace header naming** → **bare `traceparent` / `tracestate`**, passed through with the other row
+  headers rather than as the `ce_`-prefixed distributed-tracing extension. Settled: changing the emitted
+  names would break every consumer that reads them today (HLD §1.4).

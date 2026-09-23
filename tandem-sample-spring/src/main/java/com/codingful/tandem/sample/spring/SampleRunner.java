@@ -25,6 +25,9 @@ import org.springframework.stereotype.Component;
  * {@code tandem-spring-relay} wired it and a {@code SmartLifecycle} started it when the context came up,
  * so it is already publishing in the background. A real application has no such runner: its write side is
  * just the {@code @TransactionalOutbox} methods on {@link OrderService}, and its relay runs itself.
+ *
+ * <p>It reads the default CloudEvents envelope on purpose: that is the envelope every application
+ * publishes unless it wires one of its own ({@code guide/message-format.md}).
  */
 @Component
 @Profile("!test & !lease")   // the smoke test drives the tiers itself; "lease" runs LeaseRelayDemoRunner instead

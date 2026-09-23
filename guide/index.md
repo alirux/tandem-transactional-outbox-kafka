@@ -67,7 +67,7 @@ Beyond the defaults.
 | Chapter | Topics |
 |---|---|
 | [Advanced Integration](advanced-integration.md) | The Kafka producer and the settings Tandem protects, topic routing and partitions, batch inserts, `@TransactionalOutbox` and Spring events, object payload serializers, replay and query from your own code, replacing a default. |
-| [Publishing Your Own Message Format](message-format.md) | The format and transport seams, writing a portable encoder, wiring it in plain Java and in Spring, what the ordering key means per broker, and the compatibility rules a published envelope carries. |
+| [Publishing Your Own Message Format](message-format.md) | The format and transport seams, the raw passthrough envelope, writing a portable encoder and checking it with the contract kit, a worked example, wiring it in plain Java and in Spring, what the ordering key means per broker, and the compatibility rules a published envelope carries. |
 
 ### Reference
 
