@@ -36,6 +36,14 @@ val notYetPublishedModules = setOf("tandem-rabbitmq")
 subprojects {
     if (name !in unpublishedModules && name !in notYetPublishedModules) {
         apply(plugin = "com.vanniktech.maven.publish")
+
+        // Build the javadoc jar the release publishes as part of `check`, so a javadoc error (a dangling
+        // {@link}, say) fails the PR instead of the tag. Only errors fail it; doclint warnings stay
+        // warnings (AGENTS.md, Javadoc rule 6). Matched by name because the publishing plugin registers
+        // the task later in configuration, and tandem-bom has none.
+        tasks.matching { it.name == "check" }.configureEach {
+            dependsOn(tasks.matching { it.name == "plainJavadocJar" })
+        }
     }
 
     // Every module except the BOM is a Java library on a Java 17 toolchain with JUnit 6 + AssertJ.

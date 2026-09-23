@@ -28,8 +28,9 @@ non-default cases).
 ./gradlew check
 ```
 
-This compiles every module, runs unit tests, and runs the Testcontainers-backed
-integration/e2e tests. It's the same command CI runs, so a green `check` locally is the bar for
+This compiles every module, runs unit tests, runs the Testcontainers-backed
+integration/e2e tests, and builds the javadoc jar of every published module (a javadoc error fails
+it, warnings do not). It's the same command CI runs, so a green `check` locally is the bar for
 a pull request.
 
 To also produce the aggregated coverage report CI publishes to Codecov:
