@@ -53,6 +53,9 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
     /** Guards the publish critical section only: a Channel is not thread-safe and the tag must match the publish (§2). */
     private final Object publishLock = new Object();
 
+    /** Set by {@link #close()} under {@link #publishLock}, so no publish can register after the scheduler stops. */
+    private boolean closed;
+
     private final ConcurrentNavigableMap<Long, Pending> pending = new ConcurrentSkipListMap<>();
     private final Map<String, Long> tagsByMessageId = new ConcurrentHashMap<>();
 
@@ -162,6 +165,14 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
         Pending entry = new Pending(record, route, messageId, ack, span);
 
         synchronized (publishLock) {
+            if (closed) {
+                LOG.warn("Dispatching outbox row after the relay was closed rowId:{}, exchange:{}, routingKey:{}",
+                        record.id(), route.exchange(), route.routingKey());
+                OutboxDispatchException failure = classifier.classify(channelClosed());
+                span.end(failure);
+                ack.completeExceptionally(failure);
+                return ack;
+            }
             long tag = channel.nextPublishSeqNo();
             pending.put(tag, entry);
             tagsByMessageId.put(messageId, tag);
@@ -314,13 +325,20 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
 
     @Override
     public void close() {
+        synchronized (publishLock) {
+            closed = true;
+        }
         timeouts.shutdownNow();
         try {
             channel.close();
         } catch (IOException closeFailure) {
             LOG.warn("Closing the AMQP publish channel failed", closeFailure);
         }
-        failAllPending(new IOException("The AMQP publish channel was closed"));
+        failAllPending(channelClosed());
+    }
+
+    private static IOException channelClosed() {
+        return new IOException("The AMQP publish channel was closed");
     }
 
     /** One in-flight publish, from the moment it is written until its confirm, timeout or shutdown. */

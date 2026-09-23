@@ -117,7 +117,7 @@ asserts after an interruption (LLD-benchmark §3.1, §8).
 | Encoding throws | **Permanent** | Re-encoding the same row fails the same way. Classified at the encode site and deliberately not routed through the classifier, which defaults the unknown to retriable and would block the aggregate for the whole backoff ladder |
 | `basic.return` (unroutable) | **Permanent** | No binding matches the routing key. Retrying cannot create one. The row fails, its aggregate stops, and the operator sees the routing key in the log |
 | `basic.nack` | Retriable | The broker accepted responsibility and then could not honour it, typically an internal or resource error. It is not a statement about the message |
-| Channel or connection shutdown | Retriable | Includes the recovery case of §1. The rows are still PENDING and come back on the next claim |
+| Channel or connection shutdown | Retriable | Includes the recovery case of §1, and a dispatch after `close()`, which fails its future without registering or publishing anything. The rows are still PENDING and come back on the next claim |
 | Confirm timeout (§3) | Retriable | The message may well have been delivered; the row is redelivered and consumers deduplicate on `ce_id`, as they already must |
 | Anything else | Retriable | Same default as the Kafka classifier: an unrecognised failure is assumed transient, because failing a row permanently is the unrecoverable direction |
 

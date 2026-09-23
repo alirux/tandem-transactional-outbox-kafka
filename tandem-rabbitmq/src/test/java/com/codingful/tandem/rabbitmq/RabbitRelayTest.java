@@ -311,6 +311,22 @@ class RabbitRelayTest {
         assertThat(failureOf(ack).isRetriable()).isTrue();
     }
 
+    @Test
+    void GIVEN_a_closed_relay_WHEN_a_row_is_dispatched_THEN_it_fails_retriably_and_nothing_stays_in_flight() {
+        RecordingSpanRecorder spanRecorder = new RecordingSpanRecorder();
+        RabbitRelay relay = relayWith(spanRecorder);
+        relay.close();
+
+        CompletableFuture<Void> ack = relay.dispatch(record(1, "order-1"));
+
+        assertThat(failureOf(ack).isRetriable()).isTrue();
+        assertThat(channel.published()).isEmpty();
+        assertThat(relay.inFlightConfirms()).isZero();
+        assertThat(relay.trackedMessageIds()).isZero();
+        assertThat(spanRecorder.spans).singleElement()
+                .satisfies(span -> assertThat(span.failure).isInstanceOf(OutboxDispatchException.class));
+    }
+
     /** A real, non-NOOP {@link TandemSpanRecorder} standing in for tandem-spring-relay/tandem-tracing-otel. */
     private static final class RecordingSpanRecorder implements TandemSpanRecorder {
 
