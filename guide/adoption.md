@@ -84,6 +84,7 @@ Quick, and none of these block adoption outright; each has a documented answer.
 | *(nothing: a `seq` source is optional)* | See §3.2 | `unsequenced()` needs no version and no domain-schema change; supply one only if consumers read it |
 | A path to apply additive DDL to a live database | See §4 | Tandem's schema is a normal Liquibase changelog; any migration tool can consume the generated flat SQL |
 | Whether this data is *already* published to Kafka by something else | Check for an existing producer on this topic | See §5, the strangler cutover |
+| A broker Tandem has an adapter for | You publish to Kafka (`tandem-kafka`) or RabbitMQ (`tandem-rabbitmq`, independently versioned and not yet on Maven Central) | Another broker needs its own transport adapter: see [Publishing Your Own Message Format](message-format.md) §1 |
 
 ---
 
@@ -299,7 +300,8 @@ flowchart TD
   `LEASE` (multi-instance) is a config flip away later with no schema change beyond the two extra
   tables from §4.
 - **You don't need `tandem-kafka` at all on the write side.** `tandem-jdbc` alone (the write-side
-  insert) has no Kafka dependency; only wherever the relay runs needs `tandem-kafka`
+  insert) has no broker dependency; only wherever the relay runs needs a transport adapter,
+  `tandem-kafka` or, for RabbitMQ, `tandem-rabbitmq`
   ([README: Add the dependency](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/README.md#add-the-dependency)).
 - **You don't need to turn off virtual threads.** If your application runs on them, the outbox
   insert runs on a virtual thread and never pins a carrier: Tandem's write path contains no
