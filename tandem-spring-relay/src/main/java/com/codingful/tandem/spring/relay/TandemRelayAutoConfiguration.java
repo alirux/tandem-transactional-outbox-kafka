@@ -27,14 +27,15 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 /**
- * Relay autoconfiguration (LLD-spring-config §4.4): contributes the relay engine — topic router, Kafka
- * dispatcher, outbox store, bucket source and {@link WorkerPool} — and a {@link RelayLifecycle} that
- * starts and stops it with the application. Ordered after Spring Boot's own
+ * Relay autoconfiguration (LLD-spring-config §4.4): contributes the relay engine — outbox store, bucket
+ * source and {@link WorkerPool} — and a {@link RelayLifecycle} that starts and stops it with the
+ * application. The engine publishes through whichever {@link OutboxDispatcher} bean is present: the one
+ * {@link TandemKafkaAutoConfiguration} contributes when {@code tandem-kafka} is on the classpath, or the
+ * application's own for any other broker. Ordered after Spring Boot's own
  * {@code DataSourceAutoConfiguration} and gated on a single {@code DataSource} candidate; the whole
  * configuration is conditional on {@code tandem.relay.enabled} (default true), the supported way to load
  * the module without running a relay. Every bean is {@link ConditionalOnMissingBean}, so an application
- * can replace any piece — most usefully a custom {@link TopicRouter}, or a
- * {@link MessageEncoder} that publishes an envelope other than CloudEvents.
+ * can replace any piece.
  *
  * <p>The ordering is declared by <b>name</b> for both generations: Boot 4 moved
  * {@code DataSourceAutoConfiguration} into {@code spring-boot-jdbc} and every tracing autoconfiguration
