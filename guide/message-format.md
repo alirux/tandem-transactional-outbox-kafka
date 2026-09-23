@@ -128,7 +128,8 @@ MessageEncoder orderEventEncoder() {
 ```
 
 On RabbitMQ there is no autoconfiguration: build the `RabbitRelay` yourself, as above, with
-`RabbitMessageEncoder.from`.
+`RabbitMessageEncoder.from`, and contribute it as a bean
+([Publishing to RabbitMQ](rabbitmq.md#41-spring-boot)).
 
 !!! note "What `destination` and `key` mean per transport"
     `destination` is the stream your consumers subscribe to: the **topic** on Kafka, the **routing

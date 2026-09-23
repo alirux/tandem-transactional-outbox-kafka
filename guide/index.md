@@ -12,8 +12,7 @@ Kafka is the default broker, not the only one: the transport is a port, and `tan
 publishes to RabbitMQ over AMQP 0.9.1 instead. That adapter is versioned independently of the
 library, so it is not in `tandem-bom`: declare it with its own version
 (`com.codingful:tandem-rabbitmq:0.1.0`, on Tandem 0.10.0 or later). How it is wired, and what
-changes about ordering without partitions:
-[Publishing Your Own Message Format](message-format.md).
+changes about ordering without partitions: [Publishing to RabbitMQ](rabbitmq.md).
 
 It runs on the database and the broker you already have: no change data capture, no Kafka Connect,
 no two-phase commit, and no process to operate beyond your own application.
@@ -31,6 +30,7 @@ walkthrough of the message flow.
 | If you are... | Read |
 |---|---|
 | Adopting Tandem for the first time | [Getting Started](getting-started.md), then the [Adoption Guide](adoption.md) |
+| Publishing to RabbitMQ rather than Kafka | [Getting Started](getting-started.md) for the write, then [Publishing to RabbitMQ](rabbitmq.md) |
 | In the middle of an incident | [Troubleshooting](troubleshooting.md), then the [Admin API](admin-api.md) or the [Command Line](cli.md) |
 | Sizing a deployment | [Performance and Sizing](performance-and-sizing.md), then [Reliability and Topology](reliability.md) |
 
@@ -38,11 +38,12 @@ walkthrough of the message flow.
 
 ### Start
 
-First use, what consumers receive, and what to check before adopting.
+First use, publishing to RabbitMQ, what consumers receive, and what to check before adopting.
 
 | Chapter | Topics |
 |---|---|
 | [Getting Started](getting-started.md) | First use, step by step with Spring Boot and with plain Java: dependencies, schema, writing an event in your transaction, starting the relay, the settings you will touch, checking the result, idempotent consumers. |
+| [Publishing to RabbitMQ](rabbitmq.md) | The RabbitMQ connector: its own version outside the BOM, preparing the exchange and bindings, the relay wiring in Spring and in plain Java, what lands on the broker, keeping the order on the consumer side, failure handling, upgrading it. |
 | [Consuming Events](consuming-events.md) | What a consumer receives (key, value, every header), what it can and cannot rely on, reading an event in Java, Spring Kafka and Python, idempotency, ordering, failed processing, continuing the trace. |
 | [Adoption Guide](adoption.md) | Ordering precondition, write-side tiers, `seq` modes and the write lock, applying the schema to a database with data in it, strangler cutover, aggregate-less events, rollout order. |
 

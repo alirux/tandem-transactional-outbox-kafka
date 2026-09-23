@@ -203,7 +203,10 @@ first time Tandem adds one.
    version you are skipping. A release that breaks something lists it under **Breaking**, with
    what you must do. While the library is `0.x`, a minor version can carry a breaking change, so
    read them even for a minor bump.
-2. **Update the versions.** Change the BOM version once; every Tandem module follows it.
+2. **Update the versions.** Change the BOM version once; every Tandem module in it follows. The
+   exception is `tandem-rabbitmq`, which is outside the BOM with a version of its own: update it
+   separately, and check that its release notes (tags `rabbitmq-v<version>`) accept the Tandem
+   version you are moving to ([Publishing to RabbitMQ](rabbitmq.md#9-upgrading-the-connector)).
 3. **Apply the schema first.** Migrations only add, so the schema of the new version is safe for the
    old code that is still running. The reverse is not true: new code may read a column that an old
    schema lacks. So the database goes first, then the components, in any order.

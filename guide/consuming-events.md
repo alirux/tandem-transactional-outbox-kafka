@@ -17,7 +17,9 @@ It covers Kafka with the default CloudEvents envelope. The consumer is your own 
 language you use: Tandem has no consumer library to depend on, and needs none. If the application
 publishes with the raw passthrough encoder instead, what arrives is described in
 [Raw passthrough](message-format.md#4-raw-passthrough-no-envelope-at-all); the rules on idempotency
-and order below apply unchanged, with `tandem-id` in place of `ce_id`.
+and order below apply unchanged, with `tandem-id` in place of `ce_id`. On RabbitMQ the same attributes
+arrive as `cloudEvents_` headers instead of `ce_` ones, and keeping the order takes a queue topology
+of your choice: see [Publishing to RabbitMQ](rabbitmq.md#5-what-lands-on-the-broker).
 
 ---
 

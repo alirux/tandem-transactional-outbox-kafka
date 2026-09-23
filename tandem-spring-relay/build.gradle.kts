@@ -172,6 +172,12 @@ dependencies {
     "noKafkaTestImplementation"(libs.spring.jdbc)
     "noKafkaTestImplementation"(libs.slf4j.api)
     "noKafkaTestImplementation"(project(":tandem-jdbc"))
+    // The other transport, wired the way the user guide tells a RabbitMQ application to wire it
+    // (guide/rabbitmq.md §4.1), against a real broker: the only integration there is, since RabbitMQ has
+    // no autoconfiguration of its own.
+    "noKafkaTestImplementation"(project(":tandem-rabbitmq"))
+    "noKafkaTestImplementation"(platform(libs.testcontainers.bom))
+    "noKafkaTestImplementation"(libs.testcontainers.rabbitmq)
     "noKafkaTestImplementation"(platform(libs.junit.bom))
     "noKafkaTestImplementation"(libs.junit.jupiter)
     "noKafkaTestRuntimeOnly"(libs.junit.platform.launcher)

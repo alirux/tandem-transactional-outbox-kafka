@@ -9,7 +9,9 @@ reliably and in order. This page takes you from an empty project to events flowi
 time, with Spring Boot and without it.
 
 It covers the path most services take: **PostgreSQL, Kafka, and the CloudEvents envelope Tandem
-publishes by default**. Other brokers and other message formats are out of scope here. It
+publishes by default**. On RabbitMQ, follow this page for the schema and the write, and
+[Publishing to RabbitMQ](rabbitmq.md) for the dependency and the relay; other message formats are in
+[Publishing Your Own Message Format](message-format.md). It
 explains what to do, not how Tandem works inside; for that, read the
 [design documents](https://github.com/alirux/tandem-transactional-outbox-kafka/tree/main/docs).
 
@@ -56,6 +58,11 @@ changes: run the relay steps where you want it to run.
 Import the BOM, then name the modules without versions. Use the current version from
 [Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-core) in place of
 `x.y.z`.
+
+!!! tip "Publishing to RabbitMQ?"
+    Take `tandem-rabbitmq` in place of `tandem-kafka`. It is versioned on its own, outside the BOM:
+    [Publishing to RabbitMQ](rabbitmq.md#2-add-the-dependency) has the coordinates and the relay
+    wiring.
 
 === "Spring Boot"
 
