@@ -127,17 +127,20 @@ var b = CloudEventBuilder.v1()
 // (HLD-causal-ordering.md §0.3)
 CloudEvent ce = b.build();
 ProducerRecord<…> pr = KafkaMessageFactory.createWriter(topic, key=aggregateId)
-    .writeBinary(ce);                               // binary mode (default); writeStructured for structured
+    .writeBinary(ce);                               // binary mode: the only one implemented (§3.1)
 ```
 
 ### 3.1 Content modes
-- **Binary (default):** attributes → `ce_*` Kafka headers, `data` → body, `content-type` header =
-  `datacontenttype`. Tandem extensions become `ce_seq` / `ce_partitionkey` (and `ce_logicalclock`
-  if causal ordering is ever built — it emits nothing today, HLD-causal-ordering.md §0).
-- **Structured (opt):** the whole CloudEvent (JSON) → body, `content-type:
-  application/cloudevents+json`.
-- **Raw (escape hatch):** no envelope — body = payload, key = `aggregate_id`, stored `headers` passed
-  through as Kafka headers.
+- **Binary (implemented, and the only mode this module emits):** attributes → `ce_*` Kafka headers,
+  `data` → body, `content-type` header = `datacontenttype`. Tandem extensions become `ce_seq` /
+  `ce_partitionkey` (and `ce_logicalclock` if causal ordering is ever built; it emits nothing today,
+  HLD-causal-ordering.md §0).
+- **Structured (not implemented, not planned):** the whole CloudEvent (JSON) → body, `content-type:
+  application/cloudevents+json`. The SDK writes it with `writeStructured`, so an application that
+  needs it implements one encoder of its own (HLD-cloudevents §1).
+- **Raw (escape hatch; specified, opt-in, not yet implemented):** no envelope, so the body is the
+  payload, the key is `aggregate_id`, a `tandem-id` and a `tandem-type` header travel alongside, and the stored
+  `headers` pass through as Kafka headers. Contract: HLD-alternative-envelope §6.
 
 ### 3.2 `datacontenttype` & `dataschema` sources
 - **`datacontenttype`** = `headers["content-type"]` if the producing side stored one, else the
@@ -160,8 +163,9 @@ technical term *lamport* for the concept; `logicalclock` is only the on-the-wire
 
 ### 3.4 Null `type` fallback (Q20)
 CloudEvents `type` is required but the `type` column is nullable. **`typeOf(record)` = `record.type()`
-if present, else falls back to `aggregate_type`** (configurable fallback). Raw mode does not need a
-`type`. This guarantees a valid required attribute without forcing the user to set `type`.
+if present, else falls back to `aggregate_type`** (configurable fallback). This guarantees a valid
+required attribute without forcing the user to set `type`. Raw mode applies the same fallback for its
+`tandem-type` header, so a consumer always reads a value there too (HLD-alternative-envelope §6).
 
 ---
 

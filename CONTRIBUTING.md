@@ -143,6 +143,8 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [HLD.md](docs/HLD.md) | High-Level Design — architecture, decisions, data model, flow |
 | [LLD-base.md](docs/LLD-base.md) | Shared build/package conventions |
 | [HLD-cloudevents.md](docs/HLD-cloudevents.md) | CloudEvents publication format |
+| [HLD-alternative-envelope.md](docs/HLD-alternative-envelope.md) · [alternative-envelope-candidates.md](docs/alternative-envelope-candidates.md) | Publishing an envelope other than CloudEvents: the existing seam, the invariants, the gaps, and a survey of candidate formats |
+| [LLD-alternative-envelope.md](docs/LLD-alternative-envelope.md) | Alternative envelope implementation: the raw passthrough encoder, the encoder contract kit, the worked example and its end-to-end tests |
 | [HLD-tracing.md](docs/HLD-tracing.md) | Trace & correlation propagation |
 | [HLD-attempt-archive.md](docs/HLD-attempt-archive.md) | Forensic per-attempt archive — designed, not implemented |
 | [tracing-concepts.md](docs/tracing-concepts.md) | Distributed tracing vocabulary — span, trace, `traceparent`, span link (reference, not Tandem-specific) |

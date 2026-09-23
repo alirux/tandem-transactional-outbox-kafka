@@ -14,12 +14,16 @@ Tandem-specific extensions, and where the dependency lives.
 
 - **CloudEvents 1.0 is the default publication envelope** for every message the relay sends
   to Kafka.
-- **Binary content mode is the default** (CloudEvents attributes → Kafka `ce_` headers; the
-  event payload stays the Kafka message **body**). **Structured mode** (the whole CloudEvent
-  serialized into the body) is available as an option.
-- A **raw passthrough mode** (no CloudEvents envelope, payload as-is) remains available as an
-  escape hatch for existing consumers / migration — CloudEvents is the *standard*, not a
-  hard lock-in.
+- **Binary content mode is the only one the relay implements** (CloudEvents attributes → Kafka
+  `ce_` headers; the event payload stays the Kafka message **body**).
+- **Structured mode** (the whole CloudEvent serialized into the body) is **not implemented and not
+  planned.** Its purpose is surviving a hop that drops headers, which neither transport Tandem
+  publishes to does; an application that needs it writes one encoder against `MessageEncoder`
+  ([HLD-alternative-envelope.md](HLD-alternative-envelope.md) §8, decision 2).
+- A **raw passthrough** encoder (no CloudEvents envelope, payload as-is) is the escape hatch for
+  existing consumers and migration; CloudEvents is the *standard*, not a hard lock-in. It is
+  specified in [HLD-alternative-envelope.md](HLD-alternative-envelope.md) §6 and **opt-in, not yet
+  implemented**.
 
 ---
 
@@ -60,11 +64,11 @@ chain (DB lock → `seq` → worker shard → Kafka partition) is unchanged.
 
 ## 4. Content modes
 
-| Mode | Where attributes go | Where `data` goes | `content-type` |
-|---|---|---|---|
-| **Binary** (default) | Kafka `ce_*` headers | message body (raw payload) | the data's type, e.g. `application/json` |
-| **Structured** | inside the body | inside the body | `application/cloudevents+json` |
-| **Raw** (escape hatch) | not emitted | message body (raw payload) | the data's type |
+| Mode | Where attributes go | Where `data` goes | `content-type` | Status |
+|---|---|---|---|---|
+| **Binary** (default) | Kafka `ce_*` headers | message body (raw payload) | the data's type, e.g. `application/json` | **Implemented**, and the only mode the relay emits |
+| **Structured** | inside the body | inside the body | `application/cloudevents+json` | **Not implemented, not planned** (§1) |
+| **Raw** (escape hatch) | not emitted, beyond `tandem-id` and `tandem-type` | message body (raw payload) | the data's type | **Specified, opt-in, not yet implemented** (HLD-alternative-envelope §6) |
 
 Binary mode is recommended for Kafka: consumers that only want the payload read the body
 directly, while routing/filtering can use the `ce_*` headers without deserializing.
@@ -140,8 +144,10 @@ entry. **JSON** users typically rely on the `type` version alone and may omit `d
 ## 8. Decisions
 
 **Decided:**
-- **Content mode:** binary by default; structured available as an option.
-- **Standard, not lock-in:** CloudEvents is the default + a **raw passthrough** escape hatch.
+- **Content mode:** binary, the only mode the relay implements. Structured is not implemented and
+  not planned; it belongs to a custom encoder if an application ever needs it (§1, §4).
+- **Standard, not lock-in:** CloudEvents is the default + a **raw passthrough** escape hatch,
+  specified in HLD-alternative-envelope §6 and opt-in.
 - **`type` storage:** a dedicated `type` column (queryable; also serves the Admin API search).
 - **`id` source:** the **outbox `id`** (globally unique, supports consumer dedup).
 - **`source` convention:** a **single configured URI** (`tandem.kafka.source`); per-`aggregate_type`

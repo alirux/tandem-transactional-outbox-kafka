@@ -121,11 +121,12 @@ resolved (or consciously deferred) to write correct per-module LLDs.
 - [x] **Q18 (P2)** — **`TopicRouter` default.** ✅ §5: source = **`aggregate_type`**; rule =
   `kebab-case(aggregate_type)` + suffix (default `-topic`, configurable), **no pluralization**
   (`Order` → `order-topic`). Override via custom router or a static map. HLD examples corrected. *(tandem-kafka)*
-- [x] **Q19 (P2)** — **CloudEvents binding.** ✅ §3: `CloudEventBuilder` mapping; binary/structured/raw
-  modes via the SDK; `datacontenttype` = `headers["content-type"]` else config default; extensions
+- [x] **Q19 (P2)** — **CloudEvents binding.** ✅ §3: `CloudEventBuilder` mapping; **binary mode only**
+  (structured not implemented and not planned, raw opt-in per HLD-alternative-envelope §6); `datacontenttype` = `headers["content-type"]` else config default; extensions
   become `ce_seq`/`ce_logicalclock`/`ce_partitionkey`; the Lamport header is reconciled to **`ce_logicalclock`** (§9 updated). *(tandem-kafka)*
 - [x] **Q20 (P2)** — **Null `type`.** ✅ §3.4: fall back to **`aggregate_type`** (configurable) so the
-  required CloudEvents `type` is always valid; raw mode needs no `type`. *(tandem-kafka)*
+  required CloudEvents `type` is always valid; raw mode applies the same fallback for its
+  `tandem-type` header. *(tandem-kafka)*
 
 ## D. tandem-spring (producer / relay / tandem-relay runnable — no aggregator, Q21)
 

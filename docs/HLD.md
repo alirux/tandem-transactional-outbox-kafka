@@ -412,13 +412,13 @@ Duplicates are a known, managed outcome. Data loss is not.
 
 ### 4.8 CloudEvents as the Publication Format
 
-**Decision:** The relay publishes to Kafka using the **CloudEvents 1.0** (CNCF) envelope as the default standard, in **binary content mode** (attributes → Kafka `ce_*` headers, payload → message body). Structured mode is optional; a **raw passthrough** mode remains as an escape hatch.
+**Decision:** The relay publishes to Kafka using the **CloudEvents 1.0** (CNCF) envelope as the default standard, in **binary content mode** (attributes → Kafka `ce_*` headers, payload → message body), which is the only content mode implemented. Structured mode is **not implemented and not planned**: it belongs to a custom encoder if an application ever needs it. A **raw passthrough** encoder remains the escape hatch, specified in [HLD-alternative-envelope.md](HLD-alternative-envelope.md) §6 and opt-in.
 
 **Rationale:** A standard envelope is interoperable with the CNCF ecosystem (Knative, brokers, tracing tooling) and exposes consistent metadata (`id`, `source`, `type`, `subject`, `time`) for routing/filtering without deserializing the payload — decoupling consumers from Tandem-internal shapes. CloudEvents' `partitionkey` extension and `subject` map cleanly onto `aggregate_id`, so per-aggregate ordering is unchanged (Kafka key stays `aggregate_id`).
 
 **Where it lives:** CloudEvents formatting is a **relay-side** concern in `tandem-kafka` (via `io.cloudevents:cloudevents-kafka`). Consistent with the deployment topology (§3.2), the **client / write-side does not depend on CloudEvents** — it only captures the event `type`; the relay builds the CloudEvent from the stored row + configuration. Topic routing (`aggregate_type` → topic) and payload serialization (`PayloadSerializer` → `data`) are orthogonal and unchanged.
 
-Full mapping, content modes, Tandem extensions (`seq` / `lamport` / `causationid`), **event versioning** (the version lives in the CloudEvents `type` as a `.v{n}` suffix, never in the topic; §1.4 compatibility applies), and schema impact: [HLD-cloudevents.md](HLD-cloudevents.md).
+Full mapping, content modes, Tandem extensions (`seq` / `lamport` / `causationid`), **event versioning** (the version lives in the CloudEvents `type` as a `.v{n}` suffix, never in the topic; §1.4 compatibility applies), and schema impact: [HLD-cloudevents.md](HLD-cloudevents.md). Publishing an envelope other than CloudEvents: [HLD-alternative-envelope.md](HLD-alternative-envelope.md).
 
 ---
 
