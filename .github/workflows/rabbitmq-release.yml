@@ -1,0 +1,68 @@
+name: RabbitMQ Connector Release
+
+# tandem-rabbitmq is versioned and released independently of the library (LLD-rabbitmq §9): its own
+# tag prefix, its own workflow, its own version variable. The globs are anchored, so release.yml's v*
+# never matches rabbitmq-v* and this one never matches v*; release.yml also excludes this module
+# explicitly.
+on:
+  push:
+    tags:
+      - 'rabbitmq-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # annotated tag objects, so the tag message is readable below
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#rabbitmq-v}" >> "$GITHUB_OUTPUT"
+
+      # The floor the POM declares is a claim about artifacts already on Maven Central; verify it on
+      # the tagged commit before anything is uploaded (Docker is available on ubuntu-latest).
+      - name: Verify the declared floor
+        run: ./gradlew :tandem-rabbitmq:floorTest
+
+      # Staged only, as for the library: the final "Publish" is done by hand from
+      # https://central.sonatype.com/publishing after inspecting the deployment, which must contain
+      # tandem-rabbitmq and nothing else.
+      - name: Publish to Maven Central (staged)
+        run: ./gradlew :tandem-rabbitmq:publishToMavenCentral --no-configuration-cache
+        env:
+          RABBITMQ_VERSION: ${{ steps.version.outputs.VERSION }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+
+      - name: Extract tag message
+        id: tag_message
+        run: |
+          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" > RELEASE_BODY.md
+          echo "title=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
+      # --latest=false: "Latest" is a single repo-wide badge, and the connector's release line must
+      # not bury the library's newest release on the repository front page (same as cli-release.yml).
+      - name: Create GitHub Release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "${{ steps.tag_message.outputs.title }}" \
+            --notes-file RELEASE_BODY.md \
+            --latest=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

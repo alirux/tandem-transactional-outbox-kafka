@@ -37,8 +37,12 @@ jobs:
       #
       # The com.vanniktech.maven.publish plugin reads credentials/signing from Gradle
       # properties, injected here via their ORG_GRADLE_PROJECT_ env-var form.
+      #
+      # tandem-rabbitmq is excluded: it carries its own version and publishes only from
+      # rabbitmq-release.yml on rabbitmq-v* tags. Left in, its RABBITMQ_VERSION guard would fail
+      # this whole run rather than publish it under the library's version.
       - name: Publish to Maven Central (staged)
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        run: ./gradlew publishToMavenCentral -x :tandem-rabbitmq:publishToMavenCentral --no-configuration-cache
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}

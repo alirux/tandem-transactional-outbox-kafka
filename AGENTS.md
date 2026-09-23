@@ -278,7 +278,9 @@ every place that documents them states their version explicitly instead of imply
 such a module's own release workflow exists it also belongs in `notYetPublishedModules` in the root
 `build.gradle.kts`, which removes its publishing tasks so a library `v*` tag cannot publish it by accident,
 and it stays out of the README's API reference table, whose rows link a javadoc.io page that exists only for
-a published artifact.
+a published artifact. The change that adds that workflow takes it out of the set, excludes it from
+`release.yml` (`-x :<module>:publishToMavenCentral`), and gives it a version variable of its own with a guard
+that refuses to publish while it is unset (see `tandem-rabbitmq/build.gradle.kts`).
 
 Unpublished leaf apps (`tandem-sample*`, `tandem-benchmark`) stay out of the BOM and out of coverage
 aggregation on purpose: no meaningful coverage, and no `integrationTest` phase for the aggregated report
@@ -321,7 +323,8 @@ to depend on.
 
 ## Releases
 
-Tags follow `v<semver>` and pushing one publishes all modules to Maven Central.
+Tags follow `v<semver>` and pushing one publishes all library modules to Maven Central
+(every published module except the independently versioned `tandem-rabbitmq`, below).
 Before creating a release tag:
 
 1. **Check for breaking changes** since the previous release tag — diff the
@@ -376,3 +379,27 @@ notes), and the same "ask before tagging" rule. Before tagging a `cli-v*` releas
 breaking-change check is scoped to the CLI's own contract (LLD-cli.md §9.1): command/
 subcommand/flag names and semantics, and exit codes — **not** `--output json` payloads
 or `human`-mode rendering, which are explicitly outside the CLI's own semver promise.
+
+### `tandem-rabbitmq` releases — the third scheme
+
+`tandem-rabbitmq` is a Java module published to Maven Central like the library, but
+versioned independently of it (LLD-rabbitmq §9): tags follow `rabbitmq-v<semver>`
+(e.g. `rabbitmq-v0.1.0`), and pushing one runs `.github/workflows/rabbitmq-release.yml`,
+which verifies the declared floor (`floorTest`), then stages a deployment of this module
+alone. Its version comes from `RABBITMQ_VERSION`, never from the library's `VERSION`, and
+the build refuses to publish it while that variable is unset; `release.yml` excludes it.
+As with the library, the final "Publish" on the Central Portal is manual.
+
+**The floor is part of its contract.** The module depends on `tandem-core` and
+`tandem-cloudevents` by published coordinate at the version in `tandemFloor`
+(`tandem-rabbitmq/build.gradle.kts`), substituted by the working tree during development.
+`floorTest`, wired into `check`, runs the module's tests against that version resolved
+from Maven Central. Raising the floor is a minor bump of the connector, never a patch,
+and the release notes must state the floor, since nothing in the version number implies
+it. A connector change that needs a new core API waits for the library release that
+ships it.
+
+Before tagging, the breaking-change check is scoped to the connector's own contract
+(LLD-rabbitmq §9): its public types, its default route, the headers and properties it
+puts on the wire, and the declared floor. Same annotated-tag-as-release-notes convention
+and the same "ask before tagging" rule.

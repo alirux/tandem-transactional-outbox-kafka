@@ -241,6 +241,18 @@ local projects back during development so the repository still builds as one uni
 re-runs the module's tests with the substitution off, against the declared floor, so the floor is a
 verified claim rather than a comment.
 
+**The floor declared is Tandem 0.10.0**, the first release carrying
+`CloudEventsHeaders.AMQP_BINARY_PREFIX`. The substitution lives in the root build and applies to every
+project, because a module depending on the connector (`tandem-benchmark`) inherits its coordinates
+transitively; only the `floorTestRuntimeClasspath` configuration is exempt. The test fixtures of
+`tandem-test` are never published, so `floorTest` takes their jar alone and relies on the floor for the
+`tandem-core` it needs.
+
+**The release path.** `rabbitmq-release.yml` on `rabbitmq-v*` runs `floorTest`, then publishes this
+module alone as a staged deployment, versioned from `RABBITMQ_VERSION`. The build refuses to publish the
+module while that variable is unset, so neither a manual run nor the library's `release.yml` (which
+excludes the module explicitly) can put it on Central under another version.
+
 **It is not in `tandem-bom`.** The BOM promises one aligned version for every module it lists;
 pinning an independently versioned module there would force a BOM release on every connector release
 and re-create the coupling this section removes.

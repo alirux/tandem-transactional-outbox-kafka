@@ -10,7 +10,8 @@ per-aggregate ordering.
 
 Kafka is the default broker, not the only one: the transport is a port, and `tandem-rabbitmq`
 publishes to RabbitMQ over AMQP 0.9.1 instead. That adapter is versioned independently of the
-library, so it is not in `tandem-bom`, and it is not yet on Maven Central. How it is wired, and what
+library, so it is not in `tandem-bom`: declare it with its own version
+(`com.codingful:tandem-rabbitmq:0.1.0`, on Tandem 0.10.0 or later). How it is wired, and what
 changes about ordering without partitions:
 [Publishing Your Own Message Format](message-format.md).
 

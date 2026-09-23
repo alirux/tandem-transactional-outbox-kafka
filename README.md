@@ -331,7 +331,12 @@ The write-side alone (`tandem-jdbc`) pulls no Kafka dependency; add `tandem-kafk
 relay runs. On Spring Boot, take `tandem-spring-producer` where you write and `tandem-spring-relay`
 where the relay runs, each bringing its own tier of the stack and leaving Spring itself to your
 application's versions. `tandem-spring-relay` redistributes no transport either: it wires whichever
-publish adapter is on the classpath, so declare `tandem-kafka` (or another adapter) alongside it. See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
+publish adapter is on the classpath, so declare `tandem-kafka` (or another adapter) alongside it.
+
+To publish to RabbitMQ instead, declare `tandem-rabbitmq` in place of `tandem-kafka`. It is versioned
+independently of the library, so the BOM does not cover it and it takes its own version
+(`implementation("com.codingful:tandem-rabbitmq:0.1.0")`); it requires Tandem 0.10.0 or later. How to
+wire it: [Publishing Your Own Message Format](https://tandem-codingful.readthedocs.io/message-format/). See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
 list, and [API reference](#api-reference) for each module's javadoc. What changed between versions,
 breaking changes included, is on the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page.
 
@@ -524,6 +529,7 @@ of the version you actually depend on.
 | [tandem-jdbc](https://javadoc.io/doc/com.codingful/tandem-jdbc/latest/index.html) | Write-side insert and the relay engine (PostgreSQL baseline) |
 | [tandem-cloudevents](https://javadoc.io/doc/com.codingful/tandem-cloudevents/latest/index.html) | The CloudEvents envelope for a stored row, independent of the transport that carries it |
 | [tandem-kafka](https://javadoc.io/doc/com.codingful/tandem-kafka/latest/index.html) | `OutboxDispatcher` over the Kafka producer (CloudEvents binary binding) |
+| [tandem-rabbitmq](https://javadoc.io/doc/com.codingful/tandem-rabbitmq/latest/index.html) | `OutboxDispatcher` over AMQP 0.9.1 (CloudEvents binary binding); independently versioned, outside the BOM |
 | [tandem-test](https://javadoc.io/doc/com.codingful/tandem-test/latest/index.html) | In-memory collaborators and the Testcontainers helper |
 | [tandem-spring-producer](https://javadoc.io/doc/com.codingful/tandem-spring-producer/latest/index.html) | Spring Boot autoconfiguration — write-side (outbox INSERT + the convenience tiers) |
 | [tandem-spring-relay](https://javadoc.io/doc/com.codingful/tandem-spring-relay/latest/index.html) | Spring Boot autoconfiguration — relay engine, wiring whichever publish adapter is present |

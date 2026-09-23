@@ -23,17 +23,37 @@ val junitLauncher = libs.junit.platform.launcher
 val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-benchmark", "tandem-coverage")
 
 // Modules that ARE libraries in every other respect — java-library convention, tests, coverage
-// aggregation — but must not be published by a `v*` tag, because they carry their own version and
-// their own release workflow (IMPLEMENTATION-PLAN-rabbitmq.md §1). The set gates only the two
-// publishing blocks below, never the java-library convention.
+// aggregation — but must not be published yet: an independently versioned module belongs here until its
+// own release workflow exists (IMPLEMENTATION-PLAN-rabbitmq.md §1), and leaves it in the change that adds
+// that workflow and excludes it from release.yml. The set gates only the two publishing blocks below,
+// never the java-library convention.
 //
 // Why a set here rather than an exclusion in the release workflow: `release.yml` publishes every
 // module that applies the publishing plugin, and a Maven Central version can never be deleted or
 // overwritten. A workflow flag can be forgotten at tag time; a module that has no publishing task
 // at all cannot be published by accident.
-val notYetPublishedModules = setOf("tandem-rabbitmq")
+val notYetPublishedModules = setOf<String>()
+
+// Independently versioned modules (today: tandem-rabbitmq) depend on their siblings by published
+// coordinate with an explicit floor, because a project dependency would stamp their own version into
+// the POM as the sibling's version (IMPLEMENTATION-PLAN-rabbitmq.md §8). During development those
+// coordinates resolve back to the working tree, so the repository stays one buildable unit; published
+// metadata keeps the declared floor. Applied in every project, not only in the connector, because a
+// module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The one
+// exempt configuration is the connector's floorTest classpath, whose whole point is to resolve the
+// floor from Maven Central.
+val floorClasspath = "floorTestRuntimeClasspath"
+val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 
 subprojects {
+    configurations.matching { it.name != floorClasspath }.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            siblingPaths.forEach { (name, path) ->
+                substitute(module("com.codingful:$name")).using(project(path))
+            }
+        }
+    }
+
     if (name !in unpublishedModules && name !in notYetPublishedModules) {
         apply(plugin = "com.vanniktech.maven.publish")
 

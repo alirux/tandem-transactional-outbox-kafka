@@ -1,9 +1,7 @@
 # Tandem — Implementation Plan: RabbitMQ connector
 
 **Version:** 1.0
-**Status:** Phases 0 to 5 implemented. Phase 6 (independent version and release path) is deliberately
-open: it needs the next library release, which is the first one carrying the core constant the
-connector reads (D7, D8).
+**Status:** Implemented. The connector floors on Tandem 0.10.0 and releases on `rabbitmq-v*`.
 **Scope:** a second transport adapter on the `OutboxDispatcher` port, `tandem-rabbitmq`, carrying its
 own version and its own release cadence; plus the guide page on extending the published envelope,
 deferred here from the message-format port. Spans `tandem-core` (documentation only), the new module,
@@ -242,7 +240,7 @@ line saying the transport is a port. The wider repositioning is backlog item 47 
 
 ---
 
-## 8. Phase 6 — Independent version and release path · **M**
+## 8. Phase 6 — Independent version and release path · **M** · **done**
 
 Runs last, immediately before the first connector release, once a library release has published the
 core the connector floors on (D8: `v0.9.0` is not it, since the AMQP binding prefix landed after that
