@@ -34,9 +34,12 @@ guarantee that needs your help on the consumer side.
 ## 2. Add the dependency
 
 `tandem-rabbitmq` is **versioned independently of the library**: it is not in `tandem-bom`, so it
-always takes an explicit version. Version **0.1.0** requires Tandem **0.10.0 or later**: keep
-`tandem-bom` at that version or above. With Maven this matters, because the BOM's version overrides
-the one the connector asks for, even when the BOM's is older.
+always takes an explicit version. Use the current one from
+[Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-rabbitmq) in place of
+`a.b.c` below (`x.y.z` is the BOM's, as in
+[Getting Started](getting-started.md#3-step-1-add-the-dependencies)). It requires Tandem **0.10.0 or
+later**: keep `tandem-bom` at that version or above. With Maven this matters, because the BOM's
+version overrides the one the connector asks for, even when the BOM's is older.
 
 === "Spring Boot"
 
@@ -47,7 +50,7 @@ the one the connector asks for, even when the BOM's is older.
             implementation(platform("com.codingful:tandem-bom:x.y.z"))
             implementation("com.codingful:tandem-spring-producer")      // the write
             implementation("com.codingful:tandem-spring-relay")         // the relay
-            implementation("com.codingful:tandem-rabbitmq:0.1.1")       // publishing to RabbitMQ
+            implementation("com.codingful:tandem-rabbitmq:a.b.c")       // publishing to RabbitMQ
         }
         ```
 
@@ -66,7 +69,7 @@ the one the connector asks for, even when the BOM's is older.
           <dependency>
             <groupId>com.codingful</groupId>
             <artifactId>tandem-rabbitmq</artifactId>         <!-- publishing to RabbitMQ -->
-            <version>0.1.0</version>
+            <version>a.b.c</version>
           </dependency>
         </dependencies>
         ```
@@ -85,7 +88,7 @@ the one the connector asks for, even when the BOM's is older.
         dependencies {
             implementation(platform("com.codingful:tandem-bom:x.y.z"))
             implementation("com.codingful:tandem-jdbc")                 // the write, and the relay engine
-            implementation("com.codingful:tandem-rabbitmq:0.1.1")       // publishing to RabbitMQ
+            implementation("com.codingful:tandem-rabbitmq:a.b.c")       // publishing to RabbitMQ
         }
         ```
 
@@ -100,7 +103,7 @@ the one the connector asks for, even when the BOM's is older.
           <dependency>
             <groupId>com.codingful</groupId>
             <artifactId>tandem-rabbitmq</artifactId>  <!-- publishing to RabbitMQ -->
-            <version>0.1.0</version>
+            <version>a.b.c</version>
           </dependency>
         </dependencies>
         ```

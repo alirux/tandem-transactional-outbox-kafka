@@ -335,9 +335,9 @@ application's versions. `tandem-spring-relay` redistributes no transport either:
 publish adapter is on the classpath, so declare `tandem-kafka` (or another adapter) alongside it.
 
 To publish to RabbitMQ instead, declare `tandem-rabbitmq` in place of `tandem-kafka`. It is versioned
-independently of the library, so the BOM does not cover it and it takes its own version
-(`implementation("com.codingful:tandem-rabbitmq:0.1.1")`); it requires Tandem 0.10.0 or later. How to
-wire it: [Publishing to RabbitMQ](https://tandem-codingful.readthedocs.io/rabbitmq/). See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
+independently of the library, so the BOM does not cover it and it takes its own version, the current
+one from [Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-rabbitmq). How to
+wire it, and the minimum Tandem version it needs: [Publishing to RabbitMQ](https://tandem-codingful.readthedocs.io/rabbitmq/). See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
 list, and [API reference](#api-reference) for each module's javadoc. What changed between versions,
 breaking changes included, is on the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page.
 

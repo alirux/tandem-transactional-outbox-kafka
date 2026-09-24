@@ -10,9 +10,9 @@ per-aggregate ordering.
 
 Kafka is the default broker, not the only one: the transport is a port, and `tandem-rabbitmq`
 publishes to RabbitMQ over AMQP 0.9.1 instead. That adapter is versioned independently of the
-library, so it is not in `tandem-bom`: declare it with its own version
-(`com.codingful:tandem-rabbitmq:0.1.1`, on Tandem 0.10.0 or later). How it is wired, and what
-changes about ordering without partitions: [Publishing to RabbitMQ](rabbitmq.md).
+library, so it is not in `tandem-bom`: declare it with its own version. How it is wired, which
+Tandem versions it needs, and what changes about ordering without partitions:
+[Publishing to RabbitMQ](rabbitmq.md).
 
 It runs on the database and the broker you already have: no change data capture, no Kafka Connect,
 no two-phase commit, and no process to operate beyond your own application.
