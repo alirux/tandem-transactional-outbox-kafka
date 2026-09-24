@@ -84,7 +84,7 @@ Quick, and none of these block adoption outright; each has a documented answer.
 | *(nothing: a `seq` source is optional)* | See §3.2 | `unsequenced()` needs no version and no domain-schema change; supply one only if consumers read it |
 | A path to apply additive DDL to a live database | See §4 | Tandem's schema is a normal Liquibase changelog; any migration tool can consume the generated flat SQL |
 | Whether this data is *already* published to Kafka by something else | Check for an existing producer on this topic | See §5, the strangler cutover |
-| A broker Tandem has an adapter for | You publish to Kafka (`tandem-kafka`) or RabbitMQ (`tandem-rabbitmq` 0.1.0, independently versioned, on Tandem 0.10.0 or later: see [Publishing to RabbitMQ](rabbitmq.md)) | Another broker needs its own transport adapter: see [Publishing Your Own Message Format](message-format.md) §1 |
+| A broker Tandem has an adapter for | You publish to Kafka (`tandem-kafka`) or RabbitMQ (`tandem-rabbitmq` 0.1.1, independently versioned, on Tandem 0.10.0 or later: see [Publishing to RabbitMQ](rabbitmq.md)) | Another broker needs its own transport adapter: see [Publishing Your Own Message Format](message-format.md) §1 |
 
 ---
 

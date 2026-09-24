@@ -47,7 +47,7 @@ the one the connector asks for, even when the BOM's is older.
             implementation(platform("com.codingful:tandem-bom:x.y.z"))
             implementation("com.codingful:tandem-spring-producer")      // the write
             implementation("com.codingful:tandem-spring-relay")         // the relay
-            implementation("com.codingful:tandem-rabbitmq:0.1.0")       // publishing to RabbitMQ
+            implementation("com.codingful:tandem-rabbitmq:0.1.1")       // publishing to RabbitMQ
         }
         ```
 
@@ -85,7 +85,7 @@ the one the connector asks for, even when the BOM's is older.
         dependencies {
             implementation(platform("com.codingful:tandem-bom:x.y.z"))
             implementation("com.codingful:tandem-jdbc")                 // the write, and the relay engine
-            implementation("com.codingful:tandem-rabbitmq:0.1.0")       // publishing to RabbitMQ
+            implementation("com.codingful:tandem-rabbitmq:0.1.1")       // publishing to RabbitMQ
         }
         ```
 
