@@ -121,9 +121,10 @@ contract rather than published unimplemented — [HLD-attempt-archive.md](HLD-at
   `instance` fields (extension members allowed), per the `ProblemDetail` schema in the contract.
   The **`type` is always a canonical `https://tandem.codingful.com/problems/{slug}` URL**
   (never `about:blank`). The `{slug}` (kebab-case) is the **stable machine identifier** consumers
-  match on — it never changes once published. The URL need not be dereferenceable today: it is an
-  identifier first; if docs are published later, the same URLs resolve, with **no contract change**
-  (the reason a URL is chosen now over `about:blank`/URN). Current slugs: `unauthorized`,
+  match on; it never changes once published. Each URL is also **dereferenceable**: it resolves to a
+  human-readable page under `site/problems/`, published to `tandem.codingful.com`, so a new problem
+  type ships together with its page (the reason for a URL over `about:blank` or a URN: the
+  identifier and its documentation are the same string). Current slugs: `unauthorized`,
   `not-found`, `internal-error`, `invalid-parameter`, `message-not-replayable`, `ordering-break-not-acknowledged`,
   `replay-no-selector`, `message-not-discardable`, `relay-coordination-unsupported`.
 

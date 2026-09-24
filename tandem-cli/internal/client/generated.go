@@ -186,7 +186,7 @@ type ProblemDetail struct {
 	// Title Short, human-readable summary of the problem type
 	Title *string `json:"title,omitempty"`
 
-	// Type Canonical problem-type URI. Tandem always sets a stable https://tandem.codingful.com/problems/{slug} URL — never about:blank. The {slug} (kebab-case) is the stable machine identifier consumers match on; it never changes once published. The URL may or may not be dereferenceable to docs.
+	// Type Canonical problem-type URI. Tandem always sets a stable https://tandem.codingful.com/problems/{slug} URL, never about:blank. The {slug} (kebab-case) is the stable machine identifier consumers match on; it never changes once published. Each URL resolves to a human-readable page documenting the problem type.
 	Type                 *string                `json:"type,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
