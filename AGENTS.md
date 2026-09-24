@@ -359,6 +359,13 @@ release notes render outside the repository, so a relative path does not resolve
 Do not create or push a tag without the user asking in that turn; pushing one
 publishes the release and stages the Maven Central deployment.
 
+**After a release reaches Maven Central, run `tools/javadoc-io-sync.sh`** (library or
+`tandem-rabbitmq` release alike). javadoc.io no longer picks up new releases by itself: its
+`latest` link, version dropdown and badge only move to a version that was synced and uploaded
+from its versions page, and the README's API reference links `latest`. The script does that
+for the latest release of every published module and waits until the docs are served; it is
+idempotent, and `DRY_RUN=1` only reports the status.
+
 ### `tandem-cli` releases — a separate scheme, not a variant of the above
 
 `tandem-cli` (Go, `tandem-cli/`) is versioned and released **independently of the
