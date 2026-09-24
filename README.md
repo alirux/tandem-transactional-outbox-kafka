@@ -13,7 +13,7 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](#)
 [![Maven Central](https://img.shields.io/maven-central/v/com.codingful/tandem-core.svg?label=maven)](https://central.sonatype.com/artifact/com.codingful/tandem-core)
 [![javadoc](https://javadoc.io/badge2/com.codingful/tandem-core/javadoc.svg)](https://javadoc.io/doc/com.codingful/tandem-core)
-[![Status](https://img.shields.io/badge/status-0.x%20—%20API%20evolving-yellow.svg)](https://github.com/alirux/tandem-transactional-outbox-kafka/releases)
+[![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20API%20stabilizing-blue.svg)](https://github.com/alirux/tandem-transactional-outbox-kafka/releases)
 
 **[tandem.codingful.com](https://tandem.codingful.com)**
 
