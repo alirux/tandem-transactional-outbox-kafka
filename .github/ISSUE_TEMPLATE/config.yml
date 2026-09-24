@@ -1,0 +1,7 @@
+# A blank issue stays available on purpose: a question or a report that fits neither form should
+# not be turned away by the form itself.
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/alirux/tandem-transactional-outbox-kafka/security/advisories/new
+    about: Report it privately here instead of opening an issue. SECURITY.md says what is in scope.

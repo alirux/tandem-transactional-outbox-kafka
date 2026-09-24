@@ -1,0 +1,67 @@
+name: Bug report
+description: Tandem behaves differently from what its documentation promises.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a security vulnerability, do not open an issue. Use
+        [private vulnerability reporting](https://github.com/alirux/tandem-transactional-outbox-kafka/security/advisories/new)
+        instead; [SECURITY.md](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/SECURITY.md)
+        says what is in scope.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest thing that shows the problem: a failing test, a snippet, or the sequence of
+        operations. An integration test written against `TandemTestContainer` is the most useful
+        form, because it runs here unchanged.
+
+  - type: input
+    id: version
+    attributes:
+      label: Tandem version
+      placeholder: 0.8.0
+    validations:
+      required: true
+
+  - type: input
+    id: modules
+    attributes:
+      label: Modules in use
+      placeholder: tandem-core, tandem-jdbc, tandem-kafka
+
+  - type: input
+    id: database
+    attributes:
+      label: Database and version
+      placeholder: PostgreSQL 17
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Java and Kafka versions, plus Spring Boot if you use the Spring modules
+      placeholder: Java 21, Kafka 4.0, Spring Boot 3.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Relay or application logs around the failure. Tandem never logs payloads, credentials or
+        JDBC URLs, but your own application might: check before pasting.
+      render: text
