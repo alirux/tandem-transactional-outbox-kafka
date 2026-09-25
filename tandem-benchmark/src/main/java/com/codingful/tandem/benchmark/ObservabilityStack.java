@@ -120,6 +120,8 @@ public final class ObservabilityStack implements AutoCloseable {
                         "/etc/grafana/provisioning/dashboards/tandem.yml")
                 .withCopyToContainer(Transferable.of(dashboardJson()),
                         "/var/lib/grafana/dashboards/tandem-dashboard.json")
+                .withCopyToContainer(Transferable.of(alertRules()),
+                        "/etc/grafana/provisioning/alerting/tandem-alerts.yml")
                 .waitingFor(Wait.forHttp("/api/health").forPort(GRAFANA_PORT));
         if (withTracing) {
             grafanaContainer.withCopyToContainer(Transferable.of(tracesDashboardJson()),
@@ -266,6 +268,10 @@ public final class ObservabilityStack implements AutoCloseable {
 
     private static String dashboardJson() {
         return classpathResource("/grafana/tandem-dashboard.json");
+    }
+
+    private static String alertRules() {
+        return classpathResource("/grafana/tandem-alerts.yml");
     }
 
     private static String tracesDashboardJson() {
