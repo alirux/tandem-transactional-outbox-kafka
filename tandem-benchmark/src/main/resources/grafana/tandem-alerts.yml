@@ -1,0 +1,259 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: tandem-demo-alerts
+    folder: Tandem
+    interval: 10s
+    rules:
+
+      - uid: tandem-relay-stalled
+        title: Relay stalled
+        condition: C
+        for: 3s
+        noDataState: OK
+        execErrState: Alerting
+
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: |
+                max(tandem_outbox_lag_age_seconds) > 5
+                and
+                max(tandem_outbox_blocked_count) == 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+        annotations:
+          summary: Relay backlog is aging without blocked work
+          description: The oldest waiting event is old while no rows are blocked behind a failed event.
+
+        labels:
+          severity: warning
+
+
+      - uid: tandem-aggregate-blocked
+        title: Aggregate blocked
+        condition: C
+        for: 2s
+        noDataState: OK
+        execErrState: Alerting
+
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: max(tandem_outbox_blocked_count)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+        annotations:
+          summary: An aggregate is blocked behind a failed event
+          description: Waiting events cannot progress because the head event has failed.
+
+        labels:
+          severity: critical
+
+
+      - uid: tandem-rows-given-up
+        title: Rows given up on
+        condition: C
+        for: 1s
+        noDataState: OK
+        execErrState: Alerting
+
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: max(tandem_outbox_failed_count)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+        annotations:
+          summary: Outbox rows have exhausted their attempts
+          description: One or more events are in FAILED and require operator action.
+
+        labels:
+          severity: critical
+
+
+      - uid: tandem-no-relay-reporting
+        title: No relay reporting
+        condition: C
+        for: 3s
+        noDataState: Alerting
+        execErrState: Alerting
+
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: |
+                sum(tandem_outbox_workers_active) == bool 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+        annotations:
+          summary: No relay workers are reporting
+          description: No active relay workers are currently visible to the metrics system.
+
+        labels:
+          severity: critical
