@@ -72,6 +72,13 @@ tasks.named("compileJava") {
     inputs.files(tasks.named("processResources"))
 }
 
+// The Admin API tests read the OpenAPI contract and the problem-type pages from outside this
+// module: declare them as inputs, so a change to either one reruns the tests.
+tasks.withType<Test>().configureEach {
+    inputs.file(rootProject.file("docs/admin-api.openapi.yaml")).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(rootProject.file("site/problems")).withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Three-line compatibility matrix (LLD-spring-config §1.2) — this is a Spring module, so it needs the
 // same gate as tandem-spring-relay/tandem-spring-producer: the module's main sources compile ONCE
