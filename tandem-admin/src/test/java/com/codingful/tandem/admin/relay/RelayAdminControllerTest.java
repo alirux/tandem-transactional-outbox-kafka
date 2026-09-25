@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.codingful.tandem.admin.AdminMockMvc;
 import com.codingful.tandem.admin.OpenApiConformance;
 import com.codingful.tandem.admin.TandemAdminExceptionHandler;
 import com.codingful.tandem.core.RelayCoordinationMode;
@@ -18,7 +19,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * Real Spring MVC dispatch (MockMvc, standalone) over {@link RelayAdminController} + the module-wide
@@ -39,9 +39,7 @@ class RelayAdminControllerTest {
     void setUp() {
         control = new InMemoryRelayControl(new InMemoryOutbox(BUCKETS, 10, Clock.systemUTC()), BUCKETS);
         RelayAdminService service = new RelayAdminService(control, control);
-        mockMvc = MockMvcBuilders.standaloneSetup(new RelayAdminController(service))
-                .setControllerAdvice(new RelayExceptionHandler(), new TandemAdminExceptionHandler())
-                .build();
+        mockMvc = AdminMockMvc.create(new RelayAdminController(service), new RelayExceptionHandler());
     }
 
     @Test
