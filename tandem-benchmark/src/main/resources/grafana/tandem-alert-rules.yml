@@ -1,0 +1,242 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: tandem-demo-alerts
+    folder: Tandem
+    interval: 10s
+    rules:
+
+      # Stalled (not merely blocked) - guide/observability.md 3.3:
+      #   (tandem_outbox_lag_age_seconds > 60) and on() (tandem_outbox_blocked_count == 0)
+      # Threshold shortened for the ~3-minute scripted demo run.
+      - uid: tandem-relay-stalled
+        title: Relay stalled
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Alerting
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: |
+                max(tandem_outbox_lag_age_seconds) > 5
+                and
+                max(tandem_outbox_blocked_count) == 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        annotations:
+          summary: Relay backlog is aging with nothing blocked
+          description: The oldest waiting event is old while no rows are blocked behind a failed one - the relay itself is not keeping up.
+        labels:
+          severity: warning
+
+      # Not a relay fault: guide/observability.md 3.3 - tandem_outbox_blocked_count > 0.
+      # Stays firing until the failed row is resolved, so "for" is short but not expected to clear
+      # mid-demo.
+      - uid: tandem-aggregate-blocked
+        title: Aggregate blocked
+        condition: C
+        for: 5s
+        noDataState: OK
+        execErrState: Alerting
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: max(tandem_outbox_blocked_count)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        annotations:
+          summary: An aggregate is stuck behind a failed event
+          description: Waiting rows for this aggregate cannot progress because the head event failed. Find it with failed.count, then replay or discard.
+        labels:
+          severity: critical
+
+      # A row exhausted its attempts: guide/observability.md 3.3 - tandem_outbox_failed_count > 0.
+      # Also expected to stay firing to the end of the demo phase, per the same note above.
+      - uid: tandem-rows-given-up-on
+        title: Rows given up on
+        condition: C
+        for: 5s
+        noDataState: OK
+        execErrState: Alerting
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: max(tandem_outbox_failed_count)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        annotations:
+          summary: One or more outbox rows are FAILED
+          description: A row exhausted its delivery attempts and needs an operator. See the ERROR log for the row id, then replay it.
+        labels:
+          severity: critical
+
+      # The relay itself is down: guide/observability.md 3.3 - absent(tandem_outbox_lag_age_seconds).
+      # absent() returns a series (value 1) only when the metric has stopped reporting entirely, so
+      # noDataState stays OK: "no data from A" here means the metric IS present and the relay is fine.
+      - uid: tandem-no-relay-reporting
+        title: No relay reporting
+        condition: C
+        for: 5s
+        noDataState: OK
+        execErrState: Alerting
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: tandem-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: tandem-prometheus
+              editorMode: code
+              expr: absent(tandem_outbox_lag_age_seconds)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        annotations:
+          summary: No relay is reporting metrics
+          description: The lag gauge has stopped reporting entirely - the relay is likely down. Check the Admin API summary, which reads the outbox table directly and stays up even when the relay does not.
+        labels:
+          severity: critical

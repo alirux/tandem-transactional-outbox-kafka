@@ -120,6 +120,8 @@ public final class ObservabilityStack implements AutoCloseable {
                         "/etc/grafana/provisioning/dashboards/tandem.yml")
                 .withCopyToContainer(Transferable.of(dashboardJson()),
                         "/var/lib/grafana/dashboards/tandem-dashboard.json")
+                .withCopyToContainer(Transferable.of(alertRules()),
+                        "/etc/grafana/provisioning/alerting/tandem-alert-rules.yml")
                 .waitingFor(Wait.forHttp("/api/health").forPort(GRAFANA_PORT));
         if (withTracing) {
             grafanaContainer.withCopyToContainer(Transferable.of(tracesDashboardJson()),
@@ -266,6 +268,15 @@ public final class ObservabilityStack implements AutoCloseable {
 
     private static String dashboardJson() {
         return classpathResource("/grafana/tandem-dashboard.json");
+    }
+
+    /**
+     * Four alert rules over the metrics named in guide/observability.md section 3.3 -- relay stalled,
+     * aggregate blocked, rows given up on, and no relay reporting -- provisioned into the same Grafana
+     * instance the dashboard is on, so each can be watched firing during the scripted demo (section 6.3).
+     */
+    private static String alertRules() {
+        return classpathResource("/grafana/tandem-alert-rules.yml");
     }
 
     private static String tracesDashboardJson() {
