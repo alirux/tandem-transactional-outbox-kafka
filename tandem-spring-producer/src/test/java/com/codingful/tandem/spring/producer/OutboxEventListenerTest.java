@@ -41,7 +41,7 @@ class OutboxEventListenerTest {
 
     private final InMemoryOutbox outbox = new InMemoryOutbox();
     private final OutboxEventListener listener = new OutboxEventListener(
-            outbox, OutboxEventMapperRegistry.of(List.of(new OrderPlacedMapper())));
+            outbox, OutboxEventMapperRegistry.of(List.of(new OrderPlacedMapper())), TransactionBindingGuard.disabled());
 
     private static void withActiveTransaction(Runnable action) {
         TransactionSynchronizationManager.setActualTransactionActive(true);
@@ -119,11 +119,22 @@ class OutboxEventListenerTest {
     @Test
     void GIVEN_a_mapper_that_emits_nothing_WHEN_its_event_is_handled_THEN_nothing_is_inserted() {
         OutboxEventListener quietListener =
-                new OutboxEventListener(outbox, OutboxEventMapperRegistry.of(List.of(new SilentMapper())));
+                new OutboxEventListener(outbox, OutboxEventMapperRegistry.of(List.of(new SilentMapper())), TransactionBindingGuard.disabled());
 
         // No active transaction, yet no failure: an empty result short-circuits before the tx check.
         quietListener.onApplicationEvent(event(new Ignored("order-4")));
 
+        assertThat(outbox.all()).isEmpty();
+    }
+
+    @Test
+    void GIVEN_a_transaction_on_another_datasource_WHEN_a_mapped_event_is_handled_THEN_it_fails_fast() {
+        OutboxEventListener guarded = new OutboxEventListener(outbox,
+                OutboxEventMapperRegistry.of(List.of(new OrderPlacedMapper())),
+                TransactionBindingGuard.forDataSource(new NoopDataSource(), true));
+
+        withActiveTransaction(() -> assertThatThrownBy(() -> guarded.onApplicationEvent(event(new OrderPlaced("order-5"))))
+                .isInstanceOf(OutboxInsertException.class));
         assertThat(outbox.all()).isEmpty();
     }
 }

@@ -58,6 +58,38 @@ import org.springframework.transaction.support.TransactionTemplate;
 @EnableConfigurationProperties({TandemOutboxProperties.class, TandemTracingProperties.class})
 public class TandemProducerAutoConfiguration {
 
+    private static final String JTA_TRANSACTION_MANAGER = "org.springframework.transaction.jta.JtaTransactionManager";
+
+    /**
+     * Guards the three insert tiers against a transaction that is not Tandem's (LLD-spring-producer §8).
+     * {@code tandem.outbox.verify-transaction-binding=false} turns the binding check off, and so does a
+     * JTA transaction manager, which does not bind the {@code DataSource} yet is atomic. The autocommit
+     * check always runs: an insert that would commit on its own is never legitimate. The guard exists only
+     * with the autoconfigured repository, which writes to the {@code DataSource} it checks; an application
+     * that supplies its own {@link OutboxRepository} writes somewhere Tandem cannot know, so the tiers then
+     * run unguarded. Declared before the repository so that both conditions see the same state: it is present
+     * exactly when the autoconfigured repository is. The manager is recognised by class name, never by
+     * {@code JtaTransactionManager.class}: loading that type needs the JTA API, which most applications
+     * do not have.
+     */
+    @Bean
+    @ConditionalOnMissingBean({TransactionBindingGuard.class, OutboxRepository.class})
+    TransactionBindingGuard tandemTransactionBindingGuard(DataSource dataSource, TandemOutboxProperties properties,
+            ObjectProvider<PlatformTransactionManager> transactionManagers) {
+        boolean checkBinding = properties.verifyTransactionBinding()
+                && transactionManagers.stream().noneMatch(manager -> isOrExtends(manager, JTA_TRANSACTION_MANAGER));
+        return TransactionBindingGuard.forDataSource(dataSource, checkBinding);
+    }
+
+    static boolean isOrExtends(Object instance, String className) {
+        for (Class<?> type = instance.getClass(); type != null; type = type.getSuperclass()) {
+            if (className.equals(type.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * The write-side repository, backed by JDBC. The bucket-count guard runs first, so a bucket count
      * that diverges from what the database already holds fails context refresh (LLD-spring-config §3)
@@ -138,8 +170,9 @@ public class TandemProducerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     OutboxEventListener tandemOutboxEventListener(OutboxRepository outboxRepository,
-            OutboxEventMapperRegistry mapperRegistry) {
-        return new OutboxEventListener(outboxRepository, mapperRegistry);
+            OutboxEventMapperRegistry mapperRegistry, ObjectProvider<TransactionBindingGuard> bindingGuard) {
+        return new OutboxEventListener(outboxRepository, mapperRegistry,
+                bindingGuard.getIfAvailable(TransactionBindingGuard::disabled));
     }
 
     /**
@@ -151,9 +184,10 @@ public class TandemProducerAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(PlatformTransactionManager.class)
     TransactionalOutboxTemplate tandemTransactionalOutboxTemplate(OutboxRepository outboxRepository,
-            PlatformTransactionManager transactionManager, ObjectProvider<PayloadSerializer> payloadSerializer) {
-        return new DefaultTransactionalOutboxTemplate(
-                outboxRepository, new TransactionTemplate(transactionManager), payloadSerializer.getIfAvailable());
+            PlatformTransactionManager transactionManager, ObjectProvider<PayloadSerializer> payloadSerializer,
+            ObjectProvider<TransactionBindingGuard> bindingGuard) {
+        return new DefaultTransactionalOutboxTemplate(outboxRepository, new TransactionTemplate(transactionManager),
+                payloadSerializer.getIfAvailable(), bindingGuard.getIfAvailable(TransactionBindingGuard::disabled));
     }
 
     /**
@@ -182,7 +216,9 @@ public class TandemProducerAutoConfiguration {
     @Bean
     @ConditionalOnClass(ProceedingJoinPoint.class)
     @ConditionalOnMissingBean
-    TransactionalOutboxAspect tandemTransactionalOutboxAspect(OutboxRepository outboxRepository) {
-        return new TransactionalOutboxAspect(outboxRepository);
+    TransactionalOutboxAspect tandemTransactionalOutboxAspect(OutboxRepository outboxRepository,
+            ObjectProvider<TransactionBindingGuard> bindingGuard) {
+        return new TransactionalOutboxAspect(outboxRepository,
+                bindingGuard.getIfAvailable(TransactionBindingGuard::disabled));
     }
 }

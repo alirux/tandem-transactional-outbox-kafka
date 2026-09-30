@@ -17,9 +17,11 @@ final class DefaultTransactionalOutboxTemplate implements TransactionalOutboxTem
     private final OutboxRepository outboxRepository;
     private final TransactionTemplate transactionTemplate;
     private final PayloadSerializer payloadSerializer; // may be null — only object payloads need it
+    private final TransactionBindingGuard bindingGuard;
 
     DefaultTransactionalOutboxTemplate(OutboxRepository outboxRepository, TransactionTemplate transactionTemplate,
-            PayloadSerializer payloadSerializer) {
+            PayloadSerializer payloadSerializer, TransactionBindingGuard bindingGuard) {
+        this.bindingGuard = Objects.requireNonNull(bindingGuard, "bindingGuard");
         this.outboxRepository = Objects.requireNonNull(outboxRepository, "outboxRepository");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
         this.payloadSerializer = payloadSerializer;
@@ -31,6 +33,9 @@ final class DefaultTransactionalOutboxTemplate implements TransactionalOutboxTem
         return transactionTemplate.execute(status -> {
             CollectingOutboxCollector collector = new CollectingOutboxCollector(payloadSerializer);
             T result = work.apply(collector);
+            if (!collector.collected().isEmpty()) {
+                bindingGuard.requireAtomic();
+            }
             outboxRepository.insertAll(collector.collected());
             return result;
         });

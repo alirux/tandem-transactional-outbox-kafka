@@ -18,7 +18,13 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                    the default). Like the bucket count it belongs to both sides: the relay must
  *                    listen for what the write-side emits, or the signal is never consumed. Setting it
  *                    on one side alone is harmless — polling still bounds discovery
+ * @param verifyTransactionBinding write-side only: before an insert, require the active transaction to be
+ *                    bound to Tandem's {@code DataSource}, so a transaction on another one fails loudly
+ *                    instead of leaving a phantom row. Skipped under JTA; set {@code false} for a
+ *                    setup the check cannot see through. An insert on an autocommit connection is
+ *                    refused regardless (LLD-spring-producer §8)
  */
 @ConfigurationProperties("tandem.outbox")
-public record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup) {
+public record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup,
+        @DefaultValue("true") boolean verifyTransactionBinding) {
 }

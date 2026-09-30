@@ -1,1 +1,2 @@
 com.codingful.tandem.spring.producer.TandemProducerAutoConfiguration
+com.codingful.tandem.spring.producer.TandemDataSourceDiagnosticsAutoConfiguration

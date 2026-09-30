@@ -23,8 +23,11 @@ class OutboxEventListener implements GenericApplicationListener {
 
     private final OutboxRepository outboxRepository;
     private final OutboxEventMapperRegistry mapperRegistry;
+    private final TransactionBindingGuard bindingGuard;
 
-    OutboxEventListener(OutboxRepository outboxRepository, OutboxEventMapperRegistry mapperRegistry) {
+    OutboxEventListener(OutboxRepository outboxRepository, OutboxEventMapperRegistry mapperRegistry,
+            TransactionBindingGuard bindingGuard) {
+        this.bindingGuard = Objects.requireNonNull(bindingGuard, "bindingGuard");
         this.outboxRepository = Objects.requireNonNull(outboxRepository, "outboxRepository");
         this.mapperRegistry = Objects.requireNonNull(mapperRegistry, "mapperRegistry");
     }
@@ -54,6 +57,7 @@ class OutboxEventListener implements GenericApplicationListener {
             throw new OutboxInsertException("A Tandem outbox event was published outside an active transaction —"
                     + " the insert would not be atomic eventType:" + payload.getClass().getName());
         }
+        bindingGuard.requireAtomic();
         outboxRepository.insertAll(messages);
     }
 

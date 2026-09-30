@@ -36,6 +36,7 @@ class TandemProducerRuntimeTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TandemProducerAutoConfiguration.class))
+            .withBean(TransactionBindingGuard.class, TransactionBindingGuard::disabled) // the stub transaction binds nothing
             .withBean(DataSource.class, NoopDataSource::new)
             .withBean(OutboxRepository.class, InMemoryOutbox::new)
             .withBean(PlatformTransactionManager.class, StubTransactionManager::new)

@@ -10,6 +10,7 @@ import com.codingful.tandem.core.port.TandemAggregate;
 import com.codingful.tandem.test.InMemoryOutbox;
 import java.util.Collection;
 import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -85,7 +86,7 @@ class TransactionalOutboxAspectTest {
     @Test
     void GIVEN_an_active_transaction_WHEN_pending_messages_are_inserted_THEN_they_reach_the_outbox() {
         InMemoryOutbox outbox = new InMemoryOutbox();
-        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox);
+        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox, TransactionBindingGuard.disabled());
 
         withActiveTransaction(() -> aspect.insertPending(List.of(message("Order", 1L)), ""));
 
@@ -95,7 +96,7 @@ class TransactionalOutboxAspectTest {
     @Test
     void GIVEN_no_active_transaction_WHEN_pending_messages_would_be_inserted_THEN_it_fails_fast() {
         InMemoryOutbox outbox = new InMemoryOutbox();
-        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox);
+        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox, TransactionBindingGuard.disabled());
 
         assertThatThrownBy(() -> aspect.insertPending(List.of(message("Order", 1L)), ""))
                 .isInstanceOf(OutboxInsertException.class);
@@ -105,9 +106,21 @@ class TransactionalOutboxAspectTest {
     @Test
     void GIVEN_no_pending_messages_WHEN_inserting_THEN_it_is_a_no_op_even_without_a_transaction() {
         InMemoryOutbox outbox = new InMemoryOutbox();
-        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox);
+        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox, TransactionBindingGuard.disabled());
 
         assertThatCode(() -> aspect.insertPending(List.of(), "")).doesNotThrowAnyException();
+        assertThat(outbox.all()).isEmpty();
+    }
+
+    @Test
+    void GIVEN_a_transaction_on_another_datasource_WHEN_pending_messages_are_inserted_THEN_it_fails_fast() {
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        DataSource tandemDataSource = new NoopDataSource();
+        TransactionalOutboxAspect aspect =
+                new TransactionalOutboxAspect(outbox, TransactionBindingGuard.forDataSource(tandemDataSource, true));
+
+        withActiveTransaction(() -> assertThatThrownBy(() -> aspect.insertPending(List.of(message("Order", 1L)), ""))
+                .isInstanceOf(OutboxInsertException.class));
         assertThat(outbox.all()).isEmpty();
     }
 }

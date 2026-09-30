@@ -95,6 +95,24 @@ class TandemProducerIntegrationTest {
     }
 
     @Test
+    void GIVEN_the_autoconfigured_write_side_WHEN_the_context_starts_THEN_the_transaction_is_fully_verified() {
+        runner.run(context -> {
+            TransactionBindingGuard guard = context.getBean(TransactionBindingGuard.class);
+            assertThat(guard.isDisabled()).isFalse();
+            assertThat(guard.checksBinding()).isTrue();
+        });
+    }
+
+    @Test
+    void GIVEN_binding_verification_switched_off_WHEN_the_context_starts_THEN_only_the_binding_check_is_skipped() {
+        runner.withPropertyValues("tandem.outbox.verify-transaction-binding=false").run(context -> {
+            TransactionBindingGuard guard = context.getBean(TransactionBindingGuard.class);
+            assertThat(guard.isDisabled()).isFalse();
+            assertThat(guard.checksBinding()).isFalse();
+        });
+    }
+
+    @Test
     void GIVEN_the_template_WHEN_the_work_commits_THEN_the_row_is_inserted() {
         runner.run(context -> {
             context.getBean(TransactionalOutboxTemplate.class)

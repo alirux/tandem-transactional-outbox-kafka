@@ -228,4 +228,25 @@ class TandemProducerAutoConfigurationTest {
                 .withPropertyValues("tandem.tracing.enabled=true")
                 .run(context -> assertThat(context.getBean(TracePropagator.class)).isSameAs(custom));
     }
+
+    private static class ParentManager {
+    }
+
+    private static final class ChildManager extends ParentManager {
+    }
+
+    @Test
+    void GIVEN_a_manager_extending_a_named_class_WHEN_recognised_by_that_name_THEN_subclasses_count_and_parents_of_it_do_not() {
+        assertThat(TandemProducerAutoConfiguration.isOrExtends(new ChildManager(), ParentManager.class.getName()))
+                .isTrue();
+        assertThat(TandemProducerAutoConfiguration.isOrExtends(new ParentManager(), ChildManager.class.getName()))
+                .isFalse();
+    }
+
+    @Test
+    void GIVEN_a_user_supplied_repository_WHEN_the_context_starts_THEN_no_transaction_guard_is_contributed() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .run(context -> assertThat(context).doesNotHaveBean(TransactionBindingGuard.class));
+    }
 }

@@ -352,6 +352,42 @@ method surface for a mechanism most callers, per §3.3 below, do not need.
   active-transaction backstop plus the rollback integration test make any ordering error loud rather than
   silent, and a runtime test on both Spring generations pins that the advice intercepts at all
   (LLD-spring-config §1.2). Set an explicit order only if a real conflict with another advisor appears.
+- **The transaction must be Tandem's, not just active.** `isActualTransactionActive()` is true for a
+  transaction on any `DataSource`. When the domain transaction runs on another one (Tandem on the
+  `@Primary` `DataSource`, the domain on `@Transactional("ordersTx")`), the repository's
+  `TransactionAwareDataSourceProxy` finds no bound connection and hands out an autocommitted one: the
+  domain change rolls back, the outbox row stays and the relay publishes it. All three insert tiers
+  (Template, `@TransactionalOutbox`, events) therefore run a `TransactionBindingGuard` before the insert,
+  made of two checks:
+  1. *Binding*: `TransactionSynchronizationManager.hasResource(dataSource)` for the raw `DataSource`.
+     A JTA transaction manager binds nothing yet is atomic, so the check is skipped when one is among the
+     beans (recognised by class name: loading `JtaTransactionManager` needs the JTA API, which most
+     applications lack). `tandem.outbox.verify-transaction-binding=false` turns it off for a setup whose
+     `DataSource` identity it cannot see through (a third-party proxy); a false positive there is
+     otherwise a failure at every insert.
+  2. *Autocommit*: the connection the insert would use must not be in autocommit. No legitimate setup
+     inserts on an autocommit connection inside a transaction, so this has no false positive and no
+     switch. Alone it is not enough, because a pool configured with `autoCommit=false` hands out a
+     non-autocommit connection that is still not the transaction's (the insert would then be rolled back
+     when the pool takes the connection back: a lost event instead of a phantom one).
+
+  The guard exists only with the autoconfigured repository, the one that writes to the `DataSource` it
+  checks; an application supplying its own `OutboxRepository` writes somewhere Tandem cannot know, so the
+  tiers then run unguarded. A `DataSource` bean that is itself a `TransactionAwareDataSourceProxy` is
+  checked through its target, which is what the transaction managers bind. The Template tier checks only
+  when the unit of work recorded something, like the other two tiers.
+
+  Known limits: the guard sees one transaction at a time, so a nested pair (outer on Tandem's
+  manager, inner `@Transactional("ordersTx")`) passes: the insert joins the outer transaction while the
+  domain change sits in the inner one, and an inner rollback the outer swallows still publishes. A JTA
+  manager behind a JDK proxy is not recognised by class name, so the binding check refuses there; the
+  property is the way out.
+
+  Either failure is an `OutboxInsertException`; the binding one names the property. Also, the producer
+  autoconfiguration backs off silently when several `DataSource`s exist and none is primary
+  (§4.1 of LLD-spring-config); `TandemDataSourceDiagnosticsAutoConfiguration` logs a `WARN` with the
+  number and bean names of the candidates so the cause is visible. Pinned against a real PostgreSQL with a
+  second `DataSource` in `TandemProducerTwoDataSourceIntegrationTest`.
 - **Micrometer-Tracing** — cross-referenced only (HLD-tracing §8); trace capture is at the insert
   chokepoint and needs no per-tier work.
 - **`@TransactionalOutbox` on a non-`TandemAggregate` return** is treated as "no extraction", not an

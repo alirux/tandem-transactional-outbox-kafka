@@ -26,9 +26,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class TransactionalOutboxAspect {
 
     private final OutboxRepository outboxRepository;
+    private final TransactionBindingGuard bindingGuard;
 
-    TransactionalOutboxAspect(OutboxRepository outboxRepository) {
+    TransactionalOutboxAspect(OutboxRepository outboxRepository, TransactionBindingGuard bindingGuard) {
         this.outboxRepository = Objects.requireNonNull(outboxRepository, "outboxRepository");
+        this.bindingGuard = Objects.requireNonNull(bindingGuard, "bindingGuard");
     }
 
     @Around("@annotation(transactionalOutbox)")
@@ -53,6 +55,7 @@ class TransactionalOutboxAspect {
             throw new OutboxInsertException("@TransactionalOutbox produced outbox messages outside an active"
                     + " transaction — the insert would not be atomic");
         }
+        bindingGuard.requireAtomic();
         outboxRepository.insertAll(messages);
     }
 

@@ -22,6 +22,14 @@ tandem:
     # the relay finds the rows by polling anyway if nobody is listening. PostgreSQL only, and the relay
     # must bind the same value for it to be of any use (LLD-jdbc §3.10).
     wakeup: none
+
+    # tandem.outbox.verify-transaction-binding: before an insert, check that the active transaction is
+    # one the insert takes part in: bound to Tandem's DataSource (skipped under JTA) and not in autocommit.
+    # Default: true. A transaction on another DataSource would otherwise let the domain change roll back
+    # while the outbox row stays and is published. Write side only; set false only for a setup the check
+    # misjudges and whose transaction is atomic by other means. An insert that would run on an
+    # autocommit connection is refused whatever this says (LLD-spring-producer §8).
+    verify-transaction-binding: true
   tracing:
     # tandem.tracing.enabled — capture trace/correlation context at insert time. Default: false.
     # Off means no lookup and no header added: a genuine opt-in, never auto-enabled just because a
