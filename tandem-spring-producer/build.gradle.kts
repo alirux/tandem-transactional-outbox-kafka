@@ -61,6 +61,13 @@ dependencies {
     testImplementation(testFixtures(project(":tandem-test")))
 }
 
+// The configuration processor reads META-INF/additional-spring-configuration-metadata.json (the hand-written
+// descriptions, since it cannot take them from a record's @param tags) off the *processed* resources, so
+// they must be there before compileJava runs; otherwise the file is silently ignored.
+tasks.named("compileJava") {
+    inputs.files(tasks.named("processResources"))
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Three-line compatibility matrix (LLD-spring-config §1.2)
 //

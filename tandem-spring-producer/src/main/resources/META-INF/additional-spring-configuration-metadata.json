@@ -1,0 +1,24 @@
+{
+  "properties": [
+    {
+      "name": "tandem.outbox.bucket-count",
+      "description": "Number of virtual buckets that work is spread over. Stored in every row, so it must match the relay's value and never change after the first deployment; both sides check it at startup and refuse to run on a mismatch. Valid range 1 to 32,767."
+    },
+    {
+      "name": "tandem.outbox.wakeup",
+      "description": "Whether an insert also signals the relay that the bucket it wrote has work: none (the relay finds rows by polling alone) or pg-notify (PostgreSQL only, sent inside your transaction). Set the same value on the relay; a mismatch only costs the shortened wait, never delivery."
+    },
+    {
+      "name": "tandem.outbox.verify-transaction-binding",
+      "description": "Write side only. Before each insert inside a Spring transaction, require that transaction to be bound to the DataSource Tandem writes to, so a transaction on another DataSource fails loudly instead of leaving a phantom outbox row. Skipped under JTA. Set to false only if the check misjudges a setup whose transaction is atomic by other means; an insert that would run on an autocommit connection is refused whatever this says."
+    },
+    {
+      "name": "tandem.tracing.enabled",
+      "description": "Whether the trace context and correlation id are captured into each outbox row at insert time. Off by default and never enabled by a tracing library's mere presence. With Micrometer Tracing it captures both the distributed trace context and the correlation id; without it, the correlation id alone."
+    },
+    {
+      "name": "tandem.tracing.correlation-id-mdc-key",
+      "description": "The MDC key read for the correlation id when tracing capture is enabled. When the key is unset in the MDC, the explicit TandemContext API is used instead."
+    }
+  ]
+}
