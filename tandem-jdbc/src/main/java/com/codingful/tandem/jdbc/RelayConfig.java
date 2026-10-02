@@ -44,6 +44,7 @@ public final class RelayConfig {
     private final Duration cleanupInterval;
     private final Duration metricsInterval;
     private final long deliveryTimeoutMs;
+    private final boolean deliveryTimeoutSet;
     private final long logEveryRows;
     private final boolean orderViolationDetection;
 
@@ -65,6 +66,7 @@ public final class RelayConfig {
         this.cleanupInterval = b.cleanupInterval;
         this.metricsInterval = b.metricsInterval;
         this.deliveryTimeoutMs = b.deliveryTimeoutMs;
+        this.deliveryTimeoutSet = b.deliveryTimeoutSet;
         this.logEveryRows = b.logEveryRows;
         this.orderViolationDetection = b.orderViolationDetection;
     }
@@ -153,6 +155,15 @@ public final class RelayConfig {
 
     public long deliveryTimeoutMs() {
         return deliveryTimeoutMs;
+    }
+
+    /**
+     * Whether {@link #deliveryTimeoutMs()} was set by the caller rather than left at its default. Only a
+     * value somebody chose can be "overridden" by the dispatcher's own, which is what the relay warns
+     * about at startup; the untouched default differing from it is the ordinary case.
+     */
+    boolean deliveryTimeoutSet() {
+        return deliveryTimeoutSet;
     }
 
     public long logEveryRows() {
@@ -267,6 +278,7 @@ public final class RelayConfig {
         private Duration cleanupInterval = Duration.ofMinutes(15);
         private Duration metricsInterval = Duration.ofSeconds(10);
         private long deliveryTimeoutMs = 30_000;   // Kafka producer default (LLD-kafka §1)
+        private boolean deliveryTimeoutSet;
         private long logEveryRows = 10_000;
         private boolean orderViolationDetection = true;
 
@@ -434,10 +446,12 @@ public final class RelayConfig {
          * Fallback {@code delivery.timeout.ms} used to validate {@link #rowLease} at startup
          * ({@link #checkRowLeaseSafe}) only when the wired dispatcher does not report its own effective
          * timeout — this module has no Kafka dependency itself. The Kafka dispatcher does report one, so
-         * it overrides this value; setting it then has no effect. Default 30000 (the Kafka producer default).
+         * it overrides this value; setting it then has no effect, and the relay says so at startup when the
+         * two differ. Default 30000 (the Kafka producer default).
          */
         public Builder deliveryTimeoutMs(long deliveryTimeoutMs) {
             this.deliveryTimeoutMs = positive(deliveryTimeoutMs, "deliveryTimeoutMs");
+            this.deliveryTimeoutSet = true;
             return this;
         }
 

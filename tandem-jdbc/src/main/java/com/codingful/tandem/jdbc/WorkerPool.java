@@ -160,8 +160,12 @@ public final class WorkerPool {
         }
         // hard invariant rowLease > delivery.timeout.ms (§3.5), validated against the dispatcher's own
         // effective timeout when it reports one — so it cannot pass against a stale configured default.
+        // The warning is for a value somebody set and the dispatcher overrides. The default differing
+        // from what the dispatcher reports is the ordinary case (a producer setting, or just a client
+        // whose own defaults moved), and a healthy start has nothing to warn about there.
         OptionalLong dispatcherTimeout = dispatcher.deliveryTimeoutMillis();
-        if (dispatcherTimeout.isPresent() && dispatcherTimeout.getAsLong() != cfg.deliveryTimeoutMs()) {
+        if (dispatcherTimeout.isPresent() && cfg.deliveryTimeoutSet()
+                && dispatcherTimeout.getAsLong() != cfg.deliveryTimeoutMs()) {
             LOG.log(Level.WARNING, "Validating rowLease against the dispatcher's reported delivery timeout,"
                     + " not the configured value dispatcherDeliveryTimeoutMs:" + dispatcherTimeout.getAsLong()
                     + ", configuredDeliveryTimeoutMs:" + cfg.deliveryTimeoutMs());

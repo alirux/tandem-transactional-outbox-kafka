@@ -30,6 +30,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,6 +38,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
@@ -74,6 +79,74 @@ class WorkerPoolTest {
         WorkerPool pool = new WorkerPool(new InMemoryOutbox(), reportsUnsafeTimeout, cfg);
 
         assertThatThrownBy(pool::start).isInstanceOf(TandemConfigurationException.class);
+    }
+
+    /**
+     * A dispatcher that reports its own delivery timeout is the normal case (the Kafka one always
+     * does), and its value rarely equals the engine's fallback: a producer setting, or just the client's
+     * own defaults, move it. With nothing configured on the relay there is nothing being overridden, so
+     * a healthy start must not warn about it.
+     */
+    @Test
+    void GIVEN_a_dispatcher_reporting_its_own_delivery_timeout_and_none_configured_WHEN_the_relay_starts_THEN_nothing_is_warned() {
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), reporting(cfg.deliveryTimeoutMs() + 5), cfg);
+
+        assertThat(warningsWhileStarting(pool)).isEmpty();
+    }
+
+    @Test
+    void GIVEN_a_configured_delivery_timeout_the_dispatcher_overrides_WHEN_the_relay_starts_THEN_the_override_is_warned() {
+        long reported = 30_005;
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).deliveryTimeoutMs(10_000).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), reporting(reported), cfg);
+
+        assertThat(warningsWhileStarting(pool)).singleElement()
+                .satisfies(warning -> assertThat(warning.getMessage()).contains(Long.toString(reported)));
+    }
+
+    private static OutboxDispatcher reporting(long deliveryTimeoutMillis) {
+        return new OutboxDispatcher() {
+            @Override
+            public CompletableFuture<Void> dispatch(OutboxRecord record) {
+                return CompletableFuture.completedFuture(null);
+            }
+
+            @Override
+            public OptionalLong deliveryTimeoutMillis() {
+                return OptionalLong.of(deliveryTimeoutMillis);
+            }
+        };
+    }
+
+    /** Starts and stops the relay, returning what it logged at WARNING through the JDK's own logging. */
+    private static List<LogRecord> warningsWhileStarting(WorkerPool pool) {
+        List<LogRecord> warnings = new CopyOnWriteArrayList<>();
+        Handler collector = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                if (record.getLevel() == Level.WARNING) {
+                    warnings.add(record);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        Logger relayLogger = Logger.getLogger(WorkerPool.class.getName());
+        relayLogger.addHandler(collector);
+        try {
+            pool.start();
+        } finally {
+            pool.stop();
+            relayLogger.removeHandler(collector);
+        }
+        return warnings;
     }
 
     @Test
