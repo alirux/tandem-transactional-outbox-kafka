@@ -201,7 +201,9 @@ Because **the database is Tandem's coordination point**, the Admin API needs not
 the client service at runtime except access to its outbox database. It supports two models:
 
 - **Embedded** — added as a module inside the client Spring application; same process,
-  simplest setup.
+  simplest setup. When that application also runs the relay, the Admin API uses the relay's
+  `OutboxStore` instead of contributing one: its autoconfiguration is ordered after the relay's, so
+  the store built from `tandem.relay.max-attempts` is the only one in the context.
 - **Standalone (fully independent)** — its own deployable Spring Boot service, pointed at the
   client application's datasource. **No runtime dependency on the client service**:
   independent lifecycle, independent scaling, and a separate security boundary (the

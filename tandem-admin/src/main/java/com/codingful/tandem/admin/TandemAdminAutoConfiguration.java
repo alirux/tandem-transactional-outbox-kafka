@@ -32,10 +32,16 @@ import org.springframework.context.annotation.Import;
  * <p>The ordering is declared by <b>name</b> for both Spring generations: Boot 4 moved
  * {@code DataSourceAutoConfiguration} into {@code spring-boot-jdbc}, so a class literal would name a
  * type absent there and the ordering would be silently lost (LLD-spring-config §1.1).
+ *
+ * <p>It is also ordered after {@code tandem-spring-relay}'s autoconfiguration, by name because this
+ * module does not depend on that one. That is what makes "an embedded deployment's own beans win" hold
+ * for the relay's: its {@code OutboxStore} carries the configured {@code tandem.relay.max-attempts},
+ * and it must be registered before the fallback below is considered.
  */
 @AutoConfiguration(afterName = {
         "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",   // Spring Boot 3.x
-        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"})  // Spring Boot 4.x
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",   // Spring Boot 4.x
+        "com.codingful.tandem.spring.relay.TandemRelayAutoConfiguration"})
 @ConditionalOnSingleCandidate(DataSource.class)
 @ConditionalOnProperty(prefix = "tandem.admin", name = "enabled", matchIfMissing = false)
 @Import({TandemAdminExceptionHandler.class, OutboxAdminConfiguration.class, RelayAdminConfiguration.class})

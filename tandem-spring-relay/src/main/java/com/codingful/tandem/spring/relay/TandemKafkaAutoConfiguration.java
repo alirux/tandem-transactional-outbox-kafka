@@ -41,6 +41,12 @@ import org.springframework.context.annotation.Bean;
  * this is what lets that class's own "nothing to publish with" diagnostic back off once a dispatcher
  * has been contributed here.
  *
+ * <p>Ordered <b>after Spring Boot's {@code DataSource} autoconfiguration</b>, by name for both
+ * generations (LLD-spring-config §1.1), because the class is conditional on that bean and the condition
+ * is evaluated when the class is processed. Being {@code before} the relay autoconfiguration does not
+ * give it that class's own orderings: left unordered against the {@code DataSource}, this class sorts
+ * ahead of it, sees none, and contributes no dispatcher to a relay that then has nothing to publish with.
+ *
  * <p>The whole class backs off when the application contributes an {@link OutboxDispatcher} of its own:
  * publishing through another transport adapter is then the application's choice, and building a Kafka
  * producer beside it would demand {@code tandem.kafka.source} from an application that publishes no
@@ -48,7 +54,9 @@ import org.springframework.context.annotation.Bean;
  * because Spring guarantees no ordering between the {@code @Bean} methods of one class, and the
  * dispatcher this class itself contributes would race the conditions of the other two.
  */
-@AutoConfiguration(before = TandemRelayAutoConfiguration.class)
+@AutoConfiguration(before = TandemRelayAutoConfiguration.class, afterName = {
+        "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",   // Spring Boot 3.x
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"})  // Spring Boot 4.x
 @ConditionalOnClass({KafkaProducer.class, KafkaRelay.class})
 @ConditionalOnMissingBean(OutboxDispatcher.class)
 // Gated on exactly what the relay it feeds is gated on: without a relay there is nothing to publish

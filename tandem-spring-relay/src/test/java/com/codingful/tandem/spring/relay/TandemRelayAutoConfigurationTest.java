@@ -2,12 +2,14 @@ package com.codingful.tandem.spring.relay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codingful.tandem.admin.TandemAdminAutoConfiguration;
 import com.codingful.tandem.core.EncodedMessage;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
 import com.codingful.tandem.core.port.MessageEncoder;
 import com.codingful.tandem.core.port.OutboxDispatcher;
+import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
@@ -20,6 +22,7 @@ import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
+import com.codingful.tandem.kafka.KafkaRelay;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
 import io.micrometer.tracing.propagation.Propagator;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -28,6 +31,8 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.Map;
 import javax.sql.DataSource;
@@ -38,6 +43,7 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 
 /**
  * Wiring tests for the relay autoconfiguration (LLD-spring-config §4.4) that need no Docker, so they run
@@ -233,6 +239,68 @@ class TandemRelayAutoConfigurationTest {
     void GIVEN_no_datasource_WHEN_the_context_starts_THEN_no_relay_is_contributed() {
         runner.withPropertyValues("tandem.kafka.source=/tandem/test")
                 .run(context -> assertThat(context).doesNotHaveBean(WorkerPool.class));
+    }
+
+    /**
+     * The {@code DataSource} of a real application is not an application bean either: Spring Boot builds
+     * it from {@code spring.datasource.*}, in an autoconfiguration that sorts after Tandem's unless told
+     * otherwise. Every part of the relay is conditional on that bean, the publish adapter included, so
+     * each must be processed after it. {@link #wiredRelay()} hands the bean over directly, which exists
+     * before any autoconfiguration is processed and so says nothing about that ordering.
+     */
+    @Test
+    void GIVEN_the_datasource_contributed_by_spring_boot_itself_WHEN_the_context_starts_THEN_the_relay_publishes_to_kafka() {
+        Class<?>[] springBootDataSource = presentOnThisSpringGeneration(
+                "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+                "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration");
+        assertThat(springBootDataSource).as("Spring Boot's DataSource autoconfiguration on the test classpath").hasSize(1);
+
+        runner.withConfiguration(AutoConfigurations.of(springBootDataSource))
+                .withUserConfiguration(UnstartedLifecycle.class)
+                .withPropertyValues(
+                        // A DataSource that opens no connection until asked, which nothing here does.
+                        "spring.datasource.type=" + SimpleDriverDataSource.class.getName(),
+                        "spring.datasource.url=jdbc:postgresql://localhost/tandem",
+                        "tandem.kafka.source=/tandem/test",
+                        "tandem.kafka.producer[bootstrap.servers]=localhost:9092")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(WorkerPool.class);
+                    assertThat(context.getBean(OutboxDispatcher.class)).isInstanceOf(KafkaRelay.class);
+                });
+    }
+
+    /** Resolved by name: the same compiled test runs on Spring generations that keep these classes apart. */
+    static Class<?>[] presentOnThisSpringGeneration(String... classNames) {
+        List<Class<?>> present = new ArrayList<>();
+        for (String name : classNames) {
+            try {
+                present.add(Class.forName(name));
+            } catch (ClassNotFoundException otherGeneration) {
+                // Expected for the names of the generation that is not on this classpath.
+            }
+        }
+        return present.toArray(Class<?>[]::new);
+    }
+
+    /**
+     * One application may host the relay and the Admin API together, and both contribute an
+     * {@link OutboxStore}. The relay's is the one built from {@code tandem.relay.max-attempts}, which
+     * decides when a reclaimed row is quarantined, so it has to be the one that survives: the Admin API's
+     * own is built from the engine default and would make the configured value silently inert. The
+     * store does not expose the value it was built with, hence the assertion on where the surviving bean
+     * comes from.
+     */
+    @Test
+    void GIVEN_the_admin_api_hosted_beside_the_relay_WHEN_the_context_starts_THEN_the_relay_keeps_its_own_outbox_store() {
+        wiredRelay().withConfiguration(AutoConfigurations.of(TandemAdminAutoConfiguration.class))
+                .withPropertyValues("tandem.admin.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(OutboxQuery.class);
+                    assertThat(context).hasSingleBean(OutboxStore.class);
+                    String store = context.getBeanNamesForType(OutboxStore.class)[0];
+                    String contributor = context.getBeanFactory().getBeanDefinition(store).getFactoryBeanName();
+                    assertThat(context.getType(contributor)).isEqualTo(TandemRelayAutoConfiguration.class);
+                });
     }
 
     @Test

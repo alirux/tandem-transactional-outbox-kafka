@@ -51,6 +51,15 @@ dependencies {
     // actually reaches MicrometerTandemMetrics needs a registry that renders one (mirrors the same
     // trade-off in tandem-micrometer's own test suite).
     testImplementation(libs.micrometer.registry.prometheus)
+    // Spring Boot's own metrics autoconfigurations, so the ordering against them is proved with the
+    // registry Boot itself contributes rather than one handed over as an application bean, which exists
+    // before any autoconfiguration runs and therefore proves nothing about ordering.
+    testImplementation(libs.spring.boot.actuator.autoconfigure)
+    // The Admin API beside the relay in one application: both contribute an OutboxStore, and the wiring
+    // test asserts the relay's own is the one that survives. spring-web is what its REST classes need to
+    // load, exactly as in the application that hosts them.
+    testImplementation(project(":tandem-admin"))
+    testImplementation(libs.spring.web)
     // A real tracer, propagator and in-memory span exporter, so the publish span is asserted as a real
     // exported span with a real parent rather than through a hand-written stand-in.
     testImplementation(libs.micrometer.tracing)
@@ -95,6 +104,9 @@ dependencies {
     bootLatestThreeTestRuntimeClasspath(project(":tandem-micrometer"))
     bootLatestThreeTestRuntimeClasspath(libs.micrometer.core)
     bootLatestThreeTestRuntimeClasspath(libs.micrometer.registry.prometheus)
+    bootLatestThreeTestRuntimeClasspath(libs.spring.boot.actuator.autoconfigure)
+    bootLatestThreeTestRuntimeClasspath(project(":tandem-admin"))
+    bootLatestThreeTestRuntimeClasspath(libs.spring.web)
     bootLatestThreeTestRuntimeClasspath(libs.micrometer.tracing)
     bootLatestThreeTestRuntimeClasspath(libs.micrometer.tracing.bridge.otel)
     bootLatestThreeTestRuntimeClasspath(libs.opentelemetry.sdk)
@@ -114,6 +126,12 @@ dependencies {
     bootFourTestRuntimeClasspath(project(":tandem-micrometer"))
     bootFourTestRuntimeClasspath(libs.micrometer.core)
     bootFourTestRuntimeClasspath(libs.micrometer.registry.prometheus)
+    // Boot 4 moved the metrics autoconfigurations out of spring-boot-actuator-autoconfigure.
+    bootFourTestRuntimeClasspath(libs.spring.boot.micrometer.metrics)
+    // Likewise DataSourceAutoConfiguration, which the 3.x lines find in spring-boot-autoconfigure.
+    bootFourTestRuntimeClasspath(libs.spring.boot.jdbc)
+    bootFourTestRuntimeClasspath(project(":tandem-admin"))
+    bootFourTestRuntimeClasspath(libs.spring.web)
     bootFourTestRuntimeClasspath(libs.micrometer.tracing)
     bootFourTestRuntimeClasspath(libs.micrometer.tracing.bridge.otel)
     bootFourTestRuntimeClasspath(libs.opentelemetry.sdk)

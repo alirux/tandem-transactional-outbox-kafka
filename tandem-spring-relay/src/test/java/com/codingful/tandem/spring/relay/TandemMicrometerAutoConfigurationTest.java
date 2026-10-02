@@ -51,6 +51,31 @@ class TandemMicrometerAutoConfigurationTest {
                 });
     }
 
+    /**
+     * The registry of a real application is not an application bean: Spring Boot's own metrics support
+     * contributes it, from autoconfigurations that sort after Tandem's unless told otherwise. Every other
+     * test here hands the registry over directly, which exists before any autoconfiguration is processed
+     * and so says nothing about that ordering.
+     */
+    @Test
+    void GIVEN_the_registry_contributed_by_spring_boot_itself_WHEN_the_context_starts_THEN_the_micrometer_adapter_wins_over_the_noop_default() {
+        // spring-boot-actuator-autoconfigure on 3.x, spring-boot-micrometer-metrics on 4.x.
+        Class<?>[] springBootMetrics = TandemRelayAutoConfigurationTest.presentOnThisSpringGeneration(
+                "org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration",
+                "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",
+                "org.springframework.boot.actuate.autoconfigure.metrics.export.simple.SimpleMetricsExportAutoConfiguration",
+                "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
+                "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
+                "org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration");
+        assertThat(springBootMetrics).as("Spring Boot's metrics autoconfigurations on the test classpath").isNotEmpty();
+
+        runner.withConfiguration(AutoConfigurations.of(springBootMetrics))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(MeterRegistry.class);
+                    assertThat(context.getBean(TandemMetrics.class)).isInstanceOf(MicrometerTandemMetrics.class);
+                });
+    }
+
     @Test
     void GIVEN_tandem_metrics_max_publish_latency_set_WHEN_a_sample_is_recorded_THEN_the_histogram_uses_it() {
         PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);

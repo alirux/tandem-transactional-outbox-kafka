@@ -144,6 +144,14 @@ spring-boot-test = { module = "org.springframework.boot:spring-boot-test" }
 # MockMvcBuilders.standaloneSetup's bare one (the two differ in how they resolve @ExceptionHandler
 # advice precedence across multiple beans; see TandemAdminEndToEndTest).
 spring-boot-test-autoconfigure = { module = "org.springframework.boot:spring-boot-test-autoconfigure" }
+# Spring Boot's own metrics autoconfigurations, test-only: tandem-spring-relay orders itself after them
+# and proves it against the real classes. They live in spring-boot-actuator-autoconfigure on the 3.x
+# lines and in spring-boot-micrometer-metrics on 4.x, so each matrix classpath takes its own.
+spring-boot-actuator-autoconfigure = { module = "org.springframework.boot:spring-boot-actuator-autoconfigure" }
+spring-boot-micrometer-metrics = { module = "org.springframework.boot:spring-boot-micrometer-metrics" }
+# Boot 4 moved DataSourceAutoConfiguration out of spring-boot-autoconfigure into this module; test-only,
+# for the same reason as the two above.
+spring-boot-jdbc = { module = "org.springframework.boot:spring-boot-jdbc" }
 spring-test = { module = "org.springframework:spring-test" }
 spring-tx = { module = "org.springframework:spring-tx" }
 spring-aspects = { module = "org.springframework:spring-aspects" }

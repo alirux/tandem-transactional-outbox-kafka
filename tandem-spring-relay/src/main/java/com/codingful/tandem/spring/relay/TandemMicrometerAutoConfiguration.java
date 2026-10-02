@@ -26,8 +26,18 @@ import org.springframework.context.annotation.Bean;
  * unlike the {@code afterName} string-based ordering that class uses against Spring's own relocatable
  * autoconfigurations (LLD-spring-config §1.1). That rule exists because Spring's classes move between
  * Boot generations; this one is Tandem's own, always in the same package on both.
+ *
+ * <p>It is ordered <b>after Spring Boot's own metrics support</b>, by name, for the opposite reason: the
+ * {@code MeterRegistry} of a real application is contributed by those autoconfigurations, and the
+ * {@link ConditionalOnBean} below is evaluated when this class is processed. Left unordered, this class
+ * sorts ahead of them, sees no registry, and the relay silently runs on the no-op metrics. Naming the
+ * composite registry autoconfiguration alone is enough, since every exporter orders itself before it.
  */
-@AutoConfiguration(before = TandemRelayAutoConfiguration.class)
+@AutoConfiguration(before = TandemRelayAutoConfiguration.class, afterName = {
+        // Spring Boot 3.x
+        "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",
+        // Spring Boot 4.x, relocated into spring-boot-micrometer-metrics
+        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration"})
 @ConditionalOnClass({MeterRegistry.class, MicrometerTandemMetrics.class})
 @EnableConfigurationProperties(TandemMetricsProperties.class)
 public class TandemMicrometerAutoConfiguration {

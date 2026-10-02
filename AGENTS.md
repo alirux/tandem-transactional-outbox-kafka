@@ -242,6 +242,17 @@ CI. Two rules keep one jar valid on both lines, and neither fails loudly if brok
 §1.1: order autoconfigurations by **name** (`afterName`), never by class literal, and put class conditions
 on **`@Bean` methods**, never on a nested `@Configuration`.
 
+**An autoconfiguration conditional on a bean orders itself after whoever contributes that bean.** A bean
+condition (`@ConditionalOnBean`, `@ConditionalOnSingleCandidate`, and `@ConditionalOnMissingBean` against
+another autoconfiguration's bean) is evaluated when the class carrying it is processed, and unordered
+autoconfigurations sort by class name, which puts `com.codingful…` ahead of everything in
+`org.springframework…`. Left unordered, the condition sees nothing and the bean is silently absent. Each
+class declares this for itself: being `before` another Tandem autoconfiguration does not inherit that
+class's `afterName` entries. **The test that guards it must take the bean from Spring Boot's real
+autoconfiguration** (`DataSourceAutoConfiguration`, the metrics autoconfigurations, …), resolved by name
+so it runs on all three lines. A bean handed to the context runner with `withBean` exists before any
+autoconfiguration is processed, so such a test passes whatever the ordering is. See LLD-spring-config §4.4.
+
 **A module that renders JSON has a second axis, and it is not the Boot line.** Since Boot **4.0.0** a
 stock `spring-boot-starter-web` brings **Jackson 3** (`tools.jackson`) and no Jackson 2 databind; a Boot 4
 application may also opt back into Jackson 2 (`spring-boot-jackson2`), so which binding is present is a

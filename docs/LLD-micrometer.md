@@ -212,7 +212,9 @@ using it costs nothing and removes the guesswork:
 
 ```java
 // New file: TandemMicrometerAutoConfiguration.java
-@AutoConfiguration(before = TandemRelayAutoConfiguration.class)
+@AutoConfiguration(before = TandemRelayAutoConfiguration.class, afterName = {
+        "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",   // Boot 3.x
+        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration"}) // Boot 4.x
 @ConditionalOnClass({MeterRegistry.class, MicrometerTandemMetrics.class})
 @EnableConfigurationProperties(TandemMetricsProperties.class)
 public class TandemMicrometerAutoConfiguration {
@@ -249,6 +251,16 @@ because *Spring's* classes relocate between Boot generations; `TandemRelayAutoCo
 Tandem's own class, always in the same package, on both generations — a literal reference to it is
 exactly as safe as the class-level `@ConditionalOnClass` above, and simpler to read.
 
+**Ordered after Spring Boot's own metrics support, by name.** The `MeterRegistry` of a real application
+is not an application bean: Boot's metrics autoconfigurations contribute it, and `@ConditionalOnBean`
+is evaluated when this class is processed. Autoconfigurations with no declared order sort by class
+name, which puts `com.codingful…` ahead of `org.springframework…`: unordered, this class would see no
+registry and the relay would run on the no-op metrics without a word. The composite registry
+autoconfiguration is the one to name, because every exporter orders itself before it, so being after
+it means being after whichever registry the application ends up with. By name and for both
+generations, since Boot 4 moved those classes into `spring-boot-micrometer-metrics`
+(LLD-spring-config §1.1).
+
 **Two class-level conditions, deliberately both on `MeterRegistry` and the adapter class itself:**
 `@ConditionalOnClass(MeterRegistry.class)` alone would let the whole class load with Micrometer
 present but `tandem-micrometer` absent from the same application — an unlikely but real combination
@@ -260,7 +272,9 @@ Both together is the same defensive shape `TandemProducerAutoConfiguration` alre
 cross-class ordering empirically: with a `MeterRegistry` bean present the Micrometer bean wins over
 the NOOP default, without one it falls back cleanly, and an application's own `TandemMetrics` bean
 wins over both — real `ApplicationContextRunner` assertions, not an assumption about framework
-internals. A separate test reads the `AutoConfiguration.imports` resource directly and asserts both
+internals. One of them takes the registry from Boot's real metrics autoconfigurations instead of an
+application bean, on all three lines: a registry handed over as a bean exists before any
+autoconfiguration is processed, so only that test exercises the ordering above. A separate test reads the `AutoConfiguration.imports` resource directly and asserts both
 classes are listed; nothing else in the suite would have caught that specific line being forgotten,
 since `AutoConfigurations.of(...)` in the wiring tests bypasses that file entirely.
 
