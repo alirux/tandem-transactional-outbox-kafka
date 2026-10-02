@@ -271,8 +271,8 @@ public final class ObservabilityStack implements AutoCloseable {
     }
 
     /**
-     * Four alert rules over the metrics named in guide/observability.md section 3.3 -- relay stalled,
-     * aggregate blocked, rows given up on, and no relay reporting -- provisioned into the same Grafana
+     * Four alert rules over the metrics named in guide/observability.md section 3.3: relay stalled,
+     * aggregate blocked, rows given up on, and no relay reporting, provisioned into the same Grafana
      * instance the dashboard is on, so each can be watched firing during the scripted demo (section 6.3).
      */
     private static String alertRules() {

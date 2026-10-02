@@ -47,6 +47,7 @@ tandem-benchmark/
   build.gradle.kts                      // not published; application plugin for the loadTest entrypoint
   src/main/resources/bench-schema.sql   // the benchmark-owned bench_aggregate table (§4.1)
   src/main/resources/grafana/tandem-dashboard.json  // §6.3 — the provisioned dashboard, ≤2 panels per row
+  src/main/resources/grafana/tandem-alert-rules.yml // §6.3 — the provisioned alert rules, one per guide/observability.md §3.3 case
   src/main/java/com/codingful/tandem/benchmark/
     BenchmarkConfig.java                // §10 — the harness sizing knobs + toSmoke()/toDemo()
     AggregateSelector.java              // §4.2 — namespaced uniform/skewed aggregate-id generators
@@ -518,7 +519,9 @@ nothing** — its purpose is that a signal's *usefulness* can only be judged by 
 **Shape.** Two `MetricsExporter`s — a `PrometheusMeterRegistry` behind the JDK's own `HttpServer`, no
 Spring or Actuator — publish `/metrics` for one relay instance each; `ObservabilityStack` starts
 Prometheus (scraping both host ports through `host.testcontainers.internal`, 1s interval) and Grafana
-with a provisioned datasource and the committed dashboard. **One exporter per instance, deliberately:**
+with a provisioned datasource, the committed dashboard, and four alert rules over the cases
+guide/observability.md §3.3 names, so each can be watched firing during the scripted run below.
+**One exporter per instance, deliberately:**
 `workers.active` is per-instance while `lag.count` is a global reading every instance reports, so a
 single shared registry would silently collapse the first kind to whichever instance wrote last.
 
