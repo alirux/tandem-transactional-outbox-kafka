@@ -1,6 +1,6 @@
 # Tandem — `tandem-relay` LLD
 
-**Version:** 1.2 (Designed, not implemented)
+**Version:** 1.3 (Designed, not implemented)
 **Module:** `tandem-relay` · Gradle subproject, package `com.codingful.tandem.relay`
 **Depends on:** [`tandem-spring-relay`](LLD-spring-config.md) (the relay autoconfiguration it runs),
 [`tandem-kafka`](LLD-kafka.md) (the one transport the image carries, §3.2),
@@ -11,7 +11,8 @@
 **Resolves:** Q23 in [open-questions-lld.md](open-questions-lld.md) §D
 **Published:** **Not** to Maven Central. Distributed as an OCI container image and an executable
 jar attached to the GitHub Release (§7).
-**Versioned with the library**, tagged `v<semver>` — not on an independent scheme (§7.3).
+**Versioned independently of the library**, tagged `relay-v<semver>`, and built from one exact
+library release that every image names (§7.3).
 
 This document specifies `tandem-relay`, a prebuilt runnable application that hosts the Tandem
 relay — and, optionally, the Admin API — as its own deployable. It is the **split topology**
@@ -92,8 +93,8 @@ change here that needs one is a signal that JSON handling is leaking out of `tan
 `tandem-relay/` is a Gradle subproject like any other, but it is an **application, not a library**,
 which changes three things: it is listed in the root build's `unpublishedModules` (so it opts out
 of the shared java-library/publishing convention and configures its own toolchain and tasks), it
-carries **concrete** Spring dependencies rather than `compileOnly` ones, and it pins a Java and a
-Spring Boot version of its own.
+carries **concrete** Spring dependencies rather than `compileOnly` ones, and it pins a Java version,
+a Spring Boot version and a Tandem library version of its own.
 
 ```
 tandem-relay/
@@ -149,10 +150,11 @@ the CI and release workflows install.
 | `spring-boot-starter-webmvc` | The web container the Admin API and Actuator need. Boot 4's name for it: `spring-boot-starter-web` still resolves and is deprecated |
 | `spring-boot-starter-jdbc` | `DataSourceAutoConfiguration` + HikariCP |
 | `spring-boot-starter-actuator` | Health endpoint and probe groups (§5). On Boot 4 it also brings the Micrometer metrics autoconfiguration, which the Tandem adapter orders itself after |
-| `project(":tandem-spring-relay")` | The relay itself |
-| `project(":tandem-kafka")` | The transport. `tandem-spring-relay` carries no adapter and wires whichever one is on the classpath, so the application must supply it; without it the context has no `OutboxDispatcher` |
-| `project(":tandem-admin")` | The optional second role (§4) |
-| `project(":tandem-micrometer")` + a registry | The `TandemMetrics` adapter; Prometheus registry (§4.3) |
+| `com.codingful:tandem-bom` at the pinned library version (§7.3) | The application consumes Tandem the way an adopter does: by published coordinate, versions from the BOM. The working tree stands in for them during development |
+| `tandem-spring-relay` | The relay itself |
+| `tandem-kafka` | The transport. `tandem-spring-relay` carries no adapter and wires whichever one is on the classpath, so the application must supply it; without it the context has no `OutboxDispatcher` |
+| `tandem-admin` | The optional second role (§4) |
+| `tandem-micrometer` + a registry | The `TandemMetrics` adapter; Prometheus registry (§4.3) |
 | `libs.postgresql` | The JDBC driver — the application must supply it, `tandem-jdbc` never does (§9) |
 | `logback-classic` (via the starter) | A concrete backend: this is a leaf app, not a library (AGENTS.md §Logging) |
 
@@ -541,9 +543,9 @@ Admin-API-only role no guard runs at all, and a missing schema surfaces as a fai
 
 ### 7.1 Executable jar
 
-The Spring Boot Gradle plugin is applied to this module only, producing a layered executable jar
-via `bootJar`. It is the first use of that plugin in the project, which is why it is scoped to the
-one module that is an application, and why the version catalog gains its first `[plugins]` entry.
+The Spring Boot Gradle plugin is applied to this module only, producing a layered executable jar.
+It is the first use of that plugin in the project, which is why it is scoped to the one module
+that is an application, and why the version catalog gains its first `[plugins]` entry.
 
 **The application has its own Spring Boot version in the catalog**, separate from the
 `spring-boot-v4` entry of the compatibility matrix. The two will usually hold the same value and
@@ -551,6 +553,14 @@ mean different things: the matrix entry states which Boot 4 line the library is 
 and moves as a compatibility decision, while this one is the runtime the image ships and moves
 whenever that runtime needs a fix. Sharing one entry would turn a security update of the image
 into a change of the library's verified line.
+
+**Two jars are built from the same application classes, and they differ only in where Tandem comes
+from** (§7.3):
+
+| Task | Tandem modules | Used by |
+|---|---|---|
+| `bootJar` | The working tree | `integrationTest`: the application against the library as it stands on `main` |
+| `pinnedBootJar` | The pinned release, resolved from Maven Central | `pinnedTest`, the image, the release |
 
 ### 7.2 Container image
 
@@ -565,9 +575,9 @@ that made this project hand-write its Admin API server rather than generate it.
 
 What the Dockerfile does, each line of it a decision:
 
-- **It packages the jar Gradle built**, copied in from `build/libs`, and compiles nothing. The
-  image and the jar attached to the release are then the same bits, and a `.dockerignore` keeps
-  the rest of the repository out of the build context.
+- **It packages the jar Gradle built**, the pinned one of §7.1, copied in from `build/libs`, and
+  compiles nothing. The image and the jar attached to the release are then the same bits, and a
+  `.dockerignore` keeps the rest of the repository out of the build context.
 - **Layers are extracted with Boot's `tools` jar mode** (`java -Djarmode=tools -jar … extract
   --layers`), so the dependency layers cache independently of the application layer. That stage
   runs on the build platform (`FROM --platform=$BUILDPLATFORM`): the extracted layers are the same
@@ -584,24 +594,111 @@ What the Dockerfile does, each line of it a decision:
   (§10) are copied into the image, and into the jar's `META-INF`: the image redistributes the
   whole Spring Boot runtime, and a notice that exists only in the repository does not accompany
   it.
-- OCI `org.opencontainers.image.*` labels for source, version and licence; **no `HEALTHCHECK`**
+- OCI `org.opencontainers.image.*` labels for source, version and licence, plus one of Tandem's
+  own carrying the library version inside (§7.3); **no `HEALTHCHECK`**
   instruction, since orchestrators use the probes of §5.2 and the compose example wires one
   explicitly.
 
 The image is **multi-architecture**, `linux/amd64` and `linux/arm64`, since arm64 is both a common
 development machine and a common production instance type.
 
-### 7.3 Distribution and versioning
+### 7.3 Versioning and release
 
 The image goes to **GHCR** as `ghcr.io/alirux/tandem-relay`, and the executable jar is attached to
-the GitHub Release. Both come from a `v*` tag.
+a GitHub Release. Nothing of this module goes to Maven Central.
 
-**Versioned with the library, on the same `v<semver>` tag** — explicitly *not* the independent
-scheme `tandem-cli` uses. The reasoning that separated the CLI does not transfer: the CLI's
-compatibility contract is the Admin API's major version, so a library release that leaves the
-OpenAPI untouched cannot affect it. This module is the opposite — it *is* the library, packaged.
-Every library change is in it by construction, so an independent version would assert an
-independence that does not exist.
+**The image has its own version, on its own tag: `relay-v<semver>`**, released by its own workflow,
+`relay-release.yml`. The globs are anchored like the other schemes': the library's `v*` does not
+match `relay-v*`, nor the reverse, so neither release path fires on the other's tag and
+`release.yml` is untouched.
+
+It is the library packaged, and still not the library's version, because the package is more than
+the library: a Spring Boot runtime, a JDK, a base image and a deployment contract, all of which
+change on a cadence of their own. A vulnerability fixed in Tomcat or in the base image needs a new
+image and nothing else. Under a shared version that fix would be a release of every library module
+with not one line changed, staged and published by hand; under its own, it is a patch of the image
+and one tag.
+
+#### The pin
+
+**An image contains exactly one library release, and it comes from Maven Central.** The module
+depends on Tandem by published coordinate, through `tandem-bom` at the version in `tandemPin`
+(`tandem-relay/build.gradle.kts`). During development the root build substitutes the working tree
+for those coordinates, as it does for every independently versioned module, so the repository
+stays one buildable unit. The pinned classpath is the one configuration exempt from that
+substitution, the same mechanism `tandem-rabbitmq` uses for its floor.
+
+The difference from that connector is what the number means. A connector is used *with* a range of
+library versions and declares the oldest, a floor. An image *contains* one, so the pin is exact.
+Building from the working tree at tag time instead would put unreleased library code in an image,
+and "which Tandem is running here" would have no answer, on a deployment where the relay, the
+write side and the Admin API may each run a different version against the same database
+(HLD §1.4).
+
+Two gates, both in `check`, both running the integration test of §8.2:
+
+- `integrationTest`, on the jar built from the working tree. It is what tells the library's next
+  release apart from one that would break the application.
+- `pinnedTest`, on the pinned jar. It is what ships, tested as it ships.
+
+A change to this module that needs a library change waits for the library release that carries it,
+and then moves the pin. **The first pin is the first library release in which every relay
+autoconfiguration orders itself after the beans it depends on** (LLD-spring-config §4.4): earlier
+releases do not start as a relay-only application at all.
+
+#### What the version means
+
+The image's contract is what an operator's manifests depend on, and it is not the Java API:
+
+| Part of the contract | Not part of it |
+|---|---|
+| The image name | The Spring Boot, JDK and base image versions |
+| The two default ports, and which one serves what | The exact set of health details |
+| The probe paths | The layout inside the container |
+| The default role | The rendering of log lines |
+| The user id the process runs as | |
+| Being configured by the library's `tandem.*` keys and Spring's own | |
+
+Breaking a row on the left is a breaking change of the image. The bump rules, with the usual `0.x`
+reading where a minor signals a break:
+
+| Change | Bump |
+|---|---|
+| Rebuild on a newer base image, Spring Boot or dependency patch, a fix in this module | Patch |
+| The pin moves to a library patch | Patch |
+| The pin moves to a library minor, or this module gains a capability | Minor, never a patch |
+| A contract row above changes, or the pinned library release itself breaks an operator (a schema migration to apply first, a change in the published envelope) | Breaking |
+
+**The library version is stated wherever the image version is**, since nothing in the number
+implies it: in the release notes, in a label on the image, on the `info` endpoint the image already
+exposes, and in one `INFO` line at startup. The user guide keeps the table of image versions and
+the library release each contains.
+
+#### The release
+
+Pushing a `relay-v*` tag runs `relay-release.yml`, which is fully automatic, because nothing in it
+is irreversible the way a Maven Central publication is:
+
+1. `pinnedTest`, so the tagged commit is verified against the pinned release before anything is
+   pushed (Docker is available on the runner).
+2. Build the pinned jar with `RELAY_VERSION` taken from the tag. Outside a release the variable is
+   unset and the build is a snapshot; the workflow is the only place that pushes.
+3. Build the multi-architecture image and push it to GHCR under the version, and under `latest`
+   **only when the version has no pre-release suffix**. Version tags are never moved: a rebuild is
+   a new patch.
+4. Create the GitHub Release from the annotated tag, with the jar attached and `--latest=false`,
+   so the repository's "Latest" badge stays the library's (same as the CLI and the connector).
+
+A step that fails is re-run on its own; there is no staging to repeat.
+
+Because the image is built from artifacts already on Maven Central, **an image release follows a
+library release, it never accompanies one**: the library is tagged, published by hand, and only
+then is the pin moved and the image tagged. Skipping that last step breaks nothing, the image just
+stays on the previous library release, which is why it joins `tools/javadoc-io-sync.sh` in the
+list of what follows a library release.
+
+A rebuild for a vulnerability in the base image alone changes no file. It is still a new patch
+tag, on the same commit, whose notes say what was rebuilt and why.
 
 **`ci.yml` builds the image and runs it on every change, without pushing** (§8.3), so a broken
 Dockerfile fails at PR time rather than at release time.
@@ -614,8 +711,9 @@ GitHub. Later pushes keep it. The `org.opencontainers.image.source` label (§7.2
 package to this repository, so it appears on the repository page and its permissions follow the
 repository's.
 
-How the release workflow builds and pushes, what moves `latest`, and how the image is rebuilt
-between two library releases are open (§11.2).
+Before tagging, the breaking-change check is scoped to the contract above, and the notes state the
+pin. Same annotated-tag-as-release-notes convention and the same "ask before tagging" rule as the
+other schemes.
 
 ---
 
@@ -649,8 +747,9 @@ test, in the project's `GIVEN_WHEN_THEN` form:
 ### 8.2 Integration test: the assembled application, started as a process
 
 `TandemRelayApplicationIT`, tagged `integration` and wired into `check` like every other
-Docker-bound test in the project. It does **not** start a Spring context inside the test JVM: it
-launches the jar `bootJar` produced with a real `java` process (the Java 25 launcher of the
+Docker-bound test in the project, where it runs twice: on the jar built from the working tree and
+on the pinned one (§7.3). It does **not** start a Spring context inside the test JVM: it launches
+the jar with a real `java` process (the Java 25 launcher of the
 module's toolchain, handed to the test task by Gradle), configured **through environment variables
 only**, against `TandemTestContainer`'s real PostgreSQL and Kafka on their host-mapped ports.
 
@@ -694,7 +793,7 @@ is the driver's own behaviour; what this module can get wrong is the key, and §
 ### 8.3 Image smoke test, in CI
 
 The integration test runs the jar, not the image, so nothing above exercises the Dockerfile. CI
-builds the image and brings up `docker-compose.example.yml` with it, waiting on the compose
+builds the image from the pinned jar, exactly as a release would, and brings up `docker-compose.example.yml` with it, waiting on the compose
 healthcheck, which is the readiness path. That one step proves the layer extraction, the
 entrypoint, the non-root user, and the example file itself, which is otherwise a document that
 nothing runs.
@@ -736,13 +835,15 @@ Per AGENTS.md, each omission below fails silently:
 | `settings.gradle.kts` | Add `tandem-relay` |
 | `unpublishedModules` (root `build.gradle.kts`) | Add: **not** published to Central, and it needs its own Java 25 toolchain and its own test tasks |
 | `tandem-bom` | **No** — not a Maven artifact |
+| The root build's substitution exemption | The pinned classpath joins the connector's floor classpath as a configuration the working tree must **not** be substituted into (§7.3). Forgetting it leaves `pinnedTest` green while testing the working tree |
+| `.github/workflows/relay-release.yml` | New, on `relay-v*` (§7.3). `release.yml` needs no exclusion: an unpublished module has no publishing task |
 | `tandem-coverage`'s `coveredProjects` | **No** — published, tested modules only |
 | `dependency-graph-exclude-projects` (`.github/workflows/ci.yml`) | **No, and this is the one unpublished module left out of that regex on purpose.** The exclusion keeps demo and benchmark dependencies out of the Dependabot alerts because nobody inherits them; this module's runtime classpath is shipped to operators inside the image, so an alert on it is a real one. Record the reason as a comment beside the regex |
 | README API reference table | **No**: its rows link a javadoc.io page, which exists only for an artifact on Maven Central. The image is documented in the README's usage section and in the user guide instead |
 | CONTRIBUTING project layout · LLD-base.md | Add; **and correct LLD-base.md**, which lists `tandem-relay` with a published `artifactId` |
-| User guide (`guide/`, `mkdocs.yml`) | Add the page an operator reads: roles, the two ports, the probe paths, configuration from the environment, the grace period, the instance id, the `SINGLE`/`LEASE` rule |
+| User guide (`guide/`, `mkdocs.yml`) | Add the page an operator reads: roles, the two ports, the probe paths, configuration from the environment, the grace period, the instance id, the `SINGLE`/`LEASE` rule, and the table of image versions with the library release each contains |
 | README "Future work" | Remove the `tandem-relay` bullet — it ships |
-| AGENTS.md | Four statements there are written for a repository with no deployable and must be brought in line in the same change: the `dependency-graph-exclude-projects` row ("only for modules that must not be published"), the `THIRD-PARTY-NOTICES.md` row and rule ("published modules only"), the Logging paragraph on leaf apps (this one takes Logback from the starter, not `slf4j-simple`), and the Releases section, where a `v*` tag publishes "library modules to Maven Central" and nothing else |
+| AGENTS.md | A fourth release scheme joins the library's, the CLI's and the connector's: the `relay-v*` tag, the pin, the contract the breaking-change check is scoped to, and the image release as a step that follows a library release. Four existing statements are also written for a repository with no deployable and must be brought in line in the same change: the `dependency-graph-exclude-projects` row ("only for modules that must not be published"), the `THIRD-PARTY-NOTICES.md` row and rule ("published modules only"), the Logging paragraph on leaf apps (this one takes Logback from the starter, not `slf4j-simple`), and the paragraph on independently versioned modules, which today reads as if all of them were published libraries |
 | `ci.yml` and LLD-base.md "Dependency graph and vulnerability alerts" | Both describe the submitted graph as the published runtime footprint; this module widens that to "what is redistributed", image included |
 | THIRD-PARTY-NOTICES.md | **Yes**, despite not being on Central: the image and the jar redistribute the whole Spring Boot runtime, so the licence footprint is real. Follow the `tandem-cli` precedent and derive it from the **actual jar contents**, not from the dependency graph: the list is generated from the jar's `BOOT-INF/lib` and a CI check fails on drift, since a hand-kept list of a hundred-odd jars would be wrong within a release. The same file is what the image carries (§7.2) |
 | open-questions-lld.md | Mark Q23 resolved, including §1.1's already-answered fourth part |
@@ -764,7 +865,10 @@ Per AGENTS.md, each omission below fails silently:
 | A process with neither role is refused | It would start, report ready and do nothing (§4) |
 | Not in the liveness group; a socket timeout on the datasource instead | A restart cures only a blocked database call, and a liveness threshold safe against broker stalls would be over an hour and a half. The timeout removes the cause (§5.2, §6.1) |
 | Dockerfile over buildpacks | Explicit, patchable base image; no second toolchain (§7.2) |
-| Versioned `v<semver>` with the library | The module *is* the library, packaged — unlike the CLI, whose contract is the API's major version (§7.3) |
+| Versioned on its own, `relay-v<semver>` | The image is the library plus a runtime, a base image and a deployment contract, which change on their own cadence; a shared version would turn every runtime fix into a release of every library module (§7.3) |
+| One exact library release per image, resolved from Maven Central | An image built from the working tree could contain unreleased library code, and the question "which Tandem runs here" must have an answer (§7.3) |
+| `latest` only for versions without a pre-release suffix; version tags never moved | A release candidate must not become what `latest` pulls, and a pinned tag must keep meaning the same bits (§7.3) |
+| A fully automatic release workflow | Nothing in it is irreversible, unlike a Maven Central publication (§7.3) |
 | One driver per supported engine, one image | The URL already selects the engine; per-engine images cost more than they save (§9) |
 | No DDL application | Requires privileges a relay should not hold, and the relay is not the schema's only writer (§6.4) |
 | No `tandem.*` key of its own | A knob this module needs is a knob the library is missing (§6.1) |
@@ -788,11 +892,6 @@ Per AGENTS.md, each omission below fails silently:
   routed to it. This is engine behaviour, tracked in the backlog on its own, and nothing in this
   module depends on its outcome: until it changes, readiness reports such a relay as not
   delivering, which is accurate.
-- **The release workflow.** Where the image build and push sit relative to the Maven Central
-  staging step and what a re-run does after a partial failure; passing the release version to the
-  image build; whether a pre-release tag moves `latest`; how the image is rebuilt for a base-image
-  or Spring Boot vulnerability between two library releases; and what the image's version
-  promises to an operator (ports, probe paths, variable names, default role, image name, user id).
 - **Supply-chain extras for the image**: the base pinned by digest and who moves it, an SBOM and
   provenance attestation, a vulnerability scan in CI.
 - **The derived instance id in containers** (§6.3) is a library matter: keeping the end of the
