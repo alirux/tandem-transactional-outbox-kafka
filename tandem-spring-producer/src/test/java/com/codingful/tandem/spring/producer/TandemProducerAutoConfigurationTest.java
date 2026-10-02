@@ -7,6 +7,7 @@ import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.PayloadSerializer;
 import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.test.InMemoryOutbox;
+import com.codingful.tandem.test.spring.OptionalLibraryConditions;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
@@ -30,6 +31,18 @@ class TandemProducerAutoConfigurationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TandemProducerAutoConfiguration.class));
+
+    /**
+     * The write side is imported by applications that have none of the libraries its optional beans are
+     * about, and there it must start without a word: a condition naming one of their types by class
+     * literal is evaluated correctly, yet cannot be read reflectively, and Spring logs a warning for each
+     * one at every start.
+     */
+    @Test
+    void GIVEN_an_application_without_tracing_jackson_or_aspectj_WHEN_the_write_sides_bean_conditions_are_read_THEN_every_one_is_readable() {
+        assertThat(OptionalLibraryConditions.unreadableWithout(TandemProducerAutoConfiguration.class,
+                "io.micrometer.tracing.", "com.fasterxml.jackson.databind.", "org.aspectj.")).isEmpty();
+    }
 
     @Test
     void GIVEN_no_datasource_WHEN_the_context_starts_THEN_no_write_side_is_contributed() {

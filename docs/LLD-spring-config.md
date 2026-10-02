@@ -88,7 +88,13 @@ generation degrades **silently** rather than throwing:
    configuration inside an `@AutoConfiguration` is **not processed** under Boot 4, so grouping optional
    beans behind a nested `@ConditionalOnClass` contributes nothing there — silently. Spring evaluates a
    method's conditions from ASM metadata before resolving its signature, so an optional type in the
-   signature stays safe when absent.
+   signature stays safe when absent. **The condition names the optional type as a string**
+   (`@ConditionalOnClass(name = …)`, `@ConditionalOnBean(type = …)`), never as a class literal: the
+   literal is evaluated just as correctly, but Spring also reads every bean method's annotations
+   reflectively, a literal naming an absent type cannot be read that way, and an application without
+   the library then logs a `WARN` per such annotation at every start. Each module's wiring test reads
+   its conditions with the optional libraries hidden (`OptionalLibraryConditions`, a test fixture),
+   since on the module's own classpath they are all present and nothing shows.
 
 **Verdict.** Boot 3 → 4 is a *major* framework bump (6 → 7), which is *permitted* to break binary
 compatibility, so the single-artifact strategy is only as good as the matrix that checks it (§1.2). Under
@@ -496,8 +502,8 @@ propagation mode is in force. It builds on the write side's capture — a row ca
 gets no span (HLD-tracing.md §5).
 
 ⚠️ An optional type must never appear in a `@Bean` method's **erased signature**. The conditions are
-read from ASM, so naming `Tracer`/`Propagator` in `@ConditionalOnClass`/`@ConditionalOnBean` is safe —
-but Spring reflects over every method of the configuration class to build its bean definitions, and a
+read from ASM, so naming `Tracer`/`Propagator` in `@ConditionalOnClass`/`@ConditionalOnBean` is safe
+(by string, §1.1 rule 2) — but Spring reflects over every method of the configuration class to build its bean definitions, and a
 bare `Tracer` parameter then throws `NoClassDefFoundError` in any application without the library,
 before a condition can back the bean off. Both modules therefore take `ObjectProvider<Tracer>` /
 `ObjectProvider<Propagator>`, whose type argument erasure removes. The same reasoning is why the

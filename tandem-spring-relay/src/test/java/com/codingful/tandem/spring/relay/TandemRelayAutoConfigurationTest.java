@@ -23,6 +23,7 @@ import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
+import com.codingful.tandem.test.spring.OptionalLibraryConditions;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
 import io.micrometer.tracing.propagation.Propagator;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -239,6 +240,17 @@ class TandemRelayAutoConfigurationTest {
     void GIVEN_no_datasource_WHEN_the_context_starts_THEN_no_relay_is_contributed() {
         runner.withPropertyValues("tandem.kafka.source=/tandem/test")
                 .run(context -> assertThat(context).doesNotHaveBean(WorkerPool.class));
+    }
+
+    /**
+     * A relay without Micrometer Tracing is the common case, and it must start without a word: a
+     * condition naming a tracing type by class literal is evaluated correctly there, yet cannot be read
+     * reflectively, and Spring logs a warning for each one at every start.
+     */
+    @Test
+    void GIVEN_an_application_without_micrometer_tracing_WHEN_the_relays_bean_conditions_are_read_THEN_every_one_is_readable() {
+        assertThat(OptionalLibraryConditions.unreadableWithout(TandemRelayAutoConfiguration.class,
+                "io.micrometer.tracing.")).isEmpty();
     }
 
     /**

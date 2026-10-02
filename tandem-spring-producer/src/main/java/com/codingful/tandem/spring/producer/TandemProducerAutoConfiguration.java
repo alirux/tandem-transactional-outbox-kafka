@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
 import javax.sql.DataSource;
-import org.aspectj.lang.ProceedingJoinPoint;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -59,6 +58,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TandemProducerAutoConfiguration {
 
     private static final String JTA_TRANSACTION_MANAGER = "org.springframework.transaction.jta.JtaTransactionManager";
+    private static final String TRACER = "io.micrometer.tracing.Tracer";
+    private static final String PROPAGATOR = "io.micrometer.tracing.propagation.Propagator";
+    private static final String OBJECT_MAPPER = "com.fasterxml.jackson.databind.ObjectMapper";
+    private static final String PROCEEDING_JOIN_POINT = "org.aspectj.lang.ProceedingJoinPoint";
 
     /**
      * Guards the three insert tiers against a transaction that is not Tandem's (LLD-spring-producer §8).
@@ -130,10 +133,16 @@ public class TandemProducerAutoConfiguration {
      * {@code Tracer}/{@code Propagator} directly compiles and passes the isolated wiring tests, then fails
      * every application that does not have Micrometer Tracing with a {@code NoClassDefFoundError} — the
      * conditions never get the chance to back the bean off.
+     *
+     * <p>The conditions name the types <b>as strings</b> for the reflective half of the same problem:
+     * Spring also reads the annotations of every bean method reflectively, and a class literal naming an
+     * absent type cannot be read that way. The bean would back off correctly, and every start of an
+     * application without the library would log a warning for each such annotation. The same holds for
+     * the Jackson and AspectJ conditions below.
      */
     @Bean
-    @ConditionalOnClass(Tracer.class)
-    @ConditionalOnBean({Tracer.class, Propagator.class})
+    @ConditionalOnClass(name = TRACER)
+    @ConditionalOnBean(type = {TRACER, PROPAGATOR})
     @ConditionalOnMissingBean(TracePropagator.class)
     @ConditionalOnProperty(prefix = "tandem.tracing", name = "enabled", havingValue = "true")
     TracePropagator tandemMicrometerTracePropagator(ObjectProvider<Tracer> tracer,
@@ -202,7 +211,7 @@ public class TandemProducerAutoConfiguration {
      * {@code ObjectMapper} reference is safe even when Jackson is absent.
      */
     @Bean
-    @ConditionalOnClass(ObjectMapper.class)
+    @ConditionalOnClass(name = OBJECT_MAPPER)
     @ConditionalOnMissingBean(PayloadSerializer.class)
     PayloadSerializer tandemPayloadSerializer(ObjectProvider<ObjectMapper> objectMapper) {
         return new JacksonPayloadSerializer(objectMapper.getIfAvailable(ObjectMapper::new));
@@ -214,7 +223,7 @@ public class TandemProducerAutoConfiguration {
      * makes the advice apply.
      */
     @Bean
-    @ConditionalOnClass(ProceedingJoinPoint.class)
+    @ConditionalOnClass(name = PROCEEDING_JOIN_POINT)
     @ConditionalOnMissingBean
     TransactionalOutboxAspect tandemTransactionalOutboxAspect(OutboxRepository outboxRepository,
             ObjectProvider<TransactionBindingGuard> bindingGuard) {

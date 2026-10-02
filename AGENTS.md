@@ -242,7 +242,9 @@ it**. When you touch a Spring module, the pre-commit gate is **`./gradlew check`
 `./gradlew :<module>:bootFourTest` alongside `test`); a green `test` alone can hide a 4.x regression until
 CI. Two rules keep one jar valid on both lines, and neither fails loudly if broken — see LLD-spring-config
 §1.1: order autoconfigurations by **name** (`afterName`), never by class literal, and put class conditions
-on **`@Bean` methods**, never on a nested `@Configuration`.
+on **`@Bean` methods**, never on a nested `@Configuration`, naming the optional type there **as a string**
+(`@ConditionalOnClass(name = …)`, `@ConditionalOnBean(type = …)`): a class literal works, and makes every
+application without that library log a `WARN` at each start.
 
 **An autoconfiguration conditional on a bean orders itself after whoever contributes that bean.** A bean
 condition (`@ConditionalOnBean`, `@ConditionalOnSingleCandidate`, and `@ConditionalOnMissingBean` against

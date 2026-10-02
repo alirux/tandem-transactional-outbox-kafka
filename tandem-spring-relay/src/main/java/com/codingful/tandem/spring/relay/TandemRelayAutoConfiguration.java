@@ -62,6 +62,8 @@ import org.springframework.context.annotation.Bean;
         TandemTracingProperties.class})
 public class TandemRelayAutoConfiguration {
 
+    private static final String PROPAGATOR = "io.micrometer.tracing.propagation.Propagator";
+
     @Bean
     @ConditionalOnMissingBean
     RelayConfig tandemRelayConfig(TandemOutboxProperties outbox, TandemRelayProperties relay) {
@@ -144,10 +146,15 @@ public class TandemRelayAutoConfiguration {
      * {@link ObjectProvider}, whose generic argument erasure removes: a bare {@code Propagator} parameter
      * would fail every application without Micrometer Tracing with a {@code NoClassDefFoundError}, before
      * any condition could back the bean off.
+     *
+     * <p>The conditions name the type <b>as a string</b> for the reflective half of the same problem:
+     * Spring also reads the annotations of every bean method reflectively, and a class literal naming an
+     * absent type cannot be read that way. The bean would back off correctly, and every start of an
+     * application without Micrometer Tracing would log a warning for each such annotation.
      */
     @Bean
-    @ConditionalOnClass(Propagator.class)
-    @ConditionalOnBean(Propagator.class)
+    @ConditionalOnClass(name = PROPAGATOR)
+    @ConditionalOnBean(type = PROPAGATOR)
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "tandem.tracing", name = "publish-span", havingValue = "true")
     TandemSpanRecorder tandemSpanRecorder(ObjectProvider<Propagator> propagator) {
