@@ -24,6 +24,7 @@ include(
     "tandem-micrometer",
     "tandem-tracing-otel",
     "tandem-admin",
+    "tandem-relay",
     "tandem-sample",
     "tandem-sample-spring",
     "tandem-benchmark",

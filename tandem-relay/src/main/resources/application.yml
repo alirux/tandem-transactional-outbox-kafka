@@ -1,0 +1,40 @@
+# Deployment defaults of the standalone relay application (LLD-relay §6.1). Nothing here is a tandem.*
+# key: every relay setting stays where the library binds it, documented in tandem-relay-reference.yml.
+
+server:
+  # The Admin API, when enabled. In the relay-only role nothing is mapped on it.
+  port: 8080
+  shutdown: graceful
+
+management:
+  server:
+    # Health, probes and the Prometheus scrape, on a port of their own so the two can be exposed and
+    # firewalled independently.
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      # Structural identifiers and counts, never data, and served on the management port only.
+      show-details: always
+      group:
+        readiness:
+          # A custom indicator is not in the readiness group by itself. Probes use the group paths,
+          # /actuator/health/readiness and /actuator/health/liveness: the root path also runs Spring
+          # Boot's own database check on every call.
+          include: readinessState,tandemRelay
+
+spring:
+  application:
+    name: tandem-relay
+  datasource:
+    hikari:
+      data-source-properties:
+        # Seconds. A connection that dies without closing would otherwise leave a worker waiting
+        # forever, holding its buckets. Below the stall threshold, so the relay recovers before it is
+        # reported down. A socketTimeout in the JDBC URL takes precedence over this default.
+        socketTimeout: 30

@@ -58,6 +58,10 @@ jobs:
           # What this trades away: a vulnerability confined to test or build tooling no longer
           # raises an alert here. That is deliberate, not an oversight. Go is unaffected, since
           # GitHub reads tandem-cli's go.mod files directly rather than through this submission.
+          #
+          # tandem-relay is unpublished and deliberately NOT in the exclusion below: its runtime
+          # classpath is shipped to operators inside the container image, so an alert on it is about
+          # something that is redistributed (LLD-relay §10).
           dependency-graph-include-configurations: ^runtimeClasspath$
           dependency-graph-exclude-projects: ^:?tandem-(sample|sample-spring|benchmark|coverage)$
 

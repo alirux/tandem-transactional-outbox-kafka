@@ -15,7 +15,7 @@ non-default cases).
 ## Prerequisites
 
 - **JDK 17** (the Gradle toolchain plugin auto-provisions it if not already installed).
-  `tandem-benchmark` additionally requires JDK 25, provisioned the same way.
+  `tandem-benchmark` and `tandem-relay` additionally require JDK 25, provisioned the same way.
 - **Docker**, running and reachable — most integration/e2e tests use
   [Testcontainers](https://testcontainers.com) to spin up real PostgreSQL and Kafka instances.
   There are no mocks standing in for the database or the broker in this project.
@@ -122,6 +122,7 @@ python3 tandem-cli/hack/fake-admin-api.py 8080
 | `tandem-micrometer` | `TandemMetrics` backed by a Micrometer `MeterRegistry`, autoconfigured by `tandem-spring-relay`. |
 | `tandem-tracing-otel` | Trace propagation and relay publish spans over the OpenTelemetry SDK directly, for applications outside Spring. |
 | `tandem-admin` | Optional REST Admin API over the outbox and the relay (API-first, off by default). Reads, replay/discard, and relay control (status, pause/resume, per-bucket/per-worker observability, force-release) are all implemented — the contract is fully implemented; see [IMPLEMENTATION-PLAN-admin-api.md](docs/IMPLEMENTATION-PLAN-admin-api.md). |
+| `tandem-relay` | The standalone relay application: a Spring Boot application that hosts the relay and, optionally, the Admin API, shipped as a container image and an executable jar. Not published to Maven Central, and versioned independently of the library (`relay-v*`). |
 | `tandem-sample` | Example application (plain Java), not published. |
 | `tandem-sample-spring` | Example Spring Boot application, not published. Also hosts the end-to-end Spring smoke test. |
 | `tandem-benchmark` | Load-testing harness, not published. |
@@ -156,7 +157,7 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [LLD-bucket-count-guard.md](docs/LLD-bucket-count-guard.md) | Guard against a divergent bucket count between write-side and relay (core strategy + port, JDBC adapter) |
 | [HLD-admin-api.md](docs/HLD-admin-api.md) · [admin-api.openapi.yaml](docs/admin-api.openapi.yaml) | Admin API design + OpenAPI contract. Every error `type` it returns resolves to a [problem-type page](https://tandem.codingful.com/problems/). |
 | [LLD-cli.md](docs/LLD-cli.md) | `tandem-cli` — the Go command-line frontend over the Admin API |
-| [LLD-relay.md](docs/LLD-relay.md) | `tandem-relay` — the prebuilt standalone relay deployable (image + jar); designed, not implemented |
+| [LLD-relay.md](docs/LLD-relay.md) | `tandem-relay`: the prebuilt standalone relay deployable (image + jar) |
 | [HLD-load-testing.md](docs/HLD-load-testing.md) · [LLD-benchmark.md](docs/LLD-benchmark.md) | Throughput/latency verification plan + the `tandem-benchmark` harness that implements it |
 | [virtual-threads-decision.md](docs/virtual-threads-decision.md) | Why the relay's workers stay platform threads, measured rather than argued, and what an application running on virtual threads needs to know (nothing) |
 | [HLD-causal-ordering.md](docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |

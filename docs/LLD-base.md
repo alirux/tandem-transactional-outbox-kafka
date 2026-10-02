@@ -36,7 +36,7 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 | `tandem-rabbitmq` | `tandem-rabbitmq` | AMQP 0.9.1 publish adapter. **Independently versioned** (`rabbitmq-v*`), so it is outside `tandem-bom` (LLD-rabbitmq §9) |
 | `tandem-spring-producer` | `tandem-spring-producer` | Write-side Spring autoconfig (JDBC, **no Kafka**) — used by the client (§3.2 HLD). Split by role, no aggregator (Q21, LLD-spring-config §1) |
 | `tandem-spring-relay` | `tandem-spring-relay` | Relay Spring autoconfig (JDBC + Kafka) |
-| `tandem-relay` | `tandem-relay` | Prebuilt **standalone runnable** relay (Spring Boot app over `tandem-spring-relay`) — split topology (§3.2 HLD) |
+| `tandem-relay` | *(not published)* | Prebuilt **standalone runnable** relay (Spring Boot app over `tandem-spring-relay`), the split topology of §3.2 HLD. Shipped as a container image and an executable jar, never as a Maven artifact, and **independently versioned** (`relay-v*`, LLD-relay §7.3) |
 | `tandem-test` | `tandem-test` | |
 | `tandem-kafka-streams` | `tandem-kafka-streams` | Optional — causal-ordering adapter (§9 HLD) |
 | `tandem-flink` | `tandem-flink` | Optional — causal-ordering adapter (§9 HLD) |
@@ -52,9 +52,10 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 
 CI submits a GitHub dependency graph on every push to `main` (`gradle/actions/dependency-submission`),
 and that graph is what Dependabot raises security alerts against. It is deliberately **scoped to the
-redistributed footprint**: only the published modules, and within them only `runtimeClasspath`, the
-closest Gradle equivalent of the published POM's compile + runtime scopes. An alert therefore means
-something an adopter inherits, which is the same surface [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)
+redistributed footprint**: the published modules plus `tandem-relay`, whose runtime classpath reaches
+operators inside the container image, and within them only `runtimeClasspath`, the closest Gradle
+equivalent of the published POM's compile + runtime scopes. An alert therefore means something an
+adopter or an operator receives, which is the same surface [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)
 tracks by hand.
 
 Left out on purpose: test and build-time tooling, `compileOnly` dependencies (Spring, Jackson,

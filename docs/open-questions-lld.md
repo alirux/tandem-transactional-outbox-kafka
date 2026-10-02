@@ -143,8 +143,12 @@ resolved (or consciously deferred) to write correct per-module LLDs.
   `@EventListener` scoped to `OutboxMessage` + registered `OutboxEventMapper<T>` types, fail-fast
   without a tx. Serializer optional (never forced); `byte[]` path always dependency-free.
   Micrometer-Tracing left to the tracing increment (HLD-tracing §8). *(tandem-spring-producer; HLD §3.1)*
-- [ ] **Q23 (P2)** — **`tandem-relay` runnable.** Main class, config binding, packaging
-  (JAR/Docker), how it receives N / shard assignment (ties to Q8). *(tandem-relay; HLD §3.2)*
+- [x] **Q23 (P2)** — **`tandem-relay` runnable.** ✅ Resolved in [LLD-relay.md](LLD-relay.md): a Spring
+  Boot application over `tandem-spring-relay` (main class and nothing engine-related of its own),
+  configured by the library's own `tandem.*` keys from the environment, packaged as an executable jar
+  and a container image on its own version line (`relay-v*`). The last part of the question no longer
+  exists: under `LEASE` an instance receives no `N` and no assignment, it registers itself and buckets
+  are claimed and rebalanced dynamically (LLD-relay §1.1). *(tandem-relay; HLD §3.2)*
 
 ## E. tandem-admin
 

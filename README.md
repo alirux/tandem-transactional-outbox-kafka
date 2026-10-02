@@ -659,9 +659,10 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
 
 Not yet shipped, in no particular order:
 
-- **`tandem-relay`** — a prebuilt, standalone relay deployable. Fully designed
-  ([LLD-relay.md](docs/LLD-relay.md)) but **not built**: today you assemble the relay process
-  yourself (plain Java or Spring); see [Usage](#usage).
+- **`tandem-relay`**: a prebuilt, standalone relay deployable. The application is in the repository
+  ([LLD-relay.md](docs/LLD-relay.md)) but **not released yet**: its container image and release
+  workflow are still to come. Until then you assemble the relay process yourself (plain Java or
+  Spring); see [Usage](#usage).
 - **Cross-aggregate causal ordering** via Lamport clocks — fully designed
   ([HLD-causal-ordering.md](docs/HLD-causal-ordering.md)) but **not built**, and there is no way to switch it
   on: no flag, no `lamport` column, no clock table, no consumer-side adapter. What ships is a small

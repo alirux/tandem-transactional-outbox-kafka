@@ -99,7 +99,9 @@ classpath. `tandem-kafka` is relay-only and already pulls `slf4j-api` transitive
 `kafka-clients`, so it logs via **SLF4J** at no extra footprint cost. `tandem-sample` and
 `tandem-benchmark` are leaf apps, not libraries — they may take a concrete logging backend, and
 both use `slf4j-simple` (zero-config; their real output is `System.out` report text, so a
-configurable backend would be weight for nothing). The library **ships no logging configuration** (no `logback.xml`/`log4j2.xml`) —
+configurable backend would be weight for nothing). `tandem-relay` is a leaf app too, and the one whose
+output *is* its log: it logs via SLF4J on the Logback that Spring Boot's starter brings, which an
+operator configures the usual Spring way. The library **ships no logging configuration** (no `logback.xml`/`log4j2.xml`) —
 routing logs is the consuming application's job, same reasoning as every other unopinionated
 default (§1.1). See [docs/HLD-logging.md](docs/HLD-logging.md).
 
@@ -278,7 +280,7 @@ release). When you add a module, walk the whole list in the same change:
 | `tandem-bom/build.gradle.kts` | **Published modules on the library's own version only.** The BOM's job is to let a consumer declare any Tandem module without a version; a module missing there cannot be used that way. An **independently versioned** module (see below) is deliberately excluded, and the omission is recorded as a comment there so nobody "fixes" it. |
 | `tandem-coverage`'s `coveredProjects` | **Published, tested modules only.** Only the aggregated report attributes cross-module hits to the owning class, and it is the single report CI uploads to Codecov — a module missing there never reaches Codecov at all. |
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
-| `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules that must NOT be published.** The dependency graph CI submits is scoped to the published runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. |
+| `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules whose dependencies reach nobody** (samples, benchmark, coverage). The dependency graph CI submits is scoped to the redistributed runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. `tandem-relay` is unpublished and stays **out** of the regex on purpose: its runtime classpath ships to operators inside the container image, so its alerts are real (LLD-relay §10). |
 | `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
 | `THIRD-PARTY-NOTICES.md` per-module table | **Published modules only.** It documents what a consumer actually inherits; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
 

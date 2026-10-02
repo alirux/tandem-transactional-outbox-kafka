@@ -104,7 +104,7 @@ tandem-relay/
 ├── docker-compose.example.yml
 └── src/
     ├── main/java/com/codingful/tandem/relay/
-    │   ├── TandemRelayApplication.java     @SpringBootApplication, nothing else
+    │   ├── TandemRelayApplication.java     @SpringBootApplication, and the scan for the one properties class
     │   ├── RelayVerdict.java               §5.1, the verdict: a pure function of one reading
     │   ├── RelayHealthIndicator.java       §5.1, fetches the reading and asks the verdict
     │   ├── RelayHealthProperties.java      §5.2
@@ -112,10 +112,15 @@ tandem-relay/
     │   └── package-info.java
     ├── main/resources/
     │   └── application.yml                 §6.1, the image's defaults
-    └── test/java/com/codingful/tandem/relay/
-        ├── RelayVerdictTest.java           §8.1
-        ├── RoleCheckTest.java              §8.1
-        └── TandemRelayApplicationIT.java   §8.2
+    ├── test/java/com/codingful/tandem/relay/            §8.1, no Docker
+    │   ├── RelayVerdictTest.java
+    │   ├── RelayHealthPropertiesTest.java
+    │   ├── RelayHealthIndicatorTest.java
+    │   ├── RoleCheckTest.java
+    │   └── ShippedConfigurationTest.java
+    └── integrationTest/java/com/codingful/tandem/relay/  §8.2, the jar as a process
+        ├── RelayProcess.java
+        └── TandemRelayApplicationIT.java
 ```
 
 Five small classes, one of which is empty, and no autoconfiguration, no post-processor, no
@@ -557,10 +562,12 @@ into a change of the library's verified line.
 **Two jars are built from the same application classes, and they differ only in where Tandem comes
 from** (§7.3):
 
-| Task | Tandem modules | Used by |
-|---|---|---|
-| `bootJar` | The working tree | `integrationTest`: the application against the library as it stands on `main` |
-| `pinnedBootJar` | The pinned release, resolved from Maven Central | `pinnedTest`, the image, the release |
+| Task | Tandem modules | Jar | Used by |
+|---|---|---|---|
+| `bootJar` | The working tree | `tandem-relay-<version>-worktree.jar` | `integrationTest`: the application against the library as it stands on `main` |
+| `pinnedBootJar` | The pinned release, resolved from Maven Central | `tandem-relay-<version>.jar` | `pinnedTest`, the image, the release |
+
+The pinned jar carries the plain name because it is the one that ships.
 
 ### 7.2 Container image
 
@@ -626,7 +633,9 @@ depends on Tandem by published coordinate, through `tandem-bom` at the version i
 (`tandem-relay/build.gradle.kts`). During development the root build substitutes the working tree
 for those coordinates, as it does for every independently versioned module, so the repository
 stays one buildable unit. The pinned classpath is the one configuration exempt from that
-substitution, the same mechanism `tandem-rabbitmq` uses for its floor.
+substitution, the same mechanism `tandem-rabbitmq` uses for its floor. One detail is specific to
+consuming the BOM: it is requested as a platform and the root build substitutes it as one, since a
+plain project substitution asks `tandem-bom` for a library variant it does not have.
 
 The difference from that connector is what the number means. A connector is used *with* a range of
 library versions and declares the oldest, a floor. An image *contains* one, so the pin is exact.
@@ -736,7 +745,8 @@ test, in the project's `GIVEN_WHEN_THEN` form:
 - the boundary of the stall threshold, on both sides of it;
 - a worker deficit and a paused relay both report `UP`, with the deficit and the pause in the
   details;
-- a process with no relay reports `UNKNOWN`;
+- a process with no relay reports `UNKNOWN`, and one whose relay polls more slowly than the
+  threshold allows is refused when the indicator is created;
 - a `stalled-after` too close to `poll-interval` is refused, naming both keys, and one with enough
   margin is accepted;
 - a process configured with neither role is refused, naming both keys (§4);
@@ -753,6 +763,15 @@ the jar with a real `java` process (the Java 25 launcher of the
 module's toolchain, handed to the test task by Gradle), configured **through environment variables
 only**, against `TandemTestContainer`'s real PostgreSQL and Kafka on their host-mapped ports.
 
+**The test has a source set of its own, `integrationTest`**, with nothing of the application on its
+classpath: it observes the process from outside, over HTTP, JDBC and Kafka. That is not only
+tidiness. The main and test classpaths carry the Spring Boot 4 BOM, which manages a Testcontainers
+generation (2.x) and a Jackson generation (3) that `tandem-test`'s container helper is not built
+against; a test sharing that classpath would start its containers on a mix of the two.
+
+Every relay in the test runs under `LEASE`: several of these processes are alive at once against
+one database, which is exactly the case that mode is for.
+
 That is what makes the test worth its runtime. A context started in the test JVM would exercise
 neither the executable jar and its launcher, nor configuration from the environment, which a JVM
 cannot set for itself. And the addresses of the database and the broker are known only once the
@@ -761,7 +780,9 @@ containers are up, so Gradle cannot supply them either.
 With both roles enabled:
 
 1. a row inserted into the outbox is delivered to Kafka, with `TANDEM_KAFKA_PRODUCER_BOOTSTRAP_SERVERS`
-   as the only source of the broker address (§6.2);
+   as the only source of the broker address (§6.2). The delivered body is compared with the written
+   payload as a JSON document, not byte for byte: PostgreSQL stores it as `jsonb` and renders it in
+   its own spacing;
 2. the readiness path on the management port answers `UP` and carries the `tandemRelay`
    contributor with its details (§5);
 3. the Prometheus scrape contains a Tandem meter, the proof that the metrics adapter found the
@@ -770,15 +791,16 @@ With both roles enabled:
    `payload` as **real JSON**, the stored document and not a rendering of the binding's own tree
    type (§2);
 5. the application port serves no Actuator path and the management port no Admin API path (§4.1);
-6. asked to stop, the process exits by itself within the grace period (§6.1).
+6. the `info` endpoint names the library release the application contains (§7.3);
+7. asked to stop, the process exits by itself within the grace period (§6.1).
 
 With one role, or a broken configuration:
 
-7. Admin-API-only: the process starts with no Kafka setting at all, serves the Admin API, and
+8. Admin-API-only: the process starts with no Kafka setting at all, serves the Admin API, and
    reports the relay contributor as `UNKNOWN`;
-8. relay-only: no Admin API route is served;
-9. without `tandem.kafka.source` the process exits, and its output names the key;
-10. with neither role enabled the process exits, and its output names both keys.
+9. relay-only: no Admin API route is served;
+10. without `tandem.kafka.source` the process exits, and its output names the key;
+11. with neither role enabled the process exits, and its output names both keys.
 
 Assertion 4 overlaps `tandem-admin`'s `jacksonThreeTest` on purpose, and assertions 1 and 3
 overlap the wiring tests of `tandem-spring-relay`. Those gates run a module's tests on a chosen

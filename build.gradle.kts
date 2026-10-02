@@ -19,8 +19,11 @@ val junitLauncher = libs.junit.platform.launcher
 // Unpublished modules that configure their own plugins/toolchain/tests directly rather than the shared
 // java-library/publishing convention below: tandem-sample is a Java 17 tutorial app; tandem-benchmark
 // needs a newer JDK for virtual threads (LLD-benchmark §2); tandem-coverage is a build-only module that
-// only produces the aggregated JaCoCo report (no Java sources, no artifact to publish).
-val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-benchmark", "tandem-coverage")
+// only produces the aggregated JaCoCo report (no Java sources, no artifact to publish); tandem-relay is
+// the standalone relay application, distributed as a container image and an executable jar, never as a
+// Maven artifact, and it runs on its own JDK and Spring Boot line (LLD-relay §3).
+val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-benchmark", "tandem-coverage",
+        "tandem-relay")
 
 // Modules that ARE libraries in every other respect — java-library convention, tests, coverage
 // aggregation — but must not be published yet: an independently versioned module belongs here until its
@@ -39,17 +42,25 @@ val notYetPublishedModules = setOf<String>()
 // the POM as the sibling's version (IMPLEMENTATION-PLAN-rabbitmq.md §8). During development those
 // coordinates resolve back to the working tree, so the repository stays one buildable unit; published
 // metadata keeps the declared floor. Applied in every project, not only in the connector, because a
-// module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The one
-// exempt configuration is the connector's floorTest classpath, whose whole point is to resolve the
-// floor from Maven Central.
-val floorClasspath = "floorTestRuntimeClasspath"
+// module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The
+// exempt configurations are the ones whose whole point is to resolve from Maven Central: the connector's
+// floorTest classpath, and the classpath of the relay application's pinned jar (LLD-relay §7.3). A
+// configuration missing from this set is substituted like any other, and the gate built on it then
+// passes while testing the working tree.
+val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath")
 val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 
 subprojects {
-    configurations.matching { it.name != floorClasspath }.configureEach {
+    configurations.matching { it.name !in centralClasspaths }.configureEach {
         resolutionStrategy.dependencySubstitution {
             siblingPaths.forEach { (name, path) ->
-                substitute(module("com.codingful:$name")).using(project(path))
+                if (name == "tandem-bom") {
+                    // A BOM is requested as a platform and must be answered as one: a plain project
+                    // substitution asks tandem-bom for a library variant, which it does not have.
+                    substitute(platform(module("com.codingful:$name"))).using(platform(project(path)))
+                } else {
+                    substitute(module("com.codingful:$name")).using(project(path))
+                }
             }
         }
     }
