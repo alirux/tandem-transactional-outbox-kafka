@@ -89,6 +89,14 @@ When you change a **redistributed compile/runtime dependency** — add or remove
 change: keep its per-module table, dependency list (name, version, license), and license-text
 sections in sync. Test-only and benchmark-only dependencies are excluded and need no update.
 
+`tandem-relay` is the exception, because its jar and its container image **bundle** their whole runtime
+classpath: its list in THIRD-PARTY-NOTICES.md is **generated** from the pinned jar's `BOOT-INF/lib`, never
+edited by hand (LLD-relay §10). After any change that reaches that jar (a dependency of the module, the
+`tandemPin`, the application's Spring Boot version), run `./gradlew :tandem-relay:updateThirdPartyNotices`
+and commit the result: `checkThirdPartyNotices`, part of `check`, fails until you do. A license the image
+has not carried before fails the generator until it is mapped to its SPDX id in
+`tandem-relay/build.gradle.kts` and its text section is added to THIRD-PARTY-NOTICES.md.
+
 ## Logging
 
 **Logging API is per-module, tied to the minimal-client-footprint boundary (§1.3), not a
@@ -290,10 +298,14 @@ release). When you add a module, walk the whole list in the same change:
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
 | `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules whose dependencies reach nobody** (samples, benchmark, coverage). The dependency graph CI submits is scoped to the redistributed runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. `tandem-relay` is unpublished and stays **out** of the regex on purpose: its runtime classpath ships to operators inside the container image, so its alerts are real (LLD-relay §10). |
 | `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
-| `THIRD-PARTY-NOTICES.md` per-module table | **Published modules only.** It documents what a consumer actually inherits; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
+| `THIRD-PARTY-NOTICES.md` per-module table | **Every module whose artifact reaches someone**: the published modules, and a deployable that bundles its dependencies (today `tandem-relay`, whose image and jar redistribute the whole runtime; its section is generated from the jar, see Minimal client footprint). It documents what a consumer or an operator actually receives; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
 
-**Independently versioned modules** (today: `tandem-rabbitmq`, plus the Go `tandem-cli`) follow the same
-checklist with three changes, because their version is not the library's: they stay **out of `tandem-bom`**,
+**Independently versioned modules** are of three kinds today: a Maven artifact (`tandem-rabbitmq`), a Go
+binary (`tandem-cli`) and a container image with its jar (`tandem-relay`). Not every one is a library on
+Maven Central, so the rules below are for the **published** kind; `tandem-relay` is an unpublished
+application (in `unpublishedModules`, out of the BOM, out of coverage aggregation, released by its own
+workflow, LLD-relay §10), and `tandem-cli` is outside the Gradle build altogether. The published ones follow
+the same checklist with three changes, because their version is not the library's: they stay **out of `tandem-bom`**,
 they stay **in `coveredProjects`** (they are built and tested in this repository like any other module), and
 every place that documents them states their version explicitly instead of implying the BOM covers it. Until
 such a module's own release workflow exists it also belongs in `notYetPublishedModules` in the root
@@ -387,6 +399,11 @@ from its versions page, and the README's API reference links `latest`. The scrip
 for the latest release of every published module and waits until the docs are served; it is
 idempotent, and `DRY_RUN=1` only reports the status.
 
+**After a library release reaches Maven Central, consider the relay image too.** The image contains one
+library release, resolved from Maven Central, so it can only follow a release, never accompany one: move
+`tandemPin` in `tandem-relay/build.gradle.kts`, regenerate its notices, and tag a `relay-v*` release
+(below). Skipping it breaks nothing; the image stays on the previous library release.
+
 ### `tandem-cli` releases — a separate scheme, not a variant of the above
 
 `tandem-cli` (Go, `tandem-cli/`) is versioned and released **independently of the
@@ -431,3 +448,40 @@ Before tagging, the breaking-change check is scoped to the connector's own contr
 (LLD-rabbitmq §9): its public types, its default route, the headers and properties it
 puts on the wire, and the declared floor. Same annotated-tag-as-release-notes convention
 and the same "ask before tagging" rule.
+
+### `tandem-relay` releases: the fourth scheme
+
+`tandem-relay` is an application, not a library: nothing of it goes to Maven Central. It is released as
+a container image on GHCR (`ghcr.io/alirux/tandem-relay`) and an executable jar attached to a GitHub
+Release, versioned independently of the library (LLD-relay §7.3): tags follow `relay-v<semver>` (e.g.
+`relay-v0.1.0`), and pushing one runs `.github/workflows/relay-release.yml`. Its version comes from
+`RELAY_VERSION`, never from the library's `VERSION`; outside a release the variable is unset and the
+build is a snapshot.
+
+**The workflow is fully automatic**, because nothing in it is irreversible the way a Maven Central
+publication is: it runs `pinnedTest` and the notices check on the tagged commit, builds the pinned jar,
+pushes the `linux/amd64` + `linux/arm64` image under the version, and under `latest` only when the
+version has no pre-release suffix, then creates the GitHub Release with the jar attached and
+`--latest=false`. A version tag is never moved: a run repeated after a failure leaves an image already
+pushed as it is, and a rebuild (a patched base image, say) is a new patch tag, on the same commit if
+nothing else changed. The very first push creates the GHCR package **private**; switch it to public once
+from the package settings.
+
+**The pin is part of its contract.** The module depends on Tandem by published coordinate through
+`tandem-bom` at the version in `tandemPin` (`tandem-relay/build.gradle.kts`), substituted by the working
+tree during development. `pinnedTest`, wired into `check`, runs the application's integration test on the
+jar built from that release resolved from Maven Central, which is the jar the image ships. A relay change
+that needs a library change waits for the library release that ships it, then moves the pin. The release
+notes must state the library version the image contains, since nothing in the image's version implies it.
+
+Before tagging, the breaking-change check is scoped to the image's own contract (LLD-relay §7.3): the
+image name, the two default ports and what each serves, the probe paths, the default role, the user id it
+runs as, and being configured by the library's `tandem.*` keys and Spring's own. The Spring Boot, JDK and
+base image versions, the exact health details, the layout inside the container and the rendering of log
+lines are **not** part of it. Bump rules, with the usual `0.x` reading where a minor signals a break:
+a rebuild, a dependency or base image patch, a fix in the module, or the pin moving to a library patch is
+a patch; the pin moving to a library minor, or a new capability of the module, is a minor and never a
+patch; a change to the contract above, or a pinned library release that itself asks something of an
+operator (a schema migration to apply first, a change in the published envelope), is breaking. Same
+annotated-tag-as-release-notes convention (first line = title, body = notes) and the same "ask before
+tagging" rule.

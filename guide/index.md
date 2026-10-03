@@ -33,6 +33,7 @@ walkthrough of the message flow.
 | Publishing to RabbitMQ rather than Kafka | [Getting Started](getting-started.md) for the write, then [Publishing to RabbitMQ](rabbitmq.md) |
 | In the middle of an incident | [Troubleshooting](troubleshooting.md), then the [Admin API](admin-api.md) or the [Command Line](cli.md) |
 | Sizing a deployment | [Performance and Sizing](performance-and-sizing.md), then [Reliability and Topology](reliability.md) |
+| Running the relay as a container of its own | [Reliability and Topology](reliability.md), then [The Relay Image](relay-image.md) |
 
 ## Chapters
 
@@ -49,11 +50,13 @@ First use, what consumers receive, what to check before adopting, and publishing
 
 ### Run in production
 
-What happens under failure, how to see it, how to size it, how to test and upgrade.
+What happens under failure, running the prebuilt relay, how to see it, how to size it, how to test
+and upgrade.
 
 | Chapter | Topics |
 |---|---|
 | [Reliability and Topology](reliability.md) | What Tandem does under failure (retries, permanent errors, a Kafka or database outage, a relay crash), embedded and split deployments, `SINGLE` and `LEASE` coordination, the bucket count and its guard, the tables Tandem keeps and how long. |
+| [The Relay Image](relay-image.md) | The prebuilt relay container: its roles and two ports, the probes and what they mean, configuration from environment variables and secrets, the grace period, several replicas under `LEASE`, the wakeup, the schema and the socket timeout, the Admin API in it, and its own versions. |
 | [Observability](observability.md) | Logs (where they go, how a line is built, the lines worth knowing), metrics (turning them on, every meter, the alerts to build and their limits) and distributed traces (propagation, the relay publish span, the correlation id, reading a trace), then how the three join in an incident. |
 | [Performance and Sizing](performance-and-sizing.md) | What to expect (latency, throughput, recovery), how the poll settings really behave, what polling costs your database, sizing for more throughput, what quietly costs capacity, the cost on the write path, and measuring it on your own hardware. |
 | [Testing and Upgrades](testing-and-upgrades.md) | Testing with the in-memory outbox, the recording dispatcher and real containers, the tests only you can write, why mixed versions are safe, and a step-by-step upgrade. |

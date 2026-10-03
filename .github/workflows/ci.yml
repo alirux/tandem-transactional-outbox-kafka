@@ -46,14 +46,14 @@ jobs:
         if: github.event_name == 'push'
         uses: gradle/actions/dependency-submission@v5
         with:
-          # Scope the graph to what an adopter actually inherits: the runtime classpath of the
-          # published modules. Without these two filters the action submits every resolvable
-          # configuration of every project, so the alerts are dominated by coordinates nobody
-          # downstream ever sees: test-only tooling, compileOnly Spring (never in a published POM),
-          # the two extra Boot lines of the compatibility matrix, and the sample app's own server
-          # runtime. `runtimeClasspath` is the closest Gradle equivalent of the published POM's
-          # compile + runtime scopes, which is exactly the redistributed footprint the project
-          # already tracks by hand in THIRD-PARTY-NOTICES.md.
+          # Scope the graph to what is redistributed: the runtime classpath of the published
+          # modules, and of the relay image (below). Without these two filters the action submits
+          # every resolvable configuration of every project, so the alerts are dominated by
+          # coordinates nobody downstream ever sees: test-only tooling, compileOnly Spring (never in
+          # a published POM), the two extra Boot lines of the compatibility matrix, and the sample
+          # app's own server runtime. `runtimeClasspath` is the closest Gradle equivalent of the
+          # published POM's compile + runtime scopes, which is exactly the redistributed footprint
+          # the project already lists in THIRD-PARTY-NOTICES.md.
           #
           # What this trades away: a vulnerability confined to test or build tooling no longer
           # raises an alert here. That is deliberate, not an oversight. Go is unaffected, since
@@ -64,6 +64,35 @@ jobs:
           # something that is redistributed (LLD-relay §10).
           dependency-graph-include-configurations: ^runtimeClasspath$
           dependency-graph-exclude-projects: ^:?tandem-(sample|sample-spring|benchmark|coverage)$
+
+      # The integration tests run the relay's jar; this runs its image (LLD-relay §8.3), so a broken
+      # Dockerfile or compose example fails here rather than at release time. It packages the pinned jar
+      # `check` has already built, for the runner's architecture only and without pushing, then brings up
+      # the compose example: --wait returns once both replicas pass their healthcheck, which is the
+      # readiness probe. That exercises the layer extraction, the entrypoint, the non-root user and the
+      # example file, which nothing else runs.
+      - name: Smoke-test the relay image
+        id: relay-image
+        run: |
+          build_args=$(./gradlew -q :tandem-relay:imageBuildArgs)
+          docker build $build_args --tag tandem-relay:local tandem-relay
+          docker compose -f tandem-relay/docker-compose.example.yml up --wait --wait-timeout 180
+          for port in 8081 8082; do
+            curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:$port/actuator/health/readiness"
+          done
+          # A correctly configured start logs nothing at WARN: a warning at every healthy start teaches
+          # operators to ignore warnings.
+          if docker compose -f tandem-relay/docker-compose.example.yml logs relay-1 relay-2 | grep ' WARN '; then
+            exit 1
+          fi
+
+      - name: Stop the relay image smoke test
+        if: always() && steps.relay-image.outcome != 'skipped'
+        run: |
+          if [ "${{ steps.relay-image.outcome }}" = failure ]; then
+            docker compose -f tandem-relay/docker-compose.example.yml logs --no-color
+          fi
+          docker compose -f tandem-relay/docker-compose.example.yml down -v
 
   tandem-cli:
     # tandem-cli is a separate Go module (tandem-cli/go.mod) entirely outside the Gradle

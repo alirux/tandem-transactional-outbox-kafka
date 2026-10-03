@@ -87,6 +87,22 @@ exports one real trace, write through consume, to a Tempo container read on the 
 ./gradlew :tandem-benchmark:tracingDashboardDemo
 ```
 
+`tandem-relay` is also shipped as a container image, which `check` does not build (CI does, and runs it).
+To build it for your machine and start the compose example the user guide describes
+([The Relay Image](https://tandem-codingful.readthedocs.io/relay-image/)), with Docker running:
+
+```bash
+./gradlew :tandem-relay:pinnedBootJar
+docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local tandem-relay
+docker compose -f tandem-relay/docker-compose.example.yml up --wait
+docker compose -f tandem-relay/docker-compose.example.yml down -v
+```
+
+The image bundles every library the relay runs on, and THIRD-PARTY-NOTICES.md lists them from the jar.
+After a change that alters that list (a dependency of the module, the pinned library release, the
+Spring Boot version), regenerate it with `./gradlew :tandem-relay:updateThirdPartyNotices`; `check`
+fails until the committed list matches the jar.
+
 `tandem-cli` is entirely outside the Gradle build (its own `go.mod`, LLD-cli.md §2) — `./gradlew
 check` never touches it. Build and test it from `tandem-cli/`:
 

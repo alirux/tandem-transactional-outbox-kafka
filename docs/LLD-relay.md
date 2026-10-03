@@ -1,6 +1,6 @@
 # Tandem — `tandem-relay` LLD
 
-**Version:** 1.3 (Designed, not implemented)
+**Version:** 1.4 (Implemented)
 **Module:** `tandem-relay` · Gradle subproject, package `com.codingful.tandem.relay`
 **Depends on:** [`tandem-spring-relay`](LLD-spring-config.md) (the relay autoconfiguration it runs),
 [`tandem-kafka`](LLD-kafka.md) (the one transport the image carries, §3.2),
@@ -473,7 +473,8 @@ states the rule where an operator meets it, including its Kubernetes form: a rol
 **`tandem.outbox.wakeup` keeps the library default, `none`**, for the same reason. With
 `pg-notify` the relay holds one extra connection listening on the `tandem_wakeup` channel, and the
 write side must emit the same mechanism or nothing is ever signalled (LLD-jdbc §3.10): it is a
-setting of the pair, not of the image. The `docker-compose` example turns it on for both sides.
+setting of the pair, not of the image. The `docker-compose` example has no write side of its own;
+it turns the wakeup on for its relays, with a comment that the write side must emit the same.
 The image documentation carries the one deployment caveat that belongs to a container: a
 connection pooler in transaction-pooling mode silently breaks `LISTEN`, so the relay's datasource
 must reach PostgreSQL directly or through session pooling. A mismatch costs latency only, since
@@ -512,8 +513,8 @@ rests on the 16 random bits alone, and under `LEASE` two instances sharing an id
 they own the same buckets.
 
 The image documentation therefore gives `TANDEM_RELAY_INSTANCE_ID` set from the pod name (the
-downward API on Kubernetes, the container name on compose) as **the** configuration for more than
-one replica, not as a nicety. The value is capped at 64 characters by the library. It also makes
+downward API on Kubernetes; on compose, which has no such mechanism, a value per service, the
+service's name in the example) as **the** configuration for more than one replica, not as a nicety. The value is capped at 64 characters by the library. It also makes
 logs, the lease table and Admin API output correlate. A vanished owner needs no cleanup either
 way: its lease expires and is reclaimed.
 
@@ -583,8 +584,21 @@ that made this project hand-write its Admin API server rather than generate it.
 What the Dockerfile does, each line of it a decision:
 
 - **It packages the jar Gradle built**, the pinned one of §7.1, copied in from `build/libs`, and
-  compiles nothing. The image and the jar attached to the release are then the same bits, and a
-  `.dockerignore` keeps the rest of the repository out of the build context.
+  compiles nothing. The image and the jar attached to the release are then the same bits. The build
+  context is the module directory, and its `.dockerignore` admits `build/libs/tandem-relay-*.jar`
+  except the `-worktree` one, and nothing else:
+
+  ```
+  ./gradlew :tandem-relay:pinnedBootJar
+  docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local tandem-relay
+  ```
+- **The version and the pin reach the image as two build arguments**, `RELAY_VERSION` and
+  `TANDEM_VERSION`, because a label can take its value from nothing else. They have one source: the
+  `imageBuildArgs` task prints the project version and `tandemPin`, the same two values the jar's
+  `build-info.properties` carries, and every build (local, CI, release) takes them from it. The first
+  stage then checks both against that `build-info` and fails on a mismatch, so a stale jar or a
+  hand-typed value cannot produce a label naming another release than the one inside. The version also
+  names the jar the stage copies, so a missing argument fails the build at once.
 - **Layers are extracted with Boot's `tools` jar mode** (`java -Djarmode=tools -jar … extract
   --layers`), so the dependency layers cache independently of the application layer. That stage
   runs on the build platform (`FROM --platform=$BUILDPLATFORM`): the extracted layers are the same
@@ -595,16 +609,26 @@ What the Dockerfile does, each line of it a decision:
 - **JVM flags travel in `JAVA_TOOL_OPTIONS`**, set to `-XX:MaxRAMPercentage=75` so the heap follows
   the container limit. An operator changes or extends it with one environment variable, without
   rewriting the entrypoint.
-- **A numeric, non-root `USER`.** Numeric because Kubernetes' `runAsNonRoot` can verify a number
-  and cannot verify a name.
-- **The licence travels with the redistribution.** `LICENSE` and the module's third-party notices
-  (§10) are copied into the image, and into the jar's `META-INF`: the image redistributes the
-  whole Spring Boot runtime, and a notice that exists only in the repository does not accompany
-  it.
-- OCI `org.opencontainers.image.*` labels for source, version and licence, plus one of Tandem's
-  own carrying the library version inside (§7.3); **no `HEALTHCHECK`**
+- **A numeric, non-root `USER`**, `10001:10001`, created in the image as `tandem`. Numeric because
+  Kubernetes' `runAsNonRoot` can verify a number and cannot verify a name; a user of its own rather
+  than the base image's `ubuntu` (1000), so the id does not depend on what the base happens to ship.
+- **The licence travels with the redistribution.** `LICENSE` and `THIRD-PARTY-NOTICES.md` (§10)
+  are copied into the jar's `META-INF` by `pinnedBootJar`, and the image takes them **from the jar**,
+  into `/licenses`: a second extraction (`extract --launcher --layers application`) unpacks the
+  application layer as plain files, which is also where the `build-info` checked above lives. The
+  jar and the image therefore carry the same two files by construction, and the build context needs
+  nothing but the jar. The image redistributes the whole Spring Boot runtime, and a notice that
+  exists only in the repository does not accompany it.
+- OCI `org.opencontainers.image.*` labels for title, description, source, version and licence,
+  plus `com.codingful.tandem.library.version` carrying the library version inside (§7.3). The
+  release adds `revision` and `created`, both taken from the tagged commit. **No `HEALTHCHECK`**
   instruction, since orchestrators use the probes of §5.2 and the compose example wires one
   explicitly.
+
+The base image carries **no `curl`, no `wget` and no `nc`**, and this image adds none: a package
+installed only for a probe is attack surface every deployment pays for, and Kubernetes' `httpGet`
+probes run outside the container anyway. The compose example's healthcheck therefore sends its request
+through `bash`'s `/dev/tcp`, which the base image already has, and checks for a `200` status line.
 
 The image is **multi-architecture**, `linux/amd64` and `linux/arm64`, since arm64 is both a common
 development machine and a common production instance type.
@@ -688,17 +712,21 @@ the library release each contains.
 Pushing a `relay-v*` tag runs `relay-release.yml`, which is fully automatic, because nothing in it
 is irreversible the way a Maven Central publication is:
 
-1. `pinnedTest`, so the tagged commit is verified against the pinned release before anything is
-   pushed (Docker is available on the runner).
-2. Build the pinned jar with `RELAY_VERSION` taken from the tag. Outside a release the variable is
-   unset and the build is a snapshot; the workflow is the only place that pushes.
+1. `pinnedTest` and the notices check (§10), so the tagged commit is verified against the pinned
+   release before anything is pushed (Docker is available on the runner). `RELAY_VERSION` is taken
+   from the tag first, refused unless it is `<major>.<minor>.<patch>` with an optional pre-release
+   suffix (an image tag cannot carry semver build metadata), and set for every later step, so the jar
+   under test is the jar that ships.
+2. Build the pinned jar with that `RELAY_VERSION`. Outside a release the variable is unset and the
+   build is a snapshot; the workflow is the only place that pushes.
 3. Build the multi-architecture image and push it to GHCR under the version, and under `latest`
    **only when the version has no pre-release suffix**. Version tags are never moved: a rebuild is
-   a new patch.
+   a new patch, and when the version tag already exists on GHCR the step pushes nothing.
 4. Create the GitHub Release from the annotated tag, with the jar attached and `--latest=false`,
    so the repository's "Latest" badge stays the library's (same as the CLI and the connector).
 
-A step that fails is re-run on its own; there is no staging to repeat.
+A failed run is simply run again; there is no staging to repeat. Because an existing version tag is
+left alone, a run repeated after step 4 failed publishes the release without moving the image.
 
 Because the image is built from artifacts already on Maven Central, **an image release follows a
 library release, it never accompanies one**: the library is tagged, published by hand, and only
@@ -821,6 +849,13 @@ healthcheck, which is the readiness path. That one step proves the layer extract
 entrypoint, the non-root user, and the example file itself, which is otherwise a document that
 nothing runs.
 
+It is a step of the existing `build` job, after `check`, so it reuses the pinned jar `check` has
+already built (for `pinnedTest`) and adds an image build and a compose start, not a second Gradle
+build. The image is built for the runner's architecture only and never pushed. Beyond `--wait`, the
+step reads readiness on both replicas from the host (the example publishes each replica's management
+port on loopback) and fails if the relays' logs contain a `WARN` line, the same rule §8.2 applies to
+the jar. On failure it prints the compose logs; it always tears the example down.
+
 ---
 
 ## 9. Database engines — PostgreSQL now, a second engine without restructuring
@@ -865,11 +900,38 @@ Per AGENTS.md, each omission below fails silently:
 | README API reference table | **No**: its rows link a javadoc.io page, which exists only for an artifact on Maven Central. The image is documented in the README's usage section and in the user guide instead |
 | CONTRIBUTING project layout · LLD-base.md | Add; **and correct LLD-base.md**, which lists `tandem-relay` with a published `artifactId` |
 | User guide (`guide/`, `mkdocs.yml`) | Add the page an operator reads: roles, the two ports, the probe paths, configuration from the environment, the grace period, the instance id, the `SINGLE`/`LEASE` rule, and the table of image versions with the library release each contains |
-| README "Future work" | Remove the `tandem-relay` bullet — it ships |
+| README "Future work" | Remove the `tandem-relay` bullet once the first image is released. Until then it says the image is built in the repository and released on its own tags, and points at the user guide |
 | AGENTS.md | A fourth release scheme joins the library's, the CLI's and the connector's: the `relay-v*` tag, the pin, the contract the breaking-change check is scoped to, and the image release as a step that follows a library release. Four existing statements are also written for a repository with no deployable and must be brought in line in the same change: the `dependency-graph-exclude-projects` row ("only for modules that must not be published"), the `THIRD-PARTY-NOTICES.md` row and rule ("published modules only"), the Logging paragraph on leaf apps (this one takes Logback from the starter, not `slf4j-simple`), and the paragraph on independently versioned modules, which today reads as if all of them were published libraries |
 | `ci.yml` and LLD-base.md "Dependency graph and vulnerability alerts" | Both describe the submitted graph as the published runtime footprint; this module widens that to "what is redistributed", image included |
-| THIRD-PARTY-NOTICES.md | **Yes**, despite not being on Central: the image and the jar redistribute the whole Spring Boot runtime, so the licence footprint is real. Follow the `tandem-cli` precedent and derive it from the **actual jar contents**, not from the dependency graph: the list is generated from the jar's `BOOT-INF/lib` and a CI check fails on drift, since a hand-kept list of a hundred-odd jars would be wrong within a release. The same file is what the image carries (§7.2) |
+| THIRD-PARTY-NOTICES.md | **Yes**, despite not being on Central: the image and the jar redistribute the whole Spring Boot runtime, so the licence footprint is real. Follow the `tandem-cli` precedent and derive it from the **actual jar contents**, not from the dependency graph: the list is generated from the jar's `BOOT-INF/lib` and a check fails on drift, since a hand-kept list of a hundred-odd jars would be wrong within a release. The same file is what the image carries (§7.2). How, below |
 | open-questions-lld.md | Mark Q23 resolved, including §1.1's already-answered fourth part |
+
+### 10.1 The generated notices
+
+The `tandem-relay` section of the root `THIRD-PARTY-NOTICES.md` holds a list between two marker lines
+that only the build writes. Two tasks of the module share one generator:
+
+- `updateThirdPartyNotices` rewrites the list from the pinned jar;
+- `checkThirdPartyNotices`, part of `check`, regenerates it and fails when it differs from the committed
+  one, naming the task to run.
+
+The generator reads the jar, not a configuration: every entry of `BOOT-INF/lib` is a row, matched to its
+Maven coordinates through the resolved `pinnedRuntimeClasspath`. The one jar no configuration resolves,
+`spring-boot-jarmode-tools`, which the Boot plugin adds by itself, is matched by name; any other jar it
+cannot attribute fails the task. Tandem's own modules are left out of the rows (they are the release the
+list names above the table). Each library's licence comes from its POM, resolved like any artifact, or
+from the nearest parent POM declaring one, which is how Maven inherits it; several licences in one POM
+are alternatives by Maven's definition of the element, and are joined with `OR`.
+
+Licence names are spelled differently in every POM, so the build maps each spelling to an SPDX
+identifier, and **a spelling it does not know fails the generator**. That is deliberate: a licence new to
+the image enters it only once a person has read it, and the same change adds its text section to the
+file. It costs one line per new spelling and no plugin; a licence-report plugin would add a dependency to
+the build for a list this module can derive in a few dozen lines.
+
+The whole file, not only this section, is what `pinnedBootJar` puts in `META-INF` and the image copies
+to `/licenses`: the image also redistributes the library's own modules, whose footprint the rest of the
+file describes.
 
 ---
 
@@ -907,6 +969,12 @@ Per AGENTS.md, each omission below fails silently:
 | Stock Boot 4 classpath, no Jackson dependency here | `tandem-admin` is indifferent to the Jackson generation; the image adds no opt-back to Jackson 2 (§2) |
 | Pause is `UP`, and shown in the details | A deliberate state must not trigger the orchestrator; the flag is a cached in-memory read (§5.1) |
 | Kept in the dependency graph CI submits | The image redistributes its runtime classpath, so its alerts are real (§10) |
+| The image's version and pin as build arguments printed by Gradle, checked against the jar's `build-info` | A label can only take a build argument; one source for both values, and a mismatch fails the build (§7.2) |
+| The licence and the notices taken from the jar, not from the build context | The jar and the image carry the same files by construction, and the context holds the jar alone (§7.2) |
+| No `curl`/`wget` in the image; the compose healthcheck uses `bash`'s `/dev/tcp` | A probe-only package is attack surface for every deployment; orchestrators probe from outside (§7.2) |
+| The compose example leaves the Admin API off | It warns at every start by design (§4.2), and a healthy example start must log no `WARN` (§8.3) |
+| The image smoke test is a step of the existing CI job | It reuses the pinned jar `check` built, instead of a second Gradle build (§8.3) |
+| Notices generated from `BOOT-INF/lib`, an unknown licence spelling fails the generator | A list of eighty jars kept by hand would drift; a new licence needs a person to read it (§10.1) |
 
 ### 11.2 Open
 

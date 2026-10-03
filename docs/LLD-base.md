@@ -56,7 +56,7 @@ redistributed footprint**: the published modules plus `tandem-relay`, whose runt
 operators inside the container image, and within them only `runtimeClasspath`, the closest Gradle
 equivalent of the published POM's compile + runtime scopes. An alert therefore means something an
 adopter or an operator receives, which is the same surface [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)
-tracks by hand.
+lists (by hand for the published modules, generated from the jar for `tandem-relay`, LLD-relay §10).
 
 Left out on purpose: test and build-time tooling, `compileOnly` dependencies (Spring, Jackson,
 Micrometer Tracing: none of them reaches a published POM), the two extra Boot lines of the

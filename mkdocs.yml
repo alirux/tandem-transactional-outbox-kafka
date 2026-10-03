@@ -76,6 +76,7 @@ nav:
       - Publishing to RabbitMQ: rabbitmq.md
   - Run in production:
       - Reliability and Topology: reliability.md
+      - The Relay Image: relay-image.md
       - Observability: observability.md
       - Performance and Sizing: performance-and-sizing.md
       - Testing and Upgrades: testing-and-upgrades.md

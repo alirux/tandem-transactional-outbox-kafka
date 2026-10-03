@@ -1,0 +1,5 @@
+# The image packages the pinned jar and nothing else (LLD-relay §7.2): everything is left out of the build
+# context except the jars Gradle built, and the one built on the working tree is left out too.
+*
+!build/libs/tandem-relay-*.jar
+build/libs/tandem-relay-*-worktree.jar

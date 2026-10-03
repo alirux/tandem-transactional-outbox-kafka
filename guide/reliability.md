@@ -204,6 +204,10 @@ between them.
 The relay is an ordinary Spring Boot application with a `main` and the two Tandem starters. The
 schema is applied once, by your own migrations, exactly as for an embedded relay.
 
+Rather not write that application? [The Relay Image](relay-image.md) is the same relay prebuilt as a
+container, configured through environment variables. It is built in the repository and released on tags
+of its own; no version has been released yet.
+
 **One image, two roles.** If you prefer to build a single application that can play either role, put
 both modules in it and choose with a property: `tandem.relay.enabled: false` loads the module without
 starting a relay.
