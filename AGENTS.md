@@ -464,8 +464,8 @@ pushes the `linux/amd64` + `linux/arm64` image under the version, and under `lat
 version has no pre-release suffix, then creates the GitHub Release with the jar attached and
 `--latest=false`. A version tag is never moved: a run repeated after a failure leaves an image already
 pushed as it is, and a rebuild (a patched base image, say) is a new patch tag, on the same commit if
-nothing else changed. The very first push creates the GHCR package **private**; switch it to public once
-from the package settings.
+nothing else changed. The GHCR package is linked to this repository by the image's source label and is
+public with it.
 
 **The pin is part of its contract.** The module depends on Tandem by published coordinate through
 `tandem-bom` at the version in `tandemPin` (`tandem-relay/build.gradle.kts`), substituted by the working

@@ -13,11 +13,6 @@ to stop it without a kill, how to run several replicas, and how its versions wor
 !!! question "The question this page answers"
     **How do I deploy and operate the prebuilt relay, and what do I have to configure myself?**
 
-!!! note "Not released yet"
-    The image is built and tested in the repository, and it is released on tags of its own,
-    `relay-v<version>` (§11). No version has been released so far: until the first one, build the
-    image from the repository (§2.2).
-
 It assumes the split deployment described in
 [Reliability and Topology](reliability.md#32-split): your application writes events, and the relay
 reads them from the same database and publishes them to Kafka.
@@ -440,7 +435,7 @@ The startup log states both too, in its line `Tandem relay application starting`
 
 | Image | Tandem library | Status |
 |---|---|---|
-| `0.1.0` | `0.11.1` | Upcoming: the first release, not published yet |
+| `0.1.0` | `0.11.1` | Released 2026-10-03 |
 
 A new library release reaches the image only once it is on Maven Central, so an image release always
 follows a library release, sometimes after a while. Running the write side, the relay image and the

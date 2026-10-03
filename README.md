@@ -437,8 +437,8 @@ IDE completion and a commented reference YAML. See the [Spring sample](#try-it),
 **Relay as a container**: [`tandem-relay`](tandem-relay/) is that relay prebuilt as a container image
 (and an executable jar), configured through environment variables, for when the relay should run as a
 process of its own without you writing one. It is built in this repository and released on its own
-`relay-v*` tags, apart from the library; **no image has been released yet**, so for now build it from the
-repository. Running it, its probes and its versions:
+`relay-v*` tags, apart from the library, and published as `ghcr.io/alirux/tandem-relay` for
+`linux/amd64` and `linux/arm64`. Running it, its probes and its versions:
 [The Relay Image](https://tandem-codingful.readthedocs.io/relay-image/).
 
 ## Logging
@@ -666,12 +666,6 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
 
 Not yet shipped, in no particular order:
 
-- **`tandem-relay`**: a prebuilt, standalone relay deployable. The application, its container image
-  and its release workflow are in the repository ([LLD-relay.md](docs/LLD-relay.md)), but **no image
-  has been released yet**: the first one goes to `ghcr.io/alirux/tandem-relay` with the first
-  `relay-v*` tag. Until then, build the image from the repository
-  ([The Relay Image](https://tandem-codingful.readthedocs.io/relay-image/)) or assemble the relay
-  process yourself (plain Java or Spring); see [Usage](#usage).
 - **Cross-aggregate causal ordering** via Lamport clocks — fully designed
   ([HLD-causal-ordering.md](docs/HLD-causal-ordering.md)) but **not built**, and there is no way to switch it
   on: no flag, no `lamport` column, no clock table, no consumer-side adapter. What ships is a small

@@ -740,13 +740,11 @@ tag, on the same commit, whose notes say what was rebuilt and why.
 **`ci.yml` builds the image and runs it on every change, without pushing** (§8.3), so a broken
 Dockerfile fails at PR time rather than at release time.
 
-**The first release needs one manual step.** A package pushed to GHCR for the first time is
-created **private**: nobody can pull it without authenticating, and it counts against the
-account's private package quota instead of being free as a public one is. After the first tag that
-publishes the image, its visibility is switched to public once, from the package settings on
-GitHub. Later pushes keep it. The `org.opencontainers.image.source` label (§7.2) is what links the
-package to this repository, so it appears on the repository page and its permissions follow the
-repository's.
+**The package is public with the repository.** The image is pushed by the workflow with its
+`GITHUB_TOKEN`, and the `org.opencontainers.image.source` label (§7.2) links the package to this
+repository, so it takes the repository's visibility: the first push, `relay-v0.1.0`, was pullable
+without authentication straight away. A package that ever came out private, pushed some other way,
+would be switched to public once from its settings on GitHub.
 
 Before tagging, the breaking-change check is scoped to the contract above, and the notes state the
 pin. Same annotated-tag-as-release-notes convention and the same "ask before tagging" rule as the
@@ -900,7 +898,7 @@ Per AGENTS.md, each omission below fails silently:
 | README API reference table | **No**: its rows link a javadoc.io page, which exists only for an artifact on Maven Central. The image is documented in the README's usage section and in the user guide instead |
 | CONTRIBUTING project layout · LLD-base.md | Add; **and correct LLD-base.md**, which lists `tandem-relay` with a published `artifactId` |
 | User guide (`guide/`, `mkdocs.yml`) | Add the page an operator reads: roles, the two ports, the probe paths, configuration from the environment, the grace period, the instance id, the `SINGLE`/`LEASE` rule, and the table of image versions with the library release each contains |
-| README "Future work" | Remove the `tandem-relay` bullet once the first image is released. Until then it says the image is built in the repository and released on its own tags, and points at the user guide |
+| README "Future work" | No `tandem-relay` bullet: the image is released, and the README's usage section points at it and at the user guide |
 | AGENTS.md | A fourth release scheme joins the library's, the CLI's and the connector's: the `relay-v*` tag, the pin, the contract the breaking-change check is scoped to, and the image release as a step that follows a library release. Four existing statements are also written for a repository with no deployable and must be brought in line in the same change: the `dependency-graph-exclude-projects` row ("only for modules that must not be published"), the `THIRD-PARTY-NOTICES.md` row and rule ("published modules only"), the Logging paragraph on leaf apps (this one takes Logback from the starter, not `slf4j-simple`), and the paragraph on independently versioned modules, which today reads as if all of them were published libraries |
 | `ci.yml` and LLD-base.md "Dependency graph and vulnerability alerts" | Both describe the submitted graph as the published runtime footprint; this module widens that to "what is redistributed", image included |
 | THIRD-PARTY-NOTICES.md | **Yes**, despite not being on Central: the image and the jar redistribute the whole Spring Boot runtime, so the licence footprint is real. Follow the `tandem-cli` precedent and derive it from the **actual jar contents**, not from the dependency graph: the list is generated from the jar's `BOOT-INF/lib` and a check fails on drift, since a hand-kept list of a hundred-odd jars would be wrong within a release. The same file is what the image carries (§7.2). How, below |
