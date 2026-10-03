@@ -77,10 +77,10 @@ jobs:
           if [[ "$RELAY_VERSION" != *-* ]]; then
             tags+=(--tag "$IMAGE:latest")
           fi
-          build_args=$(./gradlew -q :tandem-relay:imageBuildArgs)
+          mapfile -t build_args < <(./gradlew -q :tandem-relay:imageBuildArgs)
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            $build_args \
+            "${build_args[@]}" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.created=$(git log -1 --format=%cI)" \
             "${tags[@]}" \

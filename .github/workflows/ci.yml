@@ -74,8 +74,8 @@ jobs:
       - name: Smoke-test the relay image
         id: relay-image
         run: |
-          build_args=$(./gradlew -q :tandem-relay:imageBuildArgs)
-          docker build $build_args --tag tandem-relay:local tandem-relay
+          mapfile -t build_args < <(./gradlew -q :tandem-relay:imageBuildArgs)
+          docker build "${build_args[@]}" --tag tandem-relay:local tandem-relay
           docker compose -f tandem-relay/docker-compose.example.yml up --wait --wait-timeout 180
           for port in 8081 8082; do
             curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:$port/actuator/health/readiness"
