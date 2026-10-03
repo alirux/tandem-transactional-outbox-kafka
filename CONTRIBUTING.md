@@ -209,6 +209,10 @@ adapter modules depend on `tandem-core`, never the reverse. See
 There's no auto-formatter enforced yet; match the style of the surrounding code. Keep comments
 to the "why", not the "what" — well-named identifiers should make the "what" obvious.
 
+Text files use LF line endings on every OS, Windows included: `.gitattributes` checks them out that
+way whatever `core.autocrlf` says, so generated files compare the same everywhere. Batch scripts
+are the exception and keep CRLF.
+
 ## Reporting bugs and proposing features
 
 Use [GitHub Issues](https://github.com/alirux/tandem-transactional-outbox-kafka/issues). For bugs, include Tandem version,

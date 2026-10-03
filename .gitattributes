@@ -1,0 +1,11 @@
+# Every text file is stored and checked out with LF on every OS. The build's regenerate-and-compare
+# gates (the PostgreSQL baseline, the relay's third-party notices, the CLI's generated client and
+# docs) write LF, so a CRLF working copy would read as drift on Windows.
+* text=auto eol=lf
+
+# Windows batch scripts need CRLF to run reliably under cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.jar binary
+*.png binary
