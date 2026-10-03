@@ -798,7 +798,8 @@ With one role, or a broken configuration:
 
 8. Admin-API-only: the process starts with no Kafka setting at all, serves the Admin API, and
    reports the relay contributor as `UNKNOWN`;
-9. relay-only: no Admin API route is served;
+9. relay-only: no Admin API route is served, and a correctly configured start logs nothing at `WARN`;
+   a warning at every healthy start teaches operators to ignore warnings;
 10. without `tandem.kafka.source` the process exits, and its output names the key;
 11. with neither role enabled the process exits, and its output names both keys.
 

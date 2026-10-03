@@ -40,6 +40,8 @@ class TandemRelayApplicationIT {
     private static final String ADMIN_MESSAGE_PATH = "/tandem/admin/v1/outbox/messages/";
     private static final String RELAY_CONTRIBUTOR = "tandemRelay";
     private static final String TANDEM_METER = "tandem_outbox_workers_active";
+    // How Spring Boot's default console format renders the level of a warning.
+    private static final String WARNING_LEVEL = " WARN ";
 
     private static final String RELAY_ENABLED_KEY = "tandem.relay.enabled";
     private static final String ADMIN_ENABLED_KEY = "tandem.admin.enabled";
@@ -172,6 +174,17 @@ class TandemRelayApplicationIT {
     }
 
     // ---- one role, or a configuration that must be refused ---------------------------------------
+
+    /**
+     * What an operator sees first. A warning at every healthy start teaches people to ignore warnings,
+     * so the relay role, with nothing misconfigured, must come up without one.
+     */
+    @Test
+    void GIVEN_a_correctly_configured_relay_WHEN_it_has_started_THEN_nothing_was_logged_as_a_warning() {
+        try (RelayProcess relay = RelayProcess.start(relayEnvironment()).awaitReady()) {
+            assertThat(relay.output().lines().filter(line -> line.contains(WARNING_LEVEL))).isEmpty();
+        }
+    }
 
     @Test
     void GIVEN_only_the_relay_role_WHEN_the_admin_api_is_called_THEN_no_route_answers() {

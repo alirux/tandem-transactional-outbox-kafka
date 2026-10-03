@@ -16,7 +16,7 @@ version = relayVersion ?: "0.1.0-SNAPSHOT"
 // the way an adopter consumes Tandem; the root build substitutes the working tree back during
 // development, and pinnedRuntimeClasspath below is the one classpath exempt from that, so the jar that
 // ships is built from the artifacts on Maven Central (LLD-relay §7.3).
-val tandemPin = "0.11.0"
+val tandemPin = "0.11.1"
 
 val mainClassName = "com.codingful.tandem.relay.TandemRelayApplication"
 
