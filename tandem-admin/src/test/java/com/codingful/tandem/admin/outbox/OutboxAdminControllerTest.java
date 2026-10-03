@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.codingful.tandem.admin.AdminMockMvc;
 import com.codingful.tandem.admin.OpenApiConformance;
 import com.codingful.tandem.admin.TandemAdminExceptionHandler;
 import com.codingful.tandem.core.OutboxMessage;
@@ -24,7 +25,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * Real Spring MVC dispatch (MockMvc, standalone — no full ApplicationContext needed) over
@@ -55,14 +55,7 @@ class OutboxAdminControllerTest {
         outbox = new InMemoryOutbox();
         OutboxAdminService service =
                 new OutboxAdminService(outbox, outbox, outbox, outbox, Clock.systemUTC());
-        mockMvc = MockMvcBuilders.standaloneSetup(new OutboxAdminController(service))
-                // Order matters here, unlike in a real ApplicationContext: standalone setup does not
-                // honour @Order across manually-supplied advice instances, so the generic catch-all
-                // (TandemAdminExceptionHandler#handleUnexpected matches every Exception) must come
-                // last, or it shadows OutboxExceptionHandler's more specific 404 mapping. In production
-                // (a real Spring context, @Order(LOWEST_PRECEDENCE) on the class) this is unambiguous.
-                .setControllerAdvice(new OutboxExceptionHandler(), new TandemAdminExceptionHandler())
-                .build();
+        mockMvc = AdminMockMvc.create(new OutboxAdminController(service), new OutboxExceptionHandler());
     }
 
     private void insert(String aggregateId, String payload) {
@@ -327,9 +320,8 @@ class OutboxAdminControllerTest {
     void GIVEN_an_unexpected_failure_WHEN_summary_is_requested_THEN_a_problem_json_500_is_returned() throws Exception {
         OutboxAdminService brokenService =
                 new OutboxAdminService(new BrokenOutboxQuery(), outbox, outbox, outbox, Clock.systemUTC());
-        MockMvc brokenMockMvc = MockMvcBuilders.standaloneSetup(new OutboxAdminController(brokenService))
-                .setControllerAdvice(new OutboxExceptionHandler(), new TandemAdminExceptionHandler())
-                .build();
+        MockMvc brokenMockMvc = AdminMockMvc.create(
+                new OutboxAdminController(brokenService), new OutboxExceptionHandler());
 
         brokenMockMvc.perform(get("/tandem/admin/v1/outbox/summary"))
                 .andExpect(status().isInternalServerError())
