@@ -232,6 +232,12 @@ Docker Desktop or Colima must be running. Integration tests are tagged
 `@Tag("integration")` and run as part of `./gradlew check`; skip them with
 `./gradlew test -x integrationTest` if Docker is unavailable.
 
+**At most three Docker-bound test tasks run at a time**, whatever the build's parallelism: the root build
+makes them share a build service (`dockerSlots`), because one broker per module starting together is more
+than a developer machine's Docker reliably starts. The tasks are matched **by name**
+(`dockerBoundTestTasks` in the root `build.gradle.kts`), so a Docker-bound test task under a new name
+must be added to that set. Nothing fails if it is not: it just starts its containers outside the limit.
+
 ### Spring modules — the dual-generation gate
 
 `tandem-spring-producer` and `tandem-spring-relay` ship **one artifact serving both Spring Boot 3.x and

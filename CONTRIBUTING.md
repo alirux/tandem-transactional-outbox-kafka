@@ -18,7 +18,9 @@ non-default cases).
   `tandem-benchmark` and `tandem-relay` additionally require JDK 25, provisioned the same way.
 - **Docker**, running and reachable — most integration/e2e tests use
   [Testcontainers](https://testcontainers.com) to spin up real PostgreSQL and Kafka instances.
-  There are no mocks standing in for the database or the broker in this project.
+  There are no mocks standing in for the database or the broker in this project. The build runs at
+  most three container-backed test tasks at a time, so a full `check` does not start a broker per
+  module at once.
 - **Go 1.25+**, only for [`tandem-cli`](tandem-cli/) — a separate toolchain and build, not part
   of `./gradlew check` (see below).
 

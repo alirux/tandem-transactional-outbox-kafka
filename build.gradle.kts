@@ -50,7 +50,28 @@ val notYetPublishedModules = setOf<String>()
 val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath")
 val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 
+// Test tasks that start containers (PostgreSQL, Kafka, RabbitMQ) through Testcontainers. The build runs
+// projects in parallel, and a change deep in the dependency graph invalidates every module's integration
+// tests at once: left unlimited, that is one broker per module starting together, more than a developer
+// machine's Docker reliably starts, and the run fails on a container that never came up rather than on a
+// test. The shared service below is a semaphore: Gradle queues the tasks that declare it beyond the
+// limit. Unit tests are untouched and stay fully parallel.
+//
+// A Docker-bound test task under a new name must be added here; nothing fails if it is not, it simply
+// starts its containers outside the limit.
+val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest")
+
+abstract class DockerSlots : BuildService<BuildServiceParameters.None>
+
+val dockerSlots = gradle.sharedServices.registerIfAbsent("dockerSlots", DockerSlots::class) {
+    maxParallelUsages.set(3)
+}
+
 subprojects {
+    tasks.withType<Test>().matching { it.name in dockerBoundTestTasks }.configureEach {
+        usesService(dockerSlots)
+    }
+
     configurations.matching { it.name !in centralClasspaths }.configureEach {
         resolutionStrategy.dependencySubstitution {
             siblingPaths.forEach { (name, path) ->
