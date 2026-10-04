@@ -1,0 +1,234 @@
+# Contributing to Tandem
+
+Thanks for your interest in Tandem. This document covers what you need to build, test, and
+propose changes.
+
+## Before you start
+
+Tandem is developed spec-first: the [HLD](../docs/HLD.md) and the per-module `docs/LLD-*.md`
+documents are the source of truth for design decisions. For anything beyond a small fix, please
+open an issue to discuss the change before writing code — it avoids wasted work on a design that
+doesn't fit the project's principles (per-aggregate ordering, backward/forward compatibility of
+every contract, minimal footprint on the client's write path, opt-in complexity for the
+non-default cases).
+
+## Prerequisites
+
+- **JDK 17** (the Gradle toolchain plugin auto-provisions it if not already installed).
+  `tandem-benchmark` and `tandem-relay` additionally require JDK 25, provisioned the same way.
+- **Docker**, running and reachable — most integration/e2e tests use
+  [Testcontainers](https://testcontainers.com) to spin up real PostgreSQL and Kafka instances.
+  There are no mocks standing in for the database or the broker in this project. The build runs at
+  most three container-backed test tasks at a time, so a full `check` does not start a broker per
+  module at once.
+- **Go 1.25+**, only for [`tandem-cli`](../apps/tandem-cli/) — a separate toolchain and build, not part
+  of `./gradlew check` (see below).
+
+## Building and testing
+
+```bash
+./gradlew check
+```
+
+This compiles every module, runs unit tests, runs the Testcontainers-backed
+integration/e2e tests, and builds the javadoc jar of every published module (a javadoc error fails
+it, warnings do not). It's the same command CI runs, so a green `check` locally is the bar for
+a pull request.
+
+To also produce the aggregated coverage report CI publishes to Codecov:
+
+```bash
+./gradlew check :tandem-coverage:aggregatedCoverageReport
+```
+
+The Testcontainers suites start `postgres:16-alpine` by default. To run them against another
+PostgreSQL major (which is what the `postgres-majors` workflow does, and how the supported-version
+claim stays verified rather than asserted):
+
+```bash
+TANDEM_TEST_POSTGRES_IMAGE=postgres:18-alpine ./gradlew integrationTest
+```
+
+The same variable, or the `tandem.test.postgres.image` system property, points the suites at any
+image exposing PostgreSQL. See the
+[database compatibility matrix](https://tandem-codingful.readthedocs.io/compatibility/).
+
+`tandem-benchmark` is intentionally excluded from `check` (it's a load-testing harness, not a
+published module). Run it explicitly if your change touches the relay's performance
+characteristics:
+
+```bash
+./gradlew :tandem-benchmark:loadTest
+```
+
+The same module also carries a demo that prints the relay's lag gauges (backlog size, backlog age,
+live workers) through a build-up, a drain and a steady-load phase. It measures nothing and gates
+nothing — it exists so the *shape* of the signal can be judged by looking at it, which a passing
+assertion cannot do. Run it when you change what the gauges report or how often they are read
+([LLD-benchmark.md](../docs/LLD-benchmark.md) §6.2); it takes ~50s and needs Docker:
+
+```bash
+./gradlew :tandem-benchmark:lagGaugeDemo
+```
+
+Two more demos in the same module hold a live Grafana dashboard open instead of asserting on the
+signal in a test. Run `metricsDashboardDemo` when you change what the relay's Micrometer metrics
+report ([LLD-benchmark.md](../docs/LLD-benchmark.md) §6.3):
+
+```bash
+./gradlew :tandem-benchmark:metricsDashboardDemo
+```
+
+Run `tracingDashboardDemo` when you change trace propagation or the relay's publish span — it
+exports one real trace, write through consume, to a Tempo container read on the same Grafana
+([LLD-benchmark.md](../docs/LLD-benchmark.md) §6.4):
+
+```bash
+./gradlew :tandem-benchmark:tracingDashboardDemo
+```
+
+`tandem-relay` is also shipped as a container image, which `check` does not build (CI does, and runs it).
+To build it for your machine and start the compose example the user guide describes
+([The Relay Image](https://tandem-codingful.readthedocs.io/relay-image/)), with Docker running:
+
+```bash
+./gradlew :tandem-relay:pinnedBootJar
+docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local apps/tandem-relay
+docker compose -f apps/tandem-relay/docker-compose.example.yml up --wait
+docker compose -f apps/tandem-relay/docker-compose.example.yml down -v
+```
+
+The image bundles every library the relay runs on, and THIRD-PARTY-NOTICES.md lists them from the jar.
+After a change that alters that list (a dependency of the module, the pinned library release, the
+Spring Boot version), regenerate it with `./gradlew :tandem-relay:updateThirdPartyNotices`; `check`
+fails until the committed list matches the jar.
+
+`tandem-cli` is entirely outside the Gradle build (its own `go.mod`, LLD-cli.md §2) — `./gradlew
+check` never touches it. Build and test it from `apps/tandem-cli/`:
+
+```bash
+cd apps/tandem-cli
+make generate   # regenerate internal/client/generated.go after an OpenAPI contract change
+make docs       # regenerate docs/cli/*.md after a command/flag/description change
+make build
+make test       # go test ./... -race -coverprofile=coverage.out -covermode=atomic
+make lint       # golangci-lint (analysis + formatting), pinned in the Makefile
+```
+
+To try `bin/tandem-cli` by hand without a real `tandem-admin` instance, `hack/fake-admin-api.py`
+(stdlib-only, no dependencies) fakes just enough of the Admin API contract to exercise every
+command:
+
+```bash
+python3 hack/fake-admin-api.py 8080   # stays in the foreground
+# from a second terminal, also in apps/tandem-cli/:
+./bin/tandem-cli --base-url http://127.0.0.1:8080 relay status
+```
+
+## Project layout
+
+Modules are grouped by role: `libs/` holds the published library modules, `apps/` the two
+deployables (`tandem-relay`, `tandem-cli`), `examples/` the sample applications, and `tools/` the
+benchmark, the coverage aggregation and the maintenance scripts. Gradle project paths stay flat
+(`:tandem-core`, not `:libs:tandem-core`), so a task is addressed by module name whatever its
+directory.
+
+| Module | Purpose |
+|---|---|
+| `tandem-bom` | Bill of Materials — version constraints for every published module, no code. |
+| `tandem-core` | Ports and domain types — no I/O, no external dependencies. |
+| `tandem-jdbc` | Write-side outbox INSERT, relay polling/claiming, PostgreSQL adapter. |
+| `tandem-cloudevents` | The CloudEvents envelope for a stored row, with no transport binding of its own. |
+| `tandem-kafka` | CloudEvents publication to Kafka. |
+| `tandem-rabbitmq` | CloudEvents publication to RabbitMQ over AMQP 0.9.1. Versioned and released independently of the library (`rabbitmq-v*`), so it is not in `tandem-bom`. |
+| `tandem-test` | Test helpers (`InMemoryOutbox`, `RecordingDispatcher`, `TandemTestContainer`). |
+| `tandem-spring-producer` | Spring Boot autoconfiguration for the write side, plus its usage tiers. Never pulls Kafka. |
+| `tandem-spring-relay` | Spring Boot autoconfiguration for the relay, started with the application. |
+| `tandem-micrometer` | `TandemMetrics` backed by a Micrometer `MeterRegistry`, autoconfigured by `tandem-spring-relay`. |
+| `tandem-tracing-otel` | Trace propagation and relay publish spans over the OpenTelemetry SDK directly, for applications outside Spring. |
+| `tandem-admin` | Optional REST Admin API over the outbox and the relay (API-first, off by default). Reads, replay/discard, and relay control (status, pause/resume, per-bucket/per-worker observability, force-release) are all implemented — the contract is fully implemented; see [IMPLEMENTATION-PLAN-admin-api.md](../docs/IMPLEMENTATION-PLAN-admin-api.md). |
+| `tandem-relay` | The standalone relay application: a Spring Boot application that hosts the relay and, optionally, the Admin API, shipped as a container image and an executable jar. Not published to Maven Central, and versioned independently of the library (`relay-v*`). |
+| `tandem-sample` | Example application (plain Java), not published. |
+| `tandem-sample-spring` | Example Spring Boot application, not published. Also hosts the end-to-end Spring smoke test. |
+| `tandem-benchmark` | Load-testing harness, not published. |
+| `tandem-coverage` | Aggregates JaCoCo coverage across modules for CI. |
+| [`site`](../site/) | **Not a Gradle module** — the source of [tandem.codingful.com](https://tandem.codingful.com): the landing page and the dereferenceable RFC 9457 problem-type pages the Admin API's error `type` URLs resolve to. Plain HTML/CSS, assembled by `site/build.sh` and deployed by `.github/workflows/pages.yml`; see [site/README.md](../site/README.md). |
+| [`tandem-cli`](../apps/tandem-cli/) | **Go**, not a Gradle module — a command-line frontend over the Admin API. Its own `go.mod`, own tests (`go test ./...`), own release cadence (`cli-v<semver>`, not the library's `v<semver>`); see [LLD-cli.md](../docs/LLD-cli.md). |
+
+The Spring modules are compiled against Spring Boot 3.x with Spring `compileOnly`, and one artifact
+serves both Boot 3.x and 4.x; `./gradlew check` runs their tests against both lines. If you change them,
+read the dual-generation rules in [AGENTS.md](../AGENTS.md) first — breaking them fails silently.
+
+The project follows a hexagonal (ports & adapters) style: `tandem-core` defines the ports,
+adapter modules depend on `tandem-core`, never the reverse. See
+[docs/HLD.md](../docs/HLD.md) for the full architecture.
+
+## Design documents
+
+| Document | Contents |
+|---|---|
+| [HLD.md](../docs/HLD.md) | High-Level Design — architecture, decisions, data model, flow |
+| [LLD-base.md](../docs/LLD-base.md) | Shared build/package conventions |
+| [HLD-cloudevents.md](../docs/HLD-cloudevents.md) | CloudEvents publication format |
+| [HLD-alternative-envelope.md](../docs/HLD-alternative-envelope.md) · [alternative-envelope-candidates.md](../docs/alternative-envelope-candidates.md) | Publishing an envelope other than CloudEvents: the existing seam, the invariants, the gaps, and a survey of candidate formats |
+| [LLD-alternative-envelope.md](../docs/LLD-alternative-envelope.md) | Alternative envelope implementation: the raw passthrough encoder, the encoder contract kit, the worked example and its end-to-end tests |
+| [HLD-tracing.md](../docs/HLD-tracing.md) | Trace & correlation propagation |
+| [HLD-attempt-archive.md](../docs/HLD-attempt-archive.md) | Forensic per-attempt archive — designed, not implemented |
+| [tracing-concepts.md](../docs/tracing-concepts.md) | Distributed tracing vocabulary — span, trace, `traceparent`, span link (reference, not Tandem-specific) |
+| [LLD-micrometer.md](../docs/LLD-micrometer.md) | Micrometer metrics adapter — meter mapping, gauge registration mechanics, Spring autoconfiguration |
+| [HLD-logging.md](../docs/HLD-logging.md) | Logging posture — per-module logging API, level policy, what is never logged |
+| [LLD-spring-config.md](../docs/LLD-spring-config.md) | Spring modules & configuration contract — module split, property contract, autoconfiguration (not the write-side ergonomics) |
+| [LLD-spring-producer.md](../docs/LLD-spring-producer.md) | Spring write-side ergonomics — the Template, `@TransactionalOutbox`, and Spring-events tiers, plus optional payload serialization |
+| [LLD-bucket-count-guard.md](../docs/LLD-bucket-count-guard.md) | Guard against a divergent bucket count between write-side and relay (core strategy + port, JDBC adapter) |
+| [HLD-admin-api.md](../docs/HLD-admin-api.md) · [admin-api.openapi.yaml](../docs/admin-api.openapi.yaml) | Admin API design + OpenAPI contract. Every error `type` it returns resolves to a [problem-type page](https://tandem.codingful.com/problems/). |
+| [LLD-cli.md](../docs/LLD-cli.md) | `tandem-cli` — the Go command-line frontend over the Admin API |
+| [LLD-relay.md](../docs/LLD-relay.md) | `tandem-relay`: the prebuilt standalone relay deployable (image + jar) |
+| [HLD-load-testing.md](../docs/HLD-load-testing.md) · [LLD-benchmark.md](../docs/LLD-benchmark.md) | Throughput/latency verification plan + the `tandem-benchmark` harness that implements it |
+| [virtual-threads-decision.md](../docs/virtual-threads-decision.md) | Why the relay's workers stay platform threads, measured rather than argued, and what an application running on virtual threads needs to know (nothing) |
+| [HLD-causal-ordering.md](../docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |
+| [HLD-managed-seq.md](../docs/HLD-managed-seq.md) | The three per-message `seq` modes — `seq(long)` (the aggregate's own version), `managedSeq()` (Tandem-assigned) and `unsequenced()` (no number at all) — what each one costs and detects, and how to choose. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
+| [dispatch-latency.md](../docs/dispatch-latency.md) | Commit-to-publish latency: where it comes from, the adaptive idle backoff, and the opt-in post-commit wakeup |
+| [comparison.md](../docs/comparison.md) | Comparison with Debezium, Eventuate Tram, Spring Modulith, a hand-rolled outbox, and the stream processors (Kafka Streams, Flink) |
+| [open-questions-lld.md](../docs/open-questions-lld.md) | Tracked gaps to resolve before the LLDs |
+| [IMPLEMENTATION-PLAN-basic-round.md](../docs/IMPLEMENTATION-PLAN-basic-round.md) | Execution plan, scope fence, and per-module done-ness for the first milestone |
+| [IMPLEMENTATION-PLAN-embedded-lease.md](../docs/IMPLEMENTATION-PLAN-embedded-lease.md) | Plan for the `LEASE` multi-instance coordination opt-in (embedded-multi-replica or standalone) |
+| [IMPLEMENTATION-PLAN-optional-seq.md](../docs/IMPLEMENTATION-PLAN-optional-seq.md) | Plan for making `seq` one of three explicit per-message modes, and for judging each row on the ordering it declares |
+
+## Making a change
+
+1. Fork the repository and create a branch from `main`.
+2. Make your change, keeping it scoped — unrelated cleanup makes a PR harder to review.
+3. Add or update tests. New behavior needs test coverage; bug fixes should include a test that
+   would have caught the bug.
+4. If the change affects a documented contract (REST API, DB schema, Kafka message format),
+   update the relevant HLD/LLD alongside the code — see
+   [docs/HLD.md §1.4](../docs/HLD.md) for the compatibility rules any such change must satisfy.
+   A **DB schema** change is made in the Liquibase changelog under `schema/postgres/changelog/`,
+   never in `schema/postgres/tandem-baseline.sql` — that file is generated
+   (`./gradlew generateBaselineSql`) and `check` fails if it drifts. A changeset that has shipped
+   is immutable, so append a new one rather than editing it.
+5. Run `./gradlew check` locally before opening the PR.
+6. Open a pull request against `main` with a clear description of the change and why it's
+   needed.
+
+## Code style
+
+There's no auto-formatter enforced yet; match the style of the surrounding code. Keep comments
+to the "why", not the "what" — well-named identifiers should make the "what" obvious.
+
+Text files use LF line endings on every OS, Windows included: `.gitattributes` checks them out that
+way whatever `core.autocrlf` says, so generated files compare the same everywhere. Batch scripts
+are the exception and keep CRLF.
+
+## Reporting bugs and proposing features
+
+Use [GitHub Issues](https://github.com/alirux/tandem-transactional-outbox-kafka/issues). For bugs, include Tandem version,
+database/Kafka versions, and a minimal repro if possible. For feature proposals, a short
+description of the use case is more useful up front than a full design.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the
+[Apache License 2.0](../LICENSE), the same license as the rest of the project. The one exception is
+the user guide in `guide/`, which is published under [CC BY 4.0](../LICENSE-docs); contributions to
+it are licensed under those terms.

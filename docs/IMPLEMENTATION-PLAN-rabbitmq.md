@@ -111,7 +111,7 @@ publication guarantees in Kafka's terms alone.
 
 | File | Change |
 |---|---|
-| `tandem-rabbitmq/build.gradle.kts` *(new)* | `api(project(...))` on core and cloudevents for now; Phase 6 swaps these for published coordinates. `amqp-client` brings `slf4j-api` transitively, as `kafka-clients` does, so this module logs through SLF4J at no extra footprint cost (AGENTS Logging) |
+| `libs/tandem-rabbitmq/build.gradle.kts` *(new)* | `api(project(...))` on core and cloudevents for now; Phase 6 swaps these for published coordinates. `amqp-client` brings `slf4j-api` transitively, as `kafka-clients` does, so this module logs through SLF4J at no extra footprint cost (AGENTS Logging) |
 | `RabbitRelay` *(new)* | `OutboxDispatcher, AutoCloseable`. Publisher confirms mapped to the future, the confirm timeout, the span recorder wired as in `KafkaRelay`, `deliveryTimeoutMillis()` reporting the confirm timeout |
 | `RabbitMessageEncoder` *(new)* | The transport-specific encoder port, with `from(MessageEncoder)` lifting a neutral encoder onto AMQP. Mirrors `KafkaMessageEncoder` |
 | `CloudEventAmqpEncoder` *(new)* | The default format: `CloudEventFactory` builds the event, this class writes the `cloudEvents_` binding and copies the passthrough headers |

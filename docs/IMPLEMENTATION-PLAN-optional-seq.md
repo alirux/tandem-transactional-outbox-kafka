@@ -55,13 +55,13 @@ only rows still awaiting delivery, so it drains with the backlog.
 
 | File | Change |
 |---|---|
-| `tandem-core/.../SeqSource.java` *(new)* | `enum SeqSource { APPLICATION(0), MANAGED(1), NONE(2), UNKNOWN(-1) }` with an explicit `code` field and `fromCode(int)` — **matching `OutboxStatus`, not `ordinal()`**, so reordering the enum cannot silently change what is persisted. Unlike `OutboxStatus.fromCode`, it **must not throw** on an unrecognised code: it returns `UNKNOWN`, which the detector keys on `id` (HLD-managed-seq §4.5, §6.1). `UNKNOWN` is read-only and has `code = -1` so it can never round-trip to the column. Public — it appears on `OutboxRecord`. |
-| `tandem-core/.../OutboxMessage.java` | Add `unsequenced()`. `seqSource()` replaces the `managedSeq()` accessor; the three builder calls stay as the fluent surface. Three-way exclusivity plus fail-fast on none, the message naming all three modes and what each is for (HLD-managed-seq §4.6). `seq()` throws unless `APPLICATION`; add `hasSeq()`. `toString` renders `seq=none` for `NONE`. |
-| `tandem-core/.../OutboxRecord.java` | Add `seqSource()` and `hasSeq()`; `seq()` throws when absent. The guard at line 35 changes meaning: keep rejecting a message still *pending* a managed number, accept a genuinely unsequenced one. |
-| `tandem-jdbc/.../JdbcOutboxRepository.java` | `bind()` at line 222: bind `seq` or `setNull(index++, Types.BIGINT)`, then always bind `seq_source`. Both INSERT statements gain the column; the batching key becomes `seqSource() == MANAGED`, the only mode that omits `seq`. |
-| `tandem-jdbc/.../OutboxRowMapper.java` | Add `seq_source` to `COLUMNS` (it flows through the claim's `RETURNING`); read it via `SeqSource.fromCode`, and read `seq` with `wasNull()` so an absent value is absent rather than `0`. |
-| `tandem-test/.../InMemoryOutbox.java` | Mirror all three modes: keep the managed counter (line 183), exclude `NONE` rows from the `(aggregate_id, seq)` uniqueness map (line 147), carry `seqSource` onto the stored record. |
-| `tandem-spring-producer/.../OutboxCollector.java` | Re-point the no-`seq` overloads (lines 58, 67) from *managed* to *unsequenced*; managed becomes reachable only via `add(OutboxMessage)`, as `lockedWrite()` already is. Keeps the tier at two shapes and points the shorter one at §4.6's answer for the undecided. |
+| `libs/tandem-core/.../SeqSource.java` *(new)* | `enum SeqSource { APPLICATION(0), MANAGED(1), NONE(2), UNKNOWN(-1) }` with an explicit `code` field and `fromCode(int)` — **matching `OutboxStatus`, not `ordinal()`**, so reordering the enum cannot silently change what is persisted. Unlike `OutboxStatus.fromCode`, it **must not throw** on an unrecognised code: it returns `UNKNOWN`, which the detector keys on `id` (HLD-managed-seq §4.5, §6.1). `UNKNOWN` is read-only and has `code = -1` so it can never round-trip to the column. Public — it appears on `OutboxRecord`. |
+| `libs/tandem-core/.../OutboxMessage.java` | Add `unsequenced()`. `seqSource()` replaces the `managedSeq()` accessor; the three builder calls stay as the fluent surface. Three-way exclusivity plus fail-fast on none, the message naming all three modes and what each is for (HLD-managed-seq §4.6). `seq()` throws unless `APPLICATION`; add `hasSeq()`. `toString` renders `seq=none` for `NONE`. |
+| `libs/tandem-core/.../OutboxRecord.java` | Add `seqSource()` and `hasSeq()`; `seq()` throws when absent. The guard at line 35 changes meaning: keep rejecting a message still *pending* a managed number, accept a genuinely unsequenced one. |
+| `libs/tandem-jdbc/.../JdbcOutboxRepository.java` | `bind()` at line 222: bind `seq` or `setNull(index++, Types.BIGINT)`, then always bind `seq_source`. Both INSERT statements gain the column; the batching key becomes `seqSource() == MANAGED`, the only mode that omits `seq`. |
+| `libs/tandem-jdbc/.../OutboxRowMapper.java` | Add `seq_source` to `COLUMNS` (it flows through the claim's `RETURNING`); read it via `SeqSource.fromCode`, and read `seq` with `wasNull()` so an absent value is absent rather than `0`. |
+| `libs/tandem-test/.../InMemoryOutbox.java` | Mirror all three modes: keep the managed counter (line 183), exclude `NONE` rows from the `(aggregate_id, seq)` uniqueness map (line 147), carry `seqSource` onto the stored record. |
+| `libs/tandem-spring-producer/.../OutboxCollector.java` | Re-point the no-`seq` overloads (lines 58, 67) from *managed* to *unsequenced*; managed becomes reachable only via `add(OutboxMessage)`, as `lockedWrite()` already is. Keeps the tier at two shapes and points the shorter one at §4.6's answer for the undecided. |
 
 Two consequences found while building it, neither visible from the file list above:
 
@@ -92,12 +92,12 @@ Two consequences found while building it, neither visible from the file list abo
 
 | File | Change |
 |---|---|
-| `tandem-kafka/.../CloudEventEncoder.java:50` | Emit `ce_seq` only when `record.hasSeq()`; the "always present → ce_seq" comment goes. |
+| `libs/tandem-kafka/.../CloudEventEncoder.java:50` | Emit `ce_seq` only when `record.hasSeq()`; the "always present → ce_seq" comment goes. |
 | `docs/admin-api.openapi.yaml:603` | Remove `seq` from `OutboxEntry.required`; mark it `nullable: true`. Edited in `/v1` in place — no `/v2`. |
-| `tandem-admin/.../OutboxEntryResponse.java` | `seq` becomes a nullable `Long`. Must land with the OpenAPI edit, not before it: the conformance test validates the implementation against the committed contract, so a nullable field under a `required` spec fails, and vice versa. |
-| `tandem-jdbc/.../JdbcOutboxQuery.java:151` | `rs.getLong("seq")` gains `wasNull()` handling — without it an unsequenced row reads back as `0` (see the note in §2). `VIEW_COLUMNS` needs no `seq_source`: the Admin API does not expose it. |
-| `tandem-core/.../OutboxRowView.java` · `OutboxRowDetail.java` | `seq` becomes a nullable `Long` on the read model. |
-| `tandem-test/.../InMemoryOutbox.java` | Its `OutboxQuery` projection must mirror the same nullability, or the in-memory and JDBC read sides disagree. |
+| `libs/tandem-admin/.../OutboxEntryResponse.java` | `seq` becomes a nullable `Long`. Must land with the OpenAPI edit, not before it: the conformance test validates the implementation against the committed contract, so a nullable field under a `required` spec fails, and vice versa. |
+| `libs/tandem-jdbc/.../JdbcOutboxQuery.java:151` | `rs.getLong("seq")` gains `wasNull()` handling — without it an unsequenced row reads back as `0` (see the note in §2). `VIEW_COLUMNS` needs no `seq_source`: the Admin API does not expose it. |
+| `libs/tandem-core/.../OutboxRowView.java` · `OutboxRowDetail.java` | `seq` becomes a nullable `Long` on the read model. |
+| `libs/tandem-test/.../InMemoryOutbox.java` | Its `OutboxQuery` projection must mirror the same nullability, or the in-memory and JDBC read sides disagree. |
 
 `seq_source` is **not** exposed: it is detector metadata, and the Admin API's job is operational
 state, not internal mechanism. Reconsider only if an operator investigating an `order_violation`
@@ -126,12 +126,12 @@ each record the `seq_source` they used.
 
 | File | Change |
 |---|---|
-| `tandem-jdbc/.../SeqWatermarks.java` | Rename to `PublishOrderWatermarks`. Map value becomes a `(Key, long)` pair, `Key ∈ {SEQ, ID}`. Verdicts and the LRU bound unchanged; class javadoc rewritten. |
+| `libs/tandem-jdbc/.../SeqWatermarks.java` | Rename to `PublishOrderWatermarks`. Map value becomes a `(Key, long)` pair, `Key ∈ {SEQ, ID}`. Verdicts and the LRU bound unchanged; class javadoc rewritten. |
 | — | Entry point becomes `Verdict record(OutboxRecord)`, resolving `seqSource() == APPLICATION ? SEQ : ID` internally — one home for the policy, rather than spreading it into `RelayWorker`. A key change resets the entry. |
 | — | Add `lastPublished(AggregateId)` returning the stored `(Key, long)`, for the report to name what the row was judged against. **Not** a widened return type on `record(...)`: `flushDone` calls that per row, and allocating a result object per row would put hot-path cost on information only the rare path needs. It works because `REGRESSED` deliberately leaves the watermark untouched, so reading it afterwards returns exactly the value compared against. |
-| `tandem-jdbc/.../RelayWorker.java:199` | `watermarks.record(record.aggregateId(), record.seq())` → `watermarks.record(record)` |
-| `tandem-jdbc/.../RelayWorker.java:219` | `store.replaysOf(record.id())` — already keyed on `id`, unchanged |
-| `tandem-jdbc/.../RelayWorker.java:222` | Split the `ERROR` into two fixed messages, one per key (below). |
+| `libs/tandem-jdbc/.../RelayWorker.java:199` | `watermarks.record(record.aggregateId(), record.seq())` → `watermarks.record(record)` |
+| `libs/tandem-jdbc/.../RelayWorker.java:219` | `store.replaysOf(record.id())` — already keyed on `id`, unchanged |
+| `libs/tandem-jdbc/.../RelayWorker.java:222` | Split the `ERROR` into two fixed messages, one per key (below). |
 
 ### 4.1 The report says more than it knows — split it
 

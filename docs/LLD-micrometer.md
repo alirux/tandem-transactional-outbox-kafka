@@ -190,7 +190,7 @@ that conditions on it, so one `@ConditionalOnClass` suffices. `MicrometerTandemM
 *separate* module, so `tandem-spring-relay` needs a new **optional** dependency:
 
 ```kotlin
-// tandem-spring-relay/build.gradle.kts
+// libs/tandem-spring-relay/build.gradle.kts
 dependencies {
     compileOnly(project(":tandem-micrometer"))
     compileOnly(libs.micrometer.core)   // for MeterRegistry in the @ConditionalOnClass/@Bean signature
@@ -303,7 +303,7 @@ doesn't substitute for.
 Per AGENTS.md's module checklist — every item below, in the same change that adds the module:
 
 - `settings.gradle.kts`
-- `tandem-bom/build.gradle.kts` (published)
+- `libs/tandem-bom/build.gradle.kts` (published)
 - `tandem-coverage`'s `coveredProjects` (published + tested)
 - README.md module table (🔜 → ✅) + "Key features" (the metrics bullet already describes the
   signals; only the "Micrometer adapter 🔜 planned" clause needs flipping)

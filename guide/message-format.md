@@ -234,7 +234,7 @@ There is no sequence number, even for a row written with one.
 ## 6. A worked example
 
 Tandem's repository carries one complete custom envelope, exercised end to end on Kafka and on
-RabbitMQ: [`DebeziumStyleEncoder`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/tandem-test/src/testFixtures/java/com/codingful/tandem/test/encoder/DebeziumStyleEncoder.java).
+RabbitMQ: [`DebeziumStyleEncoder`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/libs/tandem-test/src/testFixtures/java/com/codingful/tandem/test/encoder/DebeziumStyleEncoder.java).
 It produces the shape Debezium's outbox event router produces: the topic
 `outbox.event.<aggregate type>`, the aggregate id as key, the payload as body, an `id` header with the
 event id, and every row header passed through.

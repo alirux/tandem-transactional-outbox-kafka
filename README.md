@@ -76,14 +76,14 @@ Two of the things you end up looking at — both reproduced by a command below, 
 # macOS / Linux
 git clone https://github.com/alirux/tandem-transactional-outbox-kafka.git tandem
 cd tandem
-./tandem-sample/run.sh
+./examples/tandem-sample/run.sh
 ```
 
 ```cmd
 :: Windows
 git clone https://github.com/alirux/tandem-transactional-outbox-kafka.git tandem
 cd tandem
-tandem-sample\run.cmd
+examples\tandem-sample\run.cmd
 ```
 
 The script prints JDBC and Kafka connection details so you can connect external clients while the
@@ -95,12 +95,12 @@ Template and Spring-events tiers, and delivers them to Kafka in per-aggregate or
 
 ```bash
 # macOS / Linux
-./tandem-sample-spring/run.sh
+./examples/tandem-sample-spring/run.sh
 ```
 
 ```cmd
 :: Windows
-tandem-sample-spring\run.cmd
+examples\tandem-sample-spring\run.cmd
 ```
 
 The Spring sample also demonstrates the Admin API (`tandem.admin.enabled: true` in its
@@ -132,24 +132,24 @@ rather than answer with misleading data. Run the sample under `LEASE` instead to
 against an actually-owned bucket:
 
 ```bash
-./tandem-sample-spring/run-lease.sh
+./examples/tandem-sample-spring/run-lease.sh
 ```
 
-Prefer a CLI over hand-built `curl` calls? [`tandem-cli`](tandem-cli/) wraps the same Admin API
+Prefer a CLI over hand-built `curl` calls? [`tandem-cli`](apps/tandem-cli/) wraps the same Admin API
 endpoints in discoverable verbs and typed flags. Build it from source and point it at the sample
 (`--base-url` takes the same `.../tandem/admin/v1` prefix the `curl` commands above use):
 
 ```bash
-cd tandem-cli && make build && cd ..
-./tandem-cli/bin/tandem-cli --base-url http://localhost:8080/tandem/admin/v1 outbox summary
-./tandem-cli/bin/tandem-cli --base-url http://localhost:8080/tandem/admin/v1 relay status
+cd apps/tandem-cli && make build && cd ../..
+./apps/tandem-cli/bin/tandem-cli --base-url http://localhost:8080/tandem/admin/v1 outbox summary
+./apps/tandem-cli/bin/tandem-cli --base-url http://localhost:8080/tandem/admin/v1 relay status
 ```
 
 Add `--watch` to `outbox summary` for the live, redrawing-in-place dashboard shown at the top of
 this section — bar charts for `PENDING`/`IN_FLIGHT`/`FAILED`, refreshed on an interval, colored so
 a growing red `FAILED` bar catches the eye without reading the number.
 
-See [tandem-cli/docs/cli](tandem-cli/docs/cli/tandem-cli.md) for the full command reference.
+See [apps/tandem-cli/docs/cli](apps/tandem-cli/docs/cli/tandem-cli.md) for the full command reference.
 
 To see the relay's own metrics rather than take them on faith, `tandem-benchmark`'s
 `metricsDashboardDemo` runs a real Micrometer → Prometheus → Grafana pipeline through nine
@@ -254,7 +254,7 @@ redraws these charts from them. The full scenario results are on
   (off by default) for outbox inspection and replay/discard, plus relay status/pause/resume.
   API-first, every write audit-logged. Contract:
   [HLD-admin-api.md](docs/HLD-admin-api.md) · [admin-api.openapi.yaml](docs/admin-api.openapi.yaml).
-  [`tandem-cli`](tandem-cli/) is a Go frontend over the same contract — never a second control path.
+  [`tandem-cli`](apps/tandem-cli/) is a Go frontend over the same contract — never a second control path.
 - **Framework-agnostic core** — works with plain Java, no container required. Spring Boot
   autoconfiguration covers both the write side (`tandem-spring-producer`) and the relay
   (`tandem-spring-relay`), one artifact per module serving Boot 3.x and 4.x alike. See the
@@ -284,7 +284,7 @@ can be deployed independently. See [HLD §3.2](docs/HLD.md).
 ## Add the dependency
 
 Tandem is published to Maven Central under the `com.codingful` group. Import the
-[BOM](CONTRIBUTING.md#project-layout) to keep module versions aligned, then declare only the
+[BOM](.github/CONTRIBUTING.md#project-layout) to keep module versions aligned, then declare only the
 modules you need (no per-module version). Use the current version from
 [Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-core) (also linked from
 the badge above) or the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page in place of
@@ -337,7 +337,7 @@ publish adapter is on the classpath, so declare `tandem-kafka` (or another adapt
 To publish to RabbitMQ instead, declare `tandem-rabbitmq` in place of `tandem-kafka`. It is versioned
 independently of the library, so the BOM does not cover it and it takes its own version, the current
 one from [Maven Central](https://central.sonatype.com/artifact/com.codingful/tandem-rabbitmq). How to
-wire it, and the minimum Tandem version it needs: [Publishing to RabbitMQ](https://tandem-codingful.readthedocs.io/rabbitmq/). See [CONTRIBUTING.md](CONTRIBUTING.md#project-layout) for the full module
+wire it, and the minimum Tandem version it needs: [Publishing to RabbitMQ](https://tandem-codingful.readthedocs.io/rabbitmq/). See [CONTRIBUTING.md](.github/CONTRIBUTING.md#project-layout) for the full module
 list, and [API reference](#api-reference) for each module's javadoc. What changed between versions,
 breaking changes included, is on the [Releases](https://github.com/alirux/tandem-transactional-outbox-kafka/releases) page.
 
@@ -434,7 +434,7 @@ the `TransactionalOutboxTemplate`, `@TransactionalOutbox`, and Spring-events tie
 IDE completion and a commented reference YAML. See the [Spring sample](#try-it),
 [LLD-spring-producer.md](docs/LLD-spring-producer.md) and [LLD-spring-config.md](docs/LLD-spring-config.md).
 
-**Relay as a container**: [`tandem-relay`](tandem-relay/) is that relay prebuilt as a container image
+**Relay as a container**: [`tandem-relay`](apps/tandem-relay/) is that relay prebuilt as a container image
 (and an executable jar), configured through environment variables, for when the relay should run as a
 process of its own without you writing one. It is built in this repository and released on its own
 `relay-v*` tags, apart from the library, and published as `ghcr.io/alirux/tandem-relay` for
@@ -546,14 +546,14 @@ of the version you actually depend on.
 | [tandem-admin](https://javadoc.io/doc/com.codingful/tandem-admin/latest/index.html) | Optional REST operations layer over the outbox and the relay |
 
 `tandem-bom` is a version platform and carries no javadoc; `tandem-cli` is a Go module with its own
-[command reference](tandem-cli/docs/cli/tandem-cli.md).
+[command reference](apps/tandem-cli/docs/cli/tandem-cli.md).
 
 ### Design documents
 
 Tandem is designed spec-first — every feature has an HLD (architecture/decisions) and, where there's
 a swappable boundary, a per-module LLD. Start with [HLD.md](docs/HLD.md) for the overall
 architecture; the full index of every design document, what it covers, and its status is in
-[CONTRIBUTING.md#design-documents](CONTRIBUTING.md#design-documents).
+[CONTRIBUTING.md#design-documents](.github/CONTRIBUTING.md#design-documents).
 
 ## Design principles
 
@@ -582,7 +582,7 @@ integration test exercising a `tandem-core` class) to the class that owns it, ru
 ./gradlew :tandem-coverage:aggregatedCoverageReport   # unit + integration + e2e, all modules
 ```
 
-It lands in `tandem-coverage/build/reports/jacoco/aggregated/` (HTML + XML) and is the report CI
+It lands in `tools/tandem-coverage/build/reports/jacoco/aggregated/` (HTML + XML) and is the report CI
 uploads to Codecov.
 
 ## Build & license
@@ -685,7 +685,7 @@ Not yet shipped, in no particular order:
   no table, and no Admin API endpoints ship today. It would be opt-in and off by default like
   the capabilities above, and adding it back to the API contract stays an additive change.
 
-The full per-module status is in [CONTRIBUTING.md](CONTRIBUTING.md#project-layout).
+The full per-module status is in [CONTRIBUTING.md](.github/CONTRIBUTING.md#project-layout).
 
 ---
 

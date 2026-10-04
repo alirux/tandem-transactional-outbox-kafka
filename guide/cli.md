@@ -40,7 +40,7 @@ them. Unpack it and put `tandem-cli` on your `PATH`.
 To build it from a checkout instead, you need Go:
 
 ```bash
-cd tandem-cli && make build     # produces tandem-cli/bin/tandem-cli
+cd apps/tandem-cli && make build     # produces apps/tandem-cli/bin/tandem-cli
 ```
 
 Check it:
@@ -461,7 +461,7 @@ esac
 An alert says `FAILED` is above zero.
 
 !!! tip "Try it without touching a real outbox"
-    `./tandem-sample-spring/run.sh` (Docker required) starts an application with the Admin API on
+    `./examples/tandem-sample-spring/run.sh` (Docker required) starts an application with the Admin API on
     `http://localhost:8080` and a row it has deliberately left `FAILED`. Point the CLI at it and run
     the steps below against a throwaway database.
 
@@ -497,4 +497,4 @@ output, because that is the Admin API's own and follows the API's contract
 A CLI release is compatible with any application whose Admin API is `/v1`, whatever the library
 version behind it. The full command reference, generated from the tool itself, is in the repository
 under
-[`tandem-cli/docs/cli`](https://github.com/alirux/tandem-transactional-outbox-kafka/tree/main/tandem-cli/docs/cli/tandem-cli.md).
+[`apps/tandem-cli/docs/cli`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/apps/tandem-cli/docs/cli/tandem-cli.md).

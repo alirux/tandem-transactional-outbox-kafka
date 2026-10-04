@@ -366,7 +366,7 @@ The two steps land as one change, because the guide chapter walks through the ex
 ### 4.1 `DebeziumStyleEncoder`
 
 `tandem-test`, **`testFixtures`** source set, package `com.codingful.tandem.test.encoder`. The
-testFixtures variants are already excluded from publication (`tandem-test/build.gradle.kts`), so the
+testFixtures variants are already excluded from publication (`libs/tandem-test/build.gradle.kts`), so the
 class is verified in this repository without becoming a supported artifact, which is the point of
 HLD §8 decision 1.
 
@@ -443,7 +443,7 @@ with a `CloudEventEncoder`, so the two cannot drift.
 
 ### 5.3 `RabbitRelayIT` (AMQP)
 
-- `tandem-rabbitmq/build.gradle.kts` adds `testImplementation(testFixtures(project(":tandem-test")))`,
+- `libs/tandem-rabbitmq/build.gradle.kts` adds `testImplementation(testFixtures(project(":tandem-test")))`,
   a test-only dependency, so the module's own versioning (LLD-rabbitmq §9) is unaffected.
 - **New test**,
   `GIVEN_an_application_encoder_WHEN_the_relay_publishes_through_it_THEN_the_message_arrives_on_its_routing_key_with_its_headers_as_text`:
@@ -494,7 +494,7 @@ the row (LLD-kafka §3.3 describes them otherwise). The documents move:
 | 2 | `RawMessageEncoder`, `RawHeaders`, `TopicRouter` javadoc | `RawMessageEncoderTest` | HLD-cloudevents §1 and §4, LLD-kafka §3.1, HLD.md §4.8, LLD-core §2, `open-questions-lld.md` Q19, `guide/message-format.md` (raw section), `guide/consuming-events.md` |
 | 3 | `MessageEncoderContract`, `CloudEventsHeaders.CE_ID` and `AMQP_ID` | `MessageEncoderContractTest`, `RawMessageEncoderContractTest`, one case each in `CloudEventEncoderTest` and `CloudEventAmqpEncoderTest` | LLD-test, LLD-core §2.4 |
 | 4 and 5 | `DebeziumStyleEncoder` (testFixtures) | `DebeziumStyleEncoderTest` | `guide/message-format.md` |
-| 6 | `TandemTestContainer` overload, `tandem-rabbitmq/build.gradle.kts` | `EndToEndIT`, `RabbitRelayIT` | LLD-test §4 (the overload) |
+| 6 | `TandemTestContainer` overload, `libs/tandem-rabbitmq/build.gradle.kts` | `EndToEndIT`, `RabbitRelayIT` | LLD-test §4 (the overload) |
 | 7 | none | none | LLD-kafka §3 (code sketch), §3.3 and §6, HLD-cloudevents §3 and §8, HLD.md open decisions |
 | 8 | sample class comments | none | LLD-benchmark §5 |
 

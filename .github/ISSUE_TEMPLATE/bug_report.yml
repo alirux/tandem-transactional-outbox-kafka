@@ -7,7 +7,7 @@ body:
       value: |
         For a security vulnerability, do not open an issue. Use
         [private vulnerability reporting](https://github.com/alirux/tandem-transactional-outbox-kafka/security/advisories/new)
-        instead; [SECURITY.md](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/SECURITY.md)
+        instead; [SECURITY.md](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/.github/SECURITY.md)
         says what is in scope.
 
   - type: textarea

@@ -803,7 +803,7 @@ no logger at all before this. Design decision recorded in HLD-admin-api §3; imp
   disproportionate; the real-demo run above is the verification of record, same precedent already
   followed for other observability work in this project (show the actual emitted output before
   proposing a commit, rather than relying only on a unit assertion).
-- `tandem-sample-spring/application.yml`'s `logging.level` gained `com.codingful.tandem: INFO`
+- `examples/tandem-sample-spring/application.yml`'s `logging.level` gained `com.codingful.tandem: INFO`
   alongside the existing `root: WARN`, scoped rather than raising root wholesale — the demo's own
   narration (`System.out`) stays the star of the console, uncluttered by Spring's own startup
   noise, while the new audit lines (and any other Tandem `INFO` logging) are visible when driving

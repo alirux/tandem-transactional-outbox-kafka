@@ -43,7 +43,7 @@ publishing** exactly like `tandem-sample` (root `build.gradle.kts` collects both
 `unpublishedModules` set, opted out of the shared java-library/publish convention block).
 
 ```
-tandem-benchmark/
+tools/tandem-benchmark/
   build.gradle.kts                      // not published; application plugin for the loadTest entrypoint
   src/main/resources/bench-schema.sql   // the benchmark-owned bench_aggregate table (§4.1)
   src/main/resources/grafana/tandem-dashboard.json  // §6.3 — the provisioned dashboard, ≤2 panels per row
@@ -1197,7 +1197,7 @@ and the fix belongs in the assertion.
   ```
   ./gradlew :tandem-benchmark:installDist
   JAVA_OPTS="-Djava.util.logging.config.file=$PWD/docs/benchmark-results/endurance-logging.properties" \
-    nohup caffeinate -ims tandem-benchmark/build/install/tandem-benchmark/bin/tandem-benchmark \
+    nohup caffeinate -ims tools/tandem-benchmark/build/install/tandem-benchmark/bin/tandem-benchmark \
     --duration=21600 --window=1200 --connections=48 S9 > s9.log 2>&1 &
   ```
 
