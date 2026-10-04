@@ -273,6 +273,9 @@ fun withRelayNotices(notices: String, generated: String): String {
     return notices.substring(0, begin + noticesBegin.length) + "\n" + generated + notices.substring(end)
 }
 
+// The generated list is LF, so a working copy checked out with CRLF is read as LF to compare and rewrite.
+fun committedNotices(): String = thirdPartyNotices.readText().replace("\r\n", "\n")
+
 tasks.register("updateThirdPartyNotices") {
     group = "documentation"
     description = "Regenerates the tandem-relay list in THIRD-PARTY-NOTICES.md from the pinned jar's BOOT-INF/lib."
@@ -280,7 +283,7 @@ tasks.register("updateThirdPartyNotices") {
     inputs.file(jar)
     doLast {
         val generated = relayNotices(jar.get().asFile, pinnedLibraryCoordinates.get())
-        thirdPartyNotices.writeText(withRelayNotices(thirdPartyNotices.readText(), generated))
+        thirdPartyNotices.writeText(withRelayNotices(committedNotices(), generated))
     }
 }
 
@@ -293,7 +296,7 @@ val checkThirdPartyNotices = tasks.register("checkThirdPartyNotices") {
     inputs.file(thirdPartyNotices)
     outputs.file(verified)
     doLast {
-        val committed = thirdPartyNotices.readText()
+        val committed = committedNotices()
         if (withRelayNotices(committed, relayNotices(jar.get().asFile, pinnedLibraryCoordinates.get())) != committed) {
             throw GradleException("The tandem-relay list in ${thirdPartyNotices.name} does not match the libraries "
                     + "in ${jar.get().asFile.name}. Run ./gradlew :tandem-relay:updateThirdPartyNotices and commit "

@@ -93,12 +93,14 @@ val renderSchemaSql by tasks.registering(JavaExec::class) {
 
 // Liquibase opens its output with a banner carrying a wall-clock "Ran at" stamp, which would change
 // the file on every run and leave the drift gate permanently red. Keeping only from the first
-// changeset marker on makes the baseline a pure function of the changelog.
+// changeset marker on makes the baseline a pure function of the changelog. The baseline is always LF,
+// whatever line endings the working copy was checked out with.
 fun renderedBaseline(): String {
     val lines = renderedStatements.get().asFile.readLines()
     val firstChangeset = lines.indexOfFirst { it.startsWith("-- Changeset ") }
     check(firstChangeset >= 0) { "Liquibase produced no changesets; the changelog may be empty." }
-    return baselineHeader.asFile.readText() + "\n" + lines.drop(firstChangeset).joinToString("\n") + "\n"
+    val header = baselineHeader.asFile.readText().replace("\r\n", "\n")
+    return header + "\n" + lines.drop(firstChangeset).joinToString("\n") + "\n"
 }
 
 val generateBaselineSql by tasks.registering {
@@ -120,7 +122,7 @@ val checkBaselineSql by tasks.registering {
     inputs.dir(changelogDir)
     inputs.file(baselineSql)
     doLast {
-        if (baselineSql.asFile.readText() != renderedBaseline()) {
+        if (baselineSql.asFile.readText().replace("\r\n", "\n") != renderedBaseline()) {
             throw GradleException(
                 "schema/postgres/tandem-baseline.sql is out of date with the changelog under " +
                     "schema/postgres/changelog. Run ./gradlew generateBaselineSql and commit the result.",
