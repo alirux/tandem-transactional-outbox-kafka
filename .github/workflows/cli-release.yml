@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: tandem-cli
+        working-directory: apps/tandem-cli
 
     steps:
       - uses: actions/checkout@v6
@@ -26,8 +26,8 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: tandem-cli/go.mod
-          cache-dependency-path: tandem-cli/go.sum
+          go-version-file: apps/tandem-cli/go.mod
+          cache-dependency-path: apps/tandem-cli/go.sum
 
       # The annotated tag's message becomes the release notes, same convention as the
       # library's own release.yml (AGENTS.md §Releases): first line is the title,
@@ -52,7 +52,7 @@ jobs:
       # and validation would reject it for that reason alone.
       - uses: goreleaser/goreleaser-action@v6
         with:
-          workdir: tandem-cli
+          workdir: apps/tandem-cli
           version: '~> v2'
           args: release --clean --skip=publish,validate
         env:

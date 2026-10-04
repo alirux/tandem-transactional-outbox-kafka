@@ -95,7 +95,7 @@ edited by hand (LLD-relay §10). After any change that reaches that jar (a depen
 `tandemPin`, the application's Spring Boot version), run `./gradlew :tandem-relay:updateThirdPartyNotices`
 and commit the result: `checkThirdPartyNotices`, part of `check`, fails until you do. A license the image
 has not carried before fails the generator until it is mapped to its SPDX id in
-`tandem-relay/build.gradle.kts` and its text section is added to THIRD-PARTY-NOTICES.md.
+`apps/tandem-relay/build.gradle.kts` and its text section is added to THIRD-PARTY-NOTICES.md.
 
 ## Logging
 
@@ -292,12 +292,12 @@ release). When you add a module, walk the whole list in the same change:
 
 | Register it in | Why, and what breaks if you forget |
 |---|---|
-| `settings.gradle.kts` | Gradle ignores the directory entirely otherwise. |
-| `tandem-bom/build.gradle.kts` | **Published modules on the library's own version only.** The BOM's job is to let a consumer declare any Tandem module without a version; a module missing there cannot be used that way. An **independently versioned** module (see below) is deliberately excluded, and the omission is recorded as a comment there so nobody "fixes" it. |
+| `settings.gradle.kts`, under its role's directory in `modulesByDirectory` (`libs/` published, `apps/` deployable, `examples/` sample, `tools/` build tooling) | Gradle ignores the directory entirely otherwise. The module's directory is `<role>/<module>`, and its project path stays flat (`:<module>`). |
+| `libs/tandem-bom/build.gradle.kts` | **Published modules on the library's own version only.** The BOM's job is to let a consumer declare any Tandem module without a version; a module missing there cannot be used that way. An **independently versioned** module (see below) is deliberately excluded, and the omission is recorded as a comment there so nobody "fixes" it. |
 | `tandem-coverage`'s `coveredProjects` | **Published, tested modules only.** Only the aggregated report attributes cross-module hits to the owning class, and it is the single report CI uploads to Codecov — a module missing there never reaches Codecov at all. |
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
 | `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules whose dependencies reach nobody** (samples, benchmark, coverage). The dependency graph CI submits is scoped to the redistributed runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. `tandem-relay` is unpublished and stays **out** of the regex on purpose: its runtime classpath ships to operators inside the container image, so its alerts are real (LLD-relay §10). |
-| `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
+| `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `.github/CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
 | `THIRD-PARTY-NOTICES.md` per-module table | **Every module whose artifact reaches someone**: the published modules, and a deployable that bundles its dependencies (today `tandem-relay`, whose image and jar redistribute the whole runtime; its section is generated from the jar, see Minimal client footprint). It documents what a consumer or an operator actually receives; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
 
 **Independently versioned modules** are of three kinds today: a Maven artifact (`tandem-rabbitmq`), a Go
@@ -313,7 +313,7 @@ such a module's own release workflow exists it also belongs in `notYetPublishedM
 and it stays out of the README's API reference table, whose rows link a javadoc.io page that exists only for
 a published artifact. The change that adds that workflow takes it out of the set, excludes it from
 `release.yml` (`-x :<module>:publishToMavenCentral`), and gives it a version variable of its own with a guard
-that refuses to publish while it is unset (see `tandem-rabbitmq/build.gradle.kts`).
+that refuses to publish while it is unset (see `libs/tandem-rabbitmq/build.gradle.kts`).
 
 Unpublished leaf apps (`tandem-sample*`, `tandem-benchmark`) stay out of the BOM and out of coverage
 aggregation on purpose: no meaningful coverage, and no `integrationTest` phase for the aggregated report
@@ -401,12 +401,12 @@ idempotent, and `DRY_RUN=1` only reports the status.
 
 **After a library release reaches Maven Central, consider the relay image too.** The image contains one
 library release, resolved from Maven Central, so it can only follow a release, never accompany one: move
-`tandemPin` in `tandem-relay/build.gradle.kts`, regenerate its notices, and tag a `relay-v*` release
+`tandemPin` in `apps/tandem-relay/build.gradle.kts`, regenerate its notices, and tag a `relay-v*` release
 (below). Skipping it breaks nothing; the image stays on the previous library release.
 
 ### `tandem-cli` releases — a separate scheme, not a variant of the above
 
-`tandem-cli` (Go, `tandem-cli/`) is versioned and released **independently of the
+`tandem-cli` (Go, `apps/tandem-cli/`) is versioned and released **independently of the
 library**: tags follow `cli-v<semver>` (e.g. `cli-v0.1.0`), never `v<semver>` — pushing
 one runs `.github/workflows/cli-release.yml` (`goreleaser`, cross-compiled binaries
 attached to a GitHub Release), not the Maven Central workflow above. `cli-v*` does not
@@ -437,7 +437,7 @@ As with the library, the final "Publish" on the Central Portal is manual.
 
 **The floor is part of its contract.** The module depends on `tandem-core` and
 `tandem-cloudevents` by published coordinate at the version in `tandemFloor`
-(`tandem-rabbitmq/build.gradle.kts`), substituted by the working tree during development.
+(`libs/tandem-rabbitmq/build.gradle.kts`), substituted by the working tree during development.
 `floorTest`, wired into `check`, runs the module's tests against that version resolved
 from Maven Central. Raising the floor is a minor bump of the connector, never a patch,
 and the release notes must state the floor, since nothing in the version number implies
@@ -468,7 +468,7 @@ nothing else changed. The GHCR package is linked to this repository by the image
 public with it.
 
 **The pin is part of its contract.** The module depends on Tandem by published coordinate through
-`tandem-bom` at the version in `tandemPin` (`tandem-relay/build.gradle.kts`), substituted by the working
+`tandem-bom` at the version in `tandemPin` (`apps/tandem-relay/build.gradle.kts`), substituted by the working
 tree during development. `pinnedTest`, wired into `check`, runs the application's integration test on the
 jar built from that release resolved from Maven Central, which is the jar the image ships. A relay change
 that needs a library change waits for the library release that ships it, then moves the pin. The release

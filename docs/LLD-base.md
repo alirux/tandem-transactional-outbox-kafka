@@ -26,6 +26,12 @@ type-safe, best IDE support, and consistent with the `build.gradle.kts` assumed 
 
 ### Subproject names and published artifact IDs
 
+A subproject lives in the directory of its role, named after the subproject: `libs/` for the published
+library modules, `apps/` for `tandem-relay` (beside the Go `tandem-cli`, which is not a subproject),
+`examples/` for the samples, `tools/` for the benchmark and the coverage aggregation.
+`settings.gradle.kts` maps each one with a `projectDir`, so the Gradle project path stays flat
+(`:tandem-core`) and never depends on the directory.
+
 | Subproject | Published `artifactId` | Notes |
 |---|---|---|
 | `tandem-bom` | `tandem-bom` | |
@@ -64,7 +70,7 @@ compatibility matrix, and the unpublished sample and benchmark apps, whose own s
 otherwise dominate the alert list without any adopter ever seeing it. Those classpaths are still kept
 off known-vulnerable versions where it costs nothing, through version floors in the catalog and
 `constraints` in the module that pulls the coordinate, but they no longer generate alerts. The Go
-modules under `tandem-cli/` are unaffected: GitHub reads their `go.mod` directly rather than through
+modules under `apps/tandem-cli/` are unaffected: GitHub reads their `go.mod` directly rather than through
 this submission.
 
 ---

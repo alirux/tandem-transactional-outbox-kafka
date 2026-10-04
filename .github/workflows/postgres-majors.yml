@@ -23,8 +23,8 @@ on:
     branches: [ main ]
     paths:
       - 'schema/**'
-      - 'tandem-jdbc/**'
-      - 'tandem-test/**'
+      - 'libs/tandem-jdbc/**'
+      - 'libs/tandem-test/**'
       - 'gradle/libs.versions.toml'
       - 'build.gradle.kts'
       - '.github/workflows/postgres-majors.yml'
@@ -32,8 +32,8 @@ on:
     branches: [ main ]
     paths:
       - 'schema/**'
-      - 'tandem-jdbc/**'
-      - 'tandem-test/**'
+      - 'libs/tandem-jdbc/**'
+      - 'libs/tandem-test/**'
       - 'gradle/libs.versions.toml'
       - 'build.gradle.kts'
       - '.github/workflows/postgres-majors.yml'

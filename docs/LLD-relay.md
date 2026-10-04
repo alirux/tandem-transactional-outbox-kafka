@@ -90,14 +90,14 @@ change here that needs one is a signal that JSON handling is leaking out of `tan
 
 ## 3. Module layout
 
-`tandem-relay/` is a Gradle subproject like any other, but it is an **application, not a library**,
+`apps/tandem-relay/` is a Gradle subproject like any other, but it is an **application, not a library**,
 which changes three things: it is listed in the root build's `unpublishedModules` (so it opts out
 of the shared java-library/publishing convention and configures its own toolchain and tasks), it
 carries **concrete** Spring dependencies rather than `compileOnly` ones, and it pins a Java version,
 a Spring Boot version and a Tandem library version of its own.
 
 ```
-tandem-relay/
+apps/tandem-relay/
 ├── build.gradle.kts
 ├── Dockerfile
 ├── .dockerignore
@@ -590,7 +590,7 @@ What the Dockerfile does, each line of it a decision:
 
   ```
   ./gradlew :tandem-relay:pinnedBootJar
-  docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local tandem-relay
+  docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local apps/tandem-relay
   ```
 - **The version and the pin reach the image as two build arguments**, `RELAY_VERSION` and
   `TANDEM_VERSION`, because a label can take its value from nothing else. They have one source: the
@@ -654,7 +654,7 @@ and one tag.
 
 **An image contains exactly one library release, and it comes from Maven Central.** The module
 depends on Tandem by published coordinate, through `tandem-bom` at the version in `tandemPin`
-(`tandem-relay/build.gradle.kts`). During development the root build substitutes the working tree
+(`apps/tandem-relay/build.gradle.kts`). During development the root build substitutes the working tree
 for those coordinates, as it does for every independently versioned module, so the repository
 stays one buildable unit. The pinned classpath is the one configuration exempt from that
 substitution, the same mechanism `tandem-rabbitmq` uses for its floor. One detail is specific to

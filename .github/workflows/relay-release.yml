@@ -85,7 +85,7 @@ jobs:
             --label "org.opencontainers.image.created=$(git log -1 --format=%cI)" \
             "${tags[@]}" \
             --push \
-            tandem-relay
+            apps/tandem-relay
 
       # The annotated tag's message becomes the release notes, same convention as the other release
       # workflows (AGENTS.md §Releases): its first line is the title, everything below it the body.
@@ -103,7 +103,7 @@ jobs:
             --title "${TITLE:-$GITHUB_REF_NAME}" \
             --notes-file RELEASE_BODY.md \
             --latest=false \
-            "tandem-relay/build/libs/tandem-relay-$RELAY_VERSION.jar"
+            "apps/tandem-relay/build/libs/tandem-relay-$RELAY_VERSION.jar"
         env:
           TITLE: ${{ steps.tag_message.outputs.title }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

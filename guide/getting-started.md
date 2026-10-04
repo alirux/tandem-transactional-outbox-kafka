@@ -477,8 +477,8 @@ The `tandem-sample` and `tandem-sample-spring` modules in the repository are run
 this page, one per column of the tabs above:
 
 ```bash
-./tandem-sample/run.sh          # plain Java
-./tandem-sample-spring/run.sh   # Spring Boot
+./examples/tandem-sample/run.sh          # plain Java
+./examples/tandem-sample-spring/run.sh   # Spring Boot
 ```
 
 Both start their own PostgreSQL and Kafka with Testcontainers, so Docker must be running. The Spring

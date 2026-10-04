@@ -64,7 +64,7 @@ dependencies, which are not enumerated here.
 ## `tandem-cli` (Go binary)
 
 `tandem-cli` is not a JVM module — it is a separately versioned Go binary
-(`tandem-cli/`, its own `go.mod`, LLD-cli.md §2/§9.1), so the "reaches a consumer's
+(`apps/tandem-cli/`, its own `go.mod`, LLD-cli.md §2/§9.1), so the "reaches a consumer's
 classpath" framing above does not apply to it. The equivalent inheritance event is
 **static linking**: every dependency below is compiled directly into the distributed
 `tandem-cli` binary (Go has no dynamic linking for these), so all of them, not just
@@ -86,7 +86,7 @@ compile into `tandem-cli` itself.
 for detecting a console-less launch there); the other five link in on every platform
 `goreleaser` cross-compiles for (darwin/linux/windows × amd64/arm64, LLD-cli.md §9).
 `oapi-codegen` itself (the code generator) does **not** appear here: it runs at
-`go generate` time only, from a separate tools module (`tandem-cli/tools/`) kept apart
+`go generate` time only, from a separate tools module (`apps/tandem-cli/tools/`) kept apart
 specifically so its own, larger dependency tree — and its higher minimum Go version —
 never reaches the shipped binary or this table.
 

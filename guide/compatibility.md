@@ -86,8 +86,8 @@ behind it.
 
 The matrix lives in
 [`.github/workflows/postgres-majors.yml`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/.github/workflows/postgres-majors.yml).
-It runs the same suites the default build runs, on a change to `schema/`, `tandem-jdbc/` or
-`tandem-test/`, weekly on a schedule, and on demand. A commit that cannot affect the SQL does not
+It runs the same suites the default build runs, on a change to `schema/`, `libs/tandem-jdbc/` or
+`libs/tandem-test/`, weekly on a schedule, and on demand. A commit that cannot affect the SQL does not
 re-run it, which is why the schedule is there: it keeps the claim from ageing quietly during a month
 of documentation commits.
 

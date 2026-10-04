@@ -36,7 +36,7 @@ jobs:
           # attributed to the owning class. disable_search stops Codecov from also picking up the
           # per-module reports, which scope coverage to their own sources and would reintroduce
           # mis-attributed 0% entries (e.g. tandem-core's ReplayResult).
-          files: ./tandem-coverage/build/reports/jacoco/aggregated/aggregated.xml
+          files: ./tools/tandem-coverage/build/reports/jacoco/aggregated/aggregated.xml
           disable_search: true
           flags: java
 
@@ -75,14 +75,14 @@ jobs:
         id: relay-image
         run: |
           mapfile -t build_args < <(./gradlew -q :tandem-relay:imageBuildArgs)
-          docker build "${build_args[@]}" --tag tandem-relay:local tandem-relay
-          docker compose -f tandem-relay/docker-compose.example.yml up --wait --wait-timeout 180
+          docker build "${build_args[@]}" --tag tandem-relay:local apps/tandem-relay
+          docker compose -f apps/tandem-relay/docker-compose.example.yml up --wait --wait-timeout 180
           for port in 8081 8082; do
             curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:$port/actuator/health/readiness"
           done
           # A correctly configured start logs nothing at WARN: a warning at every healthy start teaches
           # operators to ignore warnings.
-          if docker compose -f tandem-relay/docker-compose.example.yml logs relay-1 relay-2 | grep ' WARN '; then
+          if docker compose -f apps/tandem-relay/docker-compose.example.yml logs relay-1 relay-2 | grep ' WARN '; then
             exit 1
           fi
 
@@ -90,25 +90,25 @@ jobs:
         if: always() && steps.relay-image.outcome != 'skipped'
         run: |
           if [ "${{ steps.relay-image.outcome }}" = failure ]; then
-            docker compose -f tandem-relay/docker-compose.example.yml logs --no-color
+            docker compose -f apps/tandem-relay/docker-compose.example.yml logs --no-color
           fi
-          docker compose -f tandem-relay/docker-compose.example.yml down -v
+          docker compose -f apps/tandem-relay/docker-compose.example.yml down -v
 
   tandem-cli:
-    # tandem-cli is a separate Go module (tandem-cli/go.mod) entirely outside the Gradle
+    # tandem-cli is a separate Go module (apps/tandem-cli/go.mod) entirely outside the Gradle
     # build (LLD-cli.md §2) - its own job, its own toolchain, never gated on the build above.
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: tandem-cli
+        working-directory: apps/tandem-cli
 
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: tandem-cli/go.mod
-          cache-dependency-path: tandem-cli/go.sum
+          go-version-file: apps/tandem-cli/go.mod
+          cache-dependency-path: apps/tandem-cli/go.sum
 
       - name: Regenerate the Admin API client and fail on drift
         # The committed internal/client/generated.go must match what the current
@@ -137,6 +137,6 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./tandem-cli/coverage.out
+          files: ./apps/tandem-cli/coverage.out
           disable_search: true
           flags: cli

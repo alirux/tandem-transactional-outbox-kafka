@@ -6,10 +6,10 @@
 **Companion to:** [HLD-admin-api.md](HLD-admin-api.md) §4 (names the CLI as a future consumer of the contract);
 backlog item 4 (`project_backlog_topics` memory) for the product requirements this LLD implements
 **Toolchain:** Go 1.25+ (raised from 1.24 — `cobra`'s own `go.mod` floor — to match
-`tandem-cli/tools/`'s own higher floor, so the two modules build with the same toolchain in
+`apps/tandem-cli/tools/`'s own higher floor, so the two modules build with the same toolchain in
 CI; `tools/` stays a separate module regardless, so a future bump there still doesn't force
 one here), `cobra` (command tree), `oapi-codegen` (generated client, run from
-`tandem-cli/tools/`)
+`apps/tandem-cli/tools/`)
 **Published:** Not a JVM artifact, not on Maven Central. Distributed as cross-compiled binaries
 attached to GitHub Releases (§9).
 **Versioned independently of the library**, tagged `cli-v<semver>`; its compatibility contract is
@@ -55,7 +55,7 @@ single dependency-free binary, which conflicts directly with §9's distribution 
 
 ## 2. Module layout
 
-`tandem-cli/` is a **top-level directory, sibling to the Gradle modules, not a Gradle
+`apps/tandem-cli/` sits under `apps/` beside the relay, but it is **not a Gradle
 subproject** — it is not registered in `settings.gradle.kts`, carries its own `go.mod`, and is
 therefore **out of scope for LLD-base.md's subproject table** (that table is specifically the
 Gradle/Maven-publication surface) and for AGENTS.md's Gradle-specific module-registration
@@ -74,14 +74,14 @@ apply in spirit and are called out explicitly rather than silently skipped:
   and Maven-Central-specific).
 
 ```
-tandem-cli/
+apps/tandem-cli/
   go.mod / go.sum                   // go 1.25 - matches tools/'s own floor (§1)
   LICENSE                           // copy of the repo's Apache-2.0 text - this module is
                                     //   distributed as standalone binaries (§9), independent of
                                     //   the JVM modules' Maven Central publication, so it carries
                                     //   its own copy rather than relying on the repo root's
   .goreleaser.yaml                  // cross-compile + GitHub Release config, run by
-                                    //   ../.github/workflows/cli-release.yml on cli-v* (§9)
+                                    //   ../../.github/workflows/cli-release.yml on cli-v* (§9)
   .gitignore                        // /bin/, /dist/, __pycache__/ (build and goreleaser output)
   Makefile                          // generate, docs, build, test, lint targets
   cmd/tandem-cli/main.go            // entrypoint; builds and executes the cobra root command
@@ -557,7 +557,7 @@ for `tandem-admin` any more than it does for `tandem-relay` (backlog item 6 note
 - **Versioning: independent of the library**, tagged `cli-v<semver>` from its own workflow — the
   CLI's compatibility contract is the Admin API's major version, not the library's version
   (§9.1).
-- **Module location: top-level `tandem-cli/` directory, outside the Gradle build**, with a
+- **Module location: `apps/tandem-cli/`, outside the Gradle build**, with a
   pointer entry in both README's module table and CONTRIBUTING's project layout;
   THIRD-PARTY-NOTICES.md **does** apply, scoped to the statically-linked binary's dependency
   footprint — §2.

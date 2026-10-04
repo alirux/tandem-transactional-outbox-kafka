@@ -62,7 +62,7 @@ From a clone of the repository, with Docker running:
 
 ```bash
 ./gradlew :tandem-relay:pinnedBootJar
-docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local tandem-relay
+docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local apps/tandem-relay
 ```
 
 The first command builds the jar on the library release the image is pinned to (§11.1), taken from
@@ -77,10 +77,10 @@ the schema applied, a single-node Kafka, and two relay replicas sharing the work
 wakeup on.
 
 ```bash
-docker compose -f tandem-relay/docker-compose.example.yml up --wait
+docker compose -f apps/tandem-relay/docker-compose.example.yml up --wait
 curl http://127.0.0.1:8081/actuator/health/readiness      # relay-1
 curl http://127.0.0.1:8082/actuator/health/readiness      # relay-2
-docker compose -f tandem-relay/docker-compose.example.yml down -v
+docker compose -f apps/tandem-relay/docker-compose.example.yml down -v
 ```
 
 `--wait` returns once both replicas report ready. It uses the image you built in §2.2; to run a
@@ -90,7 +90,7 @@ publishes neither PostgreSQL nor Kafka on your machine. To watch events go throu
 inside the broker's container:
 
 ```bash
-docker compose -f tandem-relay/docker-compose.example.yml exec kafka \
+docker compose -f apps/tandem-relay/docker-compose.example.yml exec kafka \
   /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic order-topic --from-beginning
 ```
 
