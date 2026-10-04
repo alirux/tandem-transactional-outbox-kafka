@@ -83,7 +83,7 @@ cd tandem
 :: Windows
 git clone https://github.com/alirux/tandem-transactional-outbox-kafka.git tandem
 cd tandem
-tandem-sample\run.cmd
+examples\tandem-sample\run.cmd
 ```
 
 The script prints JDBC and Kafka connection details so you can connect external clients while the
@@ -100,7 +100,7 @@ Template and Spring-events tiers, and delivers them to Kafka in per-aggregate or
 
 ```cmd
 :: Windows
-tandem-sample-spring\run.cmd
+examples\tandem-sample-spring\run.cmd
 ```
 
 The Spring sample also demonstrates the Admin API (`tandem.admin.enabled: true` in its

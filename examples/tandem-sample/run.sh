@@ -9,8 +9,12 @@
 # Testcontainers can locate the schema files regardless of where you call it from.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# The project root is the nearest directory above this script that holds settings.gradle.kts.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+until [[ -f "$ROOT/settings.gradle.kts" ]]; do
+    [[ "$ROOT" != / ]] || { echo "Cannot find settings.gradle.kts above this script" >&2; exit 1; }
+    ROOT="$(dirname "$ROOT")"
+done
 
 cd "$ROOT"
 ./gradlew :tandem-sample:run --console=plain

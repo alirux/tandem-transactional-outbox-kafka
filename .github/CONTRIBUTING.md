@@ -120,8 +120,8 @@ To try `bin/tandem-cli` by hand without a real `tandem-admin` instance, `hack/fa
 command:
 
 ```bash
-python3 apps/tandem-cli/hack/fake-admin-api.py 8080
-./apps/tandem-cli/bin/tandem-cli --base-url http://127.0.0.1:8080 relay status
+python3 hack/fake-admin-api.py 8080
+./bin/tandem-cli --base-url http://127.0.0.1:8080 relay status
 ```
 
 ## Project layout
