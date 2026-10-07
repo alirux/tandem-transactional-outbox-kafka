@@ -187,6 +187,7 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [virtual-threads-decision.md](../docs/virtual-threads-decision.md) | Why the relay's workers stay platform threads, measured rather than argued, and what an application running on virtual threads needs to know (nothing) |
 | [HLD-causal-ordering.md](../docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |
 | [HLD-managed-seq.md](../docs/HLD-managed-seq.md) | The three per-message `seq` modes — `seq(long)` (the aggregate's own version), `managedSeq()` (Tandem-assigned) and `unsequenced()` (no number at all) — what each one costs and detects, and how to choose. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
+| [HLD-write-side-sdks.md](../docs/HLD-write-side-sdks.md) | Writing to the outbox from languages other than Java: the write contract, the conformance vectors that pin it, and the SDKs that implement it, Go first. Designed, not implemented |
 | [dispatch-latency.md](../docs/dispatch-latency.md) | Commit-to-publish latency: where it comes from, the adaptive idle backoff, and the opt-in post-commit wakeup |
 | [comparison.md](../docs/comparison.md) | Comparison with Debezium, Eventuate Tram, Spring Modulith, a hand-rolled outbox, and the stream processors (Kafka Streams, Flink) |
 | [open-questions-lld.md](../docs/open-questions-lld.md) | Tracked gaps to resolve before the LLDs |
