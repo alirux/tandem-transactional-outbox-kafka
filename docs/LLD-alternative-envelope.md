@@ -25,7 +25,6 @@ HLD-alternative-envelope; the main design document is cited as HLD.md.
 |---|---|---|---|
 | `RawMessageEncoder` | `tandem-core`, `main` | `com.codingful.tandem.core` | Yes |
 | `RawHeaders` | `tandem-core`, `main` | `com.codingful.tandem.core` | Yes |
-| `CloudEventsHeaders.EXT_CAUSATION_ID`, `CE_CAUSATION_ID` | `tandem-core`, `main` | `com.codingful.tandem.core` | Yes (reserved names) |
 | `CloudEventsHeaders.CE_ID`, `AMQP_ID` | `tandem-core`, `main` | `com.codingful.tandem.core` | Yes |
 | `MessageEncoderContract` | `tandem-test`, `main` | `com.codingful.tandem.test` | Yes |
 | `TandemTestContainer.newRelay(RelayConfig, KafkaMessageEncoder)` | `tandem-test`, `main` | `com.codingful.tandem.test` | Yes |
@@ -39,24 +38,17 @@ Every addition to a published type is additive, so none of this is a breaking ch
 
 ## 1. Step 1: documents and javadoc aligned with the code
 
-A documentation step, plus one reserved constant.
+A documentation step, plus one javadoc correction.
 
 - **HLD.md §4.8 and HLD-cloudevents §3** restate `causationid` as **reserved**, in the same words
-  already used for `logicalclock`: a wire name declared so it cannot drift, emitted by nothing, and
-  belonging to the unbuilt causal-ordering surface (HLD-causal-ordering §0). In the attribute table of
+  already used for `logicalclock`: a wire name reserved by the unbuilt causal-ordering design
+  (HLD-causal-ordering §0.1) and emitted by nothing. In the attribute table of
   HLD-cloudevents §3 the `seq, logicalclock, causationid` row splits in two: `seq` (emitted when the
   row carries a number) and `logicalclock, causationid` (reserved, never emitted). The extension list
   of HLD.md §4.8 names the wire names (`seq` / `logicalclock` / `causationid`, not the design term
   `lamport`) and marks the last two reserved.
 - **`CloudEventsHeaders.EXT_SEQ`**: the javadoc "(always present)" becomes "present only when the row
   carries a number; a row written unsequenced publishes none (HLD-managed-seq §4.5)".
-- **`CloudEventsHeaders.EXT_CAUSATION_ID = "causationid"`** and `CE_CAUSATION_ID` are added, with the
-  same "Reserved, a name only" javadoc as `EXT_LOGICAL_CLOCK`. The row-header name
-  `TandemHeaders.CAUSATION_ID` (`causation_id`) and the extension name (`causationid`) differ, because
-  CloudEvents extension names admit only lowercase letters and digits; pinning both in the core is
-  what stops a future emitter from inventing a third spelling. Nothing reads or writes the new
-  constant, and no test is added for it: a test asserting a constant equals its own literal is a
-  tautology (AGENTS.md, Testing §3).
 
 ---
 
@@ -508,9 +500,8 @@ When the last step lands, HLD-alternative-envelope's status line moves from "Set
 - **New wire names:** `tandem-id` and `tandem-type`, on raw only, frozen from the first release
   that ships them (HLD §6), and the `tandem-*` namespace reserved for raw's future headers. The
   default envelope's wire is unchanged: no header added, renamed or removed.
-- **New public API:** `RawMessageEncoder`, `RawHeaders`, `CloudEventsHeaders.EXT_CAUSATION_ID`,
-  `CE_CAUSATION_ID`, `CE_ID` and `AMQP_ID`, `MessageEncoderContract`, one `TandemTestContainer`
-  overload. All additive, so a minor release.
+- **New public API:** `RawMessageEncoder`, `RawHeaders`, `CloudEventsHeaders.CE_ID` and `AMQP_ID`,
+  `MessageEncoderContract`, one `TandemTestContainer` overload. All additive, so a minor release.
 - **A new check in the kit is a breaking change.** It can make an application's existing encoder
   test fail on upgrade: that is the kit doing its job, but it breaks a green build, so the release
   that adds a check lists it under **Breaking** and is versioned as one (AGENTS.md, Releases).

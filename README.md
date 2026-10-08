@@ -666,13 +666,11 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
 
 Not yet shipped, in no particular order:
 
-- **Cross-aggregate causal ordering** via Lamport clocks — fully designed
-  ([HLD-causal-ordering.md](docs/HLD-causal-ordering.md)) but **not built**, and there is no way to switch it
-  on: no flag, no `lamport` column, no clock table, no consumer-side adapter. What ships is a small
-  **reserved surface** visible in IDE autocomplete and doing nothing — the `CausalContext` port,
-  `LamportClock`, a nullable `OutboxRecord.lamport`, and the `logicalclock`/`causation_id` header
-  names — published so that building the feature stays an additive change. The exact inventory of
-  what exists versus what is missing is [HLD-causal-ordering.md §0](docs/HLD-causal-ordering.md).
+- **Cross-aggregate causal ordering** via Lamport clocks: fully designed
+  ([HLD-causal-ordering.md](docs/HLD-causal-ordering.md)) but **not built**, and nothing of it ships: no
+  type, no header, no `lamport` column, no clock table, no consumer-side adapter, and no way to switch
+  it on. Building it is an additive change; what it would add is listed in
+  [HLD-causal-ordering.md §0](docs/HLD-causal-ordering.md).
 - **MySQL support.** Fully specified and verified against MySQL 8.4
   ([LLD-jdbc §5](docs/LLD-jdbc.md)), but **not built** — no MySQL baseline DDL and no engine variant
   ship, so PostgreSQL remains the only supported database. It is more than a dialect swap: MySQL

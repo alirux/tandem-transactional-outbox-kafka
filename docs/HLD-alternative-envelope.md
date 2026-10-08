@@ -104,9 +104,8 @@ Step 4 adds this asymmetry to the guide.
    `EndToEndIT` read `ce_*` headers on Kafka; the RabbitMQ harness reads the `cloudEvents_*` form.
    With another envelope the benchmark measures nothing and the end-to-end test cannot verify order.
 8. **Closed by step 1.** **The `causationid` extension is documented but never emitted.** HLD §4.8 and HLD-cloudevents §3
-   describe `ce_causationid`. The code has only the reserved row-header name
-   `TandemHeaders.CAUSATION_ID`, and the javadoc of `CloudEventsHeaders.EXT_SEQ` says `seq` is "always
-   present", which contradicts HLD-cloudevents §3.
+   describe `ce_causationid`. The code declares no such extension, and the javadoc of
+   `CloudEventsHeaders.EXT_SEQ` says `seq` is "always present", which contradicts HLD-cloudevents §3.
 
 **Not coupled to CloudEvents:** the Admin API contract and the CLI (they mention CloudEvents only in
 the description of the generic `type` column), `tandem-micrometer`, `tandem-tracing-otel`,

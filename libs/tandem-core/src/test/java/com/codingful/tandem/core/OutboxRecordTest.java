@@ -34,7 +34,6 @@ class OutboxRecordTest {
         assertThat(r.lockedUntil()).isNull();
         assertThat(r.lastError()).isNull();
         assertThat(r.nextAttemptAt()).isNull();
-        assertThat(r.lamport()).isNull();
         assertThat(r.createdAt()).isEqualTo(NOW);
     }
 
@@ -53,7 +52,6 @@ class OutboxRecordTest {
                 .lastError("transient")
                 .nextAttemptAt(nextAttempt)
                 .createdAt(NOW)
-                .lamport(99L)
                 .build();
 
         assertThat(r.status()).isEqualTo(OutboxStatus.IN_FLIGHT);
@@ -62,7 +60,6 @@ class OutboxRecordTest {
         assertThat(r.lockedUntil()).isEqualTo(lockedUntil);
         assertThat(r.lastError()).isEqualTo("transient");
         assertThat(r.nextAttemptAt()).isEqualTo(nextAttempt);
-        assertThat(r.lamport()).isEqualTo(99L);
     }
 
     @Test
@@ -88,7 +85,7 @@ class OutboxRecordTest {
                 .id(5).message(MESSAGE).status(OutboxStatus.IN_FLIGHT)
                 .attempts(1).lockedBy("worker-2").lockedUntil(lockedUntil)
                 .lastError("err").nextAttemptAt(NOW.plusSeconds(10))
-                .createdAt(NOW).lamport(42L).build();
+                .createdAt(NOW).build();
 
         OutboxRecord copy = original.toBuilder().build();
 
@@ -101,7 +98,6 @@ class OutboxRecordTest {
         assertThat(copy.lastError()).isEqualTo(original.lastError());
         assertThat(copy.nextAttemptAt()).isEqualTo(original.nextAttemptAt());
         assertThat(copy.createdAt()).isEqualTo(original.createdAt());
-        assertThat(copy.lamport()).isEqualTo(original.lamport());
     }
 
     @Test
