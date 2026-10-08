@@ -35,6 +35,21 @@ integration/e2e tests, and builds the javadoc jar of every published module (a j
 it, warnings do not). It's the same command CI runs, so a green `check` locally is the bar for
 a pull request.
 
+While you work, run less. A module's unit tests need no Docker and finish in seconds, and a single
+test class is quicker still:
+
+```bash
+./gradlew :tandem-core:test
+./gradlew :tandem-core:test --tests '*TopicRouterTest'
+```
+
+`test` runs only the unit tests. `check` adds the rest of each module: `integrationTest`, which runs
+the tests tagged `integration` against real containers and so needs Docker, and, in the Spring
+modules (`tandem-spring-producer`, `tandem-spring-relay`, `tandem-admin`), the same unit tests run
+again on other Spring Boot releases (`bootLatestThreeTest`, `bootFourTest`). A green `test` in a
+Spring module can therefore hide a failure on Boot 4. Whatever you ran while working, `./gradlew
+check` remains the bar for the pull request.
+
 To also produce the aggregated coverage report CI publishes to Codecov:
 
 ```bash
@@ -113,6 +128,14 @@ make docs       # regenerate docs/cli/*.md after a command/flag/description chan
 make build
 make test       # go test ./... -race -coverprofile=coverage.out -covermode=atomic
 make lint       # golangci-lint (analysis + formatting), pinned in the Makefile
+```
+
+While you work on one package, `go test` runs it alone (still from `apps/tandem-cli/`), and `-run`
+narrows it to the tests whose name matches:
+
+```bash
+go test ./internal/auth/
+go test ./internal/auth/ -run TestResolve_
 ```
 
 To try `bin/tandem-cli` by hand without a real `tandem-admin` instance, `hack/fake-admin-api.py`
