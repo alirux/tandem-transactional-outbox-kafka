@@ -12,6 +12,11 @@ doesn't fit the project's principles (per-aggregate ordering, backward/forward c
 every contract, minimal footprint on the client's write path, opt-in complexity for the
 non-default cases).
 
+To work on an open issue, comment on it before you start, and check that nobody has asked for it
+already. The issue is then assigned to you, which GitHub allows only once you have commented, and
+other contributors can see it is taken. Starting without that comment risks doing the same work as
+someone else.
+
 ## Prerequisites
 
 - **JDK 17** (the Gradle toolchain plugin auto-provisions it if not already installed).
