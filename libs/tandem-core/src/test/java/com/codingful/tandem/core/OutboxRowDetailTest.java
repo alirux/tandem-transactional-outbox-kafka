@@ -1,9 +1,12 @@
+
 package com.codingful.tandem.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +21,7 @@ class OutboxRowDetailTest {
 
     @Test
     void GIVEN_a_payload_array_WHEN_mutated_after_construction_THEN_the_stored_payload_is_unaffected() {
-        byte[] source = {1, 2, 3};
+        byte[] source = { 1, 2, 3 };
         OutboxRowDetail detail = new OutboxRowDetail(view(), source, Map.of());
 
         source[0] = 99;
@@ -28,39 +31,64 @@ class OutboxRowDetailTest {
     }
 
     @Test
+    void GIVEN_mutable_headers_WHEN_source_map_is_changed_THEN_stored_headers_are_unaffected() {
+        Map<String, String> source = new HashMap<>();
+        source.put("request-id", "original");
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] { 1 }, source);
+        Map<String, String> expected = Map.copyOf(source);
+
+        source.put("request-id", "changed");
+        source.put("new-header", "new-value");
+
+        assertThat(detail.headers()).isEqualTo(expected);
+    }
+
+    @Test
+    void GIVEN_headers_WHEN_returned_map_is_modified_THEN_exception_is_thrown() {
+        Map<String, String> source = new HashMap<>();
+        source.put("request-id", "original");
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] { 1 }, source);
+
+        assertThatThrownBy(() -> detail.headers().put("new-header", "new-value"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
     void GIVEN_two_details_with_equal_payload_arrays_WHEN_compared_THEN_they_are_equal() {
-        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] {9, 8, 7}, Map.of());
-        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {9, 8, 7}, Map.of());
+        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] { 9, 8, 7 }, Map.of());
+        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] { 9, 8, 7 }, Map.of());
 
         assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
     }
 
     @Test
     void GIVEN_two_details_differing_only_in_payload_WHEN_compared_THEN_they_are_not_equal() {
-        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] {1}, Map.of());
-        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {2}, Map.of());
+        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] { 1 }, Map.of());
+        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] { 2 }, Map.of());
 
         assertThat(a).isNotEqualTo(b);
     }
 
     @Test
     void GIVEN_two_details_differing_only_in_headers_WHEN_compared_THEN_they_are_not_equal() {
-        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v1"));
-        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v2"));
+        OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] { 1 }, Map.of("k", "v1"));
+        OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] { 1 }, Map.of("k", "v2"));
 
         assertThat(a).isNotEqualTo(b);
     }
 
     @Test
     void GIVEN_the_same_instance_WHEN_compared_to_itself_THEN_it_is_equal() {
-        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, Map.of());
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] { 1 }, Map.of());
 
         assertThat(detail.equals(detail)).isTrue();
     }
 
     @Test
     void GIVEN_a_value_of_a_different_type_WHEN_compared_THEN_it_is_not_equal() {
-        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, Map.of());
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] { 1 }, Map.of());
 
         assertThat(detail.equals("not a detail")).isFalse();
     }
