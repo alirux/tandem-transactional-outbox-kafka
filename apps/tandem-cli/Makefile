@@ -4,6 +4,12 @@
 # turns a routine version bump into a surprise red build on an untouched file.
 GOLANGCI_LINT_VERSION := v2.6.2
 
+# The Go it runs on is pinned too, to go.mod's `go` directive, the version CI's setup-go installs:
+# the linter reads the compiler's export data through the golang.org/x/tools it was released with,
+# and a newer local Go can write a format that copy cannot read. If the local Go differs, the go
+# command downloads that toolchain once.
+GOLANGCI_LINT = GOTOOLCHAIN=go$(shell go list -m -f '{{.GoVersion}}') go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
 # Regenerates internal/client/generated.go from ../../docs/admin-api.openapi.yaml (LLD-cli.md
 # §8). Run after the contract changes; CI re-runs this and fails the build on any diff.
 generate:
@@ -36,8 +42,8 @@ test:
 # formatters moved out of the analysis pass - so `fmt --diff` is what actually fails the
 # build on unformatted code. It prints the diff rather than rewriting; `make fmt` applies it.
 lint:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) fmt --diff
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+	$(GOLANGCI_LINT) fmt --diff
+	$(GOLANGCI_LINT) run
 
 fmt:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) fmt
+	$(GOLANGCI_LINT) fmt

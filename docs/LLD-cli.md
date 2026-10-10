@@ -387,6 +387,12 @@ which *is* hand-written, exactly like `tandem-admin`'s handlers.
   so their lines would only dilute the number rather than flag a real gap. `cmd/tandem-cli`'s
   `main()` stays in — it is the real entrypoint, and its one decision (`internal/exitcode.Report`)
   is unit-tested directly.
+- **golangci-lint runs on the Go version of `go.mod`'s `go` directive**, the one CI's `setup-go`
+  installs, whatever Go is installed locally (`GOTOOLCHAIN` set by the Makefile for `make lint`
+  and `make fmt`). The linter reads the compiler's export data through the `golang.org/x/tools`
+  it was released with, so a newer local Go can write a format the pinned linter cannot read;
+  pinning the linter and the Go it runs on keeps a local result identical to CI's. `make build`
+  and `make test` stay on the local Go.
 - **Forward compatibility applies to the client too** (§1.4, HLD.md): the generated types must
   tolerate unknown fields and unknown enum values in responses — `oapi-codegen`'s default struct
   generation already does this (unrecognized JSON object fields are simply dropped by
