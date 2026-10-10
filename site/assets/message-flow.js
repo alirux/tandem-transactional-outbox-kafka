@@ -260,10 +260,10 @@
     var cardSecondary = root.querySelector('[data-tmf="card-secondary"]');
     var cardPoison = root.querySelector('[data-tmf="card-poison"]');
 
-    function mainAnimOf(el) { return el.getAnimations()[0]; }
-    var animMain = mainAnimOf(cardMain);
-    var animSecondary = mainAnimOf(cardSecondary);
-    var animPoison = mainAnimOf(cardPoison);
+    /* Looked up on every use, never kept from wiring time: WebKit resolves no style while the
+       page's stylesheet is still loading, so a card upgraded in that window has no animation yet,
+       and a reference taken then would stay undefined for good. */
+    function animOf(el) { return el.getAnimations()[0]; }
 
     function durationOf(anim) { return anim.effect.getTiming().duration; }
 
@@ -308,6 +308,8 @@
     function setText(el, text) { if (el.textContent !== text) el.textContent = text; }
 
     function tick() {
+      var animMain = animOf(cardMain), animSecondary = animOf(cardSecondary), animPoison = animOf(cardPoison);
+      if (!animMain || !animSecondary || !animPoison) return;
       setText(elMain, pick(mainSteps, phaseOf(animMain)));
       setText(elSecondary, pick(secondarySteps, phaseOf(animSecondary)));
       setText(elPoison, pick(poisonSteps, phaseOf(animPoison)));
@@ -350,7 +352,8 @@
     var STAGE_MARKS = [6, 35, 64, 86];
 
     function step(direction) {
-      if (!isPaused) return;
+      var animMain = animOf(cardMain);
+      if (!isPaused || !animMain) return;
       var d = durationOf(animMain);
       var phase = phaseOf(animMain);
       var n = STAGE_MARKS.length;
