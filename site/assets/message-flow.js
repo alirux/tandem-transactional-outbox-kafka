@@ -294,10 +294,12 @@
       { max: 100, text: "FAILED · blocked (retries exhausted). Only order-9930 stalls; order-2205, right behind it in the same bucket, keeps flowing." }
     ];
 
-    function pick(steps, phasePct) {
-      for (var i = 0; i < steps.length; i++) { if (phasePct < steps[i].max) return steps[i].text; }
-      return steps[steps.length - 1].text;
+    function stageOf(steps, phasePct) {
+      for (var i = 0; i < steps.length; i++) { if (phasePct < steps[i].max) return i; }
+      return steps.length - 1;
     }
+
+    function pick(steps, phasePct) { return steps[stageOf(steps, phasePct)].text; }
 
     var elMain = root.querySelector('[data-tmf="narrate-main"]');
     var elSecondary = root.querySelector('[data-tmf="narrate-secondary"]');
@@ -341,28 +343,23 @@
     }
     toggleBtn.addEventListener('click', function () { setPaused(!isPaused); });
 
-    var STAGE_STARTS = [0.06, 0.35, 0.64, 0.86];
+    /* Where a step lands inside each of mainSteps' stages (percent of the main lane's cycle): the
+       card is at rest there with its label fully shown. A step moves from the stage the narration
+       shows to the next or previous one, never to a mark inside the same stage, so every press
+       visibly changes something. */
+    var STAGE_MARKS = [6, 35, 64, 86];
 
     function step(direction) {
       if (!isPaused) return;
       var d = durationOf(animMain);
-      var eps = 1;
-      var t = (animMain.currentTime || 0) % d;
-      if (t < 0) t += d;
-      var delta;
-      if (direction > 0) {
-        delta = (d + STAGE_STARTS[0] * d) - t;
-        for (var i = 0; i < STAGE_STARTS.length; i++) {
-          var s = STAGE_STARTS[i] * d;
-          if (s > t + eps) { delta = s - t; break; }
-        }
-      } else {
-        delta = STAGE_STARTS[STAGE_STARTS.length - 1] * d - t - d;
-        for (var j = STAGE_STARTS.length - 1; j >= 0; j--) {
-          var s2 = STAGE_STARTS[j] * d;
-          if (s2 < t - eps) { delta = s2 - t; break; }
-        }
-      }
+      var phase = phaseOf(animMain);
+      var n = STAGE_MARKS.length;
+      var target = STAGE_MARKS[(stageOf(mainSteps, phase) + direction + n) % n];
+      var delta = (target - phase) / 100 * d;
+      /* Forward always moves time ahead and Back always rewinds it, so the other lanes, which run
+         on their own durations, follow in the same direction. */
+      if (direction > 0 && delta <= 0) delta += d;
+      if (direction < 0 && delta >= 0) delta -= d;
       allAnims().forEach(function (a) {
         var dd = a.effect.getTiming().duration;
         var ct = (a.currentTime || 0) + delta;
