@@ -1,11 +1,13 @@
 package com.codingful.tandem.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import java.util.HashMap;
 
 class OutboxRowDetailTest {
 
@@ -41,6 +43,32 @@ class OutboxRowDetailTest {
         OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {2}, Map.of());
 
         assertThat(a).isNotEqualTo(b);
+    }
+
+    @Test
+    void GIVEN_a_headers_map_WHEN_the_source_is_changed_after_construction_THEN_the_stored_headers_are_unaffected() {
+        Map<String, String> source = new HashMap<>();
+        source.put("k1", "v1");
+        Map<String, String> expected = new HashMap<>(source);
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, source);
+
+        source.put("k2", "v2");
+        source.put("k1", "changed");
+
+        assertThat(detail.headers()).isEqualTo(expected);
+    }
+
+    @Test
+    void GIVEN_header_returned_by_detail_WHEN_header_is_modified_THEN_throws_UnsupportedOperationException() {
+        Map<String, String> source = new HashMap<>();
+        source.put("k", "v");
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, source);
+
+        assertThatThrownBy(
+                () -> detail.headers().put("k", "changed")
+        ).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
