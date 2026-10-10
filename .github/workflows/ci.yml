@@ -24,6 +24,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - uses: ./.github/actions/docker-hub-mirror
+
       - name: Build, test and verify coverage
         run: ./gradlew check :tandem-coverage:aggregatedCoverageReport
 

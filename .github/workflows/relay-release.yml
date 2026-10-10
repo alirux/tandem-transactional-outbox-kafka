@@ -44,6 +44,8 @@ jobs:
           fi
           echo "RELAY_VERSION=$version" >> "$GITHUB_ENV"
 
+      - uses: ./.github/actions/docker-hub-mirror
+
       # The tagged commit against the pinned library release, before anything is pushed: the jar as it
       # ships, started as a process against a real PostgreSQL and Kafka (Docker is available on
       # ubuntu-latest), and the notices the image will carry checked against that same jar.

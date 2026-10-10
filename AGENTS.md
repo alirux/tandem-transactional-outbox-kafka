@@ -246,6 +246,13 @@ than a developer machine's Docker reliably starts. The tasks are matched **by na
 (`dockerBoundTestTasks` in the root `build.gradle.kts`), so a Docker-bound test task under a new name
 must be added to that set. Nothing fails if it is not: it just starts its containers outside the limit.
 
+**In CI, Docker Hub images come through `mirror.gcr.io`.** Anonymous pulls from Docker Hub on a hosted
+runner fail with 429/504 often enough to break a green build, so the local action
+`.github/actions/docker-hub-mirror` points the runner's Docker daemon at Google's public cache, falling back
+to Docker Hub for an image the cache does not hold. A workflow job that starts containers (Testcontainers,
+`docker compose`, `docker build`) runs that action before its first such step. Nothing fails if it does not:
+the job pulls from Docker Hub again, and fails whenever Docker Hub does.
+
 ### Spring modules — the dual-generation gate
 
 `tandem-spring-producer` and `tandem-spring-relay` ship **one artifact serving both Spring Boot 3.x and
