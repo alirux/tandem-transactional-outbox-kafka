@@ -33,6 +33,8 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#rabbitmq-v}" >> "$GITHUB_OUTPUT"
 
+      - uses: ./.github/actions/docker-hub-mirror
+
       # The floor the POM declares is a claim about artifacts already on Maven Central; verify it on
       # the tagged commit before anything is uploaded (Docker is available on ubuntu-latest).
       - name: Verify the declared floor

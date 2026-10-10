@@ -70,6 +70,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - uses: ./.github/actions/docker-hub-mirror
+
       - name: Run the integration suites against PostgreSQL ${{ matrix.postgres }}
         # Every module's integrationTest rather than a hand-listed set, so a module added later is
         # covered without touching this file. tandem-benchmark is excluded: it is a load-testing
