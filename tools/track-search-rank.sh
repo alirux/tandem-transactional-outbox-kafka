@@ -26,6 +26,7 @@ SCANNED=100
 QUERIES=(
   "transactional outbox kafka"
   "transactional outbox spring"
+  "transactional outbox spring boot"
   "outbox pattern java"
   "outbox kafka postgresql"
   "transactional outbox"
