@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.codingful.tandem.admin.AdminMockMvc;
 import com.codingful.tandem.admin.OpenApiConformance;
-import com.codingful.tandem.admin.TandemAdminExceptionHandler;
 import com.codingful.tandem.jdbc.JdbcRelayControl;
 import com.codingful.tandem.jdbc.JdbcRelayQuery;
 import com.codingful.tandem.test.TandemTestContainer;
@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * End-to-end relay-control test over a real PostgreSQL (Testcontainers): the real
@@ -54,9 +53,7 @@ class RelayAdminIT {
         JdbcRelayQuery query = new JdbcRelayQuery(container.dataSource());
         JdbcRelayControl control = new JdbcRelayControl(container.dataSource());
         RelayAdminService service = new RelayAdminService(query, control);
-        mockMvc = MockMvcBuilders.standaloneSetup(new RelayAdminController(service))
-                .setControllerAdvice(new RelayExceptionHandler(), new TandemAdminExceptionHandler())
-                .build();
+        mockMvc = AdminMockMvc.create(new RelayAdminController(service), new RelayExceptionHandler());
     }
 
     @Test
