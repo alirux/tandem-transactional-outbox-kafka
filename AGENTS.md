@@ -154,9 +154,11 @@ Applies to every published module (`tandem-core`, `tandem-jdbc`, `tandem-kafka`,
 `tandem-test`, `tandem-spring-producer`, `tandem-spring-relay`, `tandem-micrometer`,
 `tandem-admin`, …) — their javadoc jar is generated automatically by the
 `com.vanniktech.maven.publish` plugin and is the first thing an external consumer sees
-in their IDE. Package-private/internal classes (e.g. `RelayWorker`, `MiniJson`,
+in their IDE. Package-private classes (e.g. `RelayWorker`, `MiniJson`,
 `OutboxRowMapper`, `CloudEventEncoder`) are out of scope — they never reach the
-published jar.
+published javadoc. So are the public types of an `internal` package (e.g.
+`com.codingful.tandem.admin.internal`): they reach it, but carry no promise, and the
+package's `package-info` says so once (HLD-api-stability §3).
 
 1. **Every public class/interface gets a javadoc comment** — what it is and, where
    relevant, a pointer to the HLD/LLD section it implements (e.g.

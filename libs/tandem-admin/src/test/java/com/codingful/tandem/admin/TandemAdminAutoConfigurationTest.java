@@ -2,6 +2,7 @@ package com.codingful.tandem.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
 import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxStore;
 import javax.sql.DataSource;
