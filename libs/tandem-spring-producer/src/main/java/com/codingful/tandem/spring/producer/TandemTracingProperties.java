@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param correlationIdMdcKey the MDC key read for the correlation id when {@code enabled}
  */
 @ConfigurationProperties("tandem.tracing")
-public record TandemTracingProperties(
+record TandemTracingProperties(
         @DefaultValue("false") boolean enabled,
         @DefaultValue("correlationId") String correlationIdMdcKey) {
 }

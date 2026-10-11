@@ -13,9 +13,9 @@ import java.util.Objects;
  * The OpenTelemetry write-side {@link TracePropagator} (HLD-tracing.md §3/§5): captures the trace
  * context live inside the domain transaction, so the row carries it across the asynchronous outbox
  * boundary and a consumer — or the relay's own publish span — continues the same trace instead of
- * starting an unrelated one. The Micrometer-based equivalent for Spring applications is
- * {@code MicrometerTracePropagator}; this is the same bridge for an application that instruments
- * itself with the OpenTelemetry SDK directly.
+ * starting an unrelated one. In a Spring application, {@code tandem-spring-producer} registers the
+ * Micrometer-based equivalent; this is the same bridge for an application that instruments itself
+ * with the OpenTelemetry SDK directly.
  *
  * <p>Capture goes through the application's own configured {@link TextMapPropagator} rather than
  * formatting a {@code traceparent} here, so whatever format the application propagates elsewhere is

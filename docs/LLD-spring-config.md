@@ -582,6 +582,12 @@ and `TandemKafkaProperties` becomes a `KafkaRelayConfig(source, defaultContentTy
 plus the raw `producer` map. The properties types carry no logic beyond binding; all validation stays
 where it already lives (`RelayConfig`'s row-lease invariant, the Kafka producer hardening).
 
+Every `@ConfigurationProperties` record is package-private, and so are the adapters the
+autoconfigurations construct (the Jackson serializer, the trace propagators, the span recorder): the
+keys and their defaults are the contract, and each bean is exposed as its port type
+(HLD-api-stability §2, §3). A public record would also break binary compatibility with every property
+added (§4.2 there).
+
 ### 4.3 `tandem-spring-producer` beans
 
 The write-side module contributes exactly the plain tier:

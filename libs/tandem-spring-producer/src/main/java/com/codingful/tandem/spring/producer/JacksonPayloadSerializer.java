@@ -12,7 +12,7 @@ import java.util.Objects;
  * is never forced, so the {@code byte[]} path stays dependency-free; it reuses the application's own
  * {@code ObjectMapper} when one exists.
  */
-public final class JacksonPayloadSerializer implements PayloadSerializer {
+final class JacksonPayloadSerializer implements PayloadSerializer {
 
     private static final String CONTENT_TYPE = "application/json";
 
@@ -22,7 +22,7 @@ public final class JacksonPayloadSerializer implements PayloadSerializer {
      * @param objectMapper the mapper to serialize with — typically the application's shared bean
      * @throws NullPointerException if {@code objectMapper} is null
      */
-    public JacksonPayloadSerializer(ObjectMapper objectMapper) {
+    JacksonPayloadSerializer(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     }
 

@@ -25,6 +25,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                    refused regardless (LLD-spring-producer §8)
  */
 @ConfigurationProperties("tandem.outbox")
-public record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup,
+record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup,
         @DefaultValue("true") boolean verifyTransactionBinding) {
 }

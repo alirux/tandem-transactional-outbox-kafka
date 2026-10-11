@@ -13,11 +13,11 @@ import org.slf4j.MDC;
  * jobs, Kafka listeners). Carries no distributed trace context — no {@code traceparent}/
  * {@code tracestate} — that requires a real tracing library, wired separately.
  */
-public final class MdcCorrelationTracePropagator implements TracePropagator {
+final class MdcCorrelationTracePropagator implements TracePropagator {
 
     private final String mdcKey;
 
-    public MdcCorrelationTracePropagator(String mdcKey) {
+    MdcCorrelationTracePropagator(String mdcKey) {
         this.mdcKey = Objects.requireNonNull(mdcKey, "mdcKey");
     }
 

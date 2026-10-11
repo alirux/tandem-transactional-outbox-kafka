@@ -16,5 +16,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *                          {@link MicrometerTandemMetrics#DEFAULT_MAX_EXPECTED_PUBLISH_LATENCY}
  */
 @ConfigurationProperties("tandem.metrics")
-public record TandemMetricsProperties(Duration maxPublishLatency) {
+record TandemMetricsProperties(Duration maxPublishLatency) {
 }

@@ -33,9 +33,9 @@ public interface TracePropagator {
      * dependency to its write side (§1.3). Carries no distributed trace context — that needs a real
      * tracing library, wired separately and merged in through {@link #composite}.
      *
-     * <p>A Spring application uses {@code MdcCorrelationTracePropagator} instead, which reads the same
-     * id off the MDC key its logging already populates and falls back to {@link TandemContext} only
-     * where no MDC is active.
+     * <p>A Spring application gets its propagator from {@code tandem-spring-producer} instead, which
+     * reads the same id off the MDC key its logging already populates and falls back to
+     * {@link TandemContext} only where no MDC is active.
      *
      * @return a propagator capturing {@code correlation-id} from the current thread's
      *         {@link TandemContext}, or nothing when none is set

@@ -13,5 +13,5 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                    and explicit only — never enabled by a tracing library's mere presence (§9)
  */
 @ConfigurationProperties("tandem.tracing")
-public record TandemTracingProperties(@DefaultValue("false") boolean publishSpan) {
+record TandemTracingProperties(@DefaultValue("false") boolean publishSpan) {
 }
