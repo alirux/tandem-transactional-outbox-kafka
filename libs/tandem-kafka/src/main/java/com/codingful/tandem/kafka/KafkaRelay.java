@@ -18,11 +18,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The publish adapter (LLD-kafka §2): implements {@link OutboxDispatcher} by handing an
- * {@link OutboxRecord} to a {@link KafkaMessageEncoder} ({@link CloudEventEncoder} unless the caller
- * supplies another) and sending the result <b>asynchronously</b> on one Kafka producer. The
- * returned future completes on the broker ack ({@code acks=all}), or completes <b>exceptionally</b>
- * with an {@code OutboxDispatchException} carrying the retriable/permanent verdict (§4) — never
- * blocking, so the relay overlaps many records of distinct aggregates on a single producer.
+ * {@link OutboxRecord} to a {@link KafkaMessageEncoder} ({@link KafkaMessageEncoder#cloudEvents}
+ * unless the caller supplies another) and sending the result <b>asynchronously</b> on one Kafka
+ * producer. The returned future completes on the broker ack ({@code acks=all}), or completes
+ * <b>exceptionally</b> with an {@code OutboxDispatchException} carrying the retriable/permanent
+ * verdict (§4) — never blocking, so the relay overlaps many records of distinct aggregates on a
+ * single producer.
  */
 public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
 
@@ -60,7 +61,7 @@ public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
      */
     public KafkaRelay(Map<String, ?> producerConfig, TopicRouter router, KafkaRelayConfig cfg,
             TandemSpanRecorder spanRecorder) {
-        this(producerConfig, new CloudEventEncoder(router, cfg), spanRecorder);
+        this(producerConfig, KafkaMessageEncoder.cloudEvents(router, cfg), spanRecorder);
     }
 
     /**

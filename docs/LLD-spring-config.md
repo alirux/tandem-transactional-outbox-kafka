@@ -662,7 +662,7 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
 2. `KafkaMessageEncoder` = the published wire format (LLD-kafka §3), resolved in three steps.
    A **`MessageEncoder` bean**, if the application contributes one, is lifted with
    `KafkaMessageEncoder.from`; a **`KafkaMessageEncoder` bean** takes precedence over both; otherwise
-   `new CloudEventEncoder(topicRouter, kafkaRelayConfig)`, the default.
+   `KafkaMessageEncoder.cloudEvents(topicRouter, kafkaRelayConfig)`, the default.
 
    **The `MessageEncoder` bean is the one an application should reach for.** It is the core's neutral
    port (LLD-core §2.4), so the envelope is written once, names no broker type, and the same class

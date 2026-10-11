@@ -48,8 +48,8 @@ class KafkaRelayTest {
             .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
             .build();
 
-    private static CloudEventEncoder cloudEventEncoder() {
-        return new CloudEventEncoder(TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of("/tandem/orders"));
+    private static KafkaMessageEncoder cloudEventEncoder() {
+        return KafkaMessageEncoder.cloudEvents(TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of("/tandem/orders"));
     }
 
     private static MockProducer<String, byte[]> mockProducer(boolean autoComplete) {
@@ -117,7 +117,7 @@ class KafkaRelayTest {
             throw new IllegalStateException("no topic for " + record.aggregateType());
         };
         KafkaRelay relay = new KafkaRelay(producer,
-                new CloudEventEncoder(unroutable, KafkaRelayConfig.of("/tandem/orders")),
+                KafkaMessageEncoder.cloudEvents(unroutable, KafkaRelayConfig.of("/tandem/orders")),
                 new DefaultErrorClassifier(), 30_000);
 
         CompletableFuture<Void> ack = relay.dispatch(RECORD);

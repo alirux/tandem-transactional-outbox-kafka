@@ -3,6 +3,7 @@ package com.codingful.tandem.kafka;
 import com.codingful.tandem.core.EncodedMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.port.MessageEncoder;
+import com.codingful.tandem.core.port.TopicRouter;
 import java.util.Objects;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -14,9 +15,9 @@ import org.apache.kafka.clients.producer.ProducerRecord;
  * <p>It exists alongside the transport-neutral {@link MessageEncoder} because the formats worth
  * having are split between the two. A format with a Kafka-specific binding (CloudEvents, whose
  * attributes become {@code ce_*} headers here and {@code cloudEvents_*} over AMQP) is built with the
- * binding library rather than reassembled from a neutral value, and {@link CloudEventEncoder} does
- * exactly that. A format with nothing Kafka-specific about it implements {@link MessageEncoder} once
- * and reaches Kafka through {@link #from(MessageEncoder)}, and any other transport adapter unchanged.
+ * binding library rather than reassembled from a neutral value, and {@link #cloudEvents} does exactly
+ * that. A format with nothing Kafka-specific about it implements {@link MessageEncoder} once and
+ * reaches Kafka through {@link #from(MessageEncoder)}, and any other transport adapter unchanged.
  */
 public interface KafkaMessageEncoder {
 
@@ -26,6 +27,19 @@ public interface KafkaMessageEncoder {
      * @throws RuntimeException if the row cannot be encoded; {@link KafkaRelay} fails it permanently (§4)
      */
     ProducerRecord<String, byte[]> encode(OutboxRecord record);
+
+    /**
+     * Tandem's default format: the record as a CloudEvent in Kafka's <b>binary</b> mode, its attributes
+     * in {@code ce_*} headers, the payload as the body and the {@code aggregate_id} as the record key.
+     *
+     * @param router maps each record to its destination topic
+     * @param cfg    the CloudEvents settings ({@code source}, default content type and schema)
+     * @return the CloudEvents encoder
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    static KafkaMessageEncoder cloudEvents(TopicRouter router, KafkaRelayConfig cfg) {
+        return new CloudEventEncoder(router, cfg);
+    }
 
     /**
      * Lifts a transport-neutral encoder onto Kafka: the destination becomes the topic, the ordering

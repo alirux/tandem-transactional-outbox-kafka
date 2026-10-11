@@ -37,7 +37,7 @@ envelope must keep, the gaps, and the options with a recommendation.
 | `MessageEncoder` | `tandem-core`, `port/` | Broker-neutral format port: `OutboxRecord` to `EncodedMessage` (destination, key, body, `byte[]` headers) |
 | `KafkaMessageEncoder`, `RabbitMessageEncoder` | `tandem-kafka`, `tandem-rabbitmq` | Transport-specific format ports; `KafkaMessageEncoder.from(MessageEncoder)` and `RabbitMessageEncoder.from(MessageEncoder, exchange)` lift a neutral encoder onto each |
 | `CloudEventFactory` | `tandem-cloudevents` | Decides every CloudEvents attribute; knows no broker |
-| `CloudEventEncoder`, `CloudEventAmqpEncoder` | `tandem-kafka`, `tandem-rabbitmq` | The default envelope, bound to each transport's own CloudEvents binding |
+| `KafkaMessageEncoder.cloudEvents`, `CloudEventAmqpEncoder` | `tandem-kafka`, `tandem-rabbitmq` | The default envelope, bound to each transport's own CloudEvents binding |
 | Spring wiring | `TandemKafkaAutoConfiguration` | A `MessageEncoder` bean is lifted onto Kafka; the `tandem.kafka.source` requirement applies only when the default encoder is used |
 | `RawMessageEncoder`, `RawHeaders` | `tandem-core` | The raw passthrough envelope of §6, opt-in (step 2) |
 | `MessageEncoderContract` | `tandem-test` | The contract kit an encoder author runs against their encoder (step 3) |

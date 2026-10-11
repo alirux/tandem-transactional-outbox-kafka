@@ -5,7 +5,6 @@ import com.codingful.tandem.core.port.MessageEncoder;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.codingful.tandem.core.port.TopicRouter;
-import com.codingful.tandem.kafka.CloudEventEncoder;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
@@ -102,7 +101,7 @@ public class TandemKafkaAutoConfiguration {
                     + " — the CloudEvents source URI identifying this application (e.g. /orders/service)."
                     + " Set it in your application configuration (LLD-spring-config §2.3).");
         }
-        return new CloudEventEncoder(topicRouter,
+        return KafkaMessageEncoder.cloudEvents(topicRouter,
                 new KafkaRelayConfig(kafka.source(), kafka.defaultContentType(), kafka.defaultDataSchema()));
     }
 

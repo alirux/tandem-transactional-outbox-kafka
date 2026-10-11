@@ -8,7 +8,6 @@ import com.codingful.tandem.jdbc.JdbcOutboxRepository;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.WorkerPool;
-import com.codingful.tandem.kafka.CloudEventEncoder;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
@@ -157,7 +156,7 @@ public final class TandemTestContainer implements AutoCloseable {
      * the caller {@code start()}s and {@code stop()}s the returned pool.
      */
     public WorkerPool newRelay(RelayConfig cfg, TopicRouter router, KafkaRelayConfig kafkaCfg) {
-        return newRelay(cfg, new CloudEventEncoder(router, kafkaCfg));
+        return newRelay(cfg, KafkaMessageEncoder.cloudEvents(router, kafkaCfg));
     }
 
     /**
