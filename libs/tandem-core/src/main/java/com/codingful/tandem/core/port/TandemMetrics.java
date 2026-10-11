@@ -6,6 +6,10 @@ import java.time.Duration;
  * Optional metrics port (LLD-core §2.5, §7). The default is a no-op: {@link #isEnabled()} returns
  * {@code false} and callers guard on it so the off-path costs nothing. A real adapter ships in
  * {@code tandem-micrometer}.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface TandemMetrics {
 

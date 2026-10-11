@@ -29,6 +29,10 @@ import com.codingful.tandem.core.OutboxRecord;
  * Kafka and {@code cloudEvents_*} on AMQP) is encoded against the transport's own binding in that
  * transport's adapter instead ({@code KafkaMessageEncoder} in {@code tandem-kafka}), which is why
  * this port describes the neutral case rather than pretending every format has one shape.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface MessageEncoder {
 

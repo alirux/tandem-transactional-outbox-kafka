@@ -9,6 +9,9 @@ package com.codingful.tandem.jdbc;
  * emitted, never delivered, or dropped by a connection pooler costs latency and nothing else — the
  * relay still finds the row within {@link RelayConfig#pollInterval()}, exactly as it does with
  * {@link #NONE}.
+ *
+ * <p>A minor version may add constants, so a {@code switch} over this enum keeps a {@code default}
+ * branch (HLD-api-stability §4.2).
  */
 public enum Wakeup {
 

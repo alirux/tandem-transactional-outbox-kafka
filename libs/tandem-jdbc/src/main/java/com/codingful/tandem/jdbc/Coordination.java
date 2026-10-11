@@ -4,6 +4,9 @@ package com.codingful.tandem.jdbc;
  * How concurrent relay instances share the virtual buckets (LLD-jdbc §3.2, HLD §3.2 axis 2). Chosen
  * statically via {@link RelayConfig#coordination()} — it is orthogonal to <i>where</i> the relay runs
  * (embedded in the client or standalone).
+ *
+ * <p>A minor version may add constants, so a {@code switch} over this enum keeps a {@code default}
+ * branch (HLD-api-stability §4.2).
  */
 public enum Coordination {
 

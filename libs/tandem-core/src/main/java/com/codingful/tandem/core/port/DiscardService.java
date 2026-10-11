@@ -5,6 +5,10 @@ package com.codingful.tandem.core.port;
  * (LLD-core §1.2; HLD-admin-api §4). Admin-only: never called by the relay, which is why this is
  * its own port rather than a method on {@link OutboxStore} — the same reasoning that keeps
  * {@link OutboxQuery} off {@link OutboxStore} (IMPLEMENTATION-PLAN-admin-api.md §3.3/§8.3).
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface DiscardService {
 

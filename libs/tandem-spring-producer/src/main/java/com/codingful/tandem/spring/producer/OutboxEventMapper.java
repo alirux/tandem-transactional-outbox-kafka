@@ -10,6 +10,10 @@ import java.util.Collection;
  * so events without one are ignored (Spring's own no-listener-no-op semantics).
  *
  * @param <T> the domain event type this mapper handles
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface OutboxEventMapper<T> {
 

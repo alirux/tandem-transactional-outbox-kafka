@@ -17,6 +17,10 @@ import javax.sql.DataSource;
  *   <li><b>Standalone</b> (multi-instance): the instance owns a subset assigned via the
  *       {@code tandem_bucket_lease} table — see {@link #forCoordination}.</li>
  * </ul>
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface BucketSource {
 

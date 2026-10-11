@@ -17,6 +17,10 @@ import java.util.OptionalInt;
  * — treating a mismatch as an intentional change of the bucket count — is deliberately <i>not</i> a
  * policy here: it requires re-bucketing stored rows and a coordinated cut-over, so it is a separate
  * future feature; this guard only ever detects a mismatch, never accepts one.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface BucketCountReconciliation {
 

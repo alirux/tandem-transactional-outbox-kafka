@@ -9,6 +9,10 @@ import java.util.OptionalInt;
  * ({@link com.codingful.tandem.core.BucketCountReconciliation}) and the orchestration stay
  * storage-agnostic and the race-sensitive atomic seed has exactly one home. Implemented by
  * {@code tandem-jdbc}'s {@code JdbcBucketCountStore} over the {@code tandem_meta} table.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface BucketCountStore {
 

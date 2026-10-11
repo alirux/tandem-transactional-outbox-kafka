@@ -11,6 +11,10 @@ package com.codingful.tandem.jdbc;
  * free, in-memory reads. Every method has a default so {@link #NOOP} needs no implementation at all —
  * the seam {@link WorkerPool}'s basic-round convenience constructor uses, since it has no
  * {@code DataSource} to read control state from in the first place.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface RelayControlSource {
 

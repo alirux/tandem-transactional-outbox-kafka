@@ -16,6 +16,10 @@ import java.util.Optional;
  * <p>{@link #buckets} and {@link #workers} are meaningful only under {@link RelayCoordinationMode#LEASE}
  * — callers must check {@link #coordinationMode()} first; this port does not itself guard against
  * calling them under {@code SINGLE} (that policy belongs to the use case, not the read).
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface RelayQuery {
 

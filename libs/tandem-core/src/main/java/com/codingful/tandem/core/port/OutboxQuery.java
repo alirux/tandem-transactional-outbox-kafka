@@ -14,6 +14,10 @@ import java.util.Optional;
  * (relay-shaped — bucket-scoped and mutating) — neither exposes a plain read. Implemented by
  * {@code tandem-jdbc} and by {@code InMemoryOutbox}, so admin use cases are unit-testable without a
  * database.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface OutboxQuery {
 

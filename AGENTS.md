@@ -185,6 +185,12 @@ package's `package-info` says so once (HLD-api-stability §3).
    warning. That's expected here — rules 2 and 4 deliberately favor terse, accurate
    javadoc over exhaustively tagged boilerplate. Do not add `@return this` or similar
    filler just to silence the linter.
+7. **Every public interface states its kind, and every public enum asks for a `default`
+   branch** (HLD-api-stability §4.1, §4.2): an **SPI** (the application implements it, so
+   a new method is always `default`) or **provided** (Tandem implements it, so a minor
+   may add abstract methods). Copy the closing paragraph of an existing one
+   (`TopicRouter`, `OutboxStore`, `OutboxStatus`), and add the type to the table of
+   HLD-api-stability §4.1 or the enum list of §4.2.
 
 ## Testing
 

@@ -13,6 +13,10 @@ package com.codingful.tandem.core.port;
  * {@code bucket} and {@code partition}/{@code offset} are not included in this first cut — the former
  * is not available at {@link OutboxDispatcher#dispatch}'s call site today, the latter only after the
  * send completes — both are additive to add later.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface TandemSpanRecorder {
 
@@ -58,7 +62,13 @@ public interface TandemSpanRecorder {
         return Span.NOOP;
     }
 
-    /** A single in-flight span handle (§6.2) — ended exactly once, from the dispatch completion callback. */
+    /**
+     * A single in-flight span handle (§6.2) — ended exactly once, from the dispatch completion callback.
+     *
+     * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+     * minor version is always {@code default}, so an existing implementation keeps working
+     * (HLD-api-stability §4.1).
+     */
     interface Span {
 
         /** A no-op handle — {@link #end()}/{@link #end(Throwable)} do nothing. */

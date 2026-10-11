@@ -11,6 +11,9 @@ package com.codingful.tandem.core;
  * therefore the only one worth checking a published order against. A {@link #MANAGED} value is the
  * insert order already, and a {@link #NONE} row declares nothing; for both the detector keys on the
  * row's {@code id} instead (HLD-managed-seq §6.1).
+ *
+ * <p>A minor version may add constants, so a {@code switch} over this enum keeps a {@code default}
+ * branch (HLD-api-stability §4.2).
  */
 public enum SeqSource {
 

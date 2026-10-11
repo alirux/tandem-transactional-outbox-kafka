@@ -18,6 +18,10 @@ import org.apache.kafka.clients.producer.ProducerRecord;
  * binding library rather than reassembled from a neutral value, and {@link #cloudEvents} does exactly
  * that. A format with nothing Kafka-specific about it implements {@link MessageEncoder} once and
  * reaches Kafka through {@link #from(MessageEncoder)}, and any other transport adapter unchanged.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface KafkaMessageEncoder {
 
