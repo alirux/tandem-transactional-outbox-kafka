@@ -309,6 +309,25 @@ event and breaks that aggregate's ordering for good):
 boolean discarded = discard.discard(7, "obsolete event");   // false if it is not FAILED
 ```
 
+**Read and steer the relay.** The relay endpoints of the Admin API have two services of their own,
+built the same way:
+
+```java
+RelayQuery relayQuery = new JdbcRelayQuery(dataSource);
+RelayControl relayControl = new JdbcRelayControl(dataSource);
+
+RelayStatusView status = relayQuery.status();   // alive, paused, bucket count, uncovered buckets, workers
+relayControl.pauseAll();                         // relays pause at their next refresh
+relayControl.resumeAll();
+```
+
+A relay follows these only when it was built with a `JdbcRelayControlSource`, as in
+[Reliability](reliability.md#33-single-and-lease); the Spring module wires one by default. The
+whole-relay operations work in every coordination mode. The per-bucket ones (`buckets`, `bucket`
+and `workers` on `RelayQuery`; `pauseBucket`, `resumeBucket` and `releaseBucket` on `RelayControl`)
+mean something only under `LEASE`, where instances share the buckets: check
+`relayQuery.coordinationMode()` first, as the Admin API does before it answers them.
+
 These services do the work and nothing more. The Admin API adds an audit log line with the acting user
 around each write; calling the services directly does not, so log what you do.
 

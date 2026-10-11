@@ -1,7 +1,8 @@
 # Tandem: Public API and Stability Rules
 
 **Version:** 0.3  
-**Status:** Accepted. Not implemented: §6 lists the changes due before `1.0.0-rc.1`.  
+**Status:** Accepted. §6 is applied, except the AGENTS.md items of its last row, which land with the
+gates of §5; the gates are not built yet.  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.4; [HLD-admin-api.md](HLD-admin-api.md);
 [HLD-cloudevents.md](HLD-cloudevents.md); [LLD-jdbc.md](LLD-jdbc.md) §6;
 [LLD-spring-config.md](LLD-spring-config.md); [HLD-write-side-sdks.md](HLD-write-side-sdks.md) §4
