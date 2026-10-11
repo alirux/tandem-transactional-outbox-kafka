@@ -594,9 +594,10 @@ The write-side module contributes exactly the plain tier:
 
 1. runs `BucketCountGuard.check(dataSource, bucketCount)` as an explicit startup step **before** the
    repository is exposed (§3) — a mismatch fails context refresh, loudly;
-2. contributes `OutboxRepository` = `new JdbcOutboxRepository(new TransactionAwareDataSourceProxy(dataSource), bucketCount, tracePropagator)`,
-   where `tracePropagator` is whatever `TracePropagator` bean exists, or `TracePropagator.NOOP` when
-   none does;
+2. contributes `OutboxRepository` = `JdbcOutboxRepository.builder(new
+   TransactionAwareDataSourceProxy(dataSource), bucketCount).tracePropagator(tracePropagator)
+   .wakeup(wakeup).build()`, where `tracePropagator` is whatever `TracePropagator` bean exists, or
+   `TracePropagator.NOOP` when none does, and `wakeup` is `tandem.outbox.wakeup`;
 3. contributes `TracePropagator`, **only** when `tandem.tracing.enabled=true` (§2.6) — a
    `@ConditionalOnProperty`, not a classpath check, so an unrelated dependency landing SLF4J or a
    tracing library on the classpath cannot turn this on by itself. It is

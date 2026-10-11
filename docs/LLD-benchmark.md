@@ -693,7 +693,7 @@ both `OtelTracePropagator` (write side) and `OtelTandemSpanRecorder` (wired into
 `RelayInstance` via a new `BenchmarkEnvironment.newRelayInstance(RelayConfig, TandemMetrics,
 TandemSpanRecorder)` overload — every other scenario keeps the free `TandemSpanRecorder.NOOP` default).
 `LoadGenerator` gained two nullable collaborators, mirroring how `CommitTimestamps` was added earlier:
-a `TracePropagator` (passed straight into `JdbcOutboxRepository`'s existing 3-arg constructor) and a
+a `TracePropagator` (passed straight to `JdbcOutboxRepository.builder`) and a
 `WriteSpanScope` — a generic `(aggregateId, Runnable) -> void` seam, not an OpenTelemetry type, so the
 harness's shared driver stays off the tracing SDK the way the product's own ports do. Every other call
 site passes the two no-op defaults and is unaffected.

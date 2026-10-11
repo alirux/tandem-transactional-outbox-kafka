@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.port.TandemMetrics;
-import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.test.RecordingDispatcher;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -211,8 +210,7 @@ class PgNotifyWakeupIT extends AbstractPostgresIT {
     }
 
     private static JdbcOutboxRepository signallingRepository(DataSource dataSource) {
-        return new JdbcOutboxRepository(dataSource, BUCKETS,
-                TracePropagator.NOOP, Wakeup.PG_NOTIFY);
+        return JdbcOutboxRepository.builder(dataSource, BUCKETS).wakeup(Wakeup.PG_NOTIFY).build();
     }
 
     private static OutboxMessage message(String aggregateId, long seq) {

@@ -322,7 +322,7 @@ constructor that takes it.
 | `PayloadSerializer` | Object to JSON bytes (§5). | Bean | Yours to call |
 | `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay` constructor |
 | `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool` constructor |
-| `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository` constructor |
+| `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository.builder` |
 | `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay` constructor |
 | `BackoffStrategy` | The wait between retries. | No property | `WorkerPool` constructor |
 

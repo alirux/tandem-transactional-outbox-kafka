@@ -358,7 +358,9 @@ against export volume in your tracing backend.
         new OtelTracePropagator(openTelemetry),
         TracePropagator.fromTandemContext());          // the correlation id, see §4.4
 
-    OutboxRepository outbox = new JdbcOutboxRepository(dataSource, bucketCount, propagator);
+    OutboxRepository outbox = JdbcOutboxRepository.builder(dataSource, bucketCount)
+        .tracePropagator(propagator)
+        .build();
     ```
 
     On the **relay**, give the Kafka publisher a span recorder for the publish span:

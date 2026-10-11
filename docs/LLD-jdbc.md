@@ -763,8 +763,8 @@ its design follows from one rule: it may only make discovery faster, never make 
 - **PostgreSQL only.** MySQL has no equivalent primitive (§5.4), so a MySQL deployment stays on the
   adaptive backoff, permanently.
 
-Wiring is explicit, on both sides and independently: `new JdbcOutboxRepository(dataSource,
-bucketCount, tracePropagator, Wakeup.PG_NOTIFY)` for the writer, and the `WorkerPool` constructor
+Wiring is explicit, on both sides and independently: `JdbcOutboxRepository.builder(dataSource,
+bucketCount).wakeup(Wakeup.PG_NOTIFY).build()` for the writer, and the `WorkerPool` constructor
 taking a `WakeupSource` for the relay (`WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource)`). Under
 Spring both sides read the same key, `tandem.outbox.wakeup: pg-notify`, for the same reason
 `bucket-count` is shared: it is a value the two sides have to agree on
@@ -1049,8 +1049,8 @@ WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
 
 // With the post-commit wakeup (§3.10) — a ninth argument, and the matching Wakeup on the write side.
 // Both sides are opt-in and independent: either one alone is harmless, and neither is on by default.
-OutboxRepository  repo        = new JdbcOutboxRepository(dataSource, bucketCount,
-                                   TracePropagator.NOOP, Wakeup.PG_NOTIFY);
+OutboxRepository  repo        = JdbcOutboxRepository.builder(dataSource, bucketCount)
+                                   .wakeup(Wakeup.PG_NOTIFY).build();
 WakeupSource      wakeup      = WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource);
 WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
                                    TandemMetrics.NOOP, Clock.systemUTC(),
