@@ -321,10 +321,10 @@ constructor that takes it.
 | `TopicRouter` | Which topic a row goes to (§2). | Bean | `KafkaRelay` constructor |
 | `PayloadSerializer` | Object to JSON bytes (§5). | Bean | Yours to call |
 | `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay.builder` |
-| `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool` constructor |
+| `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool.builder` |
 | `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository.builder` |
 | `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay.builder` |
-| `BackoffStrategy` | The wait between retries. | No property | `WorkerPool` constructor |
+| `BackoffStrategy` | The wait between retries. | No property | `WorkerPool.builder` |
 
 **Your own metrics.** `TandemMetrics` has a default (empty) method for each measurement, so you
 override only what you want, **and `isEnabled()` must return `true`**: the relay skips every metric call
@@ -347,8 +347,9 @@ delay. The default is the full-jitter ladder of [Reliability](reliability.md#21-
 ```java
 BackoffStrategy steady = attempts -> Duration.ofSeconds(Math.min(60, 2L << attempts));
 
-WorkerPool relay = new WorkerPool(store, kafka, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-    steady, BucketSource.embedded(cfg.bucketCount()));
+WorkerPool relay = WorkerPool.builder(store, kafka, cfg)
+    .backoff(steady)
+    .build();
 ```
 
 **The ordering detector.** The relay watches the order it publishes each aggregate's events in, and

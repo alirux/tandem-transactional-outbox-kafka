@@ -120,9 +120,8 @@ rather than through the test helper's convenience factories.
   starts Kafka, including for a run that publishes to RabbitMQ.
 - Wraps whatever dispatcher the harness supplies in a `FaultInjectingDispatcher` (§8), always
   constructed, a pure pass-through until a scenario (S6) arms it via `FaultInjector`.
-- Assembles the primary relay with the **full** `WorkerPool` constructor (not the 3-arg
-  `SINGLE`-only convenience one), so a real `BenchmarkMetrics` and
-  `Clock.systemUTC()`/`BackoffStrategy.fullJitter()` are wired in explicitly, and its `BucketSource` is
+- Assembles the primary relay with `WorkerPool.builder` (not the 3-arg `SINGLE`-only convenience
+  constructor), so a real `BenchmarkMetrics` is wired in, and its `BucketSource` is
   selected via `BucketSource.forCoordination(relayCfg, dataSource)` (`tandem-jdbc`'s `Coordination`
   axis, §8) rather than a hardcoded `BucketSource.embedded(...)` — `relayConfigBuilder()` (below)
   defaults `coordination` to `RelayConfig`'s own default (`SINGLE`), so every scenario except S8 sees

@@ -693,8 +693,8 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
 7. `TandemSpanRecorder` = `MicrometerTandemSpanRecorder`, **only** when
    `tandem.tracing.publish-span=true` and the application has a `Propagator` bean (§2.6); absent, the
    relay emits no span and instrumented mode stays off;
-8. `WorkerPool` = the full-topology constructor
-   `new WorkerPool(outboxStore, outboxDispatcher, relayConfig, tandemMetrics, Clock.systemUTC(), BackoffStrategy.fullJitter(), bucketSource)`.
+8. `WorkerPool` = `WorkerPool.builder(outboxStore, outboxDispatcher, relayConfig)` with `metrics`,
+   `bucketSource`, `controlSource` and `wakeupSource` set from the beans above.
 
 `tandem.relay.enabled=false` contributes none of these — the supported way to load the relay module
 without running a relay (§2.2).

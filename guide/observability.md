@@ -188,14 +188,13 @@ are relay-side: enable them **where the relay runs**, and the write side never i
 
 === "Plain Java"
 
-    Pass the adapter to the relay. It takes the seven-argument form of the constructor, where
-    everything but the metrics is what the shorter one already uses:
+    Pass the adapter to the relay's builder; everything else keeps the defaults of the
+    three-argument constructor:
 
     ```java
-    WorkerPool relay = new WorkerPool(store, kafka, relayConfig,
-        new MicrometerTandemMetrics(meterRegistry),
-        Clock.systemUTC(), BackoffStrategy.fullJitter(),
-        BucketSource.embedded(relayConfig.bucketCount()));
+    WorkerPool relay = WorkerPool.builder(store, kafka, relayConfig)
+        .metrics(new MicrometerTandemMetrics(meterRegistry))
+        .build();
     relay.start();
     ```
 
