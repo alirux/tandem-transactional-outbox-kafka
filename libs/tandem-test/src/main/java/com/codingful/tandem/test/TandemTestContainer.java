@@ -1,7 +1,6 @@
 package com.codingful.tandem.test;
 
 import com.codingful.tandem.core.port.OutboxStore;
-import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.codingful.tandem.core.port.TopicRouter;
 import com.codingful.tandem.jdbc.BucketCountGuard;
 import com.codingful.tandem.jdbc.JdbcOutboxRepository;
@@ -170,7 +169,7 @@ public final class TandemTestContainer implements AutoCloseable {
         // the value the write-side established. Mirrors how tandem-spring-relay will wire it in autoconfig.
         BucketCountGuard.check(dataSource, cfg.bucketCount());
         OutboxStore store = newStore(cfg.maxAttempts());
-        KafkaRelay relay = new KafkaRelay(producerConfig(), encoder, TandemSpanRecorder.NOOP);
+        KafkaRelay relay = KafkaRelay.builder(producerConfig(), encoder).build();
         relays.add(relay);
         return new WorkerPool(store, relay, cfg);
     }

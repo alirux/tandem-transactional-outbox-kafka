@@ -160,8 +160,8 @@ router is).
 No property selects raw: it is a class the application wires, exactly like any custom encoder (HLD
 §5, sub-choice for A+).
 
-- **Plain Java, Kafka:** `new KafkaRelay(producerConfig, KafkaMessageEncoder.from(new
-  RawMessageEncoder(router)), spanRecorder)`.
+- **Plain Java, Kafka:** `KafkaRelay.builder(producerConfig, KafkaMessageEncoder.from(new
+  RawMessageEncoder(router))).spanRecorder(spanRecorder).build()`.
 - **Plain Java, RabbitMQ:** `new RabbitRelay(factory, cfg, RabbitMessageEncoder.from(new
   RawMessageEncoder(r -> r.aggregateId().value()), cfg.exchange()), spanRecorder)` for the ordered
   topology; any other router is a choice to give up per-aggregate order on the consumer side (§2.2).
@@ -413,8 +413,8 @@ public WorkerPool newRelay(RelayConfig cfg, KafkaMessageEncoder encoder);
 ```
 
 Same bucket-count guard, same store, same tracking and closing of the dispatcher; the only difference
-is the `KafkaRelay(producerConfig, encoder, NOOP)` constructor. The existing overload delegates to it
-with a `CloudEventEncoder`, so the two cannot drift.
+is `KafkaRelay.builder(producerConfig, encoder)`. The existing overload delegates to it with
+`KafkaMessageEncoder.cloudEvents`, so the two cannot drift.
 
 ### 5.2 `EndToEndIT` (Kafka)
 

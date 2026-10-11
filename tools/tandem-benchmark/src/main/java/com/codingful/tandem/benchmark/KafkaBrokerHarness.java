@@ -3,6 +3,7 @@ package com.codingful.tandem.benchmark;
 import com.codingful.tandem.core.CloudEventsHeaders;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
+import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
 import java.nio.charset.StandardCharsets;
@@ -61,8 +62,10 @@ final class KafkaBrokerHarness implements BrokerHarness {
 
     @Override
     public OutboxDispatcher newDispatcher(TandemSpanRecorder spanRecorder) {
-        KafkaRelay relay = new KafkaRelay(producerConfig(), record -> TOPIC,
-                KafkaRelayConfig.of("/tandem/benchmark"), spanRecorder);
+        KafkaRelay relay = KafkaRelay.builder(producerConfig(),
+                        KafkaMessageEncoder.cloudEvents(record -> TOPIC, KafkaRelayConfig.of("/tandem/benchmark")))
+                .spanRecorder(spanRecorder)
+                .build();
         producers.add(relay);
         return relay;
     }

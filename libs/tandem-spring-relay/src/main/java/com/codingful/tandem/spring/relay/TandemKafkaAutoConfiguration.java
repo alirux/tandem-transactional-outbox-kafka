@@ -110,7 +110,8 @@ public class TandemKafkaAutoConfiguration {
     OutboxDispatcher tandemOutboxDispatcher(TandemKafkaProperties kafka, KafkaMessageEncoder encoder,
             ObjectProvider<TandemSpanRecorder> spanRecorder) {
         Map<String, Object> producerConfig = new HashMap<>(kafka.producer());
-        return new KafkaRelay(producerConfig, encoder,
-                spanRecorder.getIfAvailable(() -> TandemSpanRecorder.NOOP));
+        return KafkaRelay.builder(producerConfig, encoder)
+                .spanRecorder(spanRecorder.getIfAvailable(() -> TandemSpanRecorder.NOOP))
+                .build();
     }
 }

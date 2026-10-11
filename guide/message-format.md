@@ -103,9 +103,8 @@ side. Before deploying, run it against the contract kit (§5, rule 4): it checks
 That class is the whole change. Wired onto Kafka:
 
 ```java
-var relay = new KafkaRelay(producerConfig,
-        KafkaMessageEncoder.from(new OrderEventEncoder()),
-        TandemSpanRecorder.NOOP);
+var relay = KafkaRelay.builder(producerConfig,
+        KafkaMessageEncoder.from(new OrderEventEncoder())).build();
 ```
 
 and onto RabbitMQ, **unchanged**:
@@ -163,9 +162,8 @@ nothing selects it but your own wiring, and the default stays CloudEvents.
 
 ```java
 // Kafka: the router you already use, so no topic changes
-var relay = new KafkaRelay(producerConfig,
-        KafkaMessageEncoder.from(new RawMessageEncoder(TopicRouter.kebabWithSuffix("-topic"))),
-        TandemSpanRecorder.NOOP);
+var relay = KafkaRelay.builder(producerConfig,
+        KafkaMessageEncoder.from(new RawMessageEncoder(TopicRouter.kebabWithSuffix("-topic")))).build();
 
 // RabbitMQ, ordered topology: route by aggregate id
 var relay = new RabbitRelay(connectionFactory, config,

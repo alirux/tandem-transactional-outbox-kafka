@@ -682,8 +682,8 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
    This bean is also where **`tandem.kafka.source` is required**, and only on the CloudEvents default:
    the key configures that envelope and nothing else, so an application publishing its own is not asked
    to invent a value for a setting its events never carry;
-3. `OutboxDispatcher` = `new KafkaRelay(producerMap, encoder, spanRecorder)` —
-   the constructor is where the producer hardening runs and the effective `delivery.timeout.ms` is
+3. `OutboxDispatcher` = `KafkaRelay.builder(producerMap, encoder).spanRecorder(spanRecorder).build()` —
+   `build()` is where the producer hardening runs and the effective `delivery.timeout.ms` is
    fixed; `spanRecorder` is whatever `TandemSpanRecorder` bean exists, or `TandemSpanRecorder.NOOP`;
 4. `OutboxStore` = `new JdbcOutboxStore(dataSource, tandem.relay.max-attempts)`;
 5. `TandemMetrics` = `TandemMetrics.NOOP` (a real Micrometer bean overrides it once `tandem-micrometer`

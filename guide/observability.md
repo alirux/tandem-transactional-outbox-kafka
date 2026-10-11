@@ -366,11 +366,12 @@ against export volume in your tracing backend.
     On the **relay**, give the Kafka publisher a span recorder for the publish span:
 
     ```java
-    OutboxDispatcher kafka = new KafkaRelay(
-        Map.of("bootstrap.servers", "localhost:9092"),
-        TopicRouter.kebabWithSuffix("-topic"),
-        KafkaRelayConfig.of("/orders/service"),
-        new OtelTandemSpanRecorder(openTelemetry));
+    OutboxDispatcher kafka = KafkaRelay.builder(
+            Map.of("bootstrap.servers", "localhost:9092"),
+            KafkaMessageEncoder.cloudEvents(
+                TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of("/orders/service")))
+        .spanRecorder(new OtelTandemSpanRecorder(openTelemetry))
+        .build();
     ```
 
     The classes are in `com.codingful.tandem.tracing.otel`. `TracePropagator` is in

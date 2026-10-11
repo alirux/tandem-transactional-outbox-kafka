@@ -139,7 +139,7 @@ sides. See [Observability](observability.md#4-distributed-traces).
 |---|---|---|---|---|
 | `tandem.tracing.enabled` | Write side | `false` | Capture the trace context and the correlation id when an event is written. | `JdbcOutboxRepository.builder(dataSource, bucketCount).tracePropagator(propagator)` |
 | `tandem.tracing.correlation-id-mdc-key` | Write side | `correlationId` | The logging MDC key the correlation id is read from. | `TandemContext.setCorrelationId(...)` |
-| `tandem.tracing.publish-span` | Relay | `false` | Emit a `tandem.relay.publish` span per published event. Builds on the write side's capture. | Pass a `TandemSpanRecorder` to `KafkaRelay` |
+| `tandem.tracing.publish-span` | Relay | `false` | Emit a `tandem.relay.publish` span per published event. Builds on the write side's capture. | `KafkaRelay.builder(producerConfig, encoder).spanRecorder(recorder)` |
 
 ---
 

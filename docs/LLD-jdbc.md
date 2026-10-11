@@ -1026,7 +1026,7 @@ repo.insert(OutboxMessage.builder()...payload(bytes).build());   // payload is b
 // relay (embedded, or its own process):
 OutboxStore       store      = new JdbcOutboxStore(dataSource, bucketCount);
 TopicRouter       router     = TopicRouter.kebabWithSuffix("-topic");
-OutboxDispatcher  dispatcher = new KafkaRelay(kafkaProps, router);          // tandem-kafka
+OutboxDispatcher  dispatcher = new KafkaRelay(kafkaProps, router, kafkaCfg); // tandem-kafka
 
 // SINGLE (default — a single relay instance):
 WorkerPool        relay      = new WorkerPool(store, dispatcher, cfg);      // §3.1, owns all buckets

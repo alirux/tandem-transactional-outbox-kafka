@@ -320,10 +320,10 @@ constructor that takes it.
 |---|---|---|---|
 | `TopicRouter` | Which topic a row goes to (§2). | Bean | `KafkaRelay` constructor |
 | `PayloadSerializer` | Object to JSON bytes (§5). | Bean | Yours to call |
-| `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay` constructor |
+| `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay.builder` |
 | `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool` constructor |
 | `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository.builder` |
-| `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay` constructor |
+| `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay.builder` |
 | `BackoffStrategy` | The wait between retries. | No property | `WorkerPool` constructor |
 
 **Your own metrics.** `TandemMetrics` has a default (empty) method for each measurement, so you
