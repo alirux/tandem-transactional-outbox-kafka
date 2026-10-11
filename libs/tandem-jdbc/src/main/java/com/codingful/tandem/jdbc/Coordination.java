@@ -15,8 +15,8 @@ public enum Coordination {
 
     /**
      * Bucket ownership is partitioned across instances via the {@code tandem_bucket_lease} table
-     * ({@link BucketLeaseManager}). Correct for any number of concurrent instances — a horizontally-
-     * scaled client with an embedded relay, or multiple standalone relay processes.
+     * ({@link BucketSource#forCoordination}). Correct for any number of concurrent instances: a
+     * horizontally-scaled client with an embedded relay, or multiple standalone relay processes.
      */
     LEASE
 }

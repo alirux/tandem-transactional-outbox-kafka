@@ -4,7 +4,7 @@ import java.time.Duration;
 
 /**
  * Computes the delay before a retriable failure becomes eligible again (LLD-jdbc §3.6, Q13).
- * Pluggable; the default is {@link FullJitterBackoff}.
+ * Pluggable; the default is {@link #fullJitter()}.
  */
 @FunctionalInterface
 public interface BackoffStrategy {

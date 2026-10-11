@@ -169,7 +169,7 @@ polling and keeps publishing in order.
 
 **Aurora PostgreSQL.** Point the relay at the **writer endpoint**: it writes on every claim, and
 notifications do not cross instances. A failover invalidates the listening connection, which
-`PgNotifyWakeup` handles by reconnecting with backoff and re-waking every worker, so nothing
+the relay handles by reconnecting with backoff and re-waking every worker, so nothing
 emitted during the gap is lost, it is simply found by the poll.
 
 **Neon and other scale-to-zero platforms.** An idle compute suspends and takes the dedicated

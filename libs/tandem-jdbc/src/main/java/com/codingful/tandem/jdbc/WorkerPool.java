@@ -81,7 +81,7 @@ public final class WorkerPool {
      * @param clock        used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
      * @param backoff      retry-delay strategy for retriable dispatch failures
      * @param bucketSource which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                     {@link BucketLeaseManager} for the standalone topology)
+     *                     {@link BucketSource#forCoordination} for the standalone topology)
      */
     public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
                       TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource) {
@@ -98,7 +98,7 @@ public final class WorkerPool {
      * @param clock         used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
      * @param backoff       retry-delay strategy for retriable dispatch failures
      * @param bucketSource  which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                      {@link BucketLeaseManager} for the standalone topology)
+     *                      {@link BucketSource#forCoordination} for the standalone topology)
      * @param controlSource the Admin API's desired pause state, refreshed on {@code reclaimInterval};
      *                      {@link RelayControlSource#NOOP} disables pause support entirely
      */
@@ -118,7 +118,7 @@ public final class WorkerPool {
      * @param clock         used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
      * @param backoff       retry-delay strategy for retriable dispatch failures
      * @param bucketSource  which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                      {@link BucketLeaseManager} for the standalone topology)
+     *                      {@link BucketSource#forCoordination} for the standalone topology)
      * @param controlSource the Admin API's desired pause state, refreshed on {@code reclaimInterval};
      *                      {@link RelayControlSource#NOOP} disables pause support entirely
      * @param wakeupSource  where the write-side's post-commit signals arrive, shortening discovery for a

@@ -30,12 +30,12 @@ import javax.sql.DataSource;
  * scale-up starvation). Self-registration makes a zero-owned joiner visible, so the incumbent releases
  * and the fleet rebalances (LLD-jdbc §3.2).
  */
-public final class BucketLeaseManager implements BucketSource {
+final class BucketLeaseManager implements BucketSource {
 
     private static final Logger LOG = System.getLogger(BucketLeaseManager.class.getName());
 
     /** Metric/log identifier for the {@code LEASE} lease-table precondition (LLD-jdbc §3.2/§3.5). */
-    public static final String CHECK_BUCKET_LEASE_SEEDED = "bucket_lease_not_seeded";
+    static final String CHECK_BUCKET_LEASE_SEEDED = "bucket_lease_not_seeded";
 
     private static final String COUNT_SQL = "SELECT count(*) FROM tandem_bucket_lease";
 
@@ -104,7 +104,7 @@ public final class BucketLeaseManager implements BucketSource {
      * @param lease       how long a renewed lease is held before it is eligible for reclaim
      * @throws IllegalArgumentException if {@code ownerId} exceeds 64 chars or {@code bucketCount <= 0}
      */
-    public BucketLeaseManager(DataSource dataSource, String ownerId, int bucketCount, Duration lease) {
+    BucketLeaseManager(DataSource dataSource, String ownerId, int bucketCount, Duration lease) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.ownerId = Objects.requireNonNull(ownerId, "ownerId");
         if (ownerId.length() > 64) {

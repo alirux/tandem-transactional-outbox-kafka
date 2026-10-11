@@ -11,7 +11,7 @@ import javax.sql.DataSource;
  * {@code tandem_meta} table under the key {@code bucket_count}. Each call runs in its own short
  * transaction (autocommit), like {@link JdbcOutboxStore}. Depends only on {@code java.sql}.
  */
-public final class JdbcBucketCountStore implements BucketCountStore {
+final class JdbcBucketCountStore implements BucketCountStore {
 
     /** The {@code tandem_meta} key holding the effective bucket count. */
     static final String BUCKET_COUNT_KEY = "bucket_count";
@@ -27,7 +27,7 @@ public final class JdbcBucketCountStore implements BucketCountStore {
 
     private final DataSource dataSource;
 
-    public JdbcBucketCountStore(DataSource dataSource) {
+    JdbcBucketCountStore(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 

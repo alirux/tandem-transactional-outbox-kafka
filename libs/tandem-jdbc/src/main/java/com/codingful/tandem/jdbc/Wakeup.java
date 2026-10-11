@@ -20,7 +20,7 @@ public enum Wakeup {
      * {@code SELECT pg_notify('tandem_wakeup', <bucket>)} per transaction, on the caller's own
      * connection and inside the caller's transaction, so a signal can never announce a row that a
      * rollback removed; the relay holds one dedicated connection listening on that channel
-     * ({@link PgNotifyWakeup}).
+     * ({@link WakeupSource#forWakeup}).
      *
      * <p>The emitted statement runs in the caller's transaction, which is what makes the signal
      * transactional and is also its one cost to the writer: an error there (a full cluster-wide
@@ -33,8 +33,8 @@ public enum Wakeup {
     PG_NOTIFY;
 
     /**
-     * The PostgreSQL notification channel {@link #PG_NOTIFY} uses, named here rather than on
-     * {@link PgNotifyWakeup} so the write-side never names a class that touches the driver. Part of the
+     * The PostgreSQL notification channel {@link #PG_NOTIFY} uses, named here rather than on the relay's
+     * listening source so the write-side never names a class that touches the driver. Part of the
      * published contract between a writer and a relay, so it never changes.
      */
     public static final String CHANNEL = "tandem_wakeup";
