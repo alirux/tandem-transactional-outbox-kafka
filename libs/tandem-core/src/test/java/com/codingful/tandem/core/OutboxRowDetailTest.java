@@ -10,8 +10,12 @@ import org.junit.jupiter.api.Test;
 class OutboxRowDetailTest {
 
     private static OutboxRowView view() {
+        return view(1L);
+    }
+
+    private static OutboxRowView view(long id) {
         return new OutboxRowView(
-                1L, AggregateId.of("order-1"), "Order", "com.acme.order.placed", 1L,
+                id, AggregateId.of("order-1"), "Order", "com.acme.order.placed", 1L,
                 OutboxStatus.DONE, 1, 0, null, null, null, null, null,
                 Instant.parse("2026-08-01T00:00:00Z"), null);
     }
@@ -47,6 +51,14 @@ class OutboxRowDetailTest {
     void GIVEN_two_details_differing_only_in_headers_WHEN_compared_THEN_they_are_not_equal() {
         OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v1"));
         OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v2"));
+
+        assertThat(a).isNotEqualTo(b);
+    }
+
+    @Test
+    void GIVEN_two_rows_with_the_same_payload_and_headers_WHEN_compared_THEN_they_are_not_equal() {
+        OutboxRowDetail a = new OutboxRowDetail(view(1L), new byte[] {1}, Map.of("k", "v"));
+        OutboxRowDetail b = new OutboxRowDetail(view(2L), new byte[] {1}, Map.of("k", "v"));
 
         assertThat(a).isNotEqualTo(b);
     }

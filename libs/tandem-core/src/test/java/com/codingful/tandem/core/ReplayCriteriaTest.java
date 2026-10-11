@@ -3,6 +3,7 @@ package com.codingful.tandem.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,23 @@ class ReplayCriteriaTest {
     void GIVEN_only_a_status_selector_WHEN_constructed_THEN_it_is_accepted() {
         ReplayCriteria criteria =
                 new ReplayCriteria(null, null, null, null, Set.of(OutboxStatus.FAILED), false);
+
+        assertThat(criteria.statuses()).containsExactly(OutboxStatus.FAILED);
+    }
+
+    @Test
+    void GIVEN_only_an_upper_id_bound_WHEN_constructed_THEN_it_is_accepted_as_the_selector() {
+        ReplayCriteria criteria = new ReplayCriteria(null, null, null, 20L, Set.of(), false);
+
+        assertThat(criteria.toId()).isEqualTo(20L);
+    }
+
+    @Test
+    void GIVEN_a_status_set_WHEN_changed_after_construction_THEN_the_criteria_keep_the_original_statuses() {
+        Set<OutboxStatus> statuses = new HashSet<>(Set.of(OutboxStatus.FAILED));
+        ReplayCriteria criteria = new ReplayCriteria(null, null, null, null, statuses, false);
+
+        statuses.add(OutboxStatus.DONE);
 
         assertThat(criteria.statuses()).containsExactly(OutboxStatus.FAILED);
     }
