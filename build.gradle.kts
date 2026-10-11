@@ -113,6 +113,23 @@ subprojects {
             options.compilerArgs.add("-Xlint:all")
         }
 
+        // A stable module name for an application on the module path, named after the module's root
+        // package (tandem-spring-relay: com.codingful.tandem.spring.relay). Part of the frozen names of
+        // HLD-api-stability §2; without it the name would derive from the jar's file name.
+        val automaticModuleName = "com.codingful." + name.replace('-', '.')
+        val rootPackageDir = layout.projectDirectory.dir("src/main/java/" + automaticModuleName.replace('.', '/'))
+        tasks.named<Jar>("jar") {
+            manifest {
+                attributes("Automatic-Module-Name" to automaticModuleName)
+            }
+            doFirst {
+                check(rootPackageDir.asFile.isDirectory) {
+                    "Automatic-Module-Name $automaticModuleName is not a package of this module: a module " +
+                        "whose root package departs from its name needs that name set explicitly"
+                }
+            }
+        }
+
         dependencies {
             "testImplementation"(platform(junitBom))
             "testImplementation"(junitJupiter)
