@@ -112,7 +112,7 @@ final class OutboxAdminService {
      * filter is needed since {@code ReplayService} already restricts to {@code DONE}/{@code FAILED}.
      */
     OutboxEntryResponse replayMessage(long id, String actor) {
-        ReplayResult result = replayService.replay(new ReplayCriteria(null, null, id, id, Set.of(), false));
+        ReplayResult result = replayService.replay(ReplayCriteria.builder().fromId(id).toId(id).build());
         if (result.replayed() == 0) {
             requireExists(id, () -> new MessageNotReplayableException(id));
         }
@@ -147,13 +147,14 @@ final class OutboxAdminService {
         if (!hasSelector) {
             throw new ReplayNoSelectorException();
         }
-        ReplayCriteria criteria = new ReplayCriteria(
-                request.aggregateId() == null ? null : AggregateId.of(request.aggregateId()),
-                request.aggregateType(),
-                request.fromId(),
-                request.toId(),
-                statuses,
-                request.dryRun());
+        ReplayCriteria criteria = ReplayCriteria.builder()
+                .aggregateId(request.aggregateId() == null ? null : AggregateId.of(request.aggregateId()))
+                .aggregateType(request.aggregateType())
+                .fromId(request.fromId())
+                .toId(request.toId())
+                .statuses(statuses)
+                .dryRun(request.dryRun())
+                .build();
         ReplayResult result = replayService.replay(criteria);
         LOG.info("Outbox bulk replay executed matched:{}, replayed:{}, dryRun:{}, actor:{}",
                 result.matched(), result.replayed(), result.dryRun(), actor);

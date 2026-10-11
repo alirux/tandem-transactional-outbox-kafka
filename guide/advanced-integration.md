@@ -290,13 +290,17 @@ Optional<OutboxRowDetail> detail = query.findById(7);       // with payload and 
 **Replay:**
 
 ```java
-ReplayResult preview = replay.replay(new ReplayCriteria(
-    null, "Order", null, null, Set.of(OutboxStatus.FAILED), true));   // dryRun = true
+ReplayResult preview = replay.replay(ReplayCriteria.builder()
+    .aggregateType("Order")
+    .statuses(Set.of(OutboxStatus.FAILED))
+    .dryRun(true)
+    .build());
 System.out.println(preview.matched() + " rows would be replayed");
 ```
 
-`ReplayCriteria` takes an aggregate id, an aggregate type, an id range and a set of statuses, and
-requires at least one of them; it cannot be built empty. The last argument is `dryRun`.
+`ReplayCriteria` selects by aggregate id, aggregate type, id range (`fromId`, `toId`) and a set of
+statuses, and requires at least one of them; it cannot be built empty. `dryRun(true)` reports what
+would match without changing any row.
 
 **Discard** a `FAILED` row, with the same effect and the same warning as through the API (it skips the
 event and breaks that aggregate's ordering for good):

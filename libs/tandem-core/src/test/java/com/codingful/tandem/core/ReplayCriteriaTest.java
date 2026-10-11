@@ -29,4 +29,35 @@ class ReplayCriteriaTest {
 
         assertThat(criteria.statuses()).containsExactly(OutboxStatus.FAILED);
     }
+
+    @Test
+    void GIVEN_every_selector_WHEN_built_THEN_each_reaches_the_criteria() {
+        AggregateId aggregateId = AggregateId.of("order-1");
+        String aggregateType = "Order";
+        Set<OutboxStatus> statuses = Set.of(OutboxStatus.FAILED, OutboxStatus.DONE);
+
+        ReplayCriteria criteria = ReplayCriteria.builder()
+                .aggregateId(aggregateId)
+                .aggregateType(aggregateType)
+                .fromId(10L)
+                .toId(20L)
+                .statuses(statuses)
+                .dryRun(true)
+                .build();
+
+        assertThat(criteria).isEqualTo(new ReplayCriteria(aggregateId, aggregateType, 10L, 20L, statuses, true));
+    }
+
+    @Test
+    void GIVEN_only_an_id_range_WHEN_built_THEN_nothing_else_is_selected_and_it_is_not_a_dry_run() {
+        ReplayCriteria criteria = ReplayCriteria.builder().fromId(7L).toId(7L).build();
+
+        assertThat(criteria).isEqualTo(new ReplayCriteria(null, null, 7L, 7L, Set.of(), false));
+    }
+
+    @Test
+    void GIVEN_no_selector_WHEN_built_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> ReplayCriteria.builder().dryRun(true).build())
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }
