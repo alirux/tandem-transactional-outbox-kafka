@@ -71,11 +71,12 @@ A matrix that blurs these is worse than no matrix, so a row never carries a leve
 
 ## 3. PostgreSQL versions
 
-**Supported: PostgreSQL 14 and later.** The floor tracks the versions the PostgreSQL community
-still patches; 13 reached end of life in November 2025 and is no longer covered. Nothing in
-Tandem's SQL needs a recent major (the constructs it uses date back to PostgreSQL 10), so a 13
-instance will very likely work, with the security posture of an unpatched database and no test run
-behind it.
+**Supported: PostgreSQL 14 and later.** A major leaving upstream support does not move the floor by
+itself: the floor rises only by decision, in a minor release whose notes say so
+([stability rules](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/HLD-api-stability.md)
+§2). PostgreSQL 13 and earlier are outside the range. Nothing in Tandem's SQL needs a recent major
+(the constructs it uses date back to PostgreSQL 10), so a 13 instance will very likely work, with the
+security posture of an unpatched database and no test run behind it.
 
 | Version | Level |
 |---|---|

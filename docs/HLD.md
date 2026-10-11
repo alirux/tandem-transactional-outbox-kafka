@@ -94,6 +94,9 @@ therefore *always* has mixed versions reading and writing the same contracts.
   parsing each break a reader the moment the contract grows. This directly shapes the schema
   migration strategy (Q7).
 
+What 1.0 freezes, which Java types count as API, how each contract may grow and the build gates that
+check it: [HLD-api-stability.md](HLD-api-stability.md).
+
 ---
 
 ## 2. Problem Statement
@@ -978,7 +981,7 @@ All throughput/latency targets are stated against the **reference baseline** (si
 | Ordering guarantee | Strict per-aggregate, best-effort cross-aggregate; **zero per-aggregate ordering violations** under all load scenarios |
 | Delivery semantics | At-least-once; consumers must be idempotent; **zero lost events** under all load scenarios |
 | Java compatibility | Java 17+ (LTS) |
-| DB compatibility | PostgreSQL 14+ (primary; 14, 16 and 18 CI-verified, and the floor tracks the majors the community still patches), MySQL 8.0+ (secondary). Managed and PostgreSQL-derived engines, and the engines permanently out of scope for want of `SKIP LOCKED`, are stated in [guide/compatibility.md](../guide/compatibility.md) |
+| DB compatibility | PostgreSQL 14+ (primary; 14, 16 and 18 CI-verified; the floor rises only by decision, [HLD-api-stability.md](HLD-api-stability.md) §2), MySQL 8.0+ (secondary). Managed and PostgreSQL-derived engines, and the engines permanently out of scope for want of `SKIP LOCKED`, are stated in [guide/compatibility.md](../guide/compatibility.md) |
 | Kafka compatibility | Kafka client 3.x |
 | Spring Boot | **3.x and 4.x** autoconfiguration (see §10.1); usable without Spring |
 | Dependency footprint | `tandem-core` zero runtime deps; the client-imported write-side carries minimal/ideally-zero external deps (§1.3); no mandatory Spring dependency |
