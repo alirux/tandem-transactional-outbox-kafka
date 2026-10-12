@@ -41,10 +41,12 @@ public final class CompatibilityBaseline {
     public static final String CHECK_COMPATIBILITY = "checkCompatibility";
 
     /**
-     * Every configuration that resolves the baseline. The root build exempts them by name from the
-     * substitution of the working tree for Tandem's coordinates (§2.2).
+     * Every configuration that resolves the baseline, the schema compatibility test's two classpaths
+     * included. The root build exempts them by name from the substitution of the working tree for Tandem's
+     * coordinates (§2.2).
      */
-    public static final Set<String> CONFIGURATIONS = Set.of(BOM, ARCHIVE, SOURCES, CLASSPATH);
+    public static final Set<String> CONFIGURATIONS = Set.of(BOM, ARCHIVE, SOURCES, CLASSPATH,
+            SchemaCompatTest.COMPILE_CLASSPATH, SchemaCompatTest.RUNTIME_CLASSPATH);
 
     private final Project project;
     private final String version;
@@ -165,7 +167,7 @@ public final class CompatibilityBaseline {
     }
 
     /** Declares the baseline's {@code notation} (a coordinate without its group) once a baseline is set. */
-    private void dependOnBaseline(String configuration, String notation) {
+    void dependOnBaseline(String configuration, String notation) {
         if (!version.isEmpty()) {
             project.getDependencies().add(configuration, GROUP + ":" + notation);
         }

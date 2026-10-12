@@ -75,7 +75,7 @@ val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associa
 //
 // A Docker-bound test task under a new name must be added here; nothing fails if it is not, it simply
 // starts its containers outside the limit.
-val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest")
+val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest", "schemaCompatTest")
 
 abstract class DockerSlots : BuildService<BuildServiceParameters.None>
 

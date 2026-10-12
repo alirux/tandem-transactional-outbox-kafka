@@ -1,3 +1,6 @@
+import com.codingful.tandem.compatibility.CheckShippedChangesets
+import com.codingful.tandem.compatibility.SchemaCompatTest
+
 description = "Tandem JDBC adapter — write-side insert and the relay engine (PostgreSQL baseline)"
 
 val liquibase by configurations.creating
@@ -132,3 +135,23 @@ val checkBaselineSql by tasks.registering {
 }
 
 tasks.named("check") { dependsOn(checkBaselineSql) }
+
+// The schema's compatibility gates (LLD-api-stability §5): checkShippedChangesets compares the changesets the
+// baseline release shipped with the working tree's, and schemaCompatTest runs the baseline release's adapter
+// on a database it populated, once the current changelog has upgraded it. Each joins `check` and
+// checkCompatibility as it is registered.
+CheckShippedChangesets.register(project, changelogDir)
+SchemaCompatTest.register(project)
+
+// The scenario's libraries. tandem-jdbc, with its tandem-core, comes at the baseline release from Maven
+// Central, added by the registration above; no project of this build is on the scenario's classpath.
+dependencies {
+    "schemaCompatTestImplementation"(platform(libs.testcontainers.bom))
+    "schemaCompatTestImplementation"(libs.testcontainers.postgresql)
+    "schemaCompatTestImplementation"(libs.postgresql)
+    "schemaCompatTestImplementation"(libs.liquibase.core)
+    "schemaCompatTestImplementation"(platform(libs.junit.bom))
+    "schemaCompatTestImplementation"(libs.junit.jupiter)
+    "schemaCompatTestImplementation"(libs.assertj.core)
+    "schemaCompatTestRuntimeOnly"(libs.junit.platform.launcher)
+}

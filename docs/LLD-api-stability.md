@@ -1,8 +1,8 @@
 # Tandem: Compatibility Gates (LLD)
 
 **Version:** 0.1  
-**Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3) and the
-Java API gate with its interface kinds (§4) exist.  
+**Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3), the Java
+API gate with its interface kinds (§4) and the two schema gates (§5) exist.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);
@@ -335,16 +335,21 @@ are added.
 `checkShippedChangesets` (`tandem-jdbc`) reads `tandem/schema/postgres/changelog/` from the baseline
 jar:
 
-- every changeset file (`v<n>-*.sql`) there exists under `schema/postgres/changelog/` with the same
-  name and the same bytes;
+- every changeset file (`v<n>-*.sql`) directly in that directory exists under
+  `schema/postgres/changelog/` with the same name and the same bytes;
 - `db.changelog-master.xml` grows with every schema version, so it is compared by content: the
-  baseline's `<include>` entries, in order, are a prefix of the current ones.
+  baseline's `<include>` and `<includeAll>` entries, in order, are the first entries of the current
+  master. An entry is compared with all its attributes, since `relativeToChangelogFile` decides the path
+  Liquibase records for the changesets it includes.
 
-The repository checks out every text file with LF on every OS, so the bytes compare as they are.
+A baseline jar without the master fails the gate: the path is published (LLD-jdbc §6). The repository
+checks out every text file with LF on every OS, so the bytes compare as they are. The task writes its
+verdict to `build/compatibility/shipped-changesets.txt`.
 
 No declaration accepts a difference, in a major version either: an operator's `DATABASECHANGELOG`
 holds the checksum of every changeset it applied, so a shipped changeset never changes (LLD-jdbc §6).
-A schema change is a new changeset.
+A schema change is a new changeset. The declared breaks have no gate kind for this gate, so no entry can
+name it; the task still reads the file, so an invalid one fails it like every other gate (§3).
 
 ### 5.2 Schema compatibility test
 
@@ -354,37 +359,61 @@ baseline has populated, and does the baseline still work once it has.
 
 **Source set and classpaths.** `src/schemaCompatTest/java` in `tandem-jdbc`. Its compile and runtime
 classpaths hold `tandem-jdbc` at the baseline from Maven Central (with the `tandem-core` it brings),
-Testcontainers PostgreSQL, the PostgreSQL driver, Liquibase at the version the build already uses,
-JUnit and AssertJ, and no project dependency. Compiling against the baseline is the point: the
-scenario can use only API the baseline has. When a moved baseline stops the scenario compiling, the
-commit that moves it updates the scenario.
+Testcontainers PostgreSQL, the PostgreSQL driver, Liquibase (`liquibase-core`) at the version the build
+already uses, JUnit and AssertJ, and no project dependency. `SchemaCompatTest.register` (§9.1) creates
+the source set and declares `tandem-jdbc` at the baseline on it; the module's build script adds the
+libraries. Both classpaths are in `CompatibilityBaseline.CONFIGURATIONS`, which the root build's
+`centralClasspaths` includes, and the task applies the check of §2.2 to both. Compiling against the
+baseline is the point: the scenario can use only API the baseline has. When a moved baseline stops the
+scenario compiling, the commit that moves it updates the scenario. Without a baseline, the source set's
+compilation and the task are both skipped, and the task logs the reason (§2.1).
 
 **Docker.** The task starts PostgreSQL through Testcontainers, at the image the root convention passes
-(`tandem.test.postgres.image`), and is added to `dockerBoundTestTasks`.
+(`tandem.test.postgres.image`, or `TANDEM_TEST_POSTGRES_IMAGE`), and is added to
+`dockerBoundTestTasks`. Without either, it starts the image `TandemTestContainer` defaults to; the
+scenario states that default again, since no project of the build is on its classpath. Liquibase runs
+with its analytics off, so the test reaches nothing outside the container.
 
 **The scenario**, in four phases on one database:
 
 1. **Baseline schema.** An empty database receives the changelog the baseline jar ships, applied with
    Liquibase at its published classpath path, `tandem/schema/postgres/changelog/db.changelog-master.xml`.
-2. **Baseline writes.** The baseline adapter writes in every `seq` mode (`seq(long)`, `managedSeq()`,
-   `unsequenced()`, each with and without `lockedWrite()`), then claims part of the rows and
-   completes some of them.
+2. **Baseline writes.** The baseline first runs a relay's startup steps (the bucket-count check, the
+   control source's start, the `LEASE` validation and a heartbeat), so every `tandem_*` table holds rows
+   at the upgrade. The adapter then writes in every `seq` mode (`seq(long)`, `managedSeq()`,
+   `unsequenced()`, each with and without `lockedWrite()`): one aggregate per combination, its first row
+   through `insert` and its second through one `insertAll` across the aggregates. It claims the head of
+   each aggregate and completes half of them; the other half is still in flight at the upgrade.
 3. **Upgrade.** Liquibase updates the database with the current changelog, read from `tandem-jdbc`'s
    processed resources under the same published path. The shared path is what lets Liquibase recognise
    the changesets phase 1 applied, exactly as for an operator whose `spring.liquibase.change-log`
-   points into the jar they upgrade. On the way, Liquibase validates their checksums.
-4. **Baseline on the upgraded schema.** The baseline adapter completes the rows it claimed before the
-   upgrade, then exercises every statement it owns: claim, done, retry, failed, lease reclaim and
-   cleanup through `JdbcOutboxStore`; bucket ownership through `BucketSource.forCoordination` under
-   `LEASE`; member heartbeat and pause through `JdbcRelayControlSource`; the bucket-count check
-   through `BucketCountGuard.check`; the Admin API's operations (status counts, search, detail,
-   replay, discard, relay status, bucket views, pause, resume and release of a bucket) through
-   `JdbcOutboxQuery`, `JdbcReplayService`, `JdbcDiscardService`, `JdbcRelayQuery` and
-   `JdbcRelayControl`. It writes again in every `seq` mode.
+   points into the jar they upgrade. On the way, Liquibase validates their checksums. The step asserts
+   that every changeset recorded before is still recorded, and that every row keeps its id and status.
+4. **Baseline on the upgraded schema.** The baseline adapter exercises every statement it owns, one
+   step per row below.
+
+| Step | What the baseline does, and what the step asserts |
+|---|---|
+| Rows claimed before the upgrade | Completes them; the rows behind them are claimed with what was written (`seq` and its source, type, payload, headers) |
+| Writes in every `seq` mode | Writes again as in phase 2; the backlog grows by the rows written, each is claimed as written, a managed number grows, and a number an aggregate already used is refused (`DuplicateSeqException`) |
+| Retry | A retry with no delay is claimed again at once, with its attempt and error; one with a delay is not claimed before it is due |
+| Failure | The row is `FAILED` with its error, its aggregate's later rows are held back, and the failed and blocked counts grow by one and two |
+| Lease reclaim | An expired lease returns the row to `PENDING` with one more attempt, until the last attempt makes it `FAILED` |
+| Cleanup | Deletes nothing older than an earlier cutoff, then the finished rows in batches of the size asked, and no other row |
+| Bucket ownership | Under `LEASE`, through `BucketSource.forCoordination`: a second relay joins and the buckets split in two disjoint halves, with none uncovered; it leaves and the first takes them all back |
+| Control state | Through `JdbcRelayControlSource`: start, heartbeat, and a whole-relay and a bucket pause the Admin API writes, read on refresh and resumed |
+| Bucket count | `BucketCountGuard.check` passes with the stored count and refuses another |
+| Outbox search | Through `JdbcOutboxQuery`: the status counts grow by what the step writes, the search filters (aggregate, aggregate type, type, status, correlation id, time window, after id, limit) return the expected rows, and the detail returns the payload and headers |
+| Discard and replay | Through `JdbcDiscardService` and `JdbcReplayService`: only a failed row is discarded, with its reason; a dry run counts without changing; a replay re-queues only the eligible rows and counts the replay |
+| Relay views and control | Through `JdbcRelayQuery` and `JdbcRelayControl`: the coordination mode, the relay status, the workers and the bucket views follow a bucket's pause, resume and release, and a whole-relay pause |
 
 Each step asserts what it observes (rows returned, statuses after each transition, counts), not only
 that no exception was raised: a changed column default or a narrower constraint can let a statement
-run and still change what it returns.
+run and still change what it returns. Each step works on aggregates of its own, each in a bucket no
+other aggregate of the scenario uses, and claims only their buckets. What a step observes beyond the
+adapter's return values it reads with plain SQL on the columns its own statements write, so a step
+fails on what it exercises, not on another step's statement. When phase 3 fails, the steps of phase 4
+are skipped rather than failed: they need the upgraded schema.
 
 The scenario **calls the adapter's operations directly** rather than running a `WorkerPool`. The
 statements are what a changeset can break, and calling them in order keeps the test deterministic,
@@ -401,7 +430,8 @@ baseline's `ON CONFLICT` relies on; a shipped changeset that changed (checksum v
 
 **What it does not catch:** rows the current release writes and the baseline then reads, such as a
 new status or `seq` mode met by a baseline relay. Both releases would have to share one classpath.
-That direction stays with the tolerant-reader rule of HLD §1.4 and with review.
+That direction stays with the tolerant-reader rule of HLD §1.4 and with review. Nor the wakeup's
+`pg_notify`: it touches no table, and no constructor common to the baselines switches it on.
 
 **Declared break:** `schema-compatibility | tandem-jdbc | *`, in a major version that breaks the schema
 on purpose; its release-notes line says what operators must do before upgrading. Phases 1 and 2 run as
@@ -410,6 +440,25 @@ only the failure of a step of phase 3 or 4, which is where the current changelog
 A failure before (the container does not start, the baseline changelog does not apply, the baseline
 adapter fails on its own schema) or a scenario that does not compile is not a comparison, and fails
 the task whatever the file declares (§3, rule 4).
+
+**How the task applies it.** The setup runs in the scenario's `@BeforeAll`, and each step is one of its
+test methods, run in order. `SchemaCompatTest`, a `Test` task in `buildSrc` (§9.1), runs the tests
+without failing on them and records every failed test; `SchemaCompatOutcome` then judges. A failed test
+method is a failed step. A failure Gradle reports against the class (`initializationError` for the
+setup, `executionError` for the teardown) is not, and fails the task whatever the file declares; it may
+have kept the steps from running, so it leaves a declaration's staleness undecided. Failed steps with
+no declaration fail the task, which prints the declaration to write. With a declaration, the task logs
+`Declared break accepted: <entry>, release notes: <line>, failed steps: <names>` and passes; a
+declaration with no failed step is stale and fails it.
+
+**Inputs.** Besides a test task's own, the task declares the baseline, the baseline BOM, the declared
+breaks and the module's processed resources, which hold the current changelog. It hands their directory
+to the scenario in the system property `tandem.schema-compat.current-resources`, an input compared by
+content and relative path rather than by its location.
+
+**Coverage.** JaCoCo is off for the task. The scenario runs the baseline release's classes, whose names
+are the working tree's, and the module's merged report and the aggregated one read every `.exec` file:
+their hits would be attributed to the current classes.
 
 **Rejected:**
 
@@ -798,7 +847,8 @@ freezes them with the names.
   published components, and the baseline BOM's module list (§2.4);
 - the reader of the declared breaks (§3);
 - the task types `CheckInterfaceKinds`, `CheckBomModules`, `CheckJavaApi` (the plugin's
-  `JapicmpTask`, extended), `CheckShippedChangesets`, `CheckSpringMetadata` and `CheckOpenApi`, the
+  `JapicmpTask`, extended), `CheckShippedChangesets`, `SchemaCompatTest` (a `Test` task that applies
+  the declared breaks to the scenario's outcome, §5.2), `CheckSpringMetadata` and `CheckOpenApi`, the
   last also behind `checkOpenApiCases`;
 - the japicmp rich-report rules (§4.2).
 
@@ -852,8 +902,8 @@ from the tag), the current files it compares, and `gradle/accepted-breaks.txt`. 
 takes the file `checkInterfaceKinds` writes (§4.3), and `checkOpenApi` the severity file and the image
 reference (§6). Otherwise Gradle could keep a gate up to date across a change that alters its verdict:
 a declaration removed after a comparison it let pass would leave the gate green until something else
-changed. The Test tasks that read the declared breaks
-(`schemaCompatTest`) declare the file the same way.
+changed. The Test tasks that read the declared breaks (`schemaCompatTest`) declare the file the same
+way, with the current changelog they apply (§5.2).
 
 ### 9.3 CI
 
