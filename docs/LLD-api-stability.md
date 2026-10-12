@@ -2,7 +2,7 @@
 
 **Version:** 0.1  
 **Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3) and the
-interface kinds (§4.3) exist.  
+Java API gate with its interface kinds (§4) exist.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);
@@ -189,7 +189,8 @@ when the tag is pushed. Review and the release checklist hold that rule.
 ### 4.1 What is compared
 
 `checkJavaApi` is a `JapicmpTask` of the plugin `me.champeau.gradle.japicmp`, in every published
-library module:
+library module. Its task type, `CheckJavaApi` in `buildSrc` (§9.1), extends the plugin's, so that it
+validates the declared breaks and reports a skip the way the other gates do (§2.1):
 
 - **Old side.** The archive is `compatibilityBaselineArchive`. The classpath is
   `compatibilityBaselineClasspath` plus the third-party part of the module's compile classpath: a
@@ -201,8 +202,15 @@ library module:
 - Packages excluded: `*.internal` and `*.internal.*` (HLD-api-stability §3).
 - Access level: `protected`, since a protected member of a public non-final class is API to a
   subclass.
-- Only modified elements are reported. The HTML report and a markdown copy are written under
-  `build/reports/japicmp/` on every run, whether or not the task fails.
+- Only modified elements are reported. Every comparison writes three files, whether or not the task
+  fails: the rich report `build/reports/japicmp/checkJavaApi.html`, each break with its verdict;
+  japicmp's markdown report `build/reports/japicmp/checkJavaApi.md`, every modified element; and the
+  outcome `build/compatibility/java-api.txt`, the declarations used and the problems found (§4.2).
+
+**The markdown report applies the filters.** The plugin hands the rich report's rules the comparison
+as japicmp's report filter leaves it, and that filter runs, in place, when the markdown report is
+written: it removes what is less accessible than `protected`, synthetic members and unmodified
+elements. Without the markdown report, the rules would judge package-private types and members too.
 
 ### 4.2 What fails
 
@@ -216,10 +224,40 @@ which live in `buildSrc` (§4.4):
 3. a change that matches an entry of the declared breaks (§3), reported with its release-notes line.
 4. After the comparison, an entry of the declared breaks that no change used is an error (§3, rule 2).
 
-The rules judge members. japicmp also marks the type that contains an incompatible member as
-incompatible, with no change of its own listed, so a type is accepted when every incompatible member
-it contains is accepted by rule 2 or 3. A test of the rules covers that case: an abstract method added
-to a provided interface passes, the same method added to an SPI interface fails.
+**A break is named by its item**, the third field of a `japicmp` declaration, written the way the
+report names the element:
+
+| Element | Item |
+|---|---|
+| Type | Its binary name: `com.codingful.tandem.core.port.CausalContext`, `com.codingful.tandem.core.OutboxRecord$Builder` |
+| Method | Its type, name and parameter types: `com.codingful.tandem.core.OutboxRecord$Builder.lamport(java.lang.Long)` |
+| Constructor | Its type and parameter types: `com.codingful.tandem.kafka.KafkaRelay(java.util.Map,com.codingful.tandem.kafka.KafkaMessageEncoder,com.codingful.tandem.core.port.TandemSpanRecorder)` |
+| Field | Its type and name: `com.codingful.tandem.core.TandemHeaders.CAUSATION_ID` |
+| Implemented interface | `<type> implements <interface>` |
+
+A declaration accepts every incompatible change of the element it names. The failure lists each
+undeclared break with japicmp's change types and the declaration that would accept it, its
+release-notes line left to write.
+
+**The rules judge each element on its own changes**, including those japicmp records on the parts the
+rich report does not visit apart: a type's superclass, a method's return type and parameters (a change
+of type arguments alone is source incompatible). Two cases are decided for a type as a whole:
+
+- **A type japicmp marks incompatible only through its members** has no item of its own: it is
+  accepted when every incompatible member it contains is accepted by rule 2 or 3. A test of the rules
+  covers that case: an abstract method added to a provided interface passes, the same method added to
+  an SPI interface fails, and so does its type.
+- **A type removed, or made less accessible than `protected`, is one break**, named by the type. Its
+  members go with it and are not judged apart, since none of them is API any longer: a public
+  constructor of a class that is no longer public is not a second break. A declaration naming such a
+  member matches nothing, and is stale.
+
+**The outcome.** japicmp and the rules run in the plugin's worker process. An error in the rich report
+fails the worker; the last rule writes the outcome first. The task reads it once the worker ends: it
+logs each declaration used, with its release-notes line, and fails with the undeclared breaks and the
+stale declarations, pointing to the rich report. A comparison that fails before the rules conclude,
+such as one with a class japicmp cannot resolve, leaves no outcome, and fails the task whatever the
+file declares (§3, rule 4).
 
 Everything japicmp marks compatible passes: a new type, a new method, a new `default` method on any
 interface, a new enum constant, a new record accessor.
@@ -759,16 +797,20 @@ freezes them with the names.
 - the baseline helper: the property, the configurations of §2.2, the check that they resolved
   published components, and the baseline BOM's module list (§2.4);
 - the reader of the declared breaks (§3);
-- the task types `CheckInterfaceKinds`, `CheckBomModules`, `CheckShippedChangesets`,
-  `CheckSpringMetadata` and `CheckOpenApi`, the last also behind `checkOpenApiCases`;
+- the task types `CheckInterfaceKinds`, `CheckBomModules`, `CheckJavaApi` (the plugin's
+  `JapicmpTask`, extended), `CheckShippedChangesets`, `CheckSpringMetadata` and `CheckOpenApi`, the
+  last also behind `checkOpenApiCases`;
 - the japicmp rich-report rules (§4.2).
 
-It depends on the japicmp plugin's artifact, which puts the plugin on every build script's classpath
-at the version `buildSrc` declares. The parser of Java sources (§4.3) is the JDK compiler's own tree
-API, so it brings no library. `buildSrc` is not a module: it has no entry in the settings, is
-outside the module registration checklist, publishes nothing, and adds nothing to
-THIRD-PARTY-NOTICES.md. A change to it reconfigures the whole build, an acceptable cost for code that
-changes rarely.
+It depends on the japicmp plugin's artifact, at the version the version catalog pins, which puts the
+plugin on every build script's classpath. The plugin is published on the Gradle Plugin Portal only, so
+that is `buildSrc`'s one repository besides Maven Central, limited to the plugin's group. The tests of
+the rules run the plugin's worker action on jars they compile, so the rules are loaded and fed the way
+a build loads and feeds them; they add the Guava the worker puts on japicmp's classpath. The parser of
+Java sources (§4.3) is the JDK compiler's own tree API, so it brings no library. `buildSrc` is not a
+module: it has no entry in the settings, is outside the module registration checklist, publishes
+nothing, and adds nothing to THIRD-PARTY-NOTICES.md. A change to it reconfigures the whole build, an
+acceptable cost for code that changes rarely.
 
 **Its own tests run because its jar depends on them.** Gradle builds `buildSrc` for every invocation of
 the main build but never runs its tests, and no task of the main build can depend on a task of
@@ -798,7 +840,7 @@ the repository's `.gitignore` excludes, and its sources would never be committed
 | root build script | `schemaCompatTest` in `dockerBoundTestTasks`; the configurations of §2.2 in `centralClasspaths`; the property `updateReferenceFiles` passed to every `Test` task, and refused in CI (§8.1) |
 | `gradle.properties` | `tandemBaseline` |
 | `gradle/` | `accepted-breaks.txt` (§3), `oasdiff-severity-levels.txt` (§6.2) |
-| version catalog | the oasdiff image, by tag and digest; Liquibase as it already is |
+| version catalog | the japicmp plugin, and the Guava its worker runs on for `buildSrc`'s tests; the oasdiff image, by tag and digest; Liquibase as it already is |
 
 Every gate is part of `check`. `checkCompatibility` serves the dry run (§10) and a quick run after the
 baseline moves. A gate joins both as it is registered (`CompatibilityBaseline.registerGate`), so neither

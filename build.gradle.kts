@@ -1,4 +1,5 @@
 import com.codingful.tandem.compatibility.CheckInterfaceKinds
+import com.codingful.tandem.compatibility.CheckJavaApi
 import com.codingful.tandem.compatibility.CompatibilityBaseline
 
 plugins {
@@ -242,10 +243,11 @@ subprojects {
     }
 
     // The baseline configurations, and the gates of HLD-api-stability §5 that every library module runs
-    // (LLD-api-stability §2.2, §4.3). Each gate joins `check` and checkCompatibility as it is registered.
+    // (LLD-api-stability §2.2, §4). Each gate joins `check` and checkCompatibility as it is registered.
     if (name in libraryModules) {
         CompatibilityBaseline.registerLibrary(project)
-        CheckInterfaceKinds.register(project, libraryModules)
+        val interfaceKinds = CheckInterfaceKinds.register(project, libraryModules)
+        CheckJavaApi.register(project, libraryModules, interfaceKinds)
     }
 
     // Common Maven Central / POM metadata. Per-module name+description come from the subproject.

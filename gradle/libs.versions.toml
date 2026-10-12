@@ -86,6 +86,12 @@ jakarta-servlet = "6.0.0"
 # regardless of version — behind a small hand-written Jakarta-based Request/Response adapter
 # (OpenApiConformance, test-only).
 openapi-request-validator = "2.46.1"
+# Build-only, buildSrc (LLD-api-stability §9.1): the japicmp Gradle plugin behind checkJavaApi. It sits on
+# the build scripts' classpath and never reaches a published module.
+japicmp-gradle-plugin = "0.4.6"
+# Test-only, buildSrc: the Guava the plugin's worker runs japicmp with (the plugin pins it, not this build),
+# so the tests of the rules run japicmp the way the worker does.
+japicmp-worker-guava = "30.1.1-jre"
 
 [libraries]
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
@@ -204,6 +210,9 @@ rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
 
 hdrhistogram = { module = "org.hdrhistogram:HdrHistogram", version.ref = "hdrhistogram" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
+
+japicmp-gradle-plugin = { module = "me.champeau.gradle:japicmp-gradle-plugin", version.ref = "japicmp-gradle-plugin" }
+japicmp-worker-guava = { module = "com.google.guava:guava", version.ref = "japicmp-worker-guava" }
 
 [plugins]
 # Applied by tandem-relay alone, the one module that is an application (LLD-relay §7.1).

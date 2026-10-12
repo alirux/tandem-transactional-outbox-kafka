@@ -4,11 +4,17 @@ plugins {
 
 dependencies {
     implementation(gradleApi())
+    // The task type of checkJavaApi and the API of its rich-report rules (LLD-api-stability §4). Being on
+    // buildSrc's runtime classpath puts the plugin on every build script's classpath at this version.
+    implementation(libs.japicmp.gradle.plugin)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // japicmp's report filter needs Guava, which the plugin leaves out of its dependencies and adds to its
+    // worker's classpath at this version; the tests run the worker's code in their own JVM.
+    testRuntimeOnly(libs.japicmp.worker.guava)
 }
 
 // This code runs inside the Gradle daemon, whose JVM is the one that launched the build: 17 in CI, possibly
