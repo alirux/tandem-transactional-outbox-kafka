@@ -1,3 +1,6 @@
+import com.codingful.tandem.compatibility.CheckInterfaceKinds
+import com.codingful.tandem.compatibility.CompatibilityBaseline
+
 plugins {
     // Applied per-subproject below; declared here so it is on the build classpath once.
     id("com.vanniktech.maven.publish") version "0.37.0" apply false
@@ -37,6 +40,16 @@ val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-
 // at all cannot be published by accident.
 val notYetPublishedModules = setOf<String>()
 
+// Published modules on a version of their own (today tandem-rabbitmq, LLD-rabbitmq §9): each keeps its own
+// contract, so the compatibility gates, which compare with a release of the library, leave them out
+// (LLD-api-stability §1).
+val independentlyVersionedModules = setOf("tandem-rabbitmq")
+
+// The published library modules of HLD-api-stability §3: the modules the compatibility gates check. The BOM
+// carries no code; its one gate, checkBomModules, is registered in its own build script.
+val libraryModules = subprojects.map { it.name }.toSet() - unpublishedModules - notYetPublishedModules -
+        independentlyVersionedModules - "tandem-bom"
+
 // Independently versioned modules (today: tandem-rabbitmq) depend on their siblings by published
 // coordinate with an explicit floor, because a project dependency would stamp their own version into
 // the POM as the sibling's version (IMPLEMENTATION-PLAN-rabbitmq.md §8). During development those
@@ -44,10 +57,12 @@ val notYetPublishedModules = setOf<String>()
 // metadata keeps the declared floor. Applied in every project, not only in the connector, because a
 // module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The
 // exempt configurations are the ones whose whole point is to resolve from Maven Central: the connector's
-// floorTest classpath, and the classpath of the relay application's pinned jar (LLD-relay §7.3). A
-// configuration missing from this set is substituted like any other, and the gate built on it then
-// passes while testing the working tree.
-val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath")
+// floorTest classpath, the classpath of the relay application's pinned jar (LLD-relay §7.3), and the
+// configurations that resolve the compatibility baseline (LLD-api-stability §2.2). A configuration missing
+// from this set is substituted like any other, and the gate built on it then passes while testing the
+// working tree.
+val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath") +
+        CompatibilityBaseline.CONFIGURATIONS
 val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 
 // Test tasks that start containers (PostgreSQL, Kafka, RabbitMQ) through Testcontainers. The build runs
@@ -65,6 +80,15 @@ abstract class DockerSlots : BuildService<BuildServiceParameters.None>
 
 val dockerSlots = gradle.sharedServices.registerIfAbsent("dockerSlots", DockerSlots::class) {
     maxParallelUsages.set(3)
+}
+
+// Runs every gate that reads the compatibility baseline (LLD-api-stability §9.2), for the dry run of §10 and a
+// quick run after the baseline moves: `./gradlew checkCompatibility -PtandemBaseline=<release> --continue`.
+// Each gate adds itself here, and to its module's `check`, as it is registered
+// (CompatibilityBaseline.registerGate), so this task keeps no list of them.
+tasks.register(CompatibilityBaseline.CHECK_COMPATIBILITY) {
+    group = "verification"
+    description = "Runs every compatibility gate that compares the build with the tandemBaseline release."
 }
 
 subprojects {
@@ -215,6 +239,13 @@ subprojects {
                 html.required.set(true)
             }
         }
+    }
+
+    // The baseline configurations, and the gates of HLD-api-stability §5 that every library module runs
+    // (LLD-api-stability §2.2, §4.3). Each gate joins `check` and checkCompatibility as it is registered.
+    if (name in libraryModules) {
+        CompatibilityBaseline.registerLibrary(project)
+        CheckInterfaceKinds.register(project, libraryModules)
     }
 
     // Common Maven Central / POM metadata. Per-module name+description come from the subproject.

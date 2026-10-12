@@ -324,9 +324,11 @@ application (in `unpublishedModules`, out of the BOM, out of coverage aggregatio
 workflow, LLD-relay §10), and `tandem-cli` is outside the Gradle build altogether. The published ones follow
 the same checklist with three changes, because their version is not the library's: they stay **out of `tandem-bom`**,
 they stay **in `coveredProjects`** (they are built and tested in this repository like any other module), and
-every place that documents them states their version explicitly instead of implying the BOM covers it. Until
-such a module's own release workflow exists it also belongs in `notYetPublishedModules` in the root
-`build.gradle.kts`, which removes its publishing tasks so a library `v*` tag cannot publish it by accident,
+every place that documents them states their version explicitly instead of implying the BOM covers it. Such a
+module also goes in `independentlyVersionedModules` in the root `build.gradle.kts`, which keeps it out of the
+library's compatibility gates (LLD-api-stability §1). Until such a module's own release workflow exists it also
+belongs in `notYetPublishedModules` in the root `build.gradle.kts`, which removes its publishing tasks so a
+library `v*` tag cannot publish it by accident,
 and it stays out of the README's API reference table, whose rows link a javadoc.io page that exists only for
 a published artifact. The change that adds that workflow takes it out of the set, excludes it from
 `release.yml` (`-x :<module>:publishToMavenCentral`), and gives it a version variable of its own with a guard

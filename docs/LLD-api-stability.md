@@ -1,7 +1,8 @@
 # Tandem: Compatibility Gates (LLD)
 
 **Version:** 0.1  
-**Status:** Draft, under review. None of the gates is built yet.  
+**Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3) and the
+interface kinds (§4.3) exist.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);
@@ -42,7 +43,9 @@ and how the gates run locally and in CI.
 
 The published library modules are those of HLD-api-stability §3. `tandem-bom` carries no code, so its
 only gate is the list of modules it manages; `tandem-rabbitmq` keeps its own version and its own
-contract (LLD-rabbitmq §9), so it has no gate here.
+contract (LLD-rabbitmq §9), so it has no gate here. The root build names the independently versioned
+modules in a set, `independentlyVersionedModules` (today `tandem-rabbitmq`), and its convention gives the
+library gates to every other published module but `tandem-bom`.
 
 ---
 
@@ -55,6 +58,13 @@ Maven Central, such as `1.0.0-rc.1`. When it is empty, every gate that reads a b
 with the reason "no compatibility baseline", and so is the compilation of the schema compatibility
 test (§5.2). A command line overrides it without an edit: `-PtandemBaseline=0.11.1` is the dry run of
 §10.
+
+A gate of Tandem's own task types reports a skip as a log line, not as a skipped task, because it still
+runs the parts that need no baseline: the declared-breaks file (§3) and, in `checkInterfaceKinds`, the
+lint (§4.3). It prints `Baseline comparison skipped: <reason>`, the reason being "no compatibility
+baseline" or "new since <baseline>" (§2.4), at Gradle's lifecycle level, so a plain run shows it. The
+line appears whenever the task runs, not when Gradle finds it up to date or takes it from the build
+cache.
 
 The property moves in its own commit, after a release has reached Maven Central (§11). A baseline
 artifact that does not resolve fails the build, for every module the baseline release contains (§2.4):
@@ -107,10 +117,11 @@ first:
   build, as §2.1 says: it is a missing baseline, not a new module.
 
 The same list catches a module that goes away. `checkBomModules` (`tandem-bom`) fails when a module
-the baseline BOM manages is no longer managed by the current one, because a module removed, or moved
-to a version of its own, breaks every application that declared it without a version. No other gate
-could notice it: the project that would run the module's gates is the one that is gone. The
-declaration names the module: `bom | tandem-bom | <module> | <release-notes line>`.
+the baseline BOM manages is no longer managed by the current one (the POM the build generates for its
+publication, read with the same parser), because a module removed, or moved to a version of its own,
+breaks every application that declared it without a version. No other gate could notice it: the project
+that would run the module's gates is the one that is gone. The declaration names the module:
+`bom | tandem-bom | <module> | <release-notes line>`.
 
 **Rejected:** *a list in the build of the modules added since the baseline*, emptied when the
 baseline moves. A manual copy of what the baseline's published BOM already states.
@@ -136,9 +147,12 @@ schema-compatibility | tandem-jdbc | * | <release-notes line>
 1. **Entries are bound to their baseline.** When the file holds entries, its `baseline` line must equal
    `tandemBaseline`, or every gate fails. A file without entries is always valid. Moving the baseline
    therefore forces the file to be emptied, which is the rule "the declaration is removed when the
-   baseline moves past it".
+   baseline moves past it". While `tandemBaseline` is empty, the line is `baseline` alone and the file
+   holds no entries: no gate compares, so an entry could match nothing, and it fails every gate.
 2. **An entry must match a break the gate reports in this run.** One that matches nothing fails the
    gate: the break was reverted, or the entry is misspelt, and either way the release notes would lie.
+   An entry naming a module where its gate does not run fails the same way, since no run could ever
+   match it.
 3. **Each gate accepts its own kind of item.** `japicmp` names a member, `interface-kind` an
    interface's binary name, `spring-metadata` a property key, `bom` a module, `openapi` an oasdiff
    finding (its `fingerprint`, §6.2) or a frozen-name item (`problem-type <slug>` or
@@ -153,6 +167,10 @@ schema-compatibility | tandem-jdbc | * | <release-notes line>
    each of those two gates draws the line.
 5. **The fourth field is the release-notes line**, written once, where the break is declared. At
    release time the entries are the **Breaking** section (§11).
+
+The file is invalid, and every gate fails, when a line is neither a comment, the `baseline` line nor an
+entry of four non-empty fields, when a second `baseline` line appears, or when an entry names a gate other
+than the six above or repeats another entry.
 
 The build cannot tell whether the next version is a major or a release candidate: that is known only
 when the tag is pushed. Review and the release checklist hold that rule.
@@ -235,10 +253,14 @@ each interface's kind for the gate:
 | no paragraph | either | current | compatible: a baseline older than the rule, such as 0.11.1, states no kind |
 | absent | either | current | compatible: the interface is new |
 
+A baseline interface carrying both paragraphs states no kind either, so its current kind holds; a
+release built with this check cannot carry one.
+
 A reclassification from SPI to provided fails the task unless it is declared. Once declared, the
 interface counts as provided from then on, which is what the declaration announces. The task writes
 the binary names of the interfaces whose kind for the gate is provided
-(`com.codingful.tandem.jdbc.WakeupSource$Listener`, for example) to a file the rule of §4.2 reads.
+(`com.codingful.tandem.jdbc.WakeupSource$Listener`, for example) to
+`build/compatibility/provided-interfaces.txt`, the file the rule of §4.2 reads.
 
 The javadoc is what an application developer reads, and the baseline's sources jar holds the javadoc
 of the release they built against. Taking the kind from them makes the gate enforce exactly what was
@@ -742,10 +764,20 @@ freezes them with the names.
 - the japicmp rich-report rules (§4.2).
 
 It depends on the japicmp plugin's artifact, which puts the plugin on every build script's classpath
-at the version `buildSrc` declares. `buildSrc` is not a module: it has no entry in the settings, is
+at the version `buildSrc` declares. The parser of Java sources (§4.3) is the JDK compiler's own tree
+API, so it brings no library. `buildSrc` is not a module: it has no entry in the settings, is
 outside the module registration checklist, publishes nothing, and adds nothing to
 THIRD-PARTY-NOTICES.md. A change to it reconfigures the whole build, an acceptable cost for code that
 changes rarely.
+
+**Its own tests run because its jar depends on them.** Gradle builds `buildSrc` for every invocation of
+the main build but never runs its tests, and no task of the main build can depend on a task of
+`buildSrc`. With the jar depending on them, they run wherever the build logic changed, `check` in CI
+included. The cost: a failing test of the build logic stops every Gradle invocation, an IDE sync
+included, until it is fixed.
+
+Its code lives in `com.codingful.tandem.compatibility`. A package named `build` would sit in a directory
+the repository's `.gitignore` excludes, and its sources would never be committed.
 
 **Rejected:**
 
@@ -769,7 +801,8 @@ changes rarely.
 | version catalog | the oasdiff image, by tag and digest; Liquibase as it already is |
 
 Every gate is part of `check`. `checkCompatibility` serves the dry run (§10) and a quick run after the
-baseline moves.
+baseline moves. A gate joins both as it is registered (`CompatibilityBaseline.registerGate`), so neither
+keeps a list of gate names, and a later gate registers the same way.
 
 **Inputs.** Each gate declares as task inputs everything its verdict depends on: the value of
 `tandemBaseline`, the baseline files it resolved (archive, sources, BOM, or the document extracted
