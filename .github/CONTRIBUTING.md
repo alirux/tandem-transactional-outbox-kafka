@@ -135,6 +135,10 @@ make test       # go test ./... -race -coverprofile=coverage.out -covermode=atom
 make lint       # golangci-lint (analysis + formatting), pinned in the Makefile
 ```
 
+`make lint` and `make fmt` run golangci-lint on the Go version of `go.mod`'s `go` directive, the one
+CI uses, whatever Go you have installed, so a clean local run means a clean CI run. If your Go differs,
+the `go` command downloads that toolchain once.
+
 While you work on one package, `go test` runs it alone (still from `apps/tandem-cli/`), and `-run`
 narrows it to the tests whose name matches:
 

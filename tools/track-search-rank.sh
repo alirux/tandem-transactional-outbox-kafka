@@ -30,6 +30,7 @@ QUERIES=(
   "outbox pattern java"
   "outbox kafka postgresql"
   "transactional outbox"
+  "outbox pattern"
 )
 
 today="$(date -u +%F)"

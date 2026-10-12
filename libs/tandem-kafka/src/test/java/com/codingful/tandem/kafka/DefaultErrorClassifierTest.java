@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.codingful.tandem.core.exception.OutboxDispatchException;
 import org.apache.kafka.common.errors.InvalidTopicException;
 import org.apache.kafka.common.errors.RecordTooLargeException;
+import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.errors.TopicAuthorizationException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.junit.jupiter.api.Test;
 
 class DefaultErrorClassifierTest {
@@ -31,6 +33,16 @@ class DefaultErrorClassifierTest {
     @Test
     void GIVEN_an_authorization_error_WHEN_classified_THEN_it_is_permanent() {
         assertThat(classifier.classify(new TopicAuthorizationException("denied")).isRetriable()).isFalse();
+    }
+
+    @Test
+    void GIVEN_an_authentication_failure_WHEN_classified_THEN_it_is_permanent() {
+        assertThat(classifier.classify(new SaslAuthenticationException("authentication failed")).isRetriable()).isFalse();
+    }
+
+    @Test
+    void GIVEN_an_unsupported_version_WHEN_classified_THEN_it_is_permanent() {
+        assertThat(classifier.classify(new UnsupportedVersionException("unsupported version")).isRetriable()).isFalse();
     }
 
     @Test

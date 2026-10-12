@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alirux/tandem-transactional-outbox-kafka/apps/tandem-cli/internal/client"
 )
@@ -102,24 +104,43 @@ func TestOutboxSearch_apiErrorMapsToItsExitCode(t *testing.T) {
 }
 
 func TestOutboxSearch_createdFromAndCreatedToAreForwardedAsRFC3339(t *testing.T) {
-	var gotQuery string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"items":[]}`))
-	}))
-	defer server.Close()
+	for _, tc := range []struct {
+		name, from, to string
+	}{
+		{"UTC", "2026-08-01T08:15:30Z", "2026-08-05T16:45:20Z"},
+		{"offset", "2026-08-01T02:15:30+02:00", "2026-08-05T07:45:20+05:30"},
+		{"fractional", "2026-08-01T08:15:30.123456789Z", "2026-08-05T07:45:20.987654321+02:00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			queries := make(chan url.Values, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				queries <- r.URL.Query()
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"items":[]}`))
+			}))
+			defer server.Close()
 
-	_, _, code := execute(t, server.URL, "outbox", "search",
-		"--created-from", "2026-08-01T00:00:00Z", "--created-to", "2026-08-05T00:00:00Z")
-	if code != 0 {
-		t.Fatalf("exit code = %d, want 0", code)
-	}
-	if !strings.Contains(gotQuery, "createdFrom=2026-08-01") {
-		t.Errorf("query = %q, missing createdFrom", gotQuery)
-	}
-	if !strings.Contains(gotQuery, "createdTo=2026-08-05") {
-		t.Errorf("query = %q, missing createdTo", gotQuery)
+			_, stderr, code := execute(t, server.URL, "outbox", "search",
+				"--created-from", tc.from, "--created-to", tc.to)
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0; stderr=%q", code, stderr)
+			}
+			query := <-queries
+			for key, raw := range map[string]string{"createdFrom": tc.from, "createdTo": tc.to} {
+				want, err := time.Parse(time.RFC3339Nano, raw)
+				if err != nil {
+					t.Fatalf("invalid test timestamp %q: %v", raw, err)
+				}
+				got, err := time.Parse(time.RFC3339Nano, query.Get(key))
+				if err != nil {
+					t.Errorf("%s = %q is not RFC3339: %v", key, query.Get(key), err)
+					continue
+				}
+				if !got.Equal(want) {
+					t.Errorf("%s = %s, want the instant %s", key, got.Format(time.RFC3339Nano), raw)
+				}
+			}
+		})
 	}
 }
 
