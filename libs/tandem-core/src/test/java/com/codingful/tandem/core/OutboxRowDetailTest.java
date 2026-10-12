@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import java.util.HashMap;
 
 class OutboxRowDetailTest {
 
@@ -60,7 +60,7 @@ class OutboxRowDetailTest {
     }
 
     @Test
-    void GIVEN_header_returned_by_detail_WHEN_header_is_modified_THEN_throws_UnsupportedOperationException() {
+    void GIVEN_a_detail_WHEN_its_headers_are_modified_THEN_the_change_is_rejected() {
         Map<String, String> source = new HashMap<>();
         source.put("k", "v");
 
