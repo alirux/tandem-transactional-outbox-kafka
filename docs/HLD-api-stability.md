@@ -1,8 +1,8 @@
 # Tandem: Public API and Stability Rules
 
-**Version:** 0.3  
+**Version:** 0.4  
 **Status:** Accepted. §6 is applied, except the AGENTS.md items of its last row, which land with the
-gates of §5; the gates are not built yet.  
+gates of §5; the gates are specified in [LLD-api-stability.md](LLD-api-stability.md) and not built yet.  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.4; [HLD-admin-api.md](HLD-admin-api.md);
 [HLD-cloudevents.md](HLD-cloudevents.md); [LLD-jdbc.md](LLD-jdbc.md) §6;
 [LLD-spring-config.md](LLD-spring-config.md); [HLD-write-side-sdks.md](HLD-write-side-sdks.md) §4
@@ -37,7 +37,7 @@ version, and how the build checks it.
 | Published message | The CloudEvents envelope and the raw passthrough envelope: record key, headers and their names, body | HLD-cloudevents, HLD-alternative-envelope |
 | Admin API | The `/v1` contract in [admin-api.openapi.yaml](admin-api.openapi.yaml), including every problem `type` slug | HLD-admin-api |
 | Spring properties | Every `tandem.*` key, its type and its default | LLD-spring-config |
-| Names | The class names of the Spring autoconfigurations (other autoconfigurations order against them with `afterName`, applications exclude them by name); logger names at package level (`com.codingful.tandem.jdbc`, `com.codingful.tandem.kafka`, …); the module name each published jar declares (`Automatic-Module-Name`, for example `com.codingful.tandem.core`); metric names and their tag keys, span names and their attribute keys | this note |
+| Names | The class names of the Spring autoconfigurations (other autoconfigurations order against them with `afterName`, applications exclude them by name); logger names at package level (`com.codingful.tandem.jdbc`, `com.codingful.tandem.kafka`, …); the module name each published jar declares (`Automatic-Module-Name`, for example `com.codingful.tandem.core`); metric names with their types, base units and tag keys; span names with their kind and attribute keys | this note |
 
 **Defaults are part of the contract.** A value Tandem applies when the application sets nothing (a
 `RelayConfig` default, the default of a `tandem.*` property, a Kafka producer setting Tandem fills in)
@@ -162,6 +162,7 @@ builder (§6).
 Most gates compare the build with a **baseline**: the latest release, resolved from Maven Central or
 from its tag. The baseline version is one build property, moved after each release. A **reference
 file** (below) compares it instead with a file committed in the repository.
+[LLD-api-stability.md](LLD-api-stability.md) specifies each gate.
 
 The gates land before `1.0.0-rc.1`; those that read a baseline have none set yet, and skip. Run once
 against `0.11.1` before the tag, they must report exactly the breaking rows of §6 and nothing else,
@@ -175,11 +176,12 @@ first baseline.
 | | Every changeset shipped in the baseline's `tandem-jdbc` jar is byte-identical in the build | No |
 | | **Schema compatibility test:** the baseline release's JDBC adapter, resolved from Maven Central, runs a write, relay and Admin API scenario (every `seq` mode, claim, done, retry, failed, reclaim, cleanup, search, replay, discard, relay control) against a database built from the current changelog. It catches what a new changeset does to the previous version sharing the database (HLD §1.4): a column removed, a `NOT NULL` without a default, a narrower `CHECK` | No |
 | Published message | **Reference file:** a reference record through each built-in encoder (CloudEvents on Kafka, raw passthrough) matches a committed file of key, header names and values, and body | No |
-| Admin API | **Specmatic** backward-compatibility check of the OpenAPI document against the baseline tag | No |
+| Admin API | **oasdiff:** the OpenAPI document is valid on every build, and compatible with the document at the baseline tag under Tandem's own severity rules: response enums may grow, but removals, new obligations, type changes, narrower ranges and changed defaults fail even when upstream considers them compatible. The problem `type` slugs and effective server URLs, including variable defaults and allowed values, have their own comparison | No |
 | | Responses validated against the document in the integration tests | Yes |
 | Spring properties | Diff of `META-INF/spring-configuration-metadata.json` against the baseline jars: no key removed, no type changed, no declared default changed | No |
-| Effective defaults | **Reference file:** for every `tandem.*` key of the three Spring modules, the value in force when the application sets nothing, wherever it is applied (`RelayConfig`, `MicrometerTandemMetrics`, the producer settings `KafkaProducerConfig` fills in, the Admin API). A derived default, such as the instance id, is recorded as its rule. An application without Spring gets the same values, since the Spring tier delegates to the same classes | No |
-| Metric and span names | **Reference file:** the meters the Micrometer adapter registers (name, tag keys) and the spans both span recorders emit (name, attribute keys) | No |
+| Effective defaults | **Reference file:** for every `tandem.*` key of the three Spring modules, the value in force when the application sets nothing, wherever it is applied (`RelayConfig`, `MicrometerTandemMetrics`, the producer settings `KafkaProducerConfig` fills in, the Admin API). A derived default, such as the instance id, is recorded as its rule | No |
+| | **Reference file:** the defaults of the classes an application wires without Spring (`RelayConfig.defaults()`, `KafkaRelayConfig.of`, the producer settings, `MicrometerTandemMetrics`), including values no key exposes. The Spring tier hands some values to these classes itself, such as the bucket count, so its defaults and theirs are recorded apart | No |
+| Metric and span names | **Reference file:** the meters the Micrometer adapter registers (name, type, base unit, tag keys) and the spans both span recorders emit (name, kind, attribute keys) | No |
 | Other names | Review | n/a |
 
 The Spring metadata reports a default only where the property record declares one: all 5 in

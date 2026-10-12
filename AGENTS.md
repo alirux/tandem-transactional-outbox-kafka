@@ -40,9 +40,11 @@ contract change is a breaking library change (semver). The Admin API contract li
 [docs/admin-api.openapi.yaml](docs/admin-api.openapi.yaml). See [docs/HLD-admin-api.md](docs/HLD-admin-api.md).
 
 **Validate every API contract in CI** so spec problems are caught at build time,
-independent of any editor. Specmatic (below) consolidates this — it fails on a malformed
-contract as part of its conformance/backward-compat checks, so a standalone validate step is
-largely redundant; `redocly lint` stays optional for style/governance rules only.
+independent of any editor. The Admin API's OpenAPI document goes through `oasdiff validate` on
+every build, and `oasdiff breaking` compares it with the previous release under Tandem's own
+severity rules (docs/LLD-api-stability.md §6). A comparison between two documents is not a
+validation: both can agree and both be invalid. `redocly lint` stays optional for
+style/governance rules only.
 
 **Design for backward *and* forward compatibility — for *every* contract, not just the REST
 API.** This covers the **DB schema** (`tandem_*` tables) and the **published Kafka messages**
@@ -69,9 +71,9 @@ its page in the same change — a `type` URL that 404s is a broken contract, not
 **Contract testing is provider-side spec conformance, never consumer-driven.** Tandem
 publishes its API contract (OpenAPI) to unknown/external consumers, so the provider stays
 authoritative — verify the implementation against the spec (swagger-request-validator in the
-integration tests; Specmatic for generative conformance + spec backward-compatibility
-checks). Do **not** introduce Pact / Spring Cloud Contract or any consumer-driven contract
-tooling. See [docs/HLD-admin-api.md](docs/HLD-admin-api.md) §5.
+integration tests), and the spec against its previous release (oasdiff, above). Do **not**
+introduce Pact / Spring Cloud Contract or any consumer-driven contract tooling. See
+[docs/HLD-admin-api.md](docs/HLD-admin-api.md) §5.
 
 ## Minimal client footprint
 
