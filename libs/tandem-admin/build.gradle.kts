@@ -28,6 +28,9 @@ dependencies {
 
     // Unit tests: the real OutboxQuery collaborator, no database (AGENTS: no mocks).
     testImplementation(project(":tandem-test"))
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
 
     // Tests run against a real Spring MVC dispatch (MockMvc) on the baseline (3.x) line.
     testImplementation(platform(libs.spring.boot.dependencies))
@@ -116,6 +119,7 @@ dependencies {
     bootLatestThreeTestRuntimeClasspath(libs.openapi.request.validator.core)
     bootLatestThreeTestRuntimeClasspath(libs.slf4j.api)
     bootLatestThreeTestRuntimeClasspath(project(":tandem-test"))
+    bootLatestThreeTestRuntimeClasspath(testFixtures(project(":tandem-test")))
     bootLatestThreeTestRuntimeClasspath(platform(libs.junit.bom))
     bootLatestThreeTestRuntimeClasspath(libs.junit.jupiter)
     bootLatestThreeTestRuntimeClasspath(libs.junit.platform.launcher)
@@ -136,6 +140,7 @@ dependencies {
     bootFourTestRuntimeClasspath(libs.openapi.request.validator.core)
     bootFourTestRuntimeClasspath(libs.slf4j.api)
     bootFourTestRuntimeClasspath(project(":tandem-test"))
+    bootFourTestRuntimeClasspath(testFixtures(project(":tandem-test")))
     bootFourTestRuntimeClasspath(platform(libs.junit.bom))
     bootFourTestRuntimeClasspath(libs.junit.jupiter)
     bootFourTestRuntimeClasspath(libs.junit.platform.launcher)

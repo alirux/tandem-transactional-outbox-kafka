@@ -1,0 +1,3 @@
+# Rendered by EffectiveDefaultsReferenceTest; regenerate with ./gradlew :tandem-admin:test -PupdateReferenceFiles
+tandem.admin.base-path=/tandem/admin
+tandem.admin.enabled=false

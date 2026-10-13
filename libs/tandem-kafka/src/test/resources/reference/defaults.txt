@@ -1,0 +1,10 @@
+# Rendered by KafkaDefaultsReferenceTest; regenerate with ./gradlew :tandem-kafka:test -PupdateReferenceFiles
+KafkaRelay.producer.acks=all
+KafkaRelay.producer.delivery.timeout.ms=<derived: max(30000, linger.ms + request.timeout.ms)>
+KafkaRelay.producer.enable.idempotence=true
+KafkaRelay.producer.key.serializer=<always: org.apache.kafka.common.serialization.StringSerializer>
+KafkaRelay.producer.retries=2147483647
+KafkaRelay.producer.value.serializer=<always: org.apache.kafka.common.serialization.ByteArraySerializer>
+KafkaRelayConfig.defaultContentType=application/json
+KafkaRelayConfig.defaultDataSchema=<none>
+KafkaRelayConfig.source=<required>

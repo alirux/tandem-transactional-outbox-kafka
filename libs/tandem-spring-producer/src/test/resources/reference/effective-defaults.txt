@@ -1,0 +1,6 @@
+# Rendered by EffectiveDefaultsReferenceTest; regenerate with ./gradlew :tandem-spring-producer:test -PupdateReferenceFiles
+tandem.outbox.bucket-count=256
+tandem.outbox.verify-transaction-binding=true
+tandem.outbox.wakeup=NONE
+tandem.tracing.correlation-id-mdc-key=correlationId
+tandem.tracing.enabled=false

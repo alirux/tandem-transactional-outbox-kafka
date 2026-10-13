@@ -326,7 +326,7 @@ release). When you add a module, walk the whole list in the same change:
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
 | `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules whose dependencies reach nobody** (samples, benchmark, coverage). The dependency graph CI submits is scoped to the redistributed runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. `tandem-relay` is unpublished and stays **out** of the regex on purpose: its runtime classpath ships to operators inside the container image, so its alerts are real (LLD-relay §10). |
 | `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `.github/CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
-| `springMetadataModules` in the root `build.gradle.kts` | **Spring modules that ship configuration metadata only.** It gives the module `checkSpringMetadata` and a non-incremental `compileJava` (LLD-api-stability §7); a module missing there has no gate on its property keys. |
+| `springMetadataModules` in the root `build.gradle.kts` | **Spring modules that ship configuration metadata only.** It gives the module `checkSpringMetadata` and a non-incremental `compileJava` (LLD-api-stability §7); a module missing there has no gate on its property keys. Such a module also needs an effective-defaults reference test (§8.3), which nothing registers for it. |
 | `THIRD-PARTY-NOTICES.md` per-module table | **Every module whose artifact reaches someone**: the published modules, and a deployable that bundles its dependencies (today `tandem-relay`, whose image and jar redistribute the whole runtime; its section is generated from the jar, see Minimal client footprint). It documents what a consumer or an operator actually receives; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
 
 **Independently versioned modules** are of three kinds today: a Maven artifact (`tandem-rabbitmq`), a Go
@@ -404,8 +404,7 @@ Before creating a release tag:
      (`git diff v<baseline> -- '*/src/test/resources/reference/*'`);
    - every released interface whose `<b>SPI:</b>` paragraph was removed since then
      (`git diff v<baseline> -- '*.java' | grep '^-.*<b>SPI:</b>'`);
-   - any change to the names and values review guards (HLD-api-stability §2, §5): the effective
-     defaults and the metric and span names, whose reference files are deferred, and the
+   - any change to the names review guards (HLD-api-stability §2), such as the
      `Automatic-Module-Name`.
 2. If there are breaking changes, **verify the requested version is bumped per
    semantic versioning** (a breaking change requires a major bump; in `0.x`, a

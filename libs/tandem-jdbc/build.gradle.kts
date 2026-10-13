@@ -17,6 +17,9 @@ dependencies {
 
     // Unit tests: the in-memory collaborators (no DB).
     testImplementation(project(":tandem-test"))
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
 
     // Integration tests: a real PostgreSQL via Testcontainers + the JDBC driver at runtime.
     testImplementation(platform(libs.testcontainers.bom))

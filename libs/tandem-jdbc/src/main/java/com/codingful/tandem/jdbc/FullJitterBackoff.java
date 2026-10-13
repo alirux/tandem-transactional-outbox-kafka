@@ -29,6 +29,16 @@ final class FullJitterBackoff implements BackoffStrategy {
         this.capMillis = cap.toMillis();
     }
 
+    /** The starting delay; read by the defaults reference test (LLD-api-stability §8.3). */
+    Duration base() {
+        return Duration.ofMillis(baseMillis);
+    }
+
+    /** The maximum delay; read by the defaults reference test (LLD-api-stability §8.3). */
+    Duration cap() {
+        return Duration.ofMillis(capMillis);
+    }
+
     @Override
     public Duration delayFor(int attempts) {
         long ceiling = boundedExponential(attempts);

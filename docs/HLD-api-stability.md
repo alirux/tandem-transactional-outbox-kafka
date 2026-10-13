@@ -1,9 +1,8 @@
 # Tandem: Public API and Stability Rules
 
 **Version:** 0.4  
-**Status:** Accepted. §6 is applied. The gates of §5 are built as [LLD-api-stability.md](LLD-api-stability.md)
-specifies, except the reference files of the effective defaults and of the metric and span names, which
-are deferred: until they exist, review guards those two contracts.  
+**Status:** Accepted. §6 is applied, and the gates of §5 are built as
+[LLD-api-stability.md](LLD-api-stability.md) specifies.  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.4; [HLD-admin-api.md](HLD-admin-api.md);
 [HLD-cloudevents.md](HLD-cloudevents.md); [LLD-jdbc.md](LLD-jdbc.md) §6;
 [LLD-spring-config.md](LLD-spring-config.md); [HLD-write-side-sdks.md](HLD-write-side-sdks.md) §4
@@ -180,9 +179,9 @@ first baseline.
 | Admin API | **oasdiff:** the OpenAPI document is valid on every build, and compatible with the document at the baseline tag under Tandem's own severity rules: response enums may grow, but removals, new obligations, type changes, narrower ranges and changed defaults fail even when upstream considers them compatible. The problem `type` slugs and the document's server URLs, including variable defaults and allowed values, have their own comparison; servers are declared once, for the whole document | Yes |
 | | Responses validated against the document in the integration tests | Yes |
 | Spring properties | Diff of `META-INF/spring-configuration-metadata.json` against the baseline jars: no key removed, no type changed, no declared default changed | Yes |
-| Effective defaults | **Reference file:** for every `tandem.*` key of the three Spring modules, the value in force when the application sets nothing, wherever it is applied (`RelayConfig`, `MicrometerTandemMetrics`, the producer settings `KafkaProducerConfig` fills in, the Admin API). A derived default, such as the instance id, is recorded as its rule | Deferred: review |
-| | **Reference file:** the defaults of the classes an application wires without Spring (`RelayConfig.defaults()`, `KafkaRelayConfig.of`, the producer settings, `MicrometerTandemMetrics`), including values no key exposes. The Spring tier hands some values to these classes itself, such as the bucket count, so its defaults and theirs are recorded apart | Deferred: review |
-| Metric and span names | **Reference file:** the meters the Micrometer adapter registers (name, type, base unit, tag keys) and the spans both span recorders emit (name, kind, attribute keys) | Deferred: review |
+| Effective defaults | **Reference file:** for every `tandem.*` key of the three Spring modules, the value in force when the application sets nothing, wherever it is applied (`RelayConfig`, `MicrometerTandemMetrics`, the producer settings `KafkaProducerConfig` fills in, the Admin API). A derived default, such as the instance id, is recorded as its rule | Yes |
+| | **Reference file:** the defaults of the classes an application wires without Spring (`RelayConfig.defaults()`, `KafkaRelayConfig.of`, the producer settings, `MicrometerTandemMetrics`), including values no key exposes. The Spring tier hands some values to these classes itself, such as the bucket count, so its defaults and theirs are recorded apart | Yes |
+| Metric and span names | **Reference file:** the meters the Micrometer adapter registers (name, type, base unit, tag keys) and the spans both span recorders emit (name, kind, attribute keys) | Yes |
 | Other names | Review | n/a |
 
 The Spring metadata reports a default only where the property record declares one: all 5 in

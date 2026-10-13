@@ -21,6 +21,11 @@ final class MdcCorrelationTracePropagator implements TracePropagator {
         this.mdcKey = Objects.requireNonNull(mdcKey, "mdcKey");
     }
 
+    /** The MDC key read; for the effective-defaults reference test (LLD-api-stability §8.3). */
+    String mdcKey() {
+        return mdcKey;
+    }
+
     @Override
     public boolean isEnabled() {
         return true;
