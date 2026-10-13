@@ -15,6 +15,10 @@ import javax.sql.DataSource;
  * configuration. A source that is absent, broken, or silently disabled by a connection pooler
  * therefore leaves the relay behaving exactly as it does with {@link #NONE}, only slower to notice a
  * row.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface WakeupSource {
 
@@ -26,6 +30,10 @@ public interface WakeupSource {
      * What a source signals into — implemented by the {@link WorkerPool}, which owns the mapping from
      * bucket to worker thread. Both methods are called from the source's own thread, may be called
      * before or during a worker's wait, and must never block.
+     *
+     * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+     * may add abstract methods, so an application implementing it follows Tandem's minor versions
+     * (HLD-api-stability §4.1).
      */
     interface Listener {
 

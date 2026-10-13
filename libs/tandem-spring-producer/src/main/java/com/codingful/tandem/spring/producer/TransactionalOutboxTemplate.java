@@ -8,6 +8,10 @@ import java.util.function.Function;
  * one call. The unit of work receives an {@link OutboxCollector}, records the rows to emit, and the
  * template inserts them within the transaction it owns — so the business state change and the outbox
  * rows commit or roll back atomically. The domain objects stay free of any Tandem type.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface TransactionalOutboxTemplate {
 

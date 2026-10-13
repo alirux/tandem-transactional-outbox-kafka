@@ -5,10 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.port.OutboxStore;
-import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.test.RecordingDispatcher;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -348,8 +346,9 @@ class EmbeddedLeaseIT extends AbstractPostgresIT {
 
     private static WorkerPool pool(OutboxStore store, RecordingDispatcher dispatcher, RelayConfig cfg,
                                    BucketSource buckets) {
-        return new WorkerPool(store, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), buckets);
+        return WorkerPool.builder(store, dispatcher, cfg)
+                .bucketSource(buckets)
+                .build();
     }
 
     private static void assertOrderedPerAggregate(List<OutboxRecord> dispatched) {

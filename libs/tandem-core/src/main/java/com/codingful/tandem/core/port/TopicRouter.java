@@ -6,6 +6,10 @@ import java.util.Objects;
 /**
  * Maps a record to its destination topic (LLD-core §2.4). The routing source field is
  * {@code aggregate_type} (not the finer CloudEvents {@code type}; LLD-kafka §5).
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface TopicRouter {
 

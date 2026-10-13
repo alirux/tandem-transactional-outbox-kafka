@@ -5,7 +5,6 @@ import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
-import com.codingful.tandem.jdbc.BackoffStrategy;
 import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.JdbcRelayControlSource;
@@ -14,7 +13,6 @@ import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import io.micrometer.tracing.propagation.Propagator;
-import java.time.Clock;
 import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -222,8 +220,12 @@ public class TandemRelayAutoConfiguration {
     WorkerPool tandemWorkerPool(OutboxStore outboxStore, OutboxDispatcher outboxDispatcher, RelayConfig relayConfig,
             TandemMetrics tandemMetrics, BucketSource bucketSource, RelayControlSource relayControlSource,
             WakeupSource wakeupSource) {
-        return new WorkerPool(outboxStore, outboxDispatcher, relayConfig, tandemMetrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), bucketSource, relayControlSource, wakeupSource);
+        return WorkerPool.builder(outboxStore, outboxDispatcher, relayConfig)
+                .metrics(tandemMetrics)
+                .bucketSource(bucketSource)
+                .controlSource(relayControlSource)
+                .wakeupSource(wakeupSource)
+                .build();
     }
 
     @Bean

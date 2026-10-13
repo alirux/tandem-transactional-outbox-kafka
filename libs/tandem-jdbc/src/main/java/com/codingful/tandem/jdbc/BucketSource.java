@@ -15,8 +15,12 @@ import javax.sql.DataSource;
  *   <li><b>Embedded</b> (single process): the instance owns <i>all</i> buckets — see
  *       {@link #embedded(int)}. No coordination table.</li>
  *   <li><b>Standalone</b> (multi-instance): the instance owns a subset assigned via the
- *       {@code tandem_bucket_lease} table — see {@link BucketLeaseManager}.</li>
+ *       {@code tandem_bucket_lease} table — see {@link #forCoordination}.</li>
  * </ul>
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 public interface BucketSource {
 
@@ -33,8 +37,8 @@ public interface BucketSource {
 
     /**
      * One-time startup precondition check (relay fail-fast), mirroring {@link RelayConfig#checkRowLeaseSafe}.
-     * No-op under {@link Coordination#SINGLE}; {@link BucketLeaseManager} verifies the lease table is
-     * present and seeded to {@code bucketCount}.
+     * No-op under {@link Coordination#SINGLE}; under {@link Coordination#LEASE} it verifies that the
+     * lease table is present and seeded to {@code bucketCount}.
      */
     default void validateOnStart(TandemMetrics metrics, Logger logger) {
     }
@@ -53,7 +57,7 @@ public interface BucketSource {
 
     /**
      * Select the {@link BucketSource} for the configured {@link Coordination} mode (§3.2): {@link #embedded}
-     * for {@code SINGLE}, a {@link BucketLeaseManager} (backed by {@code dataSource}) for {@code LEASE}.
+     * for {@code SINGLE}, a lease-based source backed by {@code dataSource} for {@code LEASE}.
      *
      * <p>Pure selection — it does not query {@code dataSource} (the {@code SINGLE} branch ignores it and
      * the {@code LEASE} branch only hands it to the manager). The bucket-count guard is a separate,

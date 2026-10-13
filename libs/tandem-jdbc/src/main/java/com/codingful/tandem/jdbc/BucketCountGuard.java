@@ -16,12 +16,10 @@ import javax.sql.DataSource;
  * the relay never polls, silently stopping delivery — so the guard persists the value on first startup
  * and validates every later startup against it, on <b>both</b> sides.
  *
- * <p>The normal call is the static {@link #check(DataSource, int)} — an explicit startup step the
- * assembly runs against a plain {@link DataSource}. The instance form
- * ({@link #BucketCountGuard(BucketCountStore, BucketCountReconciliation)} + {@link #check(int)}) is the
- * seam for a non-default {@link BucketCountReconciliation} policy or an injected {@link BucketCountStore}
- * test double; it holds no policy of its own, delegating the decision to the strategy and the I/O to the
- * port.
+ * <p>The normal call is the static {@link #check(DataSource, int)}: an explicit startup step the
+ * assembly runs against a plain {@link DataSource}. {@link #check(DataSource, int, BucketCountReconciliation)}
+ * takes a non-default policy. The guard holds no policy of its own: it delegates the decision to the
+ * {@link BucketCountReconciliation} and the I/O to a {@link BucketCountStore}.
  */
 public final class BucketCountGuard {
 
@@ -46,8 +44,8 @@ public final class BucketCountGuard {
         new BucketCountGuard(new JdbcBucketCountStore(dataSource), policy).check(bucketCount);
     }
 
-    /** The seam for an injected store and policy — e.g. a non-default strategy or a test double. */
-    public BucketCountGuard(BucketCountStore store, BucketCountReconciliation reconciliation) {
+    /** Takes the store as a seam, so a test can run the guard over a store of its own. */
+    BucketCountGuard(BucketCountStore store, BucketCountReconciliation reconciliation) {
         this.store = Objects.requireNonNull(store, "store");
         this.reconciliation = Objects.requireNonNull(reconciliation, "reconciliation");
     }
@@ -60,7 +58,7 @@ public final class BucketCountGuard {
      *
      * @throws TandemConfigurationException if the stored and configured bucket counts differ
      */
-    public void check(int configuredBucketCount) {
+    void check(int configuredBucketCount) {
         Decision decision = reconciliation.decide(store.read(), configuredBucketCount);
         switch (decision.kind()) {
             case PROCEED -> { /* both sides agree */ }

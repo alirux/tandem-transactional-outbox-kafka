@@ -8,7 +8,7 @@ name: PostgreSQL majors
 # version-sensitive today, so the defect worth catching is a FUTURE construct that needs a newer major
 # or is dropped by an older one. Both ends catch that; 15 and 17 sit between two verified majors and
 # would only pay for themselves by finding a defect that skips both neighbours. Keep the ends in sync
-# with the range the guide claims when a major goes end-of-life.
+# with the range the guide claims whenever the floor moves.
 #
 # Its own workflow rather than a job in ci.yml, because it must not fire on every commit: each full
 # integration run costs ~2.5 minutes, and the defect they guard against (SQL that works on one major
@@ -69,6 +69,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
+
+      - uses: ./.github/actions/docker-hub-mirror
 
       - name: Run the integration suites against PostgreSQL ${{ matrix.postgres }}
         # Every module's integrationTest rather than a hand-listed set, so a module added later is

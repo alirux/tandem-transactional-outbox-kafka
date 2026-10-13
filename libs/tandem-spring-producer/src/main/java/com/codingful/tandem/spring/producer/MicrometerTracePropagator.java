@@ -26,7 +26,7 @@ import java.util.Objects;
  * returns no headers rather than starting a span of its own: the outbox insert is a participant in the
  * caller's trace, never the reason a trace exists.
  */
-public final class MicrometerTracePropagator implements TracePropagator {
+final class MicrometerTracePropagator implements TracePropagator {
 
     private final Tracer tracer;
     private final Propagator propagator;
@@ -36,7 +36,7 @@ public final class MicrometerTracePropagator implements TracePropagator {
      * @param propagator writes that context into the row's headers, in the application's own format
      * @throws NullPointerException if either argument is {@code null}
      */
-    public MicrometerTracePropagator(Tracer tracer, Propagator propagator) {
+    MicrometerTracePropagator(Tracer tracer, Propagator propagator) {
         this.tracer = Objects.requireNonNull(tracer, "tracer");
         this.propagator = Objects.requireNonNull(propagator, "propagator");
     }

@@ -1,0 +1,22 @@
+# Rendered by RelayDefaultsReferenceTest; regenerate with ./gradlew :tandem-jdbc:test -PupdateReferenceFiles
+BackoffStrategy.fullJitter.base=1s
+BackoffStrategy.fullJitter.cap=5m
+RelayConfig.batchSize=100
+RelayConfig.bucketCount=256
+RelayConfig.bucketLease=30s
+RelayConfig.cleanupBatchSize=1000
+RelayConfig.cleanupInterval=15m
+RelayConfig.coordination=SINGLE
+RelayConfig.deliveryTimeoutMs=30000
+RelayConfig.instanceId=<derived: tandem-{host}-{pid}-{random hex}>
+RelayConfig.logEveryRows=10000
+RelayConfig.maxAttempts=10
+RelayConfig.metricsInterval=10s
+RelayConfig.orderViolationDetection=true
+RelayConfig.pollBackoffFactor=2.0
+RelayConfig.pollInterval=100ms
+RelayConfig.pollIntervalFloor=10ms
+RelayConfig.reclaimInterval=5s
+RelayConfig.retention=14d
+RelayConfig.rowLease=1m
+RelayConfig.workersPerInstance=<derived: availableProcessors() * 2>

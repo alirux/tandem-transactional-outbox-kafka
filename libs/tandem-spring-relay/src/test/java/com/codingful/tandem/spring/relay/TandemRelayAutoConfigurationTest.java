@@ -17,8 +17,8 @@ import com.codingful.tandem.core.port.TopicRouter;
 import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcRelayControlSource;
 import com.codingful.tandem.jdbc.RelayConfig;
-import com.codingful.tandem.jdbc.PgNotifyWakeup;
 import com.codingful.tandem.jdbc.RelayControlSource;
+import com.codingful.tandem.jdbc.Wakeup;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
@@ -103,7 +103,8 @@ class TandemRelayAutoConfigurationTest {
         // tandem.outbox key the write-side emits under, because a signal only helps when both sides
         // name the same mechanism.
         wiredRelay().withPropertyValues("tandem.outbox.wakeup=pg-notify").run(context ->
-                assertThat(context.getBean(WakeupSource.class)).isInstanceOf(PgNotifyWakeup.class));
+                assertThat(context.getBean(WakeupSource.class)).hasSameClassAs(
+                        WakeupSource.forWakeup(Wakeup.PG_NOTIFY, context.getBean(DataSource.class))));
     }
 
     @Test

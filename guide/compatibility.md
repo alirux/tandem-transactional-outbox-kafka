@@ -71,18 +71,25 @@ A matrix that blurs these is worse than no matrix, so a row never carries a leve
 
 ## 3. PostgreSQL versions
 
-**Supported: PostgreSQL 14 and later.** The floor tracks the versions the PostgreSQL community
-still patches; 13 reached end of life in November 2025 and is no longer covered. Nothing in
-Tandem's SQL needs a recent major (the constructs it uses date back to PostgreSQL 10), so a 13
-instance will very likely work, with the security posture of an unpatched database and no test run
-behind it.
+**Supported: PostgreSQL 14 and later.** A major leaving upstream support does not move the floor by
+itself: the floor rises only by decision, in a minor release whose notes say so
+([stability rules](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/HLD-api-stability.md)
+§2). PostgreSQL 13 and earlier are outside the range, which means no promise: a defect that appears
+only there is not fixed. They still work as far back as PostgreSQL 10, the oldest major with every
+construct Tandem's schema uses (identity columns and `CREATE SEQUENCE … AS`): the full integration
+suites passed against 10.23 and 13.23 on 2026-10-11. That is one recorded run, not a watch, and those
+majors carry the security posture of an unpatched database. On PostgreSQL 10 the `v2` changeset
+rewrites the whole outbox table when it adds the `replays` column, since adding a column with a
+default became instant only in PostgreSQL 11; it matters only when upgrading an outbox that already
+holds rows.
 
 | Version | Level |
 |---|---|
 | PostgreSQL 16 | **CI-verified**: the default image, exercised by every build |
 | PostgreSQL 14 and 18 | **CI-verified**: the two ends of the supported range |
 | PostgreSQL 15 and 17 | Supported. They sit between two verified majors, and are not exercised separately |
-| PostgreSQL 13 and earlier | Not supported; end of life upstream |
+| PostgreSQL 10 to 13 | Not supported. **Verified once**: 10.23 and 13.23, on 2026-10-11; 11 and 12 sit between them and were not run |
+| PostgreSQL 9.6 and earlier | Not supported: the schema needs PostgreSQL 10 |
 
 The matrix lives in
 [`.github/workflows/postgres-majors.yml`](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/.github/workflows/postgres-majors.yml).
@@ -162,7 +169,7 @@ polling and keeps publishing in order.
 
 **Aurora PostgreSQL.** Point the relay at the **writer endpoint**: it writes on every claim, and
 notifications do not cross instances. A failover invalidates the listening connection, which
-`PgNotifyWakeup` handles by reconnecting with backoff and re-waking every worker, so nothing
+the relay handles by reconnecting with backoff and re-waking every worker, so nothing
 emitted during the gap is lost, it is simply found by the poll.
 
 **Neon and other scale-to-zero platforms.** An idle compute suspends and takes the dedicated

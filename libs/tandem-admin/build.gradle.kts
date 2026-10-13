@@ -1,3 +1,5 @@
+import com.codingful.tandem.compatibility.CheckOpenApi
+
 description = "Tandem Admin API — optional REST operations layer over the outbox and the relay (API-first, off by default)"
 
 dependencies {
@@ -26,6 +28,9 @@ dependencies {
 
     // Unit tests: the real OutboxQuery collaborator, no database (AGENTS: no mocks).
     testImplementation(project(":tandem-test"))
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
 
     // Tests run against a real Spring MVC dispatch (MockMvc) on the baseline (3.x) line.
     testImplementation(platform(libs.spring.boot.dependencies))
@@ -72,6 +77,11 @@ tasks.named("compileJava") {
     inputs.files(tasks.named("processResources"))
 }
 
+// The contract's own gate (LLD-api-stability §6): checkOpenApi validates docs/admin-api.openapi.yaml and compares
+// it with the document at the baseline tag, checkOpenApiCases runs the gate on src/openApiGateCases. Both run
+// oasdiff from the image the version catalog pins, so both need Docker.
+CheckOpenApi.register(project, libs.versions.oasdiff.image)
+
 // The Admin API tests read the OpenAPI contract and the problem-type pages from outside this
 // module: declare them as inputs, so a change to either one reruns the tests.
 tasks.withType<Test>().configureEach {
@@ -109,6 +119,7 @@ dependencies {
     bootLatestThreeTestRuntimeClasspath(libs.openapi.request.validator.core)
     bootLatestThreeTestRuntimeClasspath(libs.slf4j.api)
     bootLatestThreeTestRuntimeClasspath(project(":tandem-test"))
+    bootLatestThreeTestRuntimeClasspath(testFixtures(project(":tandem-test")))
     bootLatestThreeTestRuntimeClasspath(platform(libs.junit.bom))
     bootLatestThreeTestRuntimeClasspath(libs.junit.jupiter)
     bootLatestThreeTestRuntimeClasspath(libs.junit.platform.launcher)
@@ -129,6 +140,7 @@ dependencies {
     bootFourTestRuntimeClasspath(libs.openapi.request.validator.core)
     bootFourTestRuntimeClasspath(libs.slf4j.api)
     bootFourTestRuntimeClasspath(project(":tandem-test"))
+    bootFourTestRuntimeClasspath(testFixtures(project(":tandem-test")))
     bootFourTestRuntimeClasspath(platform(libs.junit.bom))
     bootFourTestRuntimeClasspath(libs.junit.jupiter)
     bootFourTestRuntimeClasspath(libs.junit.platform.launcher)

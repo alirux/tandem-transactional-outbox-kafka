@@ -5,6 +5,9 @@ package com.codingful.tandem.core;
  *
  * <p>{@code DISCARDED} (4) is reachable only via the Admin API on a {@code FAILED} row; it is never
  * polled and does not block the aggregate (HLD §5.3).
+ *
+ * <p>A minor version may add constants, so a {@code switch} over this enum keeps a {@code default}
+ * branch (HLD-api-stability §4.2).
  */
 public enum OutboxStatus {
     PENDING(0),

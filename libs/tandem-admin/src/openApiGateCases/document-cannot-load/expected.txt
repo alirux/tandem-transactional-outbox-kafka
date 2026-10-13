@@ -1,0 +1,5 @@
+# A document oasdiff cannot load, an unterminated quote: the comparison fails, and the declaration it carries is
+# neither applied nor stale.
+checks compatibility
+verdict fail
+error breaking exit 102

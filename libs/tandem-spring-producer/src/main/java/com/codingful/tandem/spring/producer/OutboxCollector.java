@@ -10,6 +10,10 @@ import com.codingful.tandem.core.OutboxMessage;
  *
  * <p>A collector instance is valid only for the duration of the {@code execute} call that supplied it
  * and is not thread-safe.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface OutboxCollector {
 

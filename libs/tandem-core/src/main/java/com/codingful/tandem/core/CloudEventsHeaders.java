@@ -46,30 +46,4 @@ public final class CloudEventsHeaders {
     public static final String EXT_PARTITION_KEY = "partitionkey";
     public static final String CE_PARTITION_KEY = BINARY_PREFIX + EXT_PARTITION_KEY;
     public static final String AMQP_PARTITION_KEY = AMQP_BINARY_PREFIX + EXT_PARTITION_KEY;
-
-    /**
-     * Lamport / logical clock. Extension {@code logicalclock} → header {@code ce_logicalclock}.
-     * ("lamport" is the design term; "logicalclock" is the on-the-wire name — LLD-kafka §3.3.)
-     *
-     * <p><b>Reserved — a name only.</b> Nothing reads or writes this constant: the cross-aggregate
-     * causal-ordering feature that would emit the extension (HLD §9) is designed but not
-     * implemented, and the publish path deliberately carries no code for it. Declared here so the
-     * on-the-wire name cannot drift if the feature is ever built. Inventory:
-     * {@code docs/HLD-causal-ordering.md} §0.
-     */
-    public static final String EXT_LOGICAL_CLOCK = "logicalclock";
-    public static final String CE_LOGICAL_CLOCK = BINARY_PREFIX + EXT_LOGICAL_CLOCK;
-
-    /**
-     * Causation id: the event that caused this one. Extension {@code causationid} → header
-     * {@code ce_causationid}. It differs from the row-header name {@link TandemHeaders#CAUSATION_ID}
-     * because CloudEvents extension names admit only lowercase letters and digits.
-     *
-     * <p><b>Reserved, a name only.</b> Nothing reads or writes this constant: like
-     * {@link #EXT_LOGICAL_CLOCK} it belongs to the cross-aggregate causal-ordering feature (HLD §9),
-     * designed but not implemented. Declared here so the on-the-wire name cannot drift if the feature
-     * is ever built. Inventory: {@code docs/HLD-causal-ordering.md} §0.
-     */
-    public static final String EXT_CAUSATION_ID = "causationid";
-    public static final String CE_CAUSATION_ID = BINARY_PREFIX + EXT_CAUSATION_ID;
 }

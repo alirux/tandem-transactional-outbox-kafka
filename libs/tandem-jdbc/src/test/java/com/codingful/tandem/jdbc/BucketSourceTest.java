@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class BucketSourceTest {
 
     private static final Logger LOG = System.getLogger(BucketSourceTest.class.getName());
-    // Never queried: the SINGLE branch ignores it and the LEASE branch only constructs the manager.
+    // Never queried: the SINGLE branch ignores it. LEASE needs a database, so EmbeddedLeaseIT covers it.
     private final SimpleDataSource dataSource = new SimpleDataSource("jdbc:none", "u", "p");
 
     @Test
@@ -40,15 +40,5 @@ class BucketSourceTest {
         BucketSource source = BucketSource.forCoordination(cfg, dataSource);
 
         assertThat(source.ownedBuckets()).hasSize(16);
-    }
-
-    @Test
-    void GIVEN_coordination_lease_WHEN_the_source_is_selected_THEN_it_is_a_bucket_lease_manager() {
-        RelayConfig cfg = RelayConfig.builder()
-                .bucketCount(16).coordination(Coordination.LEASE).instanceId("relay-1").build();
-
-        BucketSource source = BucketSource.forCoordination(cfg, dataSource);
-
-        assertThat(source).isInstanceOf(BucketLeaseManager.class);
     }
 }

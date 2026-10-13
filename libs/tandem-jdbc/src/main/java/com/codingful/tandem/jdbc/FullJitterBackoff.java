@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * base * 2^attempts))}. Full jitter spreads retries so a batch of rows that failed together does not
  * stampede the broker in lockstep.
  */
-public final class FullJitterBackoff implements BackoffStrategy {
+final class FullJitterBackoff implements BackoffStrategy {
 
     private final long baseMillis;
     private final long capMillis;
@@ -18,7 +18,7 @@ public final class FullJitterBackoff implements BackoffStrategy {
      * @param cap  the maximum delay, regardless of attempt count
      * @throws IllegalArgumentException if {@code base} is not positive or {@code cap < base}
      */
-    public FullJitterBackoff(Duration base, Duration cap) {
+    FullJitterBackoff(Duration base, Duration cap) {
         if (base.isNegative() || base.isZero()) {
             throw new IllegalArgumentException("base must be positive");
         }
@@ -27,6 +27,16 @@ public final class FullJitterBackoff implements BackoffStrategy {
         }
         this.baseMillis = base.toMillis();
         this.capMillis = cap.toMillis();
+    }
+
+    /** The starting delay; read by the defaults reference test (LLD-api-stability §8.3). */
+    Duration base() {
+        return Duration.ofMillis(baseMillis);
+    }
+
+    /** The maximum delay; read by the defaults reference test (LLD-api-stability §8.3). */
+    Duration cap() {
+        return Duration.ofMillis(capMillis);
     }
 
     @Override

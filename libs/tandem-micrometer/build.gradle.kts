@@ -9,4 +9,7 @@ dependencies {
     // histogram buckets, so verifying the publish.latency ceiling needs a registry that actually renders
     // one. No redistributed footprint — excluded from THIRD-PARTY-NOTICES per AGENTS' module checklist.
     testImplementation(libs.micrometer.registry.prometheus)
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
 }

@@ -1,17 +1,23 @@
 package com.codingful.tandem.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class OutboxRowDetailTest {
 
     private static OutboxRowView view() {
+        return view(1L);
+    }
+
+    private static OutboxRowView view(long id) {
         return new OutboxRowView(
-                1L, AggregateId.of("order-1"), "Order", "com.acme.order.placed", 1L,
+                id, AggregateId.of("order-1"), "Order", "com.acme.order.placed", 1L,
                 OutboxStatus.DONE, 1, 0, null, null, null, null, null,
                 Instant.parse("2026-08-01T00:00:00Z"), null);
     }
@@ -44,9 +50,43 @@ class OutboxRowDetailTest {
     }
 
     @Test
+    void GIVEN_a_headers_map_WHEN_the_source_is_changed_after_construction_THEN_the_stored_headers_are_unaffected() {
+        Map<String, String> source = new HashMap<>();
+        source.put("k1", "v1");
+        Map<String, String> expected = new HashMap<>(source);
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, source);
+
+        source.put("k2", "v2");
+        source.put("k1", "changed");
+
+        assertThat(detail.headers()).isEqualTo(expected);
+    }
+
+    @Test
+    void GIVEN_a_detail_WHEN_its_headers_are_modified_THEN_the_change_is_rejected() {
+        Map<String, String> source = new HashMap<>();
+        source.put("k", "v");
+
+        OutboxRowDetail detail = new OutboxRowDetail(view(), new byte[] {1}, source);
+
+        assertThatThrownBy(
+                () -> detail.headers().put("k", "changed")
+        ).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
     void GIVEN_two_details_differing_only_in_headers_WHEN_compared_THEN_they_are_not_equal() {
         OutboxRowDetail a = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v1"));
         OutboxRowDetail b = new OutboxRowDetail(view(), new byte[] {1}, Map.of("k", "v2"));
+
+        assertThat(a).isNotEqualTo(b);
+    }
+
+    @Test
+    void GIVEN_two_rows_with_the_same_payload_and_headers_WHEN_compared_THEN_they_are_not_equal() {
+        OutboxRowDetail a = new OutboxRowDetail(view(1L), new byte[] {1}, Map.of("k", "v"));
+        OutboxRowDetail b = new OutboxRowDetail(view(2L), new byte[] {1}, Map.of("k", "v"));
 
         assertThat(a).isNotEqualTo(b);
     }

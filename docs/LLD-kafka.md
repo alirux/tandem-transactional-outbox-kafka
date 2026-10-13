@@ -86,9 +86,9 @@ CompletableFuture<Void> dispatch(OutboxRecord record) {
 ## 3. CloudEvents binding (Q19)
 
 **The format is a port, and CloudEvents is its default.** `KafkaRelay` publishes whatever a
-`KafkaMessageEncoder` gives it (`CloudEventEncoder` unless the caller supplies another), so changing
-the envelope costs an encoder rather than a fork of the dispatcher, and routing plus the CloudEvents
-settings become that encoder's concern rather than the relay's.
+`KafkaMessageEncoder` gives it (`KafkaMessageEncoder.cloudEvents(router, cfg)` unless the caller
+supplies another), so changing the envelope costs an encoder rather than a fork of the dispatcher, and
+routing plus the CloudEvents settings become that encoder's concern rather than the relay's.
 
 `KafkaMessageEncoder` writes a `ProducerRecord` directly, which is what the *Kafka-specific* half of
 the format space needs: the CloudEvents binding is per transport (`ce_*` here, `cloudEvents_*` over
@@ -102,10 +102,11 @@ error classifier (§4).
 
 **Only the binding is in this module.** The envelope itself is built by `CloudEventFactory` in
 **`tandem-cloudevents`** (HLD-cloudevents §5), which decides every attribute a consumer reads and
-depends on `cloudevents-core` alone. `CloudEventEncoder` is what remains here: route the record, write
-the event binary with `cloudevents-kafka`, copy the passthrough headers. A second transport adapter
-reuses the factory and writes its own binding, instead of restating the attribute sources, the `type`
-fallback and the `seq` rule.
+depends on `cloudevents-core` alone. `CloudEventEncoder` (package-private, returned by
+`KafkaMessageEncoder.cloudEvents`) is what remains here: route the record, write the event binary with
+`cloudevents-kafka`, copy the passthrough headers. A second transport adapter reuses the factory and
+writes its own binding, instead of restating the attribute sources, the `type` fallback and the `seq`
+rule.
 
 Built with the **CloudEvents Java SDK** (`io.cloudevents:cloudevents-kafka`). Per record, the factory
 supplies the event and this module writes it:
@@ -182,7 +183,7 @@ required attribute without forcing the user to set `type`. Raw mode applies the 
   will never succeed — `RecordTooLargeException`, `SerializationException`, authorization/security
   exceptions, `InvalidTopicException`, `UnsupportedVersionException`.
 
-The classifier is a pluggable `ErrorClassifier` SPI; the above is the default mapping.
+The mapping lives in a package-private `ErrorClassifier`; it is not a configuration point.
 
 **Encoding failures never reach the classifier.** A failure raised *before* the send — the
 CloudEvent cannot be built, or the `TopicRouter` cannot route the record — is completed as

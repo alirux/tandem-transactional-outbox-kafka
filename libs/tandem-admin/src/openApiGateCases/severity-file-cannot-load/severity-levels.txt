@@ -1,0 +1,2 @@
+# A comment, which oasdiff refuses.
+response-property-enum-value-added info

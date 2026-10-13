@@ -91,7 +91,10 @@ public final class LoadGenerator implements AutoCloseable {
                           int payloadBytes, CommitTimestamps commitTimestamps, Wakeup wakeup,
                           TracePropagator tracePropagator, WriteSpanScope spanScope) {
         this.unitOfWork = new TransactionalUnitOfWork(rawDataSource);
-        this.repository = new JdbcOutboxRepository(unitOfWork.transactionAware(), bucketCount, tracePropagator, wakeup);
+        this.repository = JdbcOutboxRepository.builder(unitOfWork.transactionAware(), bucketCount)
+                .tracePropagator(tracePropagator)
+                .wakeup(wakeup)
+                .build();
         this.selector = selector;
         this.payload = referencePayload(payloadBytes);
         this.commitTimestamps = commitTimestamps;

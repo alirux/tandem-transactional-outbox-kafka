@@ -27,4 +27,55 @@ public record ReplayCriteria(AggregateId aggregateId,
             throw new IllegalArgumentException("ReplayCriteria requires at least one selector");
         }
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private AggregateId aggregateId;
+        private String aggregateType;
+        private Long fromId;
+        private Long toId;
+        private Set<OutboxStatus> statuses = Set.of();
+        private boolean dryRun;
+
+        private Builder() {
+        }
+
+        public Builder aggregateId(AggregateId aggregateId) {
+            this.aggregateId = aggregateId;
+            return this;
+        }
+
+        public Builder aggregateType(String aggregateType) {
+            this.aggregateType = aggregateType;
+            return this;
+        }
+
+        public Builder fromId(Long fromId) {
+            this.fromId = fromId;
+            return this;
+        }
+
+        public Builder toId(Long toId) {
+            this.toId = toId;
+            return this;
+        }
+
+        public Builder statuses(Set<OutboxStatus> statuses) {
+            this.statuses = statuses;
+            return this;
+        }
+
+        public Builder dryRun(boolean dryRun) {
+            this.dryRun = dryRun;
+            return this;
+        }
+
+        /** @throws IllegalArgumentException if no selector is set */
+        public ReplayCriteria build() {
+            return new ReplayCriteria(aggregateId, aggregateType, fromId, toId, statuses, dryRun);
+        }
+    }
 }

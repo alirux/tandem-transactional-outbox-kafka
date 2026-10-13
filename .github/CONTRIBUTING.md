@@ -135,6 +135,10 @@ make test       # go test ./... -race -coverprofile=coverage.out -covermode=atom
 make lint       # golangci-lint (analysis + formatting), pinned in the Makefile
 ```
 
+`make lint` and `make fmt` run golangci-lint on the Go version of `go.mod`'s `go` directive, the one
+CI uses, whatever Go you have installed, so a clean local run means a clean CI run. If your Go differs,
+the `go` command downloads that toolchain once.
+
 While you work on one package, `go test` runs it alone (still from `apps/tandem-cli/`), and `-run`
 narrows it to the tests whose name matches:
 
@@ -196,6 +200,8 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | Document | Contents |
 |---|---|
 | [HLD.md](../docs/HLD.md) | High-Level Design — architecture, decisions, data model, flow |
+| [HLD-api-stability.md](../docs/HLD-api-stability.md) | What 1.0 freezes: the five contracts, which Java types are API, how interfaces, records and enums may grow, and the build gates that check each contract. Accepted; the rules are applied, the gates are not built yet |
+| [LLD-api-stability.md](../docs/LLD-api-stability.md) | The compatibility gates: the baseline release, declared breaks, japicmp, the schema gates, oasdiff, the Spring metadata diff and the reference files. Under review, not built |
 | [LLD-base.md](../docs/LLD-base.md) | Shared build/package conventions |
 | [HLD-cloudevents.md](../docs/HLD-cloudevents.md) | CloudEvents publication format |
 | [HLD-alternative-envelope.md](../docs/HLD-alternative-envelope.md) · [alternative-envelope-candidates.md](../docs/alternative-envelope-candidates.md) | Publishing an envelope other than CloudEvents: the existing seam, the invariants, the gaps, and a survey of candidate formats |

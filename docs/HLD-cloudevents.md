@@ -56,7 +56,7 @@ Tandem-specific extensions, and where the dependency lives.
 | `partitionkey` | extension | `aggregate_id` | = Kafka record key; preserves ordering |
 | `traceparent` / `tracestate` | passthrough header | from `headers` (§7.1) | bare names, copied from the row like any other row header; not the CloudEvents distributed-tracing extension (§8) |
 | `seq` | extension (Tandem) | outbox `seq` column | binary-mode header `ce_seq`. **Present only when the row carries a number**: a row written `unsequenced()` publishes none, and consumers deduplicate on `ce_id`, which is unique by construction and always present (HLD-managed-seq §4.5) |
-| `logicalclock`, `causationid` | extension (Tandem), **reserved** | none | never emitted. Wire names (`ce_logicalclock`, `ce_causationid`) declared in `CloudEventsHeaders` so they cannot drift; they belong to the unbuilt causal-ordering surface (HLD-causal-ordering §0) |
+| `logicalclock`, `causationid` | extension (Tandem), **reserved** | none | never emitted. Wire names (`ce_logicalclock`, `ce_causationid`) reserved by the unbuilt causal-ordering design (HLD-causal-ordering §0.1) |
 
 The **Kafka record key remains `aggregate_id`** (= `partitionkey`), so the full ordering
 chain (DB lock → `seq` → worker shard → Kafka partition) is unchanged.

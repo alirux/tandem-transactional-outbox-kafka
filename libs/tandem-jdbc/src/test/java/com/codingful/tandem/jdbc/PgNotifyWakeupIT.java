@@ -3,8 +3,6 @@ package com.codingful.tandem.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.core.OutboxMessage;
-import com.codingful.tandem.core.port.TandemMetrics;
-import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.test.RecordingDispatcher;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -12,7 +10,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -142,9 +139,10 @@ class PgNotifyWakeupIT extends AbstractPostgresIT {
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingDispatcher dispatcher = new RecordingDispatcher();
         CountDownLatch relaySubscribed = new CountDownLatch(1);
-        WorkerPool relay = new WorkerPool(new JdbcOutboxStore(DATA_SOURCE, cfg.maxAttempts()), dispatcher, cfg,
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
-                BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, announcing(relaySubscribed));
+        WorkerPool relay = WorkerPool.builder(new JdbcOutboxStore(DATA_SOURCE, cfg.maxAttempts()), dispatcher, cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .wakeupSource(announcing(relaySubscribed))
+                .build();
 
         relay.start();
         try {
@@ -211,8 +209,7 @@ class PgNotifyWakeupIT extends AbstractPostgresIT {
     }
 
     private static JdbcOutboxRepository signallingRepository(DataSource dataSource) {
-        return new JdbcOutboxRepository(dataSource, BUCKETS,
-                TracePropagator.NOOP, Wakeup.PG_NOTIFY);
+        return JdbcOutboxRepository.builder(dataSource, BUCKETS).wakeup(Wakeup.PG_NOTIFY).build();
     }
 
     private static OutboxMessage message(String aggregateId, long seq) {

@@ -63,80 +63,43 @@ public final class WorkerPool {
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
 
-    /** Embedded topology with the basic-round defaults (no-op metrics, system clock, full-jitter backoff). */
+    /**
+     * Embedded topology with the basic-round defaults: no-op metrics, system clock, full-jitter backoff,
+     * every bucket owned by this instance, no Admin-API pause, no wakeup. {@link #builder} overrides any
+     * of them.
+     *
+     * @param store      relay-side persistence (poll/claim/update/cleanup)
+     * @param dispatcher the publish port (e.g. {@code KafkaRelay})
+     * @param cfg        relay engine configuration
+     * @throws NullPointerException if any argument is {@code null}
+     */
     public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg) {
-        this(store, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(cfg.bucketCount()), RelayControlSource.NOOP);
+        this(builder(store, dispatcher, cfg));
     }
 
     /**
-     * Full topology constructor — override any of the basic-round defaults. Admin-API pause/resume is a
-     * no-op with this overload, since it has no {@link RelayControlSource}; use the eight-argument
-     * constructor for that (HLD-admin-api §4.1).
+     * A pool with optional collaborators the three-argument constructor leaves at their defaults.
      *
-     * @param store        relay-side persistence (poll/claim/update/cleanup)
-     * @param dispatcher   the publish port (e.g. {@code KafkaRelay})
-     * @param cfg          relay engine configuration
-     * @param metrics      metrics sink; {@link TandemMetrics#NOOP} disables it
-     * @param clock        used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
-     * @param backoff      retry-delay strategy for retriable dispatch failures
-     * @param bucketSource which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                     {@link BucketLeaseManager} for the standalone topology)
+     * @param store      relay-side persistence (poll/claim/update/cleanup)
+     * @param dispatcher the publish port (e.g. {@code KafkaRelay})
+     * @param cfg        relay engine configuration
+     * @return a builder holding the three-argument constructor's defaults
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
-                      TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource) {
-        this(store, dispatcher, cfg, metrics, clock, backoff, bucketSource, RelayControlSource.NOOP);
+    public static Builder builder(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg) {
+        return new Builder(store, dispatcher, cfg);
     }
 
-    /**
-     * Full topology constructor, with Admin-API pause/resume support (HLD-admin-api §4.1).
-     *
-     * @param store         relay-side persistence (poll/claim/update/cleanup)
-     * @param dispatcher    the publish port (e.g. {@code KafkaRelay})
-     * @param cfg           relay engine configuration
-     * @param metrics       metrics sink; {@link TandemMetrics#NOOP} disables it
-     * @param clock         used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
-     * @param backoff       retry-delay strategy for retriable dispatch failures
-     * @param bucketSource  which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                      {@link BucketLeaseManager} for the standalone topology)
-     * @param controlSource the Admin API's desired pause state, refreshed on {@code reclaimInterval};
-     *                      {@link RelayControlSource#NOOP} disables pause support entirely
-     */
-    public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
-                      TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource,
-                      RelayControlSource controlSource) {
-        this(store, dispatcher, cfg, metrics, clock, backoff, bucketSource, controlSource, WakeupSource.NONE);
-    }
-
-    /**
-     * Full topology constructor, with post-commit wakeups (dispatch-latency §3.4).
-     *
-     * @param store         relay-side persistence (poll/claim/update/cleanup)
-     * @param dispatcher    the publish port (e.g. {@code KafkaRelay})
-     * @param cfg           relay engine configuration
-     * @param metrics       metrics sink; {@link TandemMetrics#NOOP} disables it
-     * @param clock         used for cleanup's {@code doneBefore} cutoff; override in tests for determinism
-     * @param backoff       retry-delay strategy for retriable dispatch failures
-     * @param bucketSource  which virtual buckets this instance owns ({@link BucketSource#embedded} or
-     *                      {@link BucketLeaseManager} for the standalone topology)
-     * @param controlSource the Admin API's desired pause state, refreshed on {@code reclaimInterval};
-     *                      {@link RelayControlSource#NOOP} disables pause support entirely
-     * @param wakeupSource  where the write-side's post-commit signals arrive, shortening discovery for a
-     *                      row written into a quiet bucket; {@link WakeupSource#NONE} leaves discovery to
-     *                      the poll loop alone, which is what bounds it in every configuration anyway
-     */
-    public WorkerPool(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg,
-                      TandemMetrics metrics, Clock clock, BackoffStrategy backoff, BucketSource bucketSource,
-                      RelayControlSource controlSource, WakeupSource wakeupSource) {
-        this.store = Objects.requireNonNull(store, "store");
-        this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher");
-        this.cfg = Objects.requireNonNull(cfg, "cfg");
-        this.metrics = Objects.requireNonNull(metrics, "metrics");
-        this.clock = Objects.requireNonNull(clock, "clock");
-        this.backoff = Objects.requireNonNull(backoff, "backoff");
-        this.bucketSource = Objects.requireNonNull(bucketSource, "bucketSource");
-        this.controlSource = Objects.requireNonNull(controlSource, "controlSource");
-        this.wakeupSource = Objects.requireNonNull(wakeupSource, "wakeupSource");
+    private WorkerPool(Builder builder) {
+        this.store = builder.store;
+        this.dispatcher = builder.dispatcher;
+        this.cfg = builder.cfg;
+        this.metrics = builder.metrics;
+        this.clock = builder.clock;
+        this.backoff = builder.backoff;
+        this.bucketSource = builder.bucketSource;
+        this.controlSource = builder.controlSource;
+        this.wakeupSource = builder.wakeupSource;
         // Single instance identity, shared with the LEASE bucket owner (RelayConfig#instanceId), so a
         // worker/thread-name/log line correlates directly to tandem_bucket_lease.owner (LLD-jdbc §3.2).
         this.instanceId = cfg.instanceId();
@@ -605,6 +568,79 @@ public final class WorkerPool {
             t.join(TimeUnit.SECONDS.toMillis(10));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Builds a {@link WorkerPool} with optional collaborators (HLD-api-stability §4.3). */
+    public static final class Builder {
+        private final OutboxStore store;
+        private final OutboxDispatcher dispatcher;
+        private final RelayConfig cfg;
+        private TandemMetrics metrics = TandemMetrics.NOOP;
+        private Clock clock = Clock.systemUTC();
+        private BackoffStrategy backoff = BackoffStrategy.fullJitter();
+        private BucketSource bucketSource;
+        private RelayControlSource controlSource = RelayControlSource.NOOP;
+        private WakeupSource wakeupSource = WakeupSource.NONE;
+
+        private Builder(OutboxStore store, OutboxDispatcher dispatcher, RelayConfig cfg) {
+            this.store = Objects.requireNonNull(store, "store");
+            this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher");
+            this.cfg = Objects.requireNonNull(cfg, "cfg");
+            this.bucketSource = BucketSource.embedded(cfg.bucketCount());
+        }
+
+        /** Metrics sink. Default {@link TandemMetrics#NOOP}. */
+        public Builder metrics(TandemMetrics metrics) {
+            this.metrics = Objects.requireNonNull(metrics, "metrics");
+            return this;
+        }
+
+        /**
+         * Used for cleanup's {@code doneBefore} cutoff, so a test can fix it. Default
+         * {@link Clock#systemUTC()}.
+         */
+        public Builder clock(Clock clock) {
+            this.clock = Objects.requireNonNull(clock, "clock");
+            return this;
+        }
+
+        /** Retry delay for retriable dispatch failures. Default {@link BackoffStrategy#fullJitter()}. */
+        public Builder backoff(BackoffStrategy backoff) {
+            this.backoff = Objects.requireNonNull(backoff, "backoff");
+            return this;
+        }
+
+        /**
+         * Which virtual buckets this instance owns: {@link BucketSource#forCoordination} for several
+         * instances (LLD-jdbc §3.2). Default {@link BucketSource#embedded}, every bucket.
+         */
+        public Builder bucketSource(BucketSource bucketSource) {
+            this.bucketSource = Objects.requireNonNull(bucketSource, "bucketSource");
+            return this;
+        }
+
+        /**
+         * The Admin API's desired pause state, refreshed on {@code reclaimInterval} (HLD-admin-api §4.1).
+         * Default {@link RelayControlSource#NOOP}: no pause support.
+         */
+        public Builder controlSource(RelayControlSource controlSource) {
+            this.controlSource = Objects.requireNonNull(controlSource, "controlSource");
+            return this;
+        }
+
+        /**
+         * Where the write side's post-commit signals arrive, shortening discovery for a row written into
+         * a quiet bucket (dispatch-latency §3.4). Default {@link WakeupSource#NONE}: the poll loop alone,
+         * which bounds discovery in every configuration anyway.
+         */
+        public Builder wakeupSource(WakeupSource wakeupSource) {
+            this.wakeupSource = Objects.requireNonNull(wakeupSource, "wakeupSource");
+            return this;
+        }
+
+        public WorkerPool build() {
+            return new WorkerPool(this);
         }
     }
 }

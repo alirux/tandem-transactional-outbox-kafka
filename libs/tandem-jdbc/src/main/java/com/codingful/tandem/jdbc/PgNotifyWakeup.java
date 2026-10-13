@@ -43,7 +43,7 @@ import org.postgresql.PGNotification;
  * (HLD §1.3) — and this class is the only one that touches it, loaded only when
  * {@link Wakeup#PG_NOTIFY} is configured.
  */
-public final class PgNotifyWakeup implements WakeupSource {
+final class PgNotifyWakeup implements WakeupSource {
 
     private static final Logger LOG = System.getLogger(PgNotifyWakeup.class.getName());
 
@@ -74,7 +74,7 @@ public final class PgNotifyWakeup implements WakeupSource {
      *                   long as the source runs, so it must not be a transaction-scoped proxy
      * @throws NullPointerException if {@code dataSource} is {@code null}
      */
-    public PgNotifyWakeup(DataSource dataSource) {
+    PgNotifyWakeup(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 

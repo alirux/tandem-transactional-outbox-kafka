@@ -19,7 +19,7 @@ import org.apache.kafka.common.errors.UnsupportedVersionException;
  *       producer's internal retries exhausted, <b>and unknown errors by default</b>.</li>
  * </ul>
  */
-public final class DefaultErrorClassifier implements ErrorClassifier {
+final class DefaultErrorClassifier implements ErrorClassifier {
 
     @Override
     public OutboxDispatchException classify(Throwable cause) {

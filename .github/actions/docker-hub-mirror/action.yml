@@ -1,0 +1,29 @@
+name: Docker Hub mirror
+description: Makes the runner's Docker daemon pull Docker Hub images through mirror.gcr.io.
+
+# A hosted runner pulls from Docker Hub anonymously, from addresses shared with every other GitHub
+# job, and Docker Hub answers those pulls with 429 or 504 often enough to fail a build whose code is
+# green. mirror.gcr.io is Google's public pull-through cache of Docker Hub: it needs no credentials, so
+# it also covers pull requests from forks, which receive no secrets.
+#
+# Configured in the daemon rather than per tool, so it covers every pull the daemon makes: Testcontainers,
+# `docker compose`, and `docker build` on the default `docker` driver. The daemon tries the mirror first
+# and falls back to Docker Hub on any error, so an image the mirror does not hold still resolves.
+#
+# A BuildKit builder of the `docker-container` driver (docker/setup-buildx-action) runs its own resolver
+# and does not read this setting: relay-release.yml keeps pulling the base of the image it ships straight
+# from Docker Hub, so a rebuild for a patched base never depends on the cache having refreshed the tag.
+runs:
+  using: composite
+  steps:
+    - name: Pull Docker Hub images through mirror.gcr.io
+      shell: bash
+      run: |
+        config=/etc/docker/daemon.json
+        current=$(sudo cat "$config" 2>/dev/null || echo '{}')
+        jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' <<< "$current" | sudo tee "$config" > /dev/null
+        sudo systemctl restart docker
+        if ! docker info --format '{{json .RegistryConfig.Mirrors}}' | grep -q 'mirror.gcr.io'; then
+          echo "The Docker daemon did not pick up the mirror from $config" >&2
+          exit 1
+        fi

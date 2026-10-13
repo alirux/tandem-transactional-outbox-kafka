@@ -26,12 +26,15 @@ public final class ConfigurationMetadataReference {
 
     /**
      * The {@code tandem.*} names a module actually binds, read from its generated configuration
-     * metadata. Hint names (e.g. value hints for a raw map key) are excluded — they are not property
-     * keys — by cutting the text at the {@code "hints"} array.
+     * metadata. Group names (the prefix of a properties type) and hint names (e.g. value hints for a raw
+     * map key) are excluded, since neither is a property key, by reading only the {@code "properties"}
+     * array: from its start to the {@code "hints"} array.
      */
     public static List<String> boundKeys(String metadataJson) {
-        int hints = metadataJson.indexOf("\"hints\"");
-        return matches(PROPERTY_NAME, hints < 0 ? metadataJson : metadataJson.substring(0, hints), 1);
+        int properties = metadataJson.indexOf("\"properties\"");
+        int hints = metadataJson.indexOf("\"hints\"", Math.max(properties, 0));
+        String keys = metadataJson.substring(Math.max(properties, 0), hints < 0 ? metadataJson.length() : hints);
+        return matches(PROPERTY_NAME, keys, 1);
     }
 
     /**

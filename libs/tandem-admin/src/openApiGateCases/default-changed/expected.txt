@@ -1,0 +1,5 @@
+# The default of the query parameter limit changed from 50 to 100: request-parameter-default-value-changed,
+# raised to err.
+checks compatibility
+verdict fail
+undeclared finding d9112806f2f2

@@ -15,6 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # checkOpenApi reads the contract at the baseline tag (LLD-api-stability §2.3).
+          fetch-tags: true
 
       - uses: actions/setup-java@v5
         with:
@@ -23,6 +26,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
+
+      - uses: ./.github/actions/docker-hub-mirror
 
       - name: Build, test and verify coverage
         run: ./gradlew check :tandem-coverage:aggregatedCoverageReport
@@ -112,8 +117,8 @@ jobs:
 
       - name: Regenerate the Admin API client and fail on drift
         # The committed internal/client/generated.go must match what the current
-        # docs/admin-api.openapi.yaml produces (LLD-cli.md §8) - the Go-toolchain
-        # equivalent of Specmatic's conformance check for tandem-admin.
+        # docs/admin-api.openapi.yaml produces (LLD-cli.md §8), the client side of the
+        # contract whose own gate is checkOpenApi in tandem-admin (LLD-api-stability §6).
         run: |
           make generate
           git diff --exit-code -- internal/client/generated.go

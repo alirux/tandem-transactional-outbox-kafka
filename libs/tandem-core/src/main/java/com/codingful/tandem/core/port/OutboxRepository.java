@@ -6,6 +6,10 @@ import java.util.Collection;
 /**
  * Write-side port (LLD-core §2.1): insert outbox rows <b>within the caller's transaction</b>, atomically
  * with the business state change. Implemented by {@code tandem-jdbc} and by {@code InMemoryOutbox}.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface OutboxRepository {
 

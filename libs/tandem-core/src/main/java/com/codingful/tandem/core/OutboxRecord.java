@@ -25,7 +25,6 @@ public final class OutboxRecord {
     private final String lastError;       // nullable
     private final Instant nextAttemptAt;  // nullable
     private final Instant createdAt;
-    private final Long lamport;           // nullable; reserved — nothing writes it today (§9)
     private final String discardReason;   // nullable; set only by the Admin API's DiscardService, never the relay
 
     private OutboxRecord(Builder b) {
@@ -49,7 +48,6 @@ public final class OutboxRecord {
         this.lastError = b.lastError;
         this.nextAttemptAt = b.nextAttemptAt;
         this.createdAt = Objects.requireNonNull(b.createdAt, "createdAt");
-        this.lamport = b.lamport;
         this.discardReason = b.discardReason;
     }
 
@@ -104,18 +102,6 @@ public final class OutboxRecord {
 
     public Instant createdAt() {
         return createdAt;
-    }
-
-    /**
-     * Lamport timestamp.
-     *
-     * <p><b>Always {@code null}, and read by nothing.</b> Reserved for the cross-aggregate
-     * causal-ordering feature (HLD §9), which is designed but not implemented: no {@code lamport}
-     * column exists in the shipped DDL, no row mapper populates this, and the publish path carries
-     * no code for it. Inventory: {@code docs/HLD-causal-ordering.md} §0.
-     */
-    public Long lamport() {
-        return lamport;
     }
 
     /** Operator-supplied reason recorded when this row was discarded; {@code null} otherwise (HLD-admin-api §4). */
@@ -190,7 +176,6 @@ public final class OutboxRecord {
                 .lastError(lastError)
                 .nextAttemptAt(nextAttemptAt)
                 .createdAt(createdAt)
-                .lamport(lamport)
                 .discardReason(discardReason);
     }
 
@@ -205,7 +190,6 @@ public final class OutboxRecord {
         private String lastError;
         private Instant nextAttemptAt;
         private Instant createdAt;
-        private Long lamport;
         private String discardReason;
 
         private Builder() {
@@ -264,12 +248,6 @@ public final class OutboxRecord {
 
         public Builder createdAt(Instant createdAt) {
             this.createdAt = createdAt;
-            return this;
-        }
-
-        /** Reserved for causal ordering (HLD §9) — no product code calls this; see {@link OutboxRecord#lamport()}. */
-        public Builder lamport(Long lamport) {
-            this.lamport = lamport;
             return this;
         }
 

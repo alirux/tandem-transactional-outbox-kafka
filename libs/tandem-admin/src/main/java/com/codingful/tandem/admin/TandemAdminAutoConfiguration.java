@@ -1,7 +1,8 @@
 package com.codingful.tandem.admin;
 
-import com.codingful.tandem.admin.outbox.OutboxAdminConfiguration;
-import com.codingful.tandem.admin.relay.RelayAdminConfiguration;
+import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
+import com.codingful.tandem.admin.internal.outbox.OutboxAdminConfiguration;
+import com.codingful.tandem.admin.internal.relay.RelayAdminConfiguration;
 import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.jdbc.JdbcOutboxQuery;
@@ -25,9 +26,10 @@ import org.springframework.context.annotation.Import;
  *
  * <p>Owns only cross-cutting infrastructure — the DB-derived adapters more than one feature package
  * needs — plus generic error handling. Each REST feature's own use cases/controller/
- * problem-slug mapping live in their own package ({@code outbox}, {@code relay}), {@code @Import}ed
- * here so they inherit this class's gating: a {@code @Configuration} imported from a class whose own
- * conditions fail is never processed, so an imported feature's beans never register either.
+ * problem-slug mapping live in their own package ({@code internal.outbox}, {@code internal.relay}),
+ * {@code @Import}ed here so they inherit this class's gating: a {@code @Configuration} imported
+ * from a class whose own conditions fail is never processed, so an imported feature's beans never
+ * register either.
  *
  * <p>The ordering is declared by <b>name</b> for both Spring generations: Boot 4 moved
  * {@code DataSourceAutoConfiguration} into {@code spring-boot-jdbc}, so a class literal would name a

@@ -29,7 +29,7 @@ import java.util.Objects;
  * <p>Attributes are the structural identifiers of {@link TandemSpanAttributes} only (§6.4) — never the
  * payload, a header value, or an error body.
  */
-public final class MicrometerTandemSpanRecorder implements TandemSpanRecorder {
+final class MicrometerTandemSpanRecorder implements TandemSpanRecorder {
 
     private final Propagator propagator;
 
@@ -39,7 +39,7 @@ public final class MicrometerTandemSpanRecorder implements TandemSpanRecorder {
      *                   tracer — which is why no {@code Tracer} is needed here
      * @throws NullPointerException if {@code propagator} is {@code null}
      */
-    public MicrometerTandemSpanRecorder(Propagator propagator) {
+    MicrometerTandemSpanRecorder(Propagator propagator) {
         this.propagator = Objects.requireNonNull(propagator, "propagator");
     }
 

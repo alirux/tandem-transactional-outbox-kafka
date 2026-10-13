@@ -107,9 +107,9 @@ different pure function over the same two inputs — the textbook case for the p
 
 The default is selected by a static factory, `BucketCountReconciliation.seedOrValidate()`, which the
 static `BucketCountGuard.check(dataSource, bucketCount)` entry point applies; the overload
-`BucketCountGuard.check(dataSource, bucketCount, policy)` (and the injectable
-`BucketCountGuard(store, reconciliation)` constructor) is the seam for a different policy or a test
-double. The default is the only one shipped in this increment.
+`BucketCountGuard.check(dataSource, bucketCount, policy)` is the seam for a different policy; the
+package-private `BucketCountGuard(store, reconciliation)` constructor lets the tests run the guard over
+a store of their own. The default is the only one shipped in this increment.
 
 **Re-sharding is deliberately *not* one of these policies.** Treating a mismatch as an intentional
 change of `bucketCount` is a feature in its own right — it means re-bucketing already-stored rows and
@@ -208,15 +208,15 @@ therefore safe to add in a minor release.
 ## 7. Placement / wiring
 
 The port (`BucketCountStore`) and strategy (`BucketCountReconciliation`) live in `tandem-core`
-(dependency-free, already a dependency of `tandem-jdbc`); the adapter (`JdbcBucketCountStore`) and
+(dependency-free, already a dependency of `tandem-jdbc`); the adapter (`JdbcBucketCountStore`, package-private) and
 orchestrator (`BucketCountGuard`) live in `tandem-jdbc`, with the table in the baseline schema —
 **not** in any Spring autoconfiguration. The manual assembly path is the one Tandem ships and
 documents today; a guard that lived in the Spring layer would leave the primary path unprotected.
 
 The guard is an **explicit assembly step on both sides** — `BucketCountGuard.check(dataSource, bucketCount)`
 — run at startup against a **plain `DataSource`**, not inside any adapter constructor. It is a static
-entry point (no dangling `new` for a throwaway object); the instance form is reserved for the
-policy/store seam.
+entry point (no dangling `new` for a throwaway object); the instance form is package-private, kept as
+the tests' seam for a store of their own.
 
 **Why not the `JdbcOutboxRepository` constructor.** The write-side `DataSource` is, by design, allowed
 to be a transaction-aware proxy that only yields a connection *inside* a caller transaction — that is

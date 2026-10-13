@@ -1,3 +1,8 @@
+import com.codingful.tandem.compatibility.CheckInterfaceKinds
+import com.codingful.tandem.compatibility.CheckJavaApi
+import com.codingful.tandem.compatibility.CheckSpringMetadata
+import com.codingful.tandem.compatibility.CompatibilityBaseline
+
 plugins {
     // Applied per-subproject below; declared here so it is on the build classpath once.
     id("com.vanniktech.maven.publish") version "0.37.0" apply false
@@ -37,6 +42,20 @@ val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-
 // at all cannot be published by accident.
 val notYetPublishedModules = setOf<String>()
 
+// Published modules on a version of their own (today tandem-rabbitmq, LLD-rabbitmq §9): each keeps its own
+// contract, so the compatibility gates, which compare with a release of the library, leave them out
+// (LLD-api-stability §1).
+val independentlyVersionedModules = setOf("tandem-rabbitmq")
+
+// The published library modules of HLD-api-stability §3: the modules the compatibility gates check. The BOM
+// carries no code; its one gate, checkBomModules, is registered in its own build script.
+val libraryModules = subprojects.map { it.name }.toSet() - unpublishedModules - notYetPublishedModules -
+        independentlyVersionedModules - "tandem-bom"
+
+// The library modules whose jar carries Spring configuration metadata: each runs checkSpringMetadata
+// (LLD-api-stability §7).
+val springMetadataModules = setOf("tandem-spring-producer", "tandem-spring-relay", "tandem-admin")
+
 // Independently versioned modules (today: tandem-rabbitmq) depend on their siblings by published
 // coordinate with an explicit floor, because a project dependency would stamp their own version into
 // the POM as the sibling's version (IMPLEMENTATION-PLAN-rabbitmq.md §8). During development those
@@ -44,10 +63,12 @@ val notYetPublishedModules = setOf<String>()
 // metadata keeps the declared floor. Applied in every project, not only in the connector, because a
 // module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The
 // exempt configurations are the ones whose whole point is to resolve from Maven Central: the connector's
-// floorTest classpath, and the classpath of the relay application's pinned jar (LLD-relay §7.3). A
-// configuration missing from this set is substituted like any other, and the gate built on it then
-// passes while testing the working tree.
-val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath")
+// floorTest classpath, the classpath of the relay application's pinned jar (LLD-relay §7.3), and the
+// configurations that resolve the compatibility baseline (LLD-api-stability §2.2). A configuration missing
+// from this set is substituted like any other, and the gate built on it then passes while testing the
+// working tree.
+val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath") +
+        CompatibilityBaseline.CONFIGURATIONS
 val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 
 // Test tasks that start containers (PostgreSQL, Kafka, RabbitMQ) through Testcontainers. The build runs
@@ -59,7 +80,16 @@ val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associa
 //
 // A Docker-bound test task under a new name must be added here; nothing fails if it is not, it simply
 // starts its containers outside the limit.
-val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest")
+val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest", "schemaCompatTest")
+
+// Reference files (LLD-api-stability §8.1): `./gradlew test -PupdateReferenceFiles` runs the reference tests in
+// write mode, each rewriting its file under src/test/resources/reference instead of comparing with it. CI always
+// compares, so the property is refused there. Any value but `false` turns write mode on, the bare flag included.
+val updateReferenceFiles = providers.gradleProperty("updateReferenceFiles").map { it != "false" }.getOrElse(false)
+if (updateReferenceFiles && providers.environmentVariable("CI").isPresent) {
+    throw GradleException("-PupdateReferenceFiles is refused when the CI environment variable is set: a CI run " +
+        "compares the reference files and never rewrites them (LLD-api-stability §8.1).")
+}
 
 abstract class DockerSlots : BuildService<BuildServiceParameters.None>
 
@@ -67,9 +97,29 @@ val dockerSlots = gradle.sharedServices.registerIfAbsent("dockerSlots", DockerSl
     maxParallelUsages.set(3)
 }
 
+// Runs every gate that reads the compatibility baseline (LLD-api-stability §9.2), for the dry run of §10 and a
+// quick run after the baseline moves: `./gradlew checkCompatibility -PtandemBaseline=<release> --continue`.
+// Each gate adds itself here, and to its module's `check`, as it is registered
+// (CompatibilityBaseline.registerGate), so this task keeps no list of them.
+tasks.register(CompatibilityBaseline.CHECK_COMPATIBILITY) {
+    group = "verification"
+    description = "Runs every compatibility gate that compares the build with the tandemBaseline release."
+}
+
 subprojects {
     tasks.withType<Test>().matching { it.name in dockerBoundTestTasks }.configureEach {
         usesService(dockerSlots)
+    }
+
+    // Every Test task, so a reference test is in the same mode whichever task runs it. The mode is an input, so
+    // neither an up-to-date check nor the build cache hands one mode the result of the other; in write mode the
+    // task's state is not tracked at all, so it always runs and always rewrites what differs.
+    tasks.withType<Test>().configureEach {
+        systemProperty("tandem.updateReferenceFiles", updateReferenceFiles)
+        inputs.property("updateReferenceFiles", updateReferenceFiles)
+        if (updateReferenceFiles) {
+            doNotTrackState("-PupdateReferenceFiles rewrites the reference files in the source tree")
+        }
     }
 
     configurations.matching { it.name !in centralClasspaths }.configureEach {
@@ -111,6 +161,23 @@ subprojects {
 
         tasks.withType<JavaCompile>().configureEach {
             options.compilerArgs.add("-Xlint:all")
+        }
+
+        // A stable module name for an application on the module path, named after the module's root
+        // package (tandem-spring-relay: com.codingful.tandem.spring.relay). Part of the frozen names of
+        // HLD-api-stability §2; without it the name would derive from the jar's file name.
+        val automaticModuleName = "com.codingful." + name.replace('-', '.')
+        val rootPackageDir = layout.projectDirectory.dir("src/main/java/" + automaticModuleName.replace('.', '/'))
+        tasks.named<Jar>("jar") {
+            manifest {
+                attributes("Automatic-Module-Name" to automaticModuleName)
+            }
+            doFirst {
+                check(rootPackageDir.asFile.isDirectory) {
+                    "Automatic-Module-Name $automaticModuleName is not a package of this module: a module " +
+                        "whose root package departs from its name needs that name set explicitly"
+                }
+            }
         }
 
         dependencies {
@@ -196,6 +263,26 @@ subprojects {
             reports {
                 xml.required.set(true)
                 html.required.set(true)
+            }
+        }
+    }
+
+    // The baseline configurations, and the gates of HLD-api-stability §5 that every library module runs
+    // (LLD-api-stability §2.2, §4). Each gate joins `check` and checkCompatibility as it is registered.
+    if (name in libraryModules) {
+        CompatibilityBaseline.registerLibrary(project)
+        val interfaceKinds = CheckInterfaceKinds.register(project)
+        CheckJavaApi.register(project, libraryModules, interfaceKinds)
+        if (name in springMetadataModules) {
+            CheckSpringMetadata.register(project, springMetadataModules)
+            // The configuration processor writes a property's description only when it compiles the class
+            // declaring it, so an incremental compilation leaves the others without one. A full compilation
+            // keeps the metadata of every jar complete (LLD-api-stability §7). The flag is not part of the
+            // build cache key, so the input below keys these compilations apart from any an incremental
+            // compilation stored, which the cache would otherwise hand back for the same sources.
+            tasks.named<JavaCompile>("compileJava") {
+                options.isIncremental = false
+                inputs.property("fullCompilation", true)
             }
         }
     }

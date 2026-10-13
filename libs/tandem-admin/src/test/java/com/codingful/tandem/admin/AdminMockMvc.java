@@ -1,5 +1,6 @@
 package com.codingful.tandem.admin;
 
+import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 

@@ -18,8 +18,8 @@ import java.util.Objects;
  * The OpenTelemetry relay-side {@link TandemSpanRecorder} — instrumented mode (HLD-tracing.md §6).
  * Emits one {@code tandem.relay.publish} span per outbox record, parented to the trace context
  * captured on <i>that</i> record at insert time, so the trace shows the outbox dwell and the real send
- * instant instead of an unexplained gap between the write and the consumer. The Micrometer-based
- * equivalent for Spring applications is {@code MicrometerTandemSpanRecorder}.
+ * instant instead of an unexplained gap between the write and the consumer. In a Spring application,
+ * {@code tandem-spring-relay} registers the Micrometer-based equivalent.
  *
  * <p>The parent comes from the row, never from the calling thread: the relay claims rows in batches
  * whose members belong to unrelated business transactions (§6.1), and it dispatches asynchronously, so

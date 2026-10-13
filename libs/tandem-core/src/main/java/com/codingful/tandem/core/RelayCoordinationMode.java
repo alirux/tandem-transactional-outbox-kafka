@@ -5,6 +5,9 @@ package com.codingful.tandem.core;
  * Deliberately independent of {@code tandem-jdbc}'s own {@code Coordination} enum, which is the
  * relay engine's internal configuration type — this is the admin read model's own vocabulary,
  * mapped from the value the relay publishes to {@code tandem_meta} at startup, not a shared type.
+ *
+ * <p>A minor version may add constants, so a {@code switch} over this enum keeps a {@code default}
+ * branch (HLD-api-stability §4.2).
  */
 public enum RelayCoordinationMode {
 

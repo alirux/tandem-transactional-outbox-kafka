@@ -129,3 +129,8 @@ com.codingful.tandem.<module>[.<sub-package>]
 | tandem-benchmark | `com.codingful.tandem.benchmark` |
 | tandem-sample | `com.codingful.tandem.sample` |
 | tandem-sample-spring | `com.codingful.tandem.sample.spring` |
+
+Each published library jar declares its root package as its `Automatic-Module-Name`, the stable name
+an application on the module path requires it by (HLD-api-stability §2). The build derives it from the
+module name and fails the jar when the result is not a package of the module, so a module whose root
+package departs from its name (`tandem-kafka-streams`) has to set it explicitly.
