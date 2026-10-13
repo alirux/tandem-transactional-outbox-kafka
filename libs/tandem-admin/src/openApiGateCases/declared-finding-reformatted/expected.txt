@@ -1,0 +1,4 @@
+# aggregateId made required and declared, in a document whose formatting and line positions all changed: the
+# declaration still matches.
+verdict pass
+accepted finding 897e924ade7d: ERR request-parameter-became-required at GET /outbox/messages: the `query` request parameter `aggregateId` became required

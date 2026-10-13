@@ -1,0 +1,3 @@
+# Declarations of this case, read as gradle/accepted-breaks.txt is.
+baseline frozen
+openapi | tandem-admin | finding e01fe03fe989 | limit defaults to 100.

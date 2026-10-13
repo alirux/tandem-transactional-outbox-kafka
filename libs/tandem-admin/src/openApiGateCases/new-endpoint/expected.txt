@@ -1,0 +1,2 @@
+# A new endpoint, GET /relay/workers/{workerId}.
+verdict pass

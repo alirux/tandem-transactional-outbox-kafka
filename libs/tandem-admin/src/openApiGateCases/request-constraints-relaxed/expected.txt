@@ -1,0 +1,3 @@
+# Request constraints relaxed: the limit parameter accepts up to 1000, acknowledgeOrderingBreak is no longer
+# required, and the discard body is optional. Compatible, so it passes.
+verdict pass

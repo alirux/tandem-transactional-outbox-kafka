@@ -1,0 +1,4 @@
+# The frozen contract, compared with a severity file oasdiff cannot load (one with a comment line, as the
+# committed policy has before the task strips it).
+verdict fail
+error breaking exit 106

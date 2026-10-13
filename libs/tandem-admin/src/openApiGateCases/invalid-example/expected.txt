@@ -1,0 +1,4 @@
+# The example of the InvalidParameter response has a status its schema rejects. Run without a baseline.
+baseline none
+verdict fail
+invalid example-violates-schema: invalid example: Error at "/status": value must be an integer Schema: { "description": "HTTP status code", "type": "integer" } Value: "bad-request"

@@ -15,6 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # checkOpenApi reads the contract at the baseline tag (LLD-api-stability §2.3).
+          fetch-tags: true
 
       - uses: actions/setup-java@v5
         with:

@@ -1,0 +1,4 @@
+# Optional elements added with a default of their own: a response property (WorkerInfo.pausedBuckets), a
+# request property (ReplayRequest.maxRows) and a query parameter of GET /relay/buckets (pausedOnly). A default
+# on a new element is part of the addition.
+verdict pass

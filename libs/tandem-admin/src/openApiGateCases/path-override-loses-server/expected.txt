@@ -1,0 +1,3 @@
+# The path /relay/workers overrides the servers it inherits with /workers/v1, losing {basePath}/v1.
+verdict fail
+undeclared server path /relay/workers {basePath}/v1: no longer offered, the servers are /workers/v1

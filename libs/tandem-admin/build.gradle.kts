@@ -1,3 +1,5 @@
+import com.codingful.tandem.compatibility.CheckOpenApi
+
 description = "Tandem Admin API — optional REST operations layer over the outbox and the relay (API-first, off by default)"
 
 dependencies {
@@ -71,6 +73,11 @@ dependencies {
 tasks.named("compileJava") {
     inputs.files(tasks.named("processResources"))
 }
+
+// The contract's own gate (LLD-api-stability §6): checkOpenApi validates docs/admin-api.openapi.yaml and compares
+// it with the document at the baseline tag, checkOpenApiCases runs the gate on src/openApiGateCases. Both run
+// oasdiff from the image the version catalog pins, so both need Docker.
+CheckOpenApi.register(project, libs.versions.oasdiff.image)
 
 // The Admin API tests read the OpenAPI contract and the problem-type pages from outside this
 // module: declare them as inputs, so a change to either one reruns the tests.

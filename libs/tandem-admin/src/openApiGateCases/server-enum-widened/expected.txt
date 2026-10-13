@@ -1,0 +1,2 @@
+# The enum of basePath, one value in this case's baseline, gains /admin.
+verdict pass

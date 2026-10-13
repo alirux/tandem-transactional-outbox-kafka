@@ -1,0 +1,3 @@
+# DELETE /relay/buckets/{bucket}, deprecated in this case's baseline, removed while GET stays.
+verdict fail
+undeclared finding d471177059f0: ERR api-removed-with-deprecation at DELETE /relay/buckets/{bucket}: api removed with deprecation

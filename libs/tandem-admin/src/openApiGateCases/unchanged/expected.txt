@@ -1,0 +1,2 @@
+# The frozen contract itself.
+verdict pass

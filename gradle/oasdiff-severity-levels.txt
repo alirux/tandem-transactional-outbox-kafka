@@ -1,0 +1,468 @@
+# Tandem's compatibility policy for the Admin API contract, as oasdiff severity levels (LLD-api-stability §6.2).
+#
+# One line per rule, `<rule-id> <level>`, grouped under the contract rule each group implements; the level is
+# err, warn or info. A finding at err or warn fails checkOpenApi unless gradle/accepted-breaks.txt declares
+# its fingerprint; a finding at info passes. Every rule the pinned oasdiff image classes as info is listed,
+# raised to err or kept at info as a statement that the change is compatible for Tandem: checkOpenApi fails
+# while one is missing, or while a line names a rule the image does not have. A rule upstream classes as
+# warn or err keeps its level and is not listed, except the one the first group lowers.
+#
+# oasdiff rejects a comment or a blank line in this file, so checkOpenApi strips both into
+# build/openapi/severity-levels.txt and hands oasdiff that copy. After an image upgrade, the failure of
+# checkOpenApi names each new info rule to classify here.
+
+# A response enum gains a value. Tolerant readers accept it (HLD-admin-api §1), so the one rule of this
+# file upstream calls an error is lowered.
+response-property-enum-value-added info
+
+# A published element is removed, an optional or deprecated one included.
+api-path-removed-with-deprecation err
+api-removed-with-deprecation err
+optional-response-header-removed err
+request-parameter-removed-with-deprecation err
+response-optional-property-removed err
+
+# A response field becomes required, or a new response field is required: an instance of the previous
+# release, still running in a mixed-version rollout, omits it. The request-side obligations are upstream
+# errors already.
+response-property-became-required err
+response-required-property-added err
+
+# A default is added, changed or removed on an existing element: a client that relies on the default
+# gets another behaviour. A default on a new optional element is part of that addition, and oasdiff
+# reports none for it.
+request-body-default-value-added err
+request-body-default-value-changed err
+request-body-default-value-removed err
+request-parameter-default-value-added err
+request-parameter-default-value-changed err
+request-parameter-default-value-removed err
+request-property-default-value-added err
+request-property-default-value-changed err
+request-property-default-value-removed err
+response-body-default-value-added err
+response-body-default-value-changed err
+response-body-default-value-removed err
+response-property-default-value-added err
+response-property-default-value-changed err
+response-property-default-value-removed err
+
+# An existing wire type or format changes, in the directions upstream calls compatible, generalized or
+# specialized too, on requests as on responses: a schema that becomes `false` is a removal, and a change
+# of media type or of a security scheme changes how a client talks to the API.
+api-security-component-oauth-scope-changed err
+api-security-component-oauth-token-url-changed err
+api-security-component-oauth-url-changed err
+api-security-component-type-changed err
+request-body-list-of-types-widened err
+request-body-type-compatible err
+request-body-type-generalized err
+request-parameter-list-of-types-widened err
+request-parameter-property-list-of-types-widened err
+request-parameter-property-type-generalized err
+request-parameter-type-generalized err
+request-property-list-of-types-widened err
+request-property-type-compatible err
+request-property-type-generalized err
+response-body-list-of-types-narrowed err
+response-body-type-compatible err
+response-body-type-specialized err
+response-header-schema-became-false err
+response-header-type-compatible err
+response-header-type-specialized err
+response-media-type-name-specialized err
+response-media-type-parameter-added err
+response-property-list-of-types-narrowed err
+response-property-schema-became-false err
+response-property-type-compatible err
+response-property-type-specialized err
+
+# An existing value range narrows on a response: a new or tighter bound, a value or alternative removed,
+# null no longer allowed. An instance of the previous release may still send what the narrower contract
+# excludes. Narrowed request ranges are upstream errors already.
+response-body-all-of-added err
+response-body-any-of-removed err
+response-body-became-not-nullable err
+response-body-const-added err
+response-body-contains-added err
+response-body-content-schema-added err
+response-body-dependent-required-added err
+response-body-dependent-schema-added err
+response-body-else-added err
+response-body-exclusive-max-decreased err
+response-body-exclusive-max-set err
+response-body-exclusive-min-increased err
+response-body-exclusive-min-set err
+response-body-if-added err
+response-body-max-contains-decreased err
+response-body-max-contains-set err
+response-body-max-decreased err
+response-body-max-items-decreased err
+response-body-max-items-set err
+response-body-max-length-decreased err
+response-body-max-length-set err
+response-body-max-properties-decreased err
+response-body-max-properties-set err
+response-body-max-set err
+response-body-media-type-item-schema-added err
+response-body-media-type-schema-added err
+response-body-min-contains-increased err
+response-body-min-contains-set err
+response-body-min-increased err
+response-body-min-items-increased err
+response-body-min-items-set err
+response-body-min-length-increased err
+response-body-min-length-set err
+response-body-min-properties-increased err
+response-body-min-properties-set err
+response-body-min-set err
+response-body-multiple-of-set err
+response-body-multiple-of-specialized err
+response-body-one-of-removed err
+response-body-pattern-property-added err
+response-body-property-names-added err
+response-body-then-added err
+response-body-unevaluated-items-added err
+response-body-unevaluated-properties-added err
+response-header-became-not-nullable err
+response-header-exclusive-max-decreased err
+response-header-exclusive-max-set err
+response-header-exclusive-min-increased err
+response-header-exclusive-min-set err
+response-header-max-contains-decreased err
+response-header-max-contains-set err
+response-header-max-decreased err
+response-header-max-items-decreased err
+response-header-max-items-set err
+response-header-max-length-decreased err
+response-header-max-length-set err
+response-header-max-properties-decreased err
+response-header-max-properties-set err
+response-header-max-set err
+response-header-min-contains-increased err
+response-header-min-contains-set err
+response-header-min-increased err
+response-header-min-items-increased err
+response-header-min-items-set err
+response-header-min-length-increased err
+response-header-min-length-set err
+response-header-min-properties-increased err
+response-header-min-properties-set err
+response-header-min-set err
+response-header-multiple-of-set err
+response-mediatype-enum-value-removed err
+response-property-all-of-added err
+response-property-any-of-removed err
+response-property-became-not-nullable err
+response-property-const-added err
+response-property-contains-added err
+response-property-content-schema-added err
+response-property-dependent-required-added err
+response-property-dependent-schema-added err
+response-property-else-added err
+response-property-enum-value-removed err
+response-property-exclusive-max-decreased err
+response-property-exclusive-max-set err
+response-property-exclusive-min-increased err
+response-property-exclusive-min-set err
+response-property-if-added err
+response-property-max-contains-decreased err
+response-property-max-contains-set err
+response-property-max-decreased err
+response-property-max-items-decreased err
+response-property-max-items-set err
+response-property-max-length-decreased err
+response-property-max-length-set err
+response-property-max-properties-decreased err
+response-property-max-properties-set err
+response-property-max-set err
+response-property-min-contains-increased err
+response-property-min-contains-set err
+response-property-min-increased err
+response-property-min-items-increased err
+response-property-min-items-set err
+response-property-min-length-increased err
+response-property-min-length-set err
+response-property-min-properties-increased err
+response-property-min-properties-set err
+response-property-min-set err
+response-property-multiple-of-set err
+response-property-multiple-of-specialized err
+response-property-one-of-removed err
+response-property-pattern-added err
+response-property-pattern-property-added err
+response-property-property-names-added err
+response-property-then-added err
+response-property-unevaluated-items-added err
+response-property-unevaluated-properties-added err
+
+# Kept at info: an element added. New endpoints, operations, optional parameters, properties and
+# headers, new media types and statuses, new security alternatives.
+api-global-security-added info
+api-operation-id-added info
+api-security-added info
+api-security-component-added info
+api-security-component-oauth-scope-added info
+api-tag-added info
+endpoint-added info
+new-optional-request-default-parameter-to-existing-path info
+new-optional-request-parameter info
+new-optional-request-property info
+response-header-added info
+response-media-type-added info
+response-non-success-status-added info
+response-optional-property-added info
+webhook-added info
+
+# Kept at info: a request constraint relaxed. The request accepts more than before: a bound raised or
+# removed, a value or alternative added, a field or body made optional or nullable.
+api-global-security-scope-removed info
+api-security-scope-removed info
+request-body-added-optional info
+request-body-all-of-removed info
+request-body-any-of-added info
+request-body-became-nullable info
+request-body-became-optional info
+request-body-const-removed info
+request-body-contains-removed info
+request-body-content-schema-removed info
+request-body-dependent-required-removed info
+request-body-dependent-schema-removed info
+request-body-else-removed info
+request-body-exclusive-max-increased info
+request-body-exclusive-max-unset info
+request-body-exclusive-min-decreased info
+request-body-exclusive-min-unset info
+request-body-if-removed info
+request-body-max-contains-increased info
+request-body-max-contains-unset info
+request-body-max-increased info
+request-body-max-items-increased info
+request-body-max-items-unset info
+request-body-max-length-increased info
+request-body-max-length-unset info
+request-body-max-properties-increased info
+request-body-max-properties-unset info
+request-body-max-unset info
+request-body-media-type-added info
+request-body-media-type-item-schema-removed info
+request-body-media-type-schema-removed info
+request-body-min-contains-decreased info
+request-body-min-contains-unset info
+request-body-min-decreased info
+request-body-min-items-decreased info
+request-body-min-items-unset info
+request-body-min-length-decreased info
+request-body-min-length-unset info
+request-body-min-properties-decreased info
+request-body-min-properties-unset info
+request-body-min-unset info
+request-body-multiple-of-generalized info
+request-body-multiple-of-unset info
+request-body-one-of-added info
+request-body-pattern-property-removed info
+request-body-property-names-removed info
+request-body-then-removed info
+request-body-unevaluated-items-removed info
+request-body-unevaluated-properties-removed info
+request-body-unique-items-unset info
+request-parameter-became-nullable info
+request-parameter-became-optional info
+request-parameter-enum-value-added info
+request-parameter-exclusive-max-increased info
+request-parameter-exclusive-max-unset info
+request-parameter-exclusive-min-decreased info
+request-parameter-exclusive-min-unset info
+request-parameter-max-contains-increased info
+request-parameter-max-contains-unset info
+request-parameter-max-increased info
+request-parameter-max-items-increased info
+request-parameter-max-items-unset info
+request-parameter-max-length-increased info
+request-parameter-max-length-unset info
+request-parameter-max-properties-increased info
+request-parameter-max-properties-unset info
+request-parameter-max-unset info
+request-parameter-min-contains-decreased info
+request-parameter-min-contains-unset info
+request-parameter-min-decreased info
+request-parameter-min-items-decreased info
+request-parameter-min-items-unset info
+request-parameter-min-length-decreased info
+request-parameter-min-length-unset info
+request-parameter-min-properties-decreased info
+request-parameter-min-properties-unset info
+request-parameter-min-unset info
+request-parameter-multiple-of-unset info
+request-parameter-pattern-generalized info
+request-parameter-pattern-removed info
+request-parameter-property-became-nullable info
+request-parameter-property-enum-value-added info
+request-property-all-of-removed info
+request-property-any-of-added info
+request-property-became-nullable info
+request-property-became-optional info
+request-property-const-removed info
+request-property-contains-removed info
+request-property-content-schema-removed info
+request-property-dependent-required-removed info
+request-property-dependent-schema-removed info
+request-property-else-removed info
+request-property-enum-value-added info
+request-property-exclusive-max-increased info
+request-property-exclusive-max-unset info
+request-property-exclusive-min-decreased info
+request-property-exclusive-min-unset info
+request-property-if-removed info
+request-property-max-contains-increased info
+request-property-max-contains-unset info
+request-property-max-increased info
+request-property-max-items-increased info
+request-property-max-items-unset info
+request-property-max-length-increased info
+request-property-max-length-unset info
+request-property-max-properties-increased info
+request-property-max-properties-unset info
+request-property-max-unset info
+request-property-min-contains-decreased info
+request-property-min-contains-unset info
+request-property-min-decreased info
+request-property-min-items-decreased info
+request-property-min-items-unset info
+request-property-min-length-decreased info
+request-property-min-length-unset info
+request-property-min-properties-decreased info
+request-property-min-properties-unset info
+request-property-min-unset info
+request-property-multiple-of-generalized info
+request-property-multiple-of-unset info
+request-property-one-of-added info
+request-property-pattern-generalized info
+request-property-pattern-property-removed info
+request-property-pattern-removed info
+request-property-property-names-removed info
+request-property-then-removed info
+request-property-unevaluated-items-removed info
+request-property-unevaluated-properties-removed info
+request-property-unique-items-unset info
+
+# Kept at info: documentation, annotations and lifecycle. Deprecating or reactivating an element, and a
+# sub-schema that carries annotations only, change nothing on the wire.
+api-stability-increased info
+endpoint-deprecated info
+endpoint-deprecated-with-sunset info
+endpoint-reactivated info
+request-body-all-of-added-annotation-only info
+request-body-all-of-removed-annotation-only info
+request-parameter-deprecated info
+request-parameter-reactivated info
+request-property-all-of-added-annotation-only info
+request-property-all-of-removed-annotation-only info
+request-property-deprecated info
+request-property-deprecated-with-sunset info
+request-property-reactivated info
+request-property-stability-increased info
+response-body-all-of-added-annotation-only info
+response-body-all-of-removed-annotation-only info
+response-property-all-of-added-annotation-only info
+response-property-all-of-removed-annotation-only info
+response-property-deprecated info
+response-property-deprecated-with-sunset info
+response-property-reactivated info
+response-property-stability-increased info
+
+# Judgement calls: names a generated client is built from. A component schema, an operation id and a tag
+# are not on the wire, but code generators name types, methods and API classes after them, and the
+# contract is what third-party tooling generates from (HLD-admin-api §1). Removing or renaming one fails.
+api-operation-id-removed err
+api-schema-removed err
+api-tag-removed err
+
+# Judgement calls: the document's own version. A break is recorded by its declaration in
+# gradle/accepted-breaks.txt; whether info.version moved with it is review's to judge.
+api-major-version-not-bumped info
+api-version-decreased info
+api-version-not-bumped info
+
+# Judgement calls: response statuses. A documented non-success status removed is a removal, and an
+# instance of the previous release still returns it. A new success status is additive: a client treats an
+# unknown 2xx as success.
+response-non-success-status-removed err
+response-success-status-added info
+
+# Judgement calls: security schemes. A scheme or an OAuth scope removed from the components is a removal,
+# even where nothing references it any more.
+api-security-component-oauth-scope-removed err
+api-security-component-removed err
+
+# Judgement calls: discriminators. Adding one, or a mapping, adds a hint or a subtype; removing one,
+# deleting a mapping, or changing a mapping or the property name changes how existing payloads are typed.
+request-body-discriminator-added info
+request-body-discriminator-mapping-added info
+request-body-discriminator-mapping-changed err
+request-body-discriminator-mapping-deleted err
+request-body-discriminator-property-name-changed err
+request-body-discriminator-removed err
+request-property-discriminator-added info
+request-property-discriminator-mapping-added info
+request-property-discriminator-mapping-changed err
+request-property-discriminator-mapping-deleted err
+request-property-discriminator-property-name-changed err
+request-property-discriminator-removed err
+response-body-discriminator-added info
+response-body-discriminator-mapping-added info
+response-body-discriminator-mapping-changed err
+response-body-discriminator-mapping-deleted err
+response-body-discriminator-property-name-changed err
+response-body-discriminator-removed err
+response-property-discriminator-added info
+response-property-discriminator-mapping-added info
+response-property-discriminator-mapping-changed err
+response-property-discriminator-mapping-deleted err
+response-property-discriminator-property-name-changed err
+response-property-discriminator-removed err
+
+# Judgement calls: readOnly and writeOnly. A read-only property never travels in a request, and a write-only
+# one never in a response: a rule about such a property on that side changes nothing on the wire, and the
+# side the property does travel on reports its own rule. A property that stops travelling on a side is a
+# removal there; one that starts travelling as required is a new obligation or a new required response
+# field.
+request-optional-property-became-not-read-only info
+request-optional-property-became-not-write-only info
+request-optional-property-became-read-only err
+request-optional-property-became-write-only info
+request-read-only-property-enum-value-removed info
+request-read-only-property-exclusive-max-decreased info
+request-read-only-property-exclusive-min-increased info
+request-read-only-property-max-decreased info
+request-read-only-property-max-items-decreased info
+request-read-only-property-max-length-decreased info
+request-read-only-property-max-properties-decreased info
+request-read-only-property-min-increased info
+request-required-property-became-not-read-only err
+request-required-property-became-not-write-only info
+request-required-property-became-read-only err
+request-required-property-became-write-only info
+response-optional-property-became-not-read-only info
+response-optional-property-became-not-write-only info
+response-optional-property-became-read-only info
+response-optional-property-became-write-only err
+response-optional-write-only-property-added info
+response-optional-write-only-property-removed info
+response-required-property-became-not-read-only info
+response-required-property-became-not-write-only err
+response-required-property-became-read-only info
+response-required-property-became-write-only err
+response-required-write-only-property-added info
+response-required-write-only-property-removed info
+response-write-only-property-became-optional info
+response-write-only-property-became-required info
+response-write-only-property-enum-value-added info
+
+# Judgement calls: a schema that is no longer the boolean `false`. Nothing could be sent before, so the
+# element is new rather than retyped.
+request-body-schema-became-not-false info
+request-parameter-property-schema-became-not-false info
+request-parameter-schema-became-not-false info
+request-property-schema-became-not-false info
+response-body-schema-became-not-false info

@@ -1,0 +1,3 @@
+# WorkerInfo.lastHeartbeat, an optional response property, removed.
+verdict fail
+undeclared finding 3728878b3d70: ERR response-optional-property-removed at GET /relay/workers: removed the optional property `items/lastHeartbeat` from the response with the `200` status

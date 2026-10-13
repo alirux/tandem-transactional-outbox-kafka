@@ -1,0 +1,9 @@
+# The default of an existing element of each kind changed: the query parameter limit (50 to 100), the request
+# property ReplayRequest.dryRun, and, from this case's baseline, the request body DiscardRequest, the response
+# property OutboxSummary.counts.PENDING and the response body of GET /relay/workers.
+verdict fail
+undeclared finding e01fe03fe989: ERR request-parameter-default-value-changed at GET /outbox/messages: for the `query` request parameter `limit`, default value was changed from `50.00` to `100.00`
+undeclared finding 379be7987182: ERR request-body-default-value-changed at POST /outbox/messages/{id}/discard: the request body `application/json` default value changed from `map[acknowledgeOrderingBreak:false]` to `map[acknowledgeOrderingBreak:true]`
+undeclared finding 1efbe3d12bd1: ERR request-property-default-value-changed at POST /outbox/replay: the `dryRun` request property default value changed from `false` to `true`
+undeclared finding 93a8239cb47d: ERR response-property-default-value-changed at GET /outbox/summary: the `PENDING` response's property default value changed from `0.00` to `1.00` for the status `200`
+undeclared finding 2ff47d7c8766: ERR response-body-default-value-changed at GET /relay/workers: the response body `application/json` default value changed from `[]` to `[map[bucketCount:0 workerId:relay-1]]` for the status `200`

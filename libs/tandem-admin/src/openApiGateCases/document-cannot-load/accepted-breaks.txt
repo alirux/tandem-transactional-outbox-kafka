@@ -1,0 +1,3 @@
+# Declarations of this case, read as gradle/accepted-breaks.txt is.
+baseline frozen
+openapi | tandem-admin | finding 897e924ade7d | aggregateId is required.

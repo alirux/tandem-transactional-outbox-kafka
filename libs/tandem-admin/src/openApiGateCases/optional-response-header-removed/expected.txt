@@ -1,0 +1,4 @@
+# The optional response header X-Tandem-Instance of GET /relay/status, present in this case's baseline,
+# removed.
+verdict fail
+undeclared finding 53b1b6c07ee1: ERR optional-response-header-removed at GET /relay/status: the optional response header `x-tandem-instance` removed for the status `200`

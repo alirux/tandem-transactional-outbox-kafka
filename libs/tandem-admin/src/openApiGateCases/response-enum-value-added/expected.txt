@@ -1,0 +1,2 @@
+# RelayStatus.state, an enum of responses only, gains STOPPING: tolerant readers accept a new value.
+verdict pass

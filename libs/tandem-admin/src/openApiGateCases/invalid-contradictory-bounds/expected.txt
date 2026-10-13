@@ -1,0 +1,4 @@
+# The query parameter aggregateId with a minLength above its maxLength. Run without a baseline.
+baseline none
+verdict fail
+invalid min-length-exceeds-max-length: minLength 10 is greater than maxLength 1, so no value can validate
