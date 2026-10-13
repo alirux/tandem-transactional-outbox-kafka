@@ -17,19 +17,17 @@ import java.util.regex.Pattern;
  * {@code type} slugs, and the servers a client calls. Both documents are read as oasdiff loads them, a JSON
  * tree of maps, lists and scalars.
  *
- * <p>A slug of the baseline must still appear in some string of the current document. Servers are compared
- * where they are declared: the document's, else OpenAPI's default {@code /}, and those of every path and
- * operation that declares its own in either document and is present in both. At each such level the
- * effective servers are matched by their literal URL template: each baseline template must remain, every
- * variable it references must keep its default, and an enum may grow, but not lose a value nor appear on a
- * variable that had none. A level that inherits its servers in both documents is covered by the level it
- * inherits from, so a change is reported once per definition, not once per operation that uses it.
+ * <p>A slug of the baseline must still appear in some string of the current document. The document's servers,
+ * else OpenAPI's default {@code /}, are matched by their literal URL template: each baseline template must
+ * remain, every variable it references must keep its default, and an enum may grow, but not lose a value nor
+ * appear on a variable that had none. Servers are compared at the document level only, so a path or an
+ * operation that declares servers of its own is refused rather than compared ({@link #overrides}).
  */
 public final class FrozenNames {
 
     /** The item of a problem type, followed by its slug. */
     public static final String PROBLEM_TYPE = "problem-type ";
-    /** The item of a server definition, followed by its level and template. */
+    /** The item of a server, followed by its template. */
     public static final String SERVER = "server ";
 
     static final Pattern PROBLEM_TYPE_URL =
@@ -44,41 +42,35 @@ public final class FrozenNames {
 
     /**
      * Every frozen name of {@code baseline} that {@code current} lost or changed, as item and what changed,
-     * in a stable order: slugs first, then the document's servers, then each path and operation.
+     * in a stable order: slugs first, then servers.
      */
     public static Map<String, String> compare(Map<?, ?> baseline, Map<?, ?> current) {
         Map<String, String> found = new LinkedHashMap<>();
         Set<String> currentSlugs = slugs(current);
         slugs(baseline).stream().filter(slug -> !currentSlugs.contains(slug))
                 .forEach(slug -> found.put(PROBLEM_TYPE + slug, "no longer appears in the document"));
-        List<?> baselineDocument = effective(baseline, DEFAULT_SERVERS);
-        List<?> currentDocument = effective(current, DEFAULT_SERVERS);
-        compareServers("document", baselineDocument, currentDocument, found);
-        Map<?, ?> currentPaths = map(current.get("paths"));
-        map(baseline.get("paths")).forEach((path, baselineItem) -> {
-            if (!currentPaths.containsKey(path)) {
-                return;
-            }
-            Map<?, ?> baselinePath = map(baselineItem);
-            Map<?, ?> currentPath = map(currentPaths.get(path));
-            List<?> baselinePathServers = effective(baselinePath, baselineDocument);
-            List<?> currentPathServers = effective(currentPath, currentDocument);
-            if (declares(baselinePath) || declares(currentPath)) {
-                compareServers("path " + path, baselinePathServers, currentPathServers, found);
+        compareServers(servers(baseline), servers(current), found);
+        return found;
+    }
+
+    /**
+     * The paths ({@code path <path>}) and operations ({@code operation <METHOD> <path>}) of a document that
+     * declare servers of their own, which the gate does not compare.
+     */
+    public static List<String> overrides(Map<?, ?> document) {
+        List<String> overrides = new ArrayList<>();
+        map(document.get("paths")).forEach((path, item) -> {
+            Map<?, ?> pathItem = map(item);
+            if (declares(pathItem)) {
+                overrides.add("path " + path);
             }
             for (String method : METHODS) {
-                if (baselinePath.containsKey(method) && currentPath.containsKey(method)) {
-                    Map<?, ?> baselineOperation = map(baselinePath.get(method));
-                    Map<?, ?> currentOperation = map(currentPath.get(method));
-                    if (declares(baselineOperation) || declares(currentOperation)) {
-                        compareServers("operation " + method.toUpperCase(Locale.ROOT) + " " + path,
-                                effective(baselineOperation, baselinePathServers),
-                                effective(currentOperation, currentPathServers), found);
-                    }
+                if (declares(map(pathItem.get(method)))) {
+                    overrides.add("operation " + method.toUpperCase(Locale.ROOT) + " " + path);
                 }
             }
         });
-        return found;
+        return overrides;
     }
 
     /** The slugs of every problem type URL in the strings of a document. */
@@ -101,7 +93,7 @@ public final class FrozenNames {
         }
     }
 
-    private static void compareServers(String level, List<?> baseline, List<?> current, Map<String, String> found) {
+    private static void compareServers(List<?> baseline, List<?> current, Map<String, String> found) {
         Map<String, Map<?, ?>> currentByTemplate = new LinkedHashMap<>();
         current.forEach(server -> currentByTemplate.putIfAbsent(url(server), map(server)));
         Set<String> compared = new LinkedHashSet<>();
@@ -115,7 +107,7 @@ public final class FrozenNames {
                     ? List.of("no longer offered, the servers are " + String.join(", ", currentByTemplate.keySet()))
                     : variableChanges(template, map(server), kept);
             if (!changes.isEmpty()) {
-                found.put(SERVER + level + " " + template, String.join("; ", changes));
+                found.put(SERVER + template, String.join("; ", changes));
             }
         }
     }
@@ -150,9 +142,9 @@ public final class FrozenNames {
         return changes;
     }
 
-    /** A level's own servers when it declares any, else those it inherits. */
-    private static List<?> effective(Map<?, ?> level, List<?> inherited) {
-        return declares(level) ? (List<?>) level.get("servers") : inherited;
+    /** The document's servers, else OpenAPI's default. */
+    private static List<?> servers(Map<?, ?> document) {
+        return declares(document) ? (List<?>) document.get("servers") : DEFAULT_SERVERS;
     }
 
     private static boolean declares(Map<?, ?> level) {

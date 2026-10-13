@@ -13,7 +13,7 @@ class FrozenNamesTest {
     private static final String BASE_PATH = "/tandem/admin";
     private static final String STATUS = "/relay/status";
     private static final String WORKERS = "/relay/workers";
-    private static final String DOCUMENT_SERVER = FrozenNames.SERVER + "document " + TEMPLATE;
+    private static final String DOCUMENT_SERVER = FrozenNames.SERVER + TEMPLATE;
     private static final String PROBLEMS = "https://tandem.codingful.com/problems/";
 
     private static Map<String, Object> server(String url, Map<String, Object> variables) {
@@ -116,64 +116,19 @@ class FrozenNamesTest {
         assertThat(FrozenNames.compare(plain(null), plain(List.of())))
                 .as("an empty list is OpenAPI's default too").isEmpty();
         assertThat(FrozenNames.compare(plain(null), plain(List.of(V1)))).containsExactly(Map.entry(
-                FrozenNames.SERVER + "document /", "no longer offered, the servers are " + TEMPLATE));
+                FrozenNames.SERVER + "/", "no longer offered, the servers are " + TEMPLATE));
     }
 
     @Test
-    void GIVEN_an_operation_overriding_its_servers_WHEN_it_loses_a_template_THEN_that_operation_alone_is_reported() {
-        Map<String, Object> current = document(List.of(V1),
-                Map.of("get", operation(Map.of("url", "/status/v1")), "post", operation()), Map.of("get", operation()));
-
-        assertThat(FrozenNames.compare(plain(List.of(V1)), current)).containsExactly(Map.entry(
-                FrozenNames.SERVER + "operation GET " + STATUS + " " + TEMPLATE,
-                "no longer offered, the servers are /status/v1"));
-    }
-
-    @Test
-    void GIVEN_an_override_keeping_the_inherited_template_WHEN_it_keeps_or_changes_its_default_THEN_only_a_change_is_reported() {
-        Map<String, Object> keeping = document(List.of(V1),
-                Map.of("get", operation(V1, FIXED), "post", operation()), Map.of("get", operation()));
-        Map<String, Object> changing = document(List.of(V1),
-                Map.of("get", operation(server(TEMPLATE, basePath("/status", null))), "post", operation()),
-                Map.of("get", operation()));
-
-        assertThat(FrozenNames.compare(plain(List.of(V1)), keeping)).isEmpty();
-        assertThat(FrozenNames.compare(plain(List.of(V1)), changing)).containsExactly(Map.entry(
-                FrozenNames.SERVER + "operation GET " + STATUS + " " + TEMPLATE, "basePath default /tandem/admin, now /status"));
-    }
-
-    @Test
-    void GIVEN_a_path_overriding_its_servers_WHEN_it_loses_a_template_THEN_the_path_is_reported_not_its_operations() {
-        Map<String, Object> workers = new LinkedHashMap<>(Map.of("get", operation()));
-        workers.put("servers", List.of(Map.of("url", "/workers/v1")));
-        Map<String, Object> current = document(List.of(V1), Map.of("get", operation(), "post", operation()), workers);
-
-        assertThat(FrozenNames.compare(plain(List.of(V1)), current)).containsExactly(Map.entry(
-                FrozenNames.SERVER + "path " + WORKERS + " " + TEMPLATE, "no longer offered, the servers are /workers/v1"));
-    }
-
-    @Test
-    void GIVEN_a_path_definition_of_the_baseline_WHEN_it_now_inherits_the_same_servers_THEN_nothing_is_reported() {
+    void GIVEN_paths_and_operations_declaring_servers_WHEN_listed_THEN_each_is_named_by_its_level() {
         Map<String, Object> workers = new LinkedHashMap<>(Map.of("get", operation()));
         workers.put("servers", List.of(V1));
-        Map<String, Object> baseline = document(List.of(V1), Map.of("get", operation(), "post", operation()), workers);
+        Map<String, Object> overriding = document(List.of(V1),
+                Map.of("get", operation(FIXED), "post", operation()), workers);
 
-        assertThat(FrozenNames.compare(baseline, plain(List.of(V1)))).isEmpty();
-        assertThat(FrozenNames.compare(baseline, plain(List.of(FIXED)))).containsOnlyKeys(DOCUMENT_SERVER,
-                FrozenNames.SERVER + "path " + WORKERS + " " + TEMPLATE);
-    }
-
-    @Test
-    void GIVEN_an_operation_definition_of_the_baseline_WHEN_it_now_inherits_THEN_only_a_change_of_servers_is_reported() {
-        Map<String, Object> baseline = document(List.of(V1), Map.of("get", operation(V1), "post", operation()),
-                Map.of("get", operation()));
-        Map<String, Object> elsewhere = document(List.of(V1),
-                Map.of("get", operation(), "post", operation()), Map.of("get", operation()));
-        elsewhere.put("servers", List.of(FIXED));
-
-        assertThat(FrozenNames.compare(baseline, plain(List.of(V1)))).isEmpty();
-        assertThat(FrozenNames.compare(baseline, elsewhere)).containsOnlyKeys(DOCUMENT_SERVER,
-                FrozenNames.SERVER + "operation GET " + STATUS + " " + TEMPLATE);
+        assertThat(FrozenNames.overrides(plain(List.of(V1)))).isEmpty();
+        assertThat(FrozenNames.overrides(overriding)).containsExactlyInAnyOrder("operation GET " + STATUS,
+                "path " + WORKERS);
     }
 
     @Test
@@ -182,15 +137,5 @@ class FrozenNamesTest {
 
         assertThat(FrozenNames.compare(plain(List.of(V1, other)), plain(List.of(V1)))).isEmpty();
         assertThat(FrozenNames.compare(plain(List.of(other, V1)), plain(List.of(V1)))).containsOnlyKeys(DOCUMENT_SERVER);
-    }
-
-    @Test
-    void GIVEN_paths_and_operations_removed_WHEN_compared_THEN_their_servers_are_not_reported_again() {
-        Map<String, Object> baseline = document(List.of(V1),
-                Map.of("get", operation(FIXED), "post", operation()), Map.of("get", operation(FIXED)));
-        Map<String, Object> current = new LinkedHashMap<>(Map.of("servers", List.of(V1),
-                "paths", Map.of(STATUS, Map.of("post", operation()))));
-
-        assertThat(FrozenNames.compare(baseline, current)).isEmpty();
     }
 }

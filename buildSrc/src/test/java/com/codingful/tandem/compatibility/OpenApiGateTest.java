@@ -153,12 +153,12 @@ class OpenApiGateTest {
     @Test
     void GIVEN_a_declaration_matching_nothing_reported_WHEN_judged_THEN_it_fails_as_stale() {
         DeclaredBreaks.Entry finding = declared(OpenApiGate.FINDING + REQUIRED_ID);
-        DeclaredBreaks.Entry server = declared(FrozenNames.SERVER + "document " + TEMPLATE);
+        DeclaredBreaks.Entry server = declared(FrozenNames.SERVER + TEMPLATE);
 
         OpenApiGate.Outcome outcome = OpenApiGate.judge(VALID, comparing(NO_BREAK), List.of(finding, server));
 
         assertThat(outcome.passed()).isFalse();
-        assertThat(lines(outcome)).containsExactly("stale finding " + REQUIRED_ID, "stale server document " + TEMPLATE);
+        assertThat(lines(outcome)).containsExactly("stale finding " + REQUIRED_ID, "stale server " + TEMPLATE);
         assertThat(outcome.stale()).containsExactly(finding, server);
     }
 
@@ -233,15 +233,31 @@ class OpenApiGateTest {
     @Test
     void GIVEN_frozen_names_lost_WHEN_judged_THEN_each_fails_unless_its_item_is_declared() {
         OasdiffRun current = document("document", "/other/admin", "resource-not-found");
-        DeclaredBreaks.Entry server = declared(FrozenNames.SERVER + "document " + TEMPLATE);
+        DeclaredBreaks.Entry server = declared(FrozenNames.SERVER + TEMPLATE);
 
         OpenApiGate.Outcome outcome = OpenApiGate.judge(VALID,
                 new OpenApiGate.Comparison(NO_BREAK, BASELINE_DOCUMENT, current), List.of(server));
 
         assertThat(lines(outcome)).containsExactly(
                 "undeclared problem-type " + NOT_FOUND + ": no longer appears in the document",
-                "accepted server document " + TEMPLATE + ": basePath default /tandem/admin, now /other/admin");
+                "accepted server " + TEMPLATE + ": basePath default /tandem/admin, now /other/admin");
         assertThat(outcome.accepted()).containsExactly(server);
+    }
+
+    @Test
+    void GIVEN_an_operation_declaring_servers_of_its_own_WHEN_judged_THEN_it_is_invalid_whatever_is_declared() {
+        OasdiffRun current = new OasdiffRun("document", 0, JsonOutput.toJson(Map.of(
+                "servers", List.of(Map.of("url", TEMPLATE, "variables", Map.of("basePath",
+                        Map.of("default", "/tandem/admin")))),
+                "paths", Map.of(MESSAGES, Map.of("get", Map.of("servers", List.of(Map.of("url", "/messages/v1"))))),
+                "info", Map.of("description", "https://tandem.codingful.com/problems/" + NOT_FOUND))), "");
+
+        OpenApiGate.Outcome outcome = OpenApiGate.judge(VALID,
+                new OpenApiGate.Comparison(NO_BREAK, BASELINE_DOCUMENT, current), List.of());
+
+        assertThat(outcome.passed()).isFalse();
+        assertThat(outcome.lines()).extracting(OpenApiGate.Line::identity)
+                .containsExactly("invalid " + OpenApiGate.SERVER_OVERRIDE + "operation GET " + MESSAGES);
     }
 
     @Test

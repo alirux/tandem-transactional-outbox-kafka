@@ -30,6 +30,8 @@ public final class OpenApiGate {
     public static final String GATE = "openapi";
     /** The one module that runs it. */
     public static final String MODULE = "tandem-admin";
+    /** The item of a path or an operation declaring servers of its own, followed by its level. */
+    public static final String SERVER_OVERRIDE = "server-override ";
     /** The item of a compatibility finding, followed by its fingerprint. */
     public static final String FINDING = "finding ";
 
@@ -218,8 +220,15 @@ public final class OpenApiGate {
         List<Line> errors = new ArrayList<>();
         Map<?, ?> baselineDocument = document(baseline, errors);
         Map<?, ?> currentDocument = document(current, errors);
-        return errors.isEmpty() ? new Reported(FrozenNames.compare(baselineDocument, currentDocument), List.of())
-                : new Reported(Map.of(), errors);
+        if (!errors.isEmpty()) {
+            return new Reported(Map.of(), errors);
+        }
+        // Servers are compared at the document level only: an override would escape the comparison (§6.3).
+        List<Line> overrides = FrozenNames.overrides(currentDocument).stream()
+                .map(level -> new Line(Kind.INVALID, SERVER_OVERRIDE + level, "declares servers of its own, which the "
+                        + "gate does not compare: declare servers at the document level only"))
+                .toList();
+        return new Reported(FrozenNames.compare(baselineDocument, currentDocument), overrides);
     }
 
     private static Map<?, ?> document(OasdiffRun run, List<Line> errors) {

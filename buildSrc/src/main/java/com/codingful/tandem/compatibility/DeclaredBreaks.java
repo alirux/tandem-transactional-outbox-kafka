@@ -28,7 +28,7 @@ public final class DeclaredBreaks {
     public static final String PATH = "gradle/accepted-breaks.txt";
 
     /** The gate kinds an entry may name, one per gate that compares with the baseline (§3, rule 3). */
-    public static final Set<String> GATES = Set.of("japicmp", "interface-kind", "spring-metadata", "bom", "openapi",
+    public static final Set<String> GATES = Set.of("japicmp", "spring-metadata", "bom", "openapi",
             "schema-compatibility");
 
     /** {@code baseline <release>}, or {@code baseline} alone while {@code tandemBaseline} is empty. */

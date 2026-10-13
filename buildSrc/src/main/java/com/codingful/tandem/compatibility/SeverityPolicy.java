@@ -5,12 +5,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -18,9 +16,9 @@ import org.gradle.api.GradleException;
 
 /**
  * Tandem's compatibility policy for the Admin API, {@code gradle/oasdiff-severity-levels.txt}: the level of
- * each oasdiff rule, grouped under comments (LLD-api-stability §6.2). oasdiff rejects a comment or a blank
- * line, so it reads {@link #oasdiffFile()}, the rules alone. The file must give a level to every rule the
- * pinned image classes as {@code info}, and name no rule the image does not have.
+ * each oasdiff rule Tandem sets apart from upstream, grouped under comments (LLD-api-stability §6.2), and the
+ * image the file was reviewed against, {@code reviewed-with <image>}. oasdiff rejects a comment or a blank
+ * line, so it reads {@link #oasdiffFile()}, the rules alone.
  */
 public final class SeverityPolicy {
 
@@ -30,11 +28,14 @@ public final class SeverityPolicy {
     /** The levels a line may set: oasdiff accepts {@code none} too, which would hide a rule altogether. */
     static final Set<String> LEVELS = Set.of("err", "warn", "info");
 
+    private static final Pattern REVIEWED_WITH = Pattern.compile("reviewed-with\\s+(\\S+)");
     private static final Pattern RULE = Pattern.compile("([a-z0-9]+(?:-[a-z0-9]+)*)\\s+(\\S+)");
 
+    private final String reviewedWith;
     private final Map<String, String> levels;
 
-    private SeverityPolicy(Map<String, String> levels) {
+    private SeverityPolicy(String reviewedWith, Map<String, String> levels) {
+        this.reviewedWith = reviewedWith;
         this.levels = levels;
     }
 
@@ -47,16 +48,27 @@ public final class SeverityPolicy {
     }
 
     /**
-     * Reads comment and blank lines, and one {@code <rule-id> <level>} line per rule.
+     * Reads comment and blank lines, one {@code reviewed-with <image>} line, and one {@code <rule-id> <level>}
+     * line per rule.
      *
-     * @throws GradleException naming the line that is neither, sets another level, or repeats a rule
+     * @throws GradleException naming the line that is neither, sets another level, or repeats a rule or the
+     *                         reviewed-with line; or when the reviewed-with line is missing
      */
     public static SeverityPolicy parse(String text) {
+        String reviewedWith = null;
         Map<String, String> levels = new LinkedHashMap<>();
         String[] lines = text.split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].strip();
             if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            Matcher reviewed = REVIEWED_WITH.matcher(line);
+            if (reviewed.matches()) {
+                if (reviewedWith != null) {
+                    throw invalid(i + 1, "repeats the reviewed-with line");
+                }
+                reviewedWith = reviewed.group(1);
                 continue;
             }
             Matcher rule = RULE.matcher(line);
@@ -70,7 +82,10 @@ public final class SeverityPolicy {
                 throw invalid(i + 1, "repeats the rule " + rule.group(1));
             }
         }
-        return new SeverityPolicy(levels);
+        if (reviewedWith == null) {
+            throw new GradleException(PATH + " has no 'reviewed-with <image>' line (LLD-api-stability §6.2)");
+        }
+        return new SeverityPolicy(reviewedWith, levels);
     }
 
     private static GradleException invalid(int line, String what) {
@@ -84,55 +99,16 @@ public final class SeverityPolicy {
     }
 
     /**
-     * What keeps the file from covering the catalog: a rule the catalog classes as {@code info} that the file
-     * does not list, and a rule the file lists that the catalog does not have.
+     * What keeps the file from applying to the pinned image: it was reviewed against another one, whose new
+     * {@code info} rules nobody has classified yet.
      *
-     * @param catalog every rule of the pinned image, with its upstream level
+     * @param image the pinned image reference, by tag and digest
      */
-    public List<String> problems(Map<String, String> catalog) {
-        List<String> problems = new ArrayList<>();
-        catalog.forEach((rule, level) -> {
-            if (level.equals("info") && !levels.containsKey(rule)) {
-                problems.add(rule + " is info in the pinned oasdiff image and has no line: add '" + rule
-                        + " err' or '" + rule + " info' under the group of the contract rule it falls in");
-            }
-        });
-        levels.keySet().stream().filter(rule -> !catalog.containsKey(rule)).forEach(rule ->
-                problems.add(rule + " is not a rule of the pinned oasdiff image: remove its line"));
-        return problems;
-    }
-
-    /**
-     * The rules of {@code oasdiff checks changelog --format json}, each with its upstream level.
-     *
-     * @throws GradleException when the run failed or printed something else
-     */
-    public static Map<String, String> catalog(OasdiffRun checks) {
-        if (checks.exitCode() != 0) {
-            throw new GradleException("oasdiff " + checks.command() + " failed with exit code " + checks.exitCode()
-                    + ": " + checks.stderr().strip());
-        }
-        Map<String, String> catalog = new TreeMap<>();
-        Object json;
-        try {
-            json = OpenApiGate.json(checks);
-        } catch (IllegalArgumentException e) {
-            throw new GradleException("oasdiff " + checks.command() + ": " + e.getMessage(), e);
-        }
-        if (json instanceof List<?> rules) {
-            for (Object rule : rules) {
-                // A rule the task cannot read would escape the completeness check.
-                if (!(rule instanceof Map<?, ?> map && map.get("id") instanceof String id
-                        && map.get("level") instanceof String level)) {
-                    throw new GradleException("oasdiff " + checks.command() + " printed an element that is not a rule: "
-                            + rule);
-                }
-                catalog.put(id, level);
-            }
-        }
-        if (catalog.isEmpty()) {
-            throw new GradleException("oasdiff " + checks.command() + " printed no rule: " + checks.stdout().strip());
-        }
-        return catalog;
+    public List<String> problems(String image) {
+        String tag = image.split("@", 2)[0];
+        return tag.equals(reviewedWith) ? List.of()
+                : List.of(PATH + " was reviewed with " + reviewedWith + ", but the version catalog pins " + tag
+                        + ": classify the info rules the new image adds, with the command in the file's header, "
+                        + "then move its reviewed-with line");
     }
 }

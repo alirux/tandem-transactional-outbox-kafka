@@ -3,47 +3,32 @@ package com.codingful.tandem.compatibility;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import groovy.json.JsonOutput;
-import java.util.List;
 import java.util.Map;
 import org.gradle.api.GradleException;
 import org.junit.jupiter.api.Test;
 
 class SeverityPolicyTest {
 
-    private static final String DEFAULT_CHANGED = "request-parameter-default-value-changed";
-    private static final String OPTIONAL_REMOVED = "response-optional-property-removed";
-    private static final String ENDPOINT_ADDED = "endpoint-added";
-    private static final String ENUM_VALUE_ADDED = "response-property-enum-value-added";
-    private static final String BECAME_REQUIRED = "request-parameter-became-required";
-
-    /** A catalog of four rules: three at info upstream, one error. */
-    private static final Map<String, String> CATALOG = Map.of(DEFAULT_CHANGED, "info", OPTIONAL_REMOVED, "info",
-            ENDPOINT_ADDED, "info", ENUM_VALUE_ADDED, "error", BECAME_REQUIRED, "error");
+    private static final String IMAGE = "tufin/oasdiff:v1.33.0";
 
     private static final String POLICY = """
             # Tandem's policy.
+            reviewed-with tufin/oasdiff:v1.33.0
 
             # A default changes.
             request-parameter-default-value-changed err
               # A published element is removed.
             response-optional-property-removed   err
 
-            # Compatible.
-            endpoint-added info
+            # Lowered.
             response-property-enum-value-added info
             """;
-
-    private static OasdiffRun checks(int exitCode, String stdout) {
-        return new OasdiffRun("catalog", exitCode, stdout, "Error: something");
-    }
 
     @Test
     void GIVEN_a_policy_with_comments_and_blank_lines_WHEN_handed_to_oasdiff_THEN_only_its_rules_remain_in_order() {
         assertThat(SeverityPolicy.parse(POLICY).oasdiffFile()).isEqualTo("""
                 request-parameter-default-value-changed err
                 response-optional-property-removed err
-                endpoint-added info
                 response-property-enum-value-added info
                 """);
         assertThat(SeverityPolicy.parse(POLICY.replace("\n", "\r\n")).oasdiffFile())
@@ -57,44 +42,25 @@ class SeverityPolicyTest {
                 "endpoint-added info # compatible", "is not '<rule-id> <level>'",
                 "endpoint-added error", "sets the level 'error'",
                 "endpoint-added none", "sets the level 'none'",
-                "endpoint-added info\nendpoint-added err", "repeats the rule endpoint-added");
+                "endpoint-added info\nendpoint-added err", "repeats the rule endpoint-added",
+                "reviewed-with tufin/oasdiff:v1.34.0", "repeats the reviewed-with line");
 
-        invalid.forEach((text, problem) -> assertThatThrownBy(() -> SeverityPolicy.parse("# Policy.\n" + text))
+        invalid.forEach((text, problem) -> assertThatThrownBy(() -> SeverityPolicy.parse(POLICY + text))
                 .as(text).isInstanceOf(GradleException.class)
                 .hasMessageContaining(SeverityPolicy.PATH + " line ").hasMessageContaining(problem));
+        assertThatThrownBy(() -> SeverityPolicy.parse("endpoint-added info\n")).isInstanceOf(GradleException.class)
+                .hasMessageContaining("reviewed-with");
     }
 
     @Test
-    void GIVEN_a_policy_classifying_every_info_rule_WHEN_checked_against_the_catalog_THEN_nothing_is_missing() {
-        assertThat(SeverityPolicy.parse(POLICY).problems(CATALOG)).isEmpty();
+    void GIVEN_the_image_the_file_was_reviewed_with_WHEN_checked_THEN_it_applies_whatever_the_digest() {
+        assertThat(SeverityPolicy.parse(POLICY).problems(IMAGE + "@sha256:6263a96d")).isEmpty();
+        assertThat(SeverityPolicy.parse(POLICY).problems(IMAGE)).isEmpty();
     }
 
     @Test
-    void GIVEN_an_info_rule_without_a_line_and_a_line_for_no_rule_WHEN_checked_THEN_both_are_named() {
-        SeverityPolicy policy = SeverityPolicy.parse(POLICY.replace("endpoint-added info\n", "endpoint-removed err\n"));
-
-        assertThat(policy.problems(CATALOG)).containsExactlyInAnyOrder(
-                ENDPOINT_ADDED + " is info in the pinned oasdiff image and has no line: add '" + ENDPOINT_ADDED + " err' or '"
-                        + ENDPOINT_ADDED + " info' under the group of the contract rule it falls in",
-                "endpoint-removed is not a rule of the pinned oasdiff image: remove its line");
-    }
-
-    @Test
-    void GIVEN_the_catalog_oasdiff_prints_WHEN_read_THEN_each_rule_has_its_upstream_level() {
-        String json = JsonOutput.toJson(List.of(
-                Map.of("id", ENDPOINT_ADDED, "level", "info", "description", "endpoint added"),
-                Map.of("id", BECAME_REQUIRED, "level", "error", "description", "parameter became required")));
-
-        assertThat(SeverityPolicy.catalog(checks(0, json)))
-                .containsExactly(Map.entry(ENDPOINT_ADDED, "info"), Map.entry(BECAME_REQUIRED, "error"));
-    }
-
-    @Test
-    void GIVEN_a_catalog_run_that_failed_or_printed_no_rule_WHEN_read_THEN_the_build_fails() {
-        for (OasdiffRun run : List.of(checks(2, ""), checks(0, "not json"), checks(0, "[]"), checks(0, "{}"),
-                checks(0, "[{\"id\": \"endpoint-added\"}]"), checks(0, "[\"endpoint-added\"]"), checks(0, "[{\"level\": \"info\"}]"))) {
-            assertThatThrownBy(() -> SeverityPolicy.catalog(run)).as(run.toString())
-                    .isInstanceOf(GradleException.class).hasMessageContaining("oasdiff catalog");
-        }
+    void GIVEN_another_pinned_image_WHEN_checked_THEN_the_file_asks_for_a_review_naming_both() {
+        assertThat(SeverityPolicy.parse(POLICY).problems("tufin/oasdiff:v1.34.0@sha256:0000")).singleElement()
+                .asString().contains("reviewed with " + IMAGE).contains("pins tufin/oasdiff:v1.34.0");
     }
 }

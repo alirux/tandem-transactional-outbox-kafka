@@ -251,7 +251,7 @@ subprojects {
     // (LLD-api-stability §2.2, §4). Each gate joins `check` and checkCompatibility as it is registered.
     if (name in libraryModules) {
         CompatibilityBaseline.registerLibrary(project)
-        val interfaceKinds = CheckInterfaceKinds.register(project, libraryModules)
+        val interfaceKinds = CheckInterfaceKinds.register(project)
         CheckJavaApi.register(project, libraryModules, interfaceKinds)
         if (name in springMetadataModules) {
             CheckSpringMetadata.register(project, springMetadataModules)

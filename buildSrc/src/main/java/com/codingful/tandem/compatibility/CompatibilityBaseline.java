@@ -34,7 +34,6 @@ public final class CompatibilityBaseline {
 
     public static final String BOM = "compatibilityBaselineBom";
     public static final String ARCHIVE = "compatibilityBaselineArchive";
-    public static final String SOURCES = "compatibilityBaselineSources";
     public static final String CLASSPATH = "compatibilityBaselineClasspath";
 
     /** The root task that runs every gate reading the baseline (§9.2); the root build registers it. */
@@ -45,7 +44,7 @@ public final class CompatibilityBaseline {
      * included. The root build exempts them by name from the substitution of the working tree for Tandem's
      * coordinates (§2.2).
      */
-    public static final Set<String> CONFIGURATIONS = Set.of(BOM, ARCHIVE, SOURCES, CLASSPATH,
+    public static final Set<String> CONFIGURATIONS = Set.of(BOM, ARCHIVE, CLASSPATH,
             SchemaCompatTest.COMPILE_CLASSPATH, SchemaCompatTest.RUNTIME_CLASSPATH);
 
     private final Project project;
@@ -70,7 +69,7 @@ public final class CompatibilityBaseline {
     }
 
     /**
-     * Adds the four baseline configurations of LLD-api-stability §2.2 to a published library module, and
+     * Adds the three baseline configurations of LLD-api-stability §2.2 to a published library module, and
      * returns the baseline as that module sees it.
      */
     public static CompatibilityBaseline registerLibrary(Project project) {
@@ -78,8 +77,6 @@ public final class CompatibilityBaseline {
         String module = project.getName();
         baseline.resolvable(ARCHIVE, "The module's jar at the baseline release.").setTransitive(false);
         baseline.dependOnBaseline(ARCHIVE, module + ":" + baseline.version + "@jar");
-        baseline.resolvable(SOURCES, "The module's sources jar at the baseline release.").setTransitive(false);
-        baseline.dependOnBaseline(SOURCES, module + ":" + baseline.version + ":sources@jar");
         Configuration classpath = baseline.resolvable(CLASSPATH,
                 "The module at the baseline release, with its runtime dependencies.");
         ObjectFactory objects = project.getObjects();

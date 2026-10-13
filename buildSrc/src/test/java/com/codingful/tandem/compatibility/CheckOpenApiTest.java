@@ -18,7 +18,7 @@ class CheckOpenApiTest {
 
     @Test
     void GIVEN_an_undeclared_break_and_a_stale_declaration_WHEN_the_gate_fails_THEN_it_says_how_to_declare_and_what_to_remove() {
-        String server = FrozenNames.SERVER + "document https://admin.example.com:8443/v1";
+        String server = FrozenNames.SERVER + "https://admin.example.com:8443/v1";
         String advice = CheckOpenApi.advice(outcome(List.of("finding 4635980a877f", server), List.of(STALE),
                 new OpenApiGate.Line(OpenApiGate.Kind.UNDECLARED, "finding 4635980a877f", "ERR ..."),
                 new OpenApiGate.Line(OpenApiGate.Kind.UNDECLARED, server, "no longer offered"),

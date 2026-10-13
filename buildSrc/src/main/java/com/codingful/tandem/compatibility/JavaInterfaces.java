@@ -10,7 +10,6 @@ import com.sun.source.util.JavacTask;
 import com.sun.source.util.TreePath;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -23,8 +22,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import javax.lang.model.element.Modifier;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -41,8 +38,7 @@ import org.gradle.api.GradleException;
  * that is itself API, and no segment of its package is {@code internal} (HLD-api-stability §3);
  * annotation types are not interfaces for this rule.
  *
- * <p>The sources are parsed with the JDK's own compiler, without compiling them: the working tree's
- * {@code src/main/java} and a baseline's sources jar go through the same parser.
+ * <p>The sources are parsed with the JDK's own compiler, without compiling them.
  */
 public final class JavaInterfaces {
 
@@ -53,21 +49,6 @@ public final class JavaInterfaces {
     public static List<PublicInterface> inFiles(Collection<File> files) {
         Map<String, String> sources = new LinkedHashMap<>();
         files.forEach(file -> sources.put(file.getPath(), read(file)));
-        return parse(sources);
-    }
-
-    public static List<PublicInterface> inSourcesJar(File jar) {
-        Map<String, String> sources = new LinkedHashMap<>();
-        try (ZipFile zip = new ZipFile(jar)) {
-            for (ZipEntry entry : zip.stream().filter(entry -> entry.getName().endsWith(".java")).toList()) {
-                try (InputStream content = zip.getInputStream(entry)) {
-                    sources.put(jar.getName() + "!/" + entry.getName(),
-                            new String(content.readAllBytes(), StandardCharsets.UTF_8));
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot read " + jar, e);
-        }
         return parse(sources);
     }
 

@@ -32,7 +32,7 @@ and how the gates run locally and in CI.
 | Contract | Gate | Task | Module | Baseline | Docker |
 |---|---|---|---|---|---|
 | Java API | japicmp (§4) | `checkJavaApi` | every published library module | yes | no |
-| Java API | interface kinds (§4.3) | `checkInterfaceKinds` | every published library module | for reclassification only | no |
+| Java API | interface kinds (§4.3) | `checkInterfaceKinds` | every published library module | no | no |
 | Published modules | baseline BOM's modules still managed (§2.4) | `checkBomModules` | `tandem-bom` | yes | no |
 | Database schema | shipped changesets byte-identical (§5.1) | `checkShippedChangesets` | `tandem-jdbc` | yes | no |
 | Database schema | schema compatibility test (§5.2) | `schemaCompatTest` | `tandem-jdbc` | yes | yes |
@@ -61,8 +61,7 @@ test (§5.2). A command line overrides it without an edit: `-PtandemBaseline=0.1
 §10.
 
 A gate of Tandem's own task types reports a skip as a log line, not as a skipped task, because it still
-runs the parts that need no baseline: the declared-breaks file (§3) and, in `checkInterfaceKinds`, the
-lint (§4.3). It prints `Baseline comparison skipped: <reason>`, the reason being "no compatibility
+runs the part that needs no baseline: the declared-breaks file (§3). It prints `Baseline comparison skipped: <reason>`, the reason being "no compatibility
 baseline" or "new since <baseline>" (§2.4), at Gradle's lifecycle level, so a plain run shows it. The
 line appears whenever the task runs, not when Gradle finds it up to date or takes it from the build
 cache.
@@ -85,7 +84,6 @@ that must resolve the baseline is exempted by name through `centralClasspaths`, 
 |---|---|---|
 | `compatibilityBaselineBom` | `com.codingful:tandem-bom:<baseline>`, its POM alone | every baseline gate (§2.4), `checkBomModules` |
 | `compatibilityBaselineArchive` | `com.codingful:<module>:<baseline>`, the jar alone | `checkJavaApi`, `checkSpringMetadata`, `checkShippedChangesets` |
-| `compatibilityBaselineSources` | the same coordinate's sources jar | `checkInterfaceKinds` |
 | `compatibilityBaselineClasspath` | the same coordinate with its runtime dependencies | `checkJavaApi` |
 | `schemaCompatTestCompileClasspath`, `schemaCompatTestRuntimeClasspath` | `tandem-jdbc` at the baseline, its `tandem-core`, and the test libraries | `schemaCompatTest` |
 
@@ -138,7 +136,6 @@ An intentional break is legitimate in a major version and between two release ca
 # Breaks accepted against the baseline below (LLD-api-stability §3).
 baseline 1.0.0-rc.1
 japicmp | tandem-core | <the member, as the japicmp report names it> | <release-notes line>
-interface-kind | tandem-core | com.codingful.tandem.core.port.SomePort | <release-notes line>
 spring-metadata | tandem-spring-relay | tandem.relay.some-key | <release-notes line>
 bom | tandem-bom | tandem-some-module | <release-notes line>
 openapi | tandem-admin | finding <fingerprint> | <release-notes line>
@@ -154,10 +151,9 @@ schema-compatibility | tandem-jdbc | * | <release-notes line>
    gate: the break was reverted, or the entry is misspelt, and either way the release notes would lie.
    An entry naming a module where its gate does not run fails the same way, since no run could ever
    match it.
-3. **Each gate accepts its own kind of item.** `japicmp` names a member, `interface-kind` an
-   interface's binary name, `spring-metadata` a property key, `bom` a module, `openapi` an oasdiff
+3. **Each gate accepts its own kind of item.** `japicmp` names a member, `spring-metadata` a property key, `bom` a module, `openapi` an oasdiff
    finding (its `fingerprint`, §6.2) or a frozen-name item (`problem-type <slug>` or
-   `server <level> <template>`, §6.3). `schema-compatibility` accepts only `*`: the test reports no
+   `server <template>`, §6.3). `schema-compatibility` accepts only `*`: the test reports no
    item with a stable identity, so an entry accepts every incompatibility it finds against this
    baseline, including one that arrives after the entry. Nothing accepts a changed changeset (§5.1) or a
    finding of the OpenAPI validation (§6.1).
@@ -220,7 +216,7 @@ which live in `buildSrc` (§4.4):
 
 1. Every change japicmp marks binary incompatible or source incompatible is an error, except:
 2. a method added to a **provided** interface (japicmp's `METHOD_ADDED_TO_INTERFACE` on an interface
-   §4.3 lists as provided, a list that takes the baseline's kind into account), which
+   §4.3 lists as provided), which
    HLD-api-stability §4.1 allows in a minor version;
 3. a change that matches an entry of the declared breaks (§3), reported with its release-notes line.
 4. After the comparison, an entry of the declared breaks that no change used is an error (§3, rule 2).
@@ -277,33 +273,16 @@ paragraphs the Javadoc rules prescribe: `<b>SPI:</b>` or `<b>Provided:</b>`. An 
 neither, or with both, fails the task. Annotation types are not interfaces for this rule. This part
 needs no baseline, so it guards the Javadoc rule from the day it lands.
 
-**The baseline's kind prevails.** The current source alone would let one change rewrite an
-interface's paragraph from SPI to provided and give it an abstract method, which breaks every
-application implementing it against the baseline. When a baseline is set and the module is not new
-(§2.4), the task reads the baseline's sources jar from Maven Central with the same parser, and settles
-each interface's kind for the gate:
+The kind is the one the current sources state. The task writes the binary names of the interfaces that
+state they are provided (`com.codingful.tandem.jdbc.WakeupSource$Listener`, for example) to
+`build/compatibility/provided-interfaces.txt`, the file the rule of §4.2 reads. The javadoc is what an
+application developer reads, so the gate enforces what it promises, and adds no third list beside the
+javadoc and the table of HLD-api-stability §4.1.
 
-| Baseline | Current | Kind for the gate | Verdict |
-|---|---|---|---|
-| SPI | SPI | SPI | compatible |
-| provided | provided | provided | compatible |
-| provided | SPI | SPI | compatible: the interface gains a promise to the applications that implement it |
-| SPI | provided | SPI | **breaking**, declared as `interface-kind \| <module> \| <interface>` |
-| no paragraph | either | current | compatible: a baseline older than the rule, such as 0.11.1, states no kind |
-| absent | either | current | compatible: the interface is new |
-
-A baseline interface carrying both paragraphs states no kind either, so its current kind holds; a
-release built with this check cannot carry one.
-
-A reclassification from SPI to provided fails the task unless it is declared. Once declared, the
-interface counts as provided from then on, which is what the declaration announces. The task writes
-the binary names of the interfaces whose kind for the gate is provided
-(`com.codingful.tandem.jdbc.WakeupSource$Listener`, for example) to
-`build/compatibility/provided-interfaces.txt`, the file the rule of §4.2 reads.
-
-The javadoc is what an application developer reads, and the baseline's sources jar holds the javadoc
-of the release they built against. Taking the kind from them makes the gate enforce exactly what was
-promised, and adds no third list beside the javadoc and the table of HLD-api-stability §4.1.
+One change the task does not see: a paragraph rewritten from SPI to provided in the same change that gives
+the interface an abstract method, which breaks every application implementing it. That rewrite is a line
+of javadoc in the diff, and the release checklist reviews it (§11): every `<b>SPI:</b>` paragraph removed
+since the baseline tag is a break unless the interface was not released.
 
 **Rejected:**
 
@@ -311,6 +290,9 @@ promised, and adds no third list beside the javadoc and the table of HLD-api-sta
   interface missing from it would silently take whichever kind the list implies by omission.
 - *A committed file recording each interface's kind, updated when the baseline moves.* Another copy
   of what the baseline's published sources already state.
+- *Reading the baseline's kind from its sources jar on Maven Central*, so that a reclassification from SPI
+  to provided fails until declared. One more artifact per module and a table of cases, for a change that
+  can only be made by editing the paragraph review reads.
 - *An annotation marking provided interfaces.* It adds a type to `tandem-core`'s API, the reason
   HLD-api-stability §3 rejects a marker annotation for internal types.
 
@@ -561,18 +543,18 @@ field is part of that addition, not a change to an existing default. Other upstr
 findings keep failing. In particular, request restrictions must never be lowered to make response
 enum growth pass.
 
-**Every rule that would pass is classified.** `breaking` reports only `WARN` and `ERR`, so an `INFO`
-rule the file leaves alone passes silently, and the catalog is large: 755 rules in 1.33.0, 399 of them
-`INFO`. The file therefore gives a level to **every** rule the pinned release classes as `INFO`: raised
-to `ERR` where the table says so, or kept at `INFO` as an explicit statement that the change is
-compatible for Tandem. It also lowers the one rule of the table upstream calls an error. The task
-reads the catalog of the pinned image (`oasdiff checks changelog --format json`) and fails when an
-`INFO` rule is missing from the file, or when the file names a rule the catalog does not have. An image
-upgrade that brings new rules fails until each is classified, so the classification is reviewed in
-that change rather than remembered. The check runs on every build, with or without a baseline, since it
-depends on the image and the file alone, and its failure names each rule to add and each line to
-remove. The file was written once from the catalog, every `INFO` rule at its upstream level, by the
-command its header states, and the policy was then applied by editing it.
+**The file lists what Tandem sets apart from upstream.** `breaking` reports only `WARN` and `ERR`, so a
+rule at `INFO` passes. The file raises to `ERR` the rules the table above says must fail, and lowers the
+one rule of the table upstream calls an error; every other rule keeps its upstream level, and the rules
+left at `INFO` on purpose (an element added, a request constraint relaxed, documentation, annotations and
+lifecycle) are named in the file's comments rather than listed. oasdiff refuses a rule id it does not
+know, so a misspelt line fails the next comparison, the acceptance cases included (§6.4).
+
+**The file is reviewed against one image.** A line `reviewed-with <image>` names the image the
+classification was made with, and the task fails on every build while the version catalog pins another
+one. An image upgrade therefore fails until someone lists the `INFO` rules the new image adds, with the
+command the file's header states, classifies each, and moves the line: the review happens in the change
+that upgrades the image, not later.
 
 **Comments live in the committed file only.** oasdiff rejects a severity file with a comment or a
 blank line. `gradle/oasdiff-severity-levels.txt` groups its rules under comments naming the contract
@@ -582,9 +564,9 @@ level being `err`, `warn` or `info`. The task refuses `none`, which oasdiff acce
 hide the rule from the changelog as well, and a rule listed twice, whose level would depend on the
 order.
 
-**The classification of 1.33.0.** Of its 399 `INFO` rules, the file raises 191 to `ERR` and keeps 208 at
-`INFO`. The table settles most of them. Those it leaves open sit in groups headed "Judgement calls",
-each with its reasoning, so review reads the decision where it is applied:
+**The classification of 1.33.0.** Of its 399 `INFO` rules, the file raises 191 to `ERR`. The table settles
+most of them. Those it leaves open sit in groups headed "Judgement calls", each with its reasoning, so
+review reads the decision where it is applied:
 
 - names a code generator builds from: a component schema, an operation id or a tag removed (or
   renamed) is `ERR`, since clients are generated from the contract;
@@ -598,6 +580,11 @@ each with its reasoning, so review reads the decision where it is applied:
   property that stops travelling on a side is a removal there, and one that starts travelling as
   required is a new obligation, both `ERR`;
 - a schema that stops being the boolean `false` is a new element, `INFO`.
+
+**Rejected:** *listing every `INFO` rule of the pinned image*, the 208 kept at `INFO` included, with the
+task reading the image's catalog to fail on any rule the file lacks. It names each new rule at an image
+upgrade, at the cost of a file twice as long and one more container per build; the `reviewed-with` line
+forces the same review, and the command lists the same rules.
 
 ### 6.3 Frozen names
 
@@ -613,33 +600,25 @@ strings reach the task as the document states them. It fails when:
   published);
 - a server definition of the baseline is gone, or changed what a client can call (below).
 
-**Servers are compared where they are declared.** OpenAPI declares servers at three levels: the
-document, a path, an operation. The task compares the document, whose servers are its own or else
-OpenAPI's default `/`, and every path and operation present in both documents that declares servers in
-either. At each, it matches the effective servers (the level's own, else its path's, else the
-document's) by their literal URL template, not their position. Each baseline template must remain,
-every variable it references must keep its default, and a variable's allowed values may grow but not
-lose any; a variable without an enum must not gain one. Descriptions and declaration order do not matter, and a
-server added passes. A default changed with the template unchanged fails: `{basePath}/v1` with
-`basePath` moving from `/tandem/admin` to `/other/admin` sends every client that relies on the
-default to another address.
+**Servers are compared at the document level.** The task compares the document's servers, its own or
+else OpenAPI's default `/`, matching them by their literal URL template, not their position. Each
+baseline template must remain, every variable it references must keep its default, and a variable's
+allowed values may grow but not lose any; a variable without an enum must not gain one. Descriptions and
+declaration order do not matter, and a server added passes. A default changed with the template
+unchanged fails: `{basePath}/v1` with `basePath` moving from `/tandem/admin` to `/other/admin` sends every
+client that relies on the default to another address.
 
-One finding is reported per server definition, not per operation that inherits it: a change to the
-document's server is one finding, although every operation uses it, since a level that inherits in
-both documents is covered by the level it inherits from. The one case judged per operation is an
-override: an operation or path present in both documents whose effective servers no longer include a
-template it had. An override that keeps the template with another default, or fewer allowed values,
-is reported at its level the same way. A path or operation that stops declaring servers and inherits
-the same ones changes nothing a client calls, and passes. Removed operations are oasdiff's to report,
-not again as lost servers.
+A path or an operation that declares servers of its own would escape that comparison, so the task refuses
+it: each such level is a line `invalid server-override path <path>` or
+`invalid server-override operation <METHOD> <path>`, which no declaration accepts. Tandem's contract
+declares its servers once, for the whole API; should it ever need an override, the comparison is extended
+to that level in the same change.
 
-The finding's item names the definition: `server <level> <template>`, where the level is `document`,
-`path <path>` or `operation <METHOD> <path>` (`operation GET /relay/status`); the line prints what
-changed next to it, the old and new default or allowed values, or the servers left when the template is
-gone. A declaration accepts every change to that definition against this baseline, which is
-what one release-notes line about it describes. Each problem slug's page under `site/problems/`
-stays guarded by the module's own tests; a slug's declaration is
-`openapi | tandem-admin | problem-type <slug> | <release-notes line>`.
+The finding's item names the template, `server <template>`; the line prints what changed next to it, the
+old and new default or allowed values, or the servers left when the template is gone. A declaration
+accepts every change to that server against this baseline, which is what one release-notes line about it
+describes. Each problem slug's page under `site/problems/` stays guarded by the module's own tests; a
+slug's declaration is `openapi | tandem-admin | problem-type <slug> | <release-notes line>`.
 
 **Inputs.** The git object of the baseline document, the current document, the severity file, the declared
 breaks and the image reference (§9.2): the comparison reruns when the content it compares changes, not
@@ -686,8 +665,7 @@ mutation cannot pass on a finding it did not cause. `checkOpenApiCases`, a task 
 same `buildSrc` code as `checkOpenApi`, runs the cases one after the other with the pinned image. A case runs
 one oasdiff command per part it checks, and a document read by `oasdiff upgrade` is read once for every case
 that compares it. Its inputs are the case files, the image reference and the severity file, so it runs again
-whenever one of them changes, and it is part of `check`. It does not read oasdiff's catalog: `checkOpenApi`
-does, once (§6.2).
+whenever one of them changes, and it is part of `check`.
 
 Three cases run on the frozen contract, where its size, references and inherited servers are exercised:
 
@@ -695,7 +673,7 @@ Three cases run on the frozen contract, where its size, references and inherited
 |---|---|---|
 | `unchanged` | None, through the whole gate | Pass |
 | `declared-fingerprint` | `aggregateId` and `aggregateType` made required on one operation, the first declared | The first accepted, the second undeclared: one rule, method and path, two fingerprints |
-| `slug-and-server` | A problem slug renamed; the document's `basePath` default changed; a path and an operation overriding their servers without `{basePath}/v1` | Fail, one finding per server definition rather than one per operation |
+| `slug-and-server` | A problem slug renamed; the document's `basePath` default changed; a path and an operation declaring servers of their own | Fail: one finding for the slug, one for the server, and the two overrides refused |
 
 The others are minimal documents, one endpoint and the schema its change needs, one case per rule family of
 §6.1 and §6.2 rather than one per body, property, parameter or header variant: the policy's completeness
@@ -718,9 +696,9 @@ check already gives every rule a level, and a case checks that a family's level 
 
 Each fail case changes a rule upstream classes as `INFO`, so it fails only through the policy; the request-side
 errors upstream already raises are in `declared-fingerprint`. The variants of a server change (an enum widened,
-narrowed or introduced, a server added or reordered, an override keeping the template with another default, a
-level that now inherits) are the task's own logic on the documents as oasdiff loads them: `FrozenNamesTest`
-covers each, and `slug-and-server` shows that the loaded documents keep the servers of all three levels.
+narrowed or introduced, a server added or reordered) are the task's own logic on the documents as oasdiff loads
+them: `FrozenNamesTest` covers each, and `slug-and-server` shows that the loaded documents keep the servers of
+the document, of a path and of an operation.
 
 Three failures are ones the pinned image does not produce: a crash exit code, output that is not JSON, and a
 finding without an identity of its own. `buildSrc`'s unit tests feed them to the same code (`OpenApiGateTest`).
@@ -947,7 +925,8 @@ freezes them with the names.
   `JapicmpTask`, extended), `CheckShippedChangesets`, `SchemaCompatTest` (a `Test` task that applies
   the declared breaks to the scenario's outcome, §5.2), `CheckSpringMetadata`, `CheckOpenApi`, and
   `CheckOpenApiCases`;
-- `BaselineGate`, the interface every task type that compares with the baseline implements: the inputs
+- `BaselineGate`, the interface every task type that compares with the baseline implements (all but
+  `CheckInterfaceKinds` and `CheckOpenApiCases`, which read none): the inputs
   they share (the baseline, the module, the baseline BOM, the declared breaks, the components the baseline
   configurations resolved), their registration into `check` and `checkCompatibility`, the reading of the
   declared breaks (§3, rules 1 and 2), and the skip line or the check of the resolved components (§2.1,
@@ -1033,7 +1012,7 @@ Expected result:
 | Gate | Expected |
 |---|---|
 | `checkJavaApi` | Fails in `tandem-core`, `tandem-jdbc`, `tandem-kafka`, `tandem-spring-producer`, `tandem-spring-relay` and `tandem-admin`, reporting exactly the breaking rows of HLD-api-stability §6 (list below). Passes in `tandem-cloudevents`, `tandem-test`, `tandem-micrometer` and `tandem-tracing-otel` |
-| `checkInterfaceKinds` | Passes: 0.11.1 predates the paragraphs, so every interface takes its current kind |
+| `checkInterfaceKinds` | Passes: every public interface states its kind (it reads no baseline) |
 | `checkBomModules` | Passes: the BOMs of 0.11.1 and of the working tree manage the same ten modules, so no module is new or gone |
 | `checkShippedChangesets` | Passes: no changeset since 0.11.1 |
 | `schemaCompatTest` | Passes: the schema is unchanged, and the scenario compiles against 0.11.1 |
@@ -1077,8 +1056,9 @@ These land with the gates:
 - **AGENTS.md, Releases**: the library's breaking-change check becomes the gates. Before tagging,
   `check` is green with the previous release as baseline. The **Breaking** section of the notes is
   the entries of `gradle/accepted-breaks.txt`, plus every line changed or removed in a reference file
-  since the baseline tag (`git diff v<baseline> -- '*/src/test/resources/reference/*'`), plus any
-  change to the names review guards (HLD-api-stability §2). After the release reaches Maven Central,
+  since the baseline tag (`git diff v<baseline> -- '*/src/test/resources/reference/*'`), plus every
+  released interface whose `<b>SPI:</b>` paragraph was removed since then (§4.3), plus any change to the
+  names review guards (HLD-api-stability §2). After the release reaches Maven Central,
   one commit moves `tandemBaseline` to it and empties the declared breaks, setting their `baseline`
   line to the new value.
 - **AGENTS.md, Adding a module**: a published library module gets `checkJavaApi` and

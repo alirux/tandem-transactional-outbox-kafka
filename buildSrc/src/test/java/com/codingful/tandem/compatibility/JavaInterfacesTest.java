@@ -3,19 +3,10 @@ package com.codingful.tandem.compatibility;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import org.gradle.api.GradleException;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 class JavaInterfacesTest {
 
@@ -132,25 +123,6 @@ class JavaInterfacesTest {
                 + "@FunctionalInterface\n@SuppressWarnings({\"a\", \"b\"})\npublic interface Mapper { void map(); }");
 
         assertThat(found).containsExactly(new PublicInterface("com.acme.Mapper", StatedKind.SPI));
-    }
-
-    @Test
-    void GIVEN_the_same_sources_in_a_jar_and_on_disk_WHEN_read_THEN_both_give_the_same_interfaces(@TempDir Path dir)
-            throws IOException {
-        String source = "package com.acme;\n" + SPI + "public interface Source {\n" + PROVIDED + "    interface Listener {}\n}";
-        Path file = Files.createDirectories(dir.resolve("src/com/acme")).resolve("Source.java");
-        Files.writeString(file, source);
-        File jar = dir.resolve("module-sources.jar").toFile();
-        try (OutputStream out = Files.newOutputStream(jar.toPath()); ZipOutputStream zip = new ZipOutputStream(out)) {
-            zip.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
-            zip.write("Manifest-Version: 1.0\n".getBytes(StandardCharsets.UTF_8));
-            zip.putNextEntry(new ZipEntry("com/acme/Source.java"));
-            zip.write(source.getBytes(StandardCharsets.UTF_8));
-        }
-
-        List<PublicInterface> fromJar = JavaInterfaces.inSourcesJar(jar);
-
-        assertThat(fromJar).hasSize(2).isEqualTo(JavaInterfaces.inFiles(List.of(file.toFile())));
     }
 
     @Test

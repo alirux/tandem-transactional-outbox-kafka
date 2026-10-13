@@ -23,7 +23,7 @@ class DeclaredBreaksTest {
     void GIVEN_a_file_without_entries_WHEN_bound_to_any_baseline_THEN_it_is_valid() {
         for (String text : List.of(HEADER, file("baseline"), file("baseline 0.9.0"))) {
             for (String baseline : List.of("", BASELINE)) {
-                assertThat(DeclaredBreaks.parse(text).boundTo(baseline).entries("interface-kind", CORE)).isEmpty();
+                assertThat(DeclaredBreaks.parse(text).boundTo(baseline).entries("japicmp", CORE)).isEmpty();
             }
         }
     }
@@ -31,11 +31,11 @@ class DeclaredBreaksTest {
     @Test
     void GIVEN_entries_written_against_the_baseline_WHEN_a_gate_reads_them_THEN_it_gets_its_own_kind_for_its_own_module() {
         DeclaredBreaks breaks = DeclaredBreaks.parse(file("baseline " + BASELINE,
-                "interface-kind | " + CORE + " | " + PORT + " | Port is provided.",
-                "interface-kind | tandem-jdbc | com.acme.Other | Other is provided.",
+                "japicmp | " + CORE + " | " + PORT + " | Port is provided.",
+                "japicmp | tandem-jdbc | com.acme.Other | Other is provided.",
                 "bom | tandem-bom | tandem-old | tandem-old is no longer managed.")).boundTo(BASELINE);
 
-        assertThat(breaks.entries("interface-kind", CORE)).singleElement().satisfies(entry -> {
+        assertThat(breaks.entries("japicmp", CORE)).singleElement().satisfies(entry -> {
             assertThat(entry.item()).isEqualTo(PORT);
             assertThat(entry.releaseNote()).isEqualTo("Port is provided.");
             assertThat(entry.line()).isEqualTo(3);
@@ -46,18 +46,18 @@ class DeclaredBreaksTest {
     @Test
     void GIVEN_a_release_notes_line_holding_a_bar_WHEN_parsed_THEN_the_line_is_kept_whole() {
         DeclaredBreaks breaks = DeclaredBreaks.parse(file("baseline " + BASELINE,
-                "interface-kind | " + CORE + " | " + PORT + " | Port: read | write split.")).boundTo(BASELINE);
+                "japicmp | " + CORE + " | " + PORT + " | Port: read | write split.")).boundTo(BASELINE);
 
-        assertThat(breaks.entries("interface-kind", CORE)).singleElement()
+        assertThat(breaks.entries("japicmp", CORE)).singleElement()
                 .extracting(DeclaredBreaks.Entry::releaseNote).isEqualTo("Port: read | write split.");
     }
 
     @Test
     void GIVEN_a_file_written_with_CRLF_WHEN_parsed_THEN_its_entries_read_as_with_LF() {
-        String text = file("baseline " + BASELINE, "interface-kind | " + CORE + " | " + PORT + " | Note.")
+        String text = file("baseline " + BASELINE, "japicmp | " + CORE + " | " + PORT + " | Note.")
                 .replace("\n", "\r\n");
 
-        assertThat(DeclaredBreaks.parse(text).boundTo(BASELINE).entries("interface-kind", CORE))
+        assertThat(DeclaredBreaks.parse(text).boundTo(BASELINE).entries("japicmp", CORE))
                 .extracting(DeclaredBreaks.Entry::item).containsExactly(PORT);
     }
 
@@ -82,8 +82,8 @@ class DeclaredBreaksTest {
     @Test
     void GIVEN_lines_that_break_the_format_WHEN_parsed_THEN_the_file_is_rejected_naming_the_line() {
         List<String> invalid = List.of(
-                file("baseline " + BASELINE, "interface-kind | " + CORE + " | " + PORT),
-                file("baseline " + BASELINE, "interface-kind | " + CORE + " |  | Note."),
+                file("baseline " + BASELINE, "japicmp | " + CORE + " | " + PORT),
+                file("baseline " + BASELINE, "japicmp | " + CORE + " |  | Note."),
                 file("baseline " + BASELINE, "japi | " + CORE + " | " + PORT + " | Note."),
                 file("baseline " + BASELINE, "baseline 0.11.1"),
                 file("baseline " + BASELINE, "schema-compatibility | tandem-jdbc | tandem_outbox | Note."),
@@ -102,7 +102,7 @@ class DeclaredBreaksTest {
                 "schema-compatibility | tandem-jdbc | * | Apply the migration first.",
                 "openapi | tandem-admin | finding 4f2a | A field is required.",
                 "openapi | tandem-admin | problem-type outbox-not-found | Renamed.",
-                "openapi | tandem-admin | server document {basePath}/v1 | Moved.")).boundTo(BASELINE);
+                "openapi | tandem-admin | server {basePath}/v1 | Moved.")).boundTo(BASELINE);
 
         assertThat(breaks.entries("openapi", "tandem-admin")).hasSize(3);
         assertThat(breaks.entries("schema-compatibility", "tandem-jdbc")).hasSize(1);
@@ -111,9 +111,9 @@ class DeclaredBreaksTest {
     @Test
     void GIVEN_an_entry_naming_a_module_without_its_gate_WHEN_a_gate_reads_the_file_THEN_it_fails() {
         DeclaredBreaks breaks = DeclaredBreaks.parse(file("baseline " + BASELINE,
-                "interface-kind | tandem-cor | " + PORT + " | Note."));
+                "japicmp | tandem-cor | " + PORT + " | Note."));
 
-        assertThatThrownBy(() -> breaks.requireGateModules("interface-kind", Set.of(CORE, "tandem-jdbc")))
+        assertThatThrownBy(() -> breaks.requireGateModules("japicmp", Set.of(CORE, "tandem-jdbc")))
                 .isInstanceOf(GradleException.class).hasMessageContaining("tandem-cor |");
         assertThat(breaks.requireGateModules("bom", Set.of("tandem-bom"))).isSameAs(breaks);
     }
@@ -121,10 +121,10 @@ class DeclaredBreaksTest {
     @Test
     void GIVEN_entries_naming_modules_that_run_their_gate_WHEN_a_gate_reads_the_file_THEN_they_are_accepted() {
         DeclaredBreaks breaks = DeclaredBreaks.parse(file("baseline " + BASELINE,
-                "interface-kind | " + CORE + " | " + PORT + " | Note.",
-                "interface-kind | tandem-jdbc | com.acme.Other | Note."));
+                "japicmp | " + CORE + " | " + PORT + " | Note.",
+                "japicmp | tandem-jdbc | com.acme.Other | Note."));
 
-        assertThat(breaks.requireGateModules("interface-kind", Set.of(CORE, "tandem-jdbc"))).isSameAs(breaks);
+        assertThat(breaks.requireGateModules("japicmp", Set.of(CORE, "tandem-jdbc"))).isSameAs(breaks);
     }
 
     @Test

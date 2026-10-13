@@ -1,20 +1,22 @@
 # Tandem's compatibility policy for the Admin API contract, as oasdiff severity levels (LLD-api-stability §6.2).
 #
-# One line per rule, `<rule-id> <level>`, grouped under the contract rule each group implements; the level is
-# err, warn or info. A finding at err or warn fails checkOpenApi unless gradle/accepted-breaks.txt declares
-# its fingerprint; a finding at info passes. Every rule the pinned oasdiff image classes as info is listed,
-# raised to err or kept at info as a statement that the change is compatible for Tandem: checkOpenApi fails
-# while one is missing, or while a line names a rule the image does not have. A rule upstream classes as
-# warn or err keeps its level and is not listed, except the one the first group lowers.
+# One line per rule whose level Tandem sets apart from upstream, `<rule-id> <level>`, grouped under the contract
+# rule each group implements; the level is err, warn or info. Every other rule keeps the level the pinned image
+# gives it. A finding at err or warn fails checkOpenApi unless gradle/accepted-breaks.txt declares its
+# fingerprint; a finding at info passes. Left at their upstream info, so not listed: an element added, a request
+# constraint relaxed, documentation, annotations and lifecycle, and the judgement calls below that list no rule.
 #
 # oasdiff rejects a comment or a blank line in this file, so checkOpenApi strips both into
-# build/openapi/severity-levels.txt and hands oasdiff that copy. After an image upgrade, the failure of
-# checkOpenApi names each new info rule to classify here.
+# build/openapi/severity-levels.txt and hands oasdiff that copy; oasdiff rejects a rule id it does not know.
 #
-# The file was written once from the catalog of the pinned image, every info rule at info, then classified by
-# editing it:
-#   docker run --rm tufin/oasdiff:v1.33.0 checks changelog --severity info --format text \
-#     | awk 'NR > 1 { print $1, "info" }'
+# The file is reviewed against the image named by the reviewed-with line: checkOpenApi fails while the version
+# catalog pins another one. After an image upgrade, list the info rules the new image adds, classify each here,
+# and move the line:
+#   comm -13 <(docker run --rm tufin/oasdiff:<old> checks changelog --severity info --format text \
+#       | awk 'NR > 1 { print $1 }' | sort) \
+#     <(docker run --rm tufin/oasdiff:<new> checks changelog --severity info --format text \
+#       | awk 'NR > 1 { print $1 }' | sort)
+reviewed-with tufin/oasdiff:v1.33.0
 
 # A response enum gains a value. Tolerant readers accept it (HLD-admin-api §1), so the one rule of this
 # file upstream calls an error is lowered.
@@ -201,181 +203,6 @@ response-property-then-added err
 response-property-unevaluated-items-added err
 response-property-unevaluated-properties-added err
 
-# Kept at info: an element added. New endpoints, operations, optional parameters, properties and
-# headers, new media types and statuses, new security alternatives.
-api-global-security-added info
-api-operation-id-added info
-api-security-added info
-api-security-component-added info
-api-security-component-oauth-scope-added info
-api-tag-added info
-endpoint-added info
-new-optional-request-default-parameter-to-existing-path info
-new-optional-request-parameter info
-new-optional-request-property info
-response-header-added info
-response-media-type-added info
-response-non-success-status-added info
-response-optional-property-added info
-webhook-added info
-
-# Kept at info: a request constraint relaxed. The request accepts more than before: a bound raised or
-# removed, a value or alternative added, a field or body made optional or nullable.
-api-global-security-scope-removed info
-api-security-scope-removed info
-request-body-added-optional info
-request-body-all-of-removed info
-request-body-any-of-added info
-request-body-became-nullable info
-request-body-became-optional info
-request-body-const-removed info
-request-body-contains-removed info
-request-body-content-schema-removed info
-request-body-dependent-required-removed info
-request-body-dependent-schema-removed info
-request-body-else-removed info
-request-body-exclusive-max-increased info
-request-body-exclusive-max-unset info
-request-body-exclusive-min-decreased info
-request-body-exclusive-min-unset info
-request-body-if-removed info
-request-body-max-contains-increased info
-request-body-max-contains-unset info
-request-body-max-increased info
-request-body-max-items-increased info
-request-body-max-items-unset info
-request-body-max-length-increased info
-request-body-max-length-unset info
-request-body-max-properties-increased info
-request-body-max-properties-unset info
-request-body-max-unset info
-request-body-media-type-added info
-request-body-media-type-item-schema-removed info
-request-body-media-type-schema-removed info
-request-body-min-contains-decreased info
-request-body-min-contains-unset info
-request-body-min-decreased info
-request-body-min-items-decreased info
-request-body-min-items-unset info
-request-body-min-length-decreased info
-request-body-min-length-unset info
-request-body-min-properties-decreased info
-request-body-min-properties-unset info
-request-body-min-unset info
-request-body-multiple-of-generalized info
-request-body-multiple-of-unset info
-request-body-one-of-added info
-request-body-pattern-property-removed info
-request-body-property-names-removed info
-request-body-then-removed info
-request-body-unevaluated-items-removed info
-request-body-unevaluated-properties-removed info
-request-body-unique-items-unset info
-request-parameter-became-nullable info
-request-parameter-became-optional info
-request-parameter-enum-value-added info
-request-parameter-exclusive-max-increased info
-request-parameter-exclusive-max-unset info
-request-parameter-exclusive-min-decreased info
-request-parameter-exclusive-min-unset info
-request-parameter-max-contains-increased info
-request-parameter-max-contains-unset info
-request-parameter-max-increased info
-request-parameter-max-items-increased info
-request-parameter-max-items-unset info
-request-parameter-max-length-increased info
-request-parameter-max-length-unset info
-request-parameter-max-properties-increased info
-request-parameter-max-properties-unset info
-request-parameter-max-unset info
-request-parameter-min-contains-decreased info
-request-parameter-min-contains-unset info
-request-parameter-min-decreased info
-request-parameter-min-items-decreased info
-request-parameter-min-items-unset info
-request-parameter-min-length-decreased info
-request-parameter-min-length-unset info
-request-parameter-min-properties-decreased info
-request-parameter-min-properties-unset info
-request-parameter-min-unset info
-request-parameter-multiple-of-unset info
-request-parameter-pattern-generalized info
-request-parameter-pattern-removed info
-request-parameter-property-became-nullable info
-request-parameter-property-enum-value-added info
-request-property-all-of-removed info
-request-property-any-of-added info
-request-property-became-nullable info
-request-property-became-optional info
-request-property-const-removed info
-request-property-contains-removed info
-request-property-content-schema-removed info
-request-property-dependent-required-removed info
-request-property-dependent-schema-removed info
-request-property-else-removed info
-request-property-enum-value-added info
-request-property-exclusive-max-increased info
-request-property-exclusive-max-unset info
-request-property-exclusive-min-decreased info
-request-property-exclusive-min-unset info
-request-property-if-removed info
-request-property-max-contains-increased info
-request-property-max-contains-unset info
-request-property-max-increased info
-request-property-max-items-increased info
-request-property-max-items-unset info
-request-property-max-length-increased info
-request-property-max-length-unset info
-request-property-max-properties-increased info
-request-property-max-properties-unset info
-request-property-max-unset info
-request-property-min-contains-decreased info
-request-property-min-contains-unset info
-request-property-min-decreased info
-request-property-min-items-decreased info
-request-property-min-items-unset info
-request-property-min-length-decreased info
-request-property-min-length-unset info
-request-property-min-properties-decreased info
-request-property-min-properties-unset info
-request-property-min-unset info
-request-property-multiple-of-generalized info
-request-property-multiple-of-unset info
-request-property-one-of-added info
-request-property-pattern-generalized info
-request-property-pattern-property-removed info
-request-property-pattern-removed info
-request-property-property-names-removed info
-request-property-then-removed info
-request-property-unevaluated-items-removed info
-request-property-unevaluated-properties-removed info
-request-property-unique-items-unset info
-
-# Kept at info: documentation, annotations and lifecycle. Deprecating or reactivating an element, and a
-# sub-schema that carries annotations only, change nothing on the wire.
-api-stability-increased info
-endpoint-deprecated info
-endpoint-deprecated-with-sunset info
-endpoint-reactivated info
-request-body-all-of-added-annotation-only info
-request-body-all-of-removed-annotation-only info
-request-parameter-deprecated info
-request-parameter-reactivated info
-request-property-all-of-added-annotation-only info
-request-property-all-of-removed-annotation-only info
-request-property-deprecated info
-request-property-deprecated-with-sunset info
-request-property-reactivated info
-request-property-stability-increased info
-response-body-all-of-added-annotation-only info
-response-body-all-of-removed-annotation-only info
-response-property-all-of-added-annotation-only info
-response-property-all-of-removed-annotation-only info
-response-property-deprecated info
-response-property-deprecated-with-sunset info
-response-property-reactivated info
-response-property-stability-increased info
-
 # Judgement calls: names a generated client is built from. A component schema, an operation id and a tag
 # are not on the wire, but code generators name types, methods and API classes after them, and the
 # contract is what third-party tooling generates from (HLD-admin-api §1). Removing or renaming one fails.
@@ -385,15 +212,12 @@ api-tag-removed err
 
 # Judgement calls: the document's own version. A break is recorded by its declaration in
 # gradle/accepted-breaks.txt; whether info.version moved with it is review's to judge.
-api-major-version-not-bumped info
-api-version-decreased info
-api-version-not-bumped info
+# Every rule of this group stays at its upstream info, so none is listed.
 
 # Judgement calls: response statuses. A documented non-success status removed is a removal, and an
 # instance of the previous release still returns it. A new success status is additive: a client treats an
 # unknown 2xx as success.
 response-non-success-status-removed err
-response-success-status-added info
 
 # Judgement calls: security schemes. A scheme or an OAuth scope removed from the components is a removal,
 # even where nothing references it any more.
@@ -402,26 +226,18 @@ api-security-component-removed err
 
 # Judgement calls: discriminators. Adding one, or a mapping, adds a hint or a subtype; removing one,
 # deleting a mapping, or changing a mapping or the property name changes how existing payloads are typed.
-request-body-discriminator-added info
-request-body-discriminator-mapping-added info
 request-body-discriminator-mapping-changed err
 request-body-discriminator-mapping-deleted err
 request-body-discriminator-property-name-changed err
 request-body-discriminator-removed err
-request-property-discriminator-added info
-request-property-discriminator-mapping-added info
 request-property-discriminator-mapping-changed err
 request-property-discriminator-mapping-deleted err
 request-property-discriminator-property-name-changed err
 request-property-discriminator-removed err
-response-body-discriminator-added info
-response-body-discriminator-mapping-added info
 response-body-discriminator-mapping-changed err
 response-body-discriminator-mapping-deleted err
 response-body-discriminator-property-name-changed err
 response-body-discriminator-removed err
-response-property-discriminator-added info
-response-property-discriminator-mapping-added info
 response-property-discriminator-mapping-changed err
 response-property-discriminator-mapping-deleted err
 response-property-discriminator-property-name-changed err
@@ -432,42 +248,13 @@ response-property-discriminator-removed err
 # side the property does travel on reports its own rule. A property that stops travelling on a side is a
 # removal there; one that starts travelling as required is a new obligation or a new required response
 # field.
-request-optional-property-became-not-read-only info
-request-optional-property-became-not-write-only info
 request-optional-property-became-read-only err
-request-optional-property-became-write-only info
-request-read-only-property-enum-value-removed info
-request-read-only-property-exclusive-max-decreased info
-request-read-only-property-exclusive-min-increased info
-request-read-only-property-max-decreased info
-request-read-only-property-max-items-decreased info
-request-read-only-property-max-length-decreased info
-request-read-only-property-max-properties-decreased info
-request-read-only-property-min-increased info
 request-required-property-became-not-read-only err
-request-required-property-became-not-write-only info
 request-required-property-became-read-only err
-request-required-property-became-write-only info
-response-optional-property-became-not-read-only info
-response-optional-property-became-not-write-only info
-response-optional-property-became-read-only info
 response-optional-property-became-write-only err
-response-optional-write-only-property-added info
-response-optional-write-only-property-removed info
-response-required-property-became-not-read-only info
 response-required-property-became-not-write-only err
-response-required-property-became-read-only info
 response-required-property-became-write-only err
-response-required-write-only-property-added info
-response-required-write-only-property-removed info
-response-write-only-property-became-optional info
-response-write-only-property-became-required info
-response-write-only-property-enum-value-added info
 
 # Judgement calls: a schema that is no longer the boolean `false`. Nothing could be sent before, so the
 # element is new rather than retyped.
-request-body-schema-became-not-false info
-request-parameter-property-schema-became-not-false info
-request-parameter-schema-became-not-false info
-request-property-schema-became-not-false info
-response-body-schema-became-not-false info
+# Every rule of this group stays at its upstream info, so none is listed.

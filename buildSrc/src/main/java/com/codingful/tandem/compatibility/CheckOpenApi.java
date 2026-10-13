@@ -36,8 +36,7 @@ import org.gradle.api.tasks.TaskProvider;
  * (§6.2) and keeps the names the contract freezes (§6.3). oasdiff runs from its pinned image; the task decides
  * from what it prints, with {@link OpenApiGate}.
  *
- * <p>The policy file is checked on every build too: it must classify every rule the pinned image classes as
- * {@code info}, and name none the image does not have.
+ * <p>The policy file is checked on every build too: it must have been reviewed against the pinned image.
  */
 @CacheableTask
 public abstract class CheckOpenApi extends DefaultTask implements BaselineGate {
@@ -126,8 +125,7 @@ public abstract class CheckOpenApi extends DefaultTask implements BaselineGate {
         BaselineGate.write(severityLevels, policy.oasdiffFile());
         Oasdiff oasdiff = new Oasdiff(getImage().get(), getRepository().get().getAsFile().toPath(),
                 severityLevels.getParent());
-        List<String> problems = new ArrayList<>(policy.problems(SeverityPolicy.catalog(
-                oasdiff.run("catalog", reports, "checks", "changelog", "--format", "json"))));
+        List<String> problems = new ArrayList<>(policy.problems(getImage().get()));
         Path document = getDocument().get().getAsFile().toPath();
         List<OasdiffRun> runs = new ArrayList<>();
         OasdiffRun validate = oasdiff.run("validate", reports, "validate", document, "--fail-on", "INFO", "--format",
