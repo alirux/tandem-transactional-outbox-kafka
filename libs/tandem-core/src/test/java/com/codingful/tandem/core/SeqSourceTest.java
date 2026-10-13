@@ -4,15 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class SeqSourceTest {
 
-    @Test
-    void GIVEN_a_stored_provenance_WHEN_read_back_THEN_it_maps_to_the_mode_that_wrote_it() {
-        assertThat(SeqSource.fromCode(SeqSource.APPLICATION.code())).isEqualTo(SeqSource.APPLICATION);
-        assertThat(SeqSource.fromCode(SeqSource.MANAGED.code())).isEqualTo(SeqSource.MANAGED);
-        assertThat(SeqSource.fromCode(SeqSource.NONE.code())).isEqualTo(SeqSource.NONE);
+    @ParameterizedTest
+    @CsvSource({"0, APPLICATION", "1, MANAGED", "2, NONE"})
+    void GIVEN_the_stored_seq_source_codes_WHEN_written_and_read_THEN_each_maps_to_its_fixed_mode(
+            int code, SeqSource source) {
+        // Literal on purpose: the codes are stored in seq_source and written by every write-side SDK
+        // (HLD-write-side-sdks §4), so a renumbering would misread every existing row.
+        assertThat(source.code()).isEqualTo(code);
+        assertThat(SeqSource.fromCode(code)).isEqualTo(source);
     }
 
     @Test

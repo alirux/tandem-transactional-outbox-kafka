@@ -17,7 +17,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
  * <p>This class is only the Kafka binding. What a consumer reads, meaning the attributes and their
  * sources, is decided by the factory and is the same event over any transport.
  */
-public final class CloudEventEncoder implements KafkaMessageEncoder {
+final class CloudEventEncoder implements KafkaMessageEncoder {
 
     private final TopicRouter router;
     private final CloudEventFactory factory;
@@ -27,7 +27,7 @@ public final class CloudEventEncoder implements KafkaMessageEncoder {
      * @param cfg    the CloudEvents binding settings ({@code source}, default content type/schema)
      * @throws NullPointerException if either argument is {@code null}
      */
-    public CloudEventEncoder(TopicRouter router, KafkaRelayConfig cfg) {
+    CloudEventEncoder(TopicRouter router, KafkaRelayConfig cfg) {
         this.router = Objects.requireNonNull(router, "router");
         Objects.requireNonNull(cfg, "cfg");
         this.factory = new CloudEventFactory(cfg.source(), cfg.defaultContentType(), cfg.defaultDataSchema());

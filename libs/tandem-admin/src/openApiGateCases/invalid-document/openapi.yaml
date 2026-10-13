@@ -1,0 +1,32 @@
+openapi: 3.0.3
+paths:
+  /items:
+    get:
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: string
+            minLength: 10
+            maxLength: 1
+      responses:
+        "200":
+          description: The items.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: decimal
+        "400":
+          description: A bad request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+              example:
+                status: bad-request

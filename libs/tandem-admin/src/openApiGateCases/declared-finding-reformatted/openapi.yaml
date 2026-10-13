@@ -1,0 +1,24 @@
+openapi: 3.0.3
+info:
+  title: Case
+  version: "1"
+paths:
+
+
+  /items:
+    get:
+      responses:
+        "200":
+          description: The items.
+          content:
+            application/json:
+              schema:
+                properties:
+                  count: {type: integer}
+                  note: {type: string, maxLength: 100}
+                  status: {type: string, enum: [ACTIVE, PAUSED]}
+                type: object
+      parameters:
+        - in: query
+          name: limit
+          schema: {default: 100, type: integer}

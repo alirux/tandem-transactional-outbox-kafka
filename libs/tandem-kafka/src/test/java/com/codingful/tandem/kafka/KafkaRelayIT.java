@@ -36,6 +36,17 @@ class KafkaRelayIT {
     private static final KafkaContainer KAFKA =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1")).withKraft();
 
+    private static final String SPAN_TOPIC = "order-span-topic";
+
+    private static final OutboxRecord ORDER_PLACED = OutboxRecord.builder()
+            .id(99)
+            .message(OutboxMessage.builder()
+                    .aggregateId("order-7").aggregateType("Order").type("com.acme.order.placed").seq(3)
+                    .payload("{\"amount\":42}".getBytes(StandardCharsets.UTF_8))
+                    .contentType("application/json").header("correlation-id", "corr-1").build())
+            .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+            .build();
+
     @BeforeAll
     static void startKafka() {
         KAFKA.start();
@@ -50,14 +61,7 @@ class KafkaRelayIT {
     void GIVEN_a_record_WHEN_dispatched_to_a_real_broker_THEN_the_cloudevent_lands_on_the_topic_in_binary_form()
             throws Exception {
         String topic = "order-topic";
-        OutboxRecord record = OutboxRecord.builder()
-                .id(99)
-                .message(OutboxMessage.builder()
-                        .aggregateId("order-7").aggregateType("Order").type("com.acme.order.placed").seq(3)
-                        .payload("{\"amount\":42}".getBytes(StandardCharsets.UTF_8))
-                        .contentType("application/json").header("correlation-id", "corr-1").build())
-                .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
-                .build();
+        OutboxRecord record = ORDER_PLACED;
 
         try (KafkaConsumer<String, byte[]> consumer = consumer();
              KafkaRelay relay = new KafkaRelay(producerConfig(), TopicRouter.kebabWithSuffix("-topic"),
@@ -79,6 +83,27 @@ class KafkaRelayIT {
             assertThat(header(consumed, TandemHeaders.CONTENT_TYPE)).isEqualTo("application/json");
             assertThat(header(consumed, "correlation-id")).isEqualTo("corr-1");
         }
+    }
+
+    @Test
+    void GIVEN_a_relay_built_with_a_span_recorder_WHEN_a_record_is_published_THEN_its_publish_span_is_recorded()
+            throws Exception {
+        RecordingSpanRecorder spanRecorder = new RecordingSpanRecorder();
+        // A topic of its own: the envelope test reads the first record of order-topic, which must be the
+        // one it published itself.
+        TopicRouter spanTopic = record -> SPAN_TOPIC;
+
+        try (KafkaRelay relay = KafkaRelay.builder(producerConfig(), KafkaMessageEncoder.cloudEvents(
+                        spanTopic, KafkaRelayConfig.of("/tandem/orders")))
+                .spanRecorder(spanRecorder)
+                .build()) {
+            relay.dispatch(ORDER_PLACED).get(Duration.ofSeconds(10).toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+
+        assertThat(spanRecorder.started).singleElement()
+                .satisfies(span -> assertThat(span.topic()).isEqualTo(SPAN_TOPIC));
+        assertThat(spanRecorder.spans).singleElement()
+                .satisfies(span -> assertThat(span.succeeded).isTrue());
     }
 
     private static Map<String, Object> producerConfig() {

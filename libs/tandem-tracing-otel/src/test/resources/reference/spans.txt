@@ -1,0 +1,3 @@
+# Rendered by SpansReferenceTest; regenerate with ./gradlew :tandem-tracing-otel:test -PupdateReferenceFiles
+[complete] tandem.relay.publish producer [tandem.aggregate.id, tandem.aggregate.type, tandem.attempts, tandem.correlation_id, tandem.outbox.row_id, tandem.topic]
+[minimal] tandem.relay.publish producer [tandem.aggregate.id, tandem.aggregate.type, tandem.attempts, tandem.outbox.row_id, tandem.topic]

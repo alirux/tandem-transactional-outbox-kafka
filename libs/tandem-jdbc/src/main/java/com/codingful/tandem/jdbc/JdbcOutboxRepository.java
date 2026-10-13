@@ -43,7 +43,7 @@ import javax.sql.DataSource;
  * several aggregates. It cannot enforce that ordering across separate {@link #insert} calls in one
  * caller transaction — a caller doing that is responsible for the same ordering itself.
  *
- * <p><b>Optional post-commit wakeup:</b> constructed with {@link Wakeup#PG_NOTIFY}, the insert is
+ * <p><b>Optional post-commit wakeup:</b> built with {@link Wakeup#PG_NOTIFY}, the insert is
  * followed by one {@code pg_notify} carrying the bucket numbers just written, on the same connection
  * and so inside the caller's transaction — the database delivers it on commit and discards it on
  * rollback, so a signal can never announce a row that does not exist (dispatch-latency §3.4). It costs
@@ -123,8 +123,8 @@ public final class JdbcOutboxRepository implements OutboxRepository {
      * bucket-count guard (LLD-bucket-count-guard) is therefore an explicit assembly step run against a
      * plain {@code DataSource} — {@link BucketCountGuard} — not something this constructor performs.
      *
-     * <p>Delegates to the 3-arg constructor with {@link TracePropagator#NOOP} — trace/correlation
-     * capture disabled (HLD-tracing.md §7).
+     * <p>Trace capture and the post-commit wakeup are off; {@link #builder(DataSource, int)} turns them
+     * on.
      *
      * @param dataSource  the write-side connection source; the insert joins whatever transaction the
      *                     returned {@link Connection} is already part of
@@ -132,46 +132,32 @@ public final class JdbcOutboxRepository implements OutboxRepository {
      *                     row inserted, never change after first deployment
      * @throws IllegalArgumentException if {@code bucketCount <= 0} or above
      *                                  {@link RelayConfig#MAX_BUCKET_COUNT} (the {@code SMALLINT} column bound)
+     * @throws NullPointerException     if {@code dataSource} is {@code null}
      */
     public JdbcOutboxRepository(DataSource dataSource, int bucketCount) {
-        this(dataSource, bucketCount, TracePropagator.NOOP);
+        this(builder(dataSource, bucketCount));
+    }
+
+    private JdbcOutboxRepository(Builder builder) {
+        this.dataSource = builder.dataSource;
+        this.bucketCount = builder.bucketCount;
+        this.tracePropagator = builder.tracePropagator;
+        this.wakeup = builder.wakeup;
     }
 
     /**
-     * @param dataSource      the write-side connection source; see {@link #JdbcOutboxRepository(DataSource, int)}
-     * @param bucketCount     must match the relay's {@link RelayConfig#bucketCount()}; see
-     *                        {@link #JdbcOutboxRepository(DataSource, int)}
-     * @param tracePropagator captures trace/correlation headers at insert time when
-     *                        {@link TracePropagator#isEnabled()} (HLD-tracing.md §5); real adapters ship
-     *                        in {@code tandem-spring-producer} / {@code tandem-tracing-otel}
+     * A repository with optional collaborators the two-argument constructor leaves at their defaults.
+     *
+     * @param dataSource  the write-side connection source; see {@link #JdbcOutboxRepository(DataSource, int)}
+     * @param bucketCount must match the relay's {@link RelayConfig#bucketCount()}; see
+     *                    {@link #JdbcOutboxRepository(DataSource, int)}
+     * @return a builder holding the two-argument constructor's defaults
      * @throws IllegalArgumentException if {@code bucketCount <= 0} or above
      *                                  {@link RelayConfig#MAX_BUCKET_COUNT} (the {@code SMALLINT} column bound)
-     * @throws NullPointerException     if {@code dataSource} or {@code tracePropagator} is {@code null}
+     * @throws NullPointerException     if {@code dataSource} is {@code null}
      */
-    public JdbcOutboxRepository(DataSource dataSource, int bucketCount, TracePropagator tracePropagator) {
-        this(dataSource, bucketCount, tracePropagator, Wakeup.NONE);
-    }
-
-    /**
-     * @param dataSource      the write-side connection source; see {@link #JdbcOutboxRepository(DataSource, int)}
-     * @param bucketCount     must match the relay's {@link RelayConfig#bucketCount()}; see
-     *                        {@link #JdbcOutboxRepository(DataSource, int)}
-     * @param tracePropagator captures trace/correlation headers at insert time when
-     *                        {@link TracePropagator#isEnabled()} (HLD-tracing.md §5)
-     * @param wakeup          whether each insert also signals the relay that the buckets it wrote have
-     *                        work ({@link Wakeup#PG_NOTIFY}), or leaves discovery to the relay's poll
-     *                        loop ({@link Wakeup#NONE}, the default). The relay must be listening for
-     *                        the same mechanism, or the signal is simply never consumed
-     * @throws IllegalArgumentException if {@code bucketCount <= 0} or above
-     *                                  {@link RelayConfig#MAX_BUCKET_COUNT} (the {@code SMALLINT} column bound)
-     * @throws NullPointerException     if any argument is {@code null}
-     */
-    public JdbcOutboxRepository(DataSource dataSource, int bucketCount, TracePropagator tracePropagator,
-            Wakeup wakeup) {
-        this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
-        this.bucketCount = RelayConfig.boundedBucketCount(bucketCount);
-        this.tracePropagator = Objects.requireNonNull(tracePropagator, "tracePropagator");
-        this.wakeup = Objects.requireNonNull(wakeup, "wakeup");
+    public static Builder builder(DataSource dataSource, int bucketCount) {
+        return new Builder(dataSource, bucketCount);
     }
 
     @Override
@@ -387,5 +373,41 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         }
         return new OutboxInsertException(
                 "failed to insert outbox row for (aggregate_id, seq) = (" + aggregate + ", " + seq + ')', e);
+    }
+
+    /** Builds a {@link JdbcOutboxRepository} with optional collaborators (HLD-api-stability §4.3). */
+    public static final class Builder {
+        private final DataSource dataSource;
+        private final int bucketCount;
+        private TracePropagator tracePropagator = TracePropagator.NOOP;
+        private Wakeup wakeup = Wakeup.NONE;
+
+        private Builder(DataSource dataSource, int bucketCount) {
+            this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
+            this.bucketCount = RelayConfig.boundedBucketCount(bucketCount);
+        }
+
+        /**
+         * Captures trace and correlation headers at insert time when {@link TracePropagator#isEnabled()}
+         * (HLD-tracing.md §5). Default {@link TracePropagator#NOOP}.
+         */
+        public Builder tracePropagator(TracePropagator tracePropagator) {
+            this.tracePropagator = Objects.requireNonNull(tracePropagator, "tracePropagator");
+            return this;
+        }
+
+        /**
+         * Whether each insert also signals the relay that the buckets it wrote have work
+         * ({@link Wakeup#PG_NOTIFY}). Default {@link Wakeup#NONE}: discovery is the relay's poll loop.
+         * The relay must listen for the same mechanism, or the signal is never consumed.
+         */
+        public Builder wakeup(Wakeup wakeup) {
+            this.wakeup = Objects.requireNonNull(wakeup, "wakeup");
+            return this;
+        }
+
+        public JdbcOutboxRepository build() {
+            return new JdbcOutboxRepository(this);
+        }
     }
 }

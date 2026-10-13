@@ -1,0 +1,18 @@
+# Rendered by PublishedMessageReferenceTest; regenerate with ./gradlew :tandem-kafka:test -PupdateReferenceFiles
+[complete]
+topic order-line-topic
+key order-line-7
+header tandem-id 1001
+header tandem-type OrderLineAdded
+header content-type application/vnd.tandem.order-line+json
+header dataschema https://schemas.example.com/order-line/1
+header x-tenant acme
+header correlation-id checkout-42
+body {"sku":"A-1","quantity":2}
+
+[minimal]
+topic order-topic
+key order-9
+header tandem-id 1002
+header tandem-type Order
+body {"total":10}

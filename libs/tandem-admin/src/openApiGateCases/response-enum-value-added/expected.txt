@@ -1,0 +1,3 @@
+# The response enum status gains FAILED: response-property-enum-value-added, lowered from err to info.
+checks compatibility
+verdict pass

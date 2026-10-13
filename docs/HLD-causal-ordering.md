@@ -1,6 +1,6 @@
 # Tandem — Cross-Aggregate Causal Ordering (Design Note)
 
-**Version:** 1.2  
+**Version:** 1.3  
 **Status:** Draft — **designed, not implemented** (see §0)  
 **Companion to:** [HLD.md](HLD.md) §9 (Cross-Aggregate Causal Ordering)
 
@@ -17,50 +17,40 @@ which part of the work.
 
 ## 0. Implementation status — read this first
 
-**Nothing in this document is built.** Everything from §1 onward describes a design, in the
-present tense, as designs are written. What *ships* is a small set of published-but-inert
-declarations — types, constants and one field — kept so that building the feature later stays an
-**additive** change (HLD §1.4) rather than a breaking one.
+**Nothing in this document is built, and nothing of it ships.** Everything from §1 onward describes
+a design, in the present tense, as designs are written. No type, constant, field, header, column or
+table of this feature exists in a published module or in the schema, and there is **no way to turn
+causal ordering on**: no flag, no property, no DDL.
 
-There is **no way to turn causal ordering on.** No flag, no property, no DDL. A javadoc saying
-"only when causal ordering is enabled" would therefore be misleading, and the code says
-"reserved" instead.
+### 0.1 An unbuilt feature publishes no API
 
-### 0.1 The reserved surface — everything that exists today
+Every published type is part of the contract that semantic versioning freezes (HLD §1.4), so a type
+declared ahead of its implementation would freeze a shape that no implementation has validated.
+Building the feature needs no such reservation to stay **additive**: it adds new types, a new
+header, a new column and a new table, and changes the signature of no existing port.
 
-| # | Element | Module | State |
-|---|---|---|---|
-| 1 | `CausalContext` (port: `NONE` + `inboundTimestamp()`) | `tandem-core` | Zero references from any product code |
-| 2 | `LamportClock.merge(local, inbound)` | `tandem-core` | Zero references from any product code; unit-tested |
-| 3 | `OutboxRecord.lamport` (field + getter + builder setter) | `tandem-core` | Never set, never read; always `null` |
-| 4 | `CloudEventsHeaders.EXT_LOGICAL_CLOCK` / `CE_LOGICAL_CLOCK` | `tandem-core` | Declared names; zero readers |
-| 5 | `TandemHeaders.CAUSATION_ID` | `tandem-core` | Declared name; never written |
+What this document does reserve is **names**, so that no other Tandem feature takes them: the
+CloudEvents extensions `logicalclock` and `causationid` (headers `ce_logicalclock` and
+`ce_causationid`), the row header `causation_id`, the `lamport` column and the
+`tandem_aggregate_clock` table. The row header and the extension spell causation differently
+because CloudEvents extension names admit only lowercase letters and digits.
 
-Five elements, **all of them inert declarations in `tandem-core` — no executable code anywhere**.
-Any change to one of them should update this table in the same commit.
+### 0.2 What building it adds
 
-### 0.2 What is missing — the whole mechanism
-
-Everything that would make the five above do something:
-
-- the `lamport` column on `tandem_outbox` and the `tandem_aggregate_clock` table (§3.1) —
-  neither is in `schema/postgres/tandem-baseline.sql`
+- in `tandem-core`: the inbound-causality port `CausalContext` (§3), the pure merge function
+  `max(local, inbound) + 1` (§3), the `lamport` value on the relay's record, and the header names
+  of §0.1
+- the `lamport` column on `tandem_outbox` and the `tandem_aggregate_clock` table (§3.1)
 - the transactional advance-and-merge upsert on the write path (LLD-jdbc §2)
 - the enablement switch, wherever it would live
 - the consumer-side helper that populates `CausalContext` from the inbound header
 - the `ce_logicalclock` write in `CloudEventEncoder` (§0.3)
-- both engine adapters, `tandem-kafka-streams` and `tandem-flink` (§7b) — neither module exists
+- both engine adapters, `tandem-kafka-streams` and `tandem-flink` (§7b); neither module exists
 
-### 0.3 Nothing touches a live path — deliberately
+### 0.3 Nothing touches a live path, deliberately
 
-`CloudEventEncoder` used to carry `if (record.lamport() != null) …`, a real branch evaluated for
-every published record that could never be taken, since nothing populates `lamport`. It was
-**removed**: the relay's encode path now contains no trace of this feature. The cost of re-adding
-it is three lines against a `null` check on every publish forever, and the rule that decided it is
-worth keeping — **an unbuilt feature does not get to occupy the hot path**, not even cheaply.
-
-The consequence for the table above is that the reserved surface is now purely declarative: five
-names and one always-null field, all in `tandem-core`, none of them reachable from executing code.
+The relay's encode path carries no code for this feature, not even a `null` check evaluated on
+every publish: **an unbuilt feature does not get to occupy the hot path**, not even cheaply.
 
 ### 0.4 Scope, if it is ever built
 

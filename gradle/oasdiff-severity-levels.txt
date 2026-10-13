@@ -1,0 +1,260 @@
+# Tandem's compatibility policy for the Admin API contract, as oasdiff severity levels (LLD-api-stability §6.2).
+#
+# One line per rule whose level Tandem sets apart from upstream, `<rule-id> <level>`, grouped under the contract
+# rule each group implements; the level is err, warn or info. Every other rule keeps the level the pinned image
+# gives it. A finding at err or warn fails checkOpenApi unless gradle/accepted-breaks.txt declares its
+# fingerprint; a finding at info passes. Left at their upstream info, so not listed: an element added, a request
+# constraint relaxed, documentation, annotations and lifecycle, and the judgement calls below that list no rule.
+#
+# oasdiff rejects a comment or a blank line in this file, so checkOpenApi strips both into
+# build/openapi/severity-levels.txt and hands oasdiff that copy; oasdiff rejects a rule id it does not know.
+#
+# The file is reviewed against the image named by the reviewed-with line: checkOpenApi fails while the version
+# catalog pins another one. After an image upgrade, list the info rules the new image adds, classify each here,
+# and move the line:
+#   comm -13 <(docker run --rm tufin/oasdiff:<old> checks changelog --severity info --format text \
+#       | awk 'NR > 1 { print $1 }' | sort) \
+#     <(docker run --rm tufin/oasdiff:<new> checks changelog --severity info --format text \
+#       | awk 'NR > 1 { print $1 }' | sort)
+reviewed-with tufin/oasdiff:v1.33.0
+
+# A response enum gains a value. Tolerant readers accept it (HLD-admin-api §1), so the one rule of this
+# file upstream calls an error is lowered.
+response-property-enum-value-added info
+
+# A published element is removed, an optional or deprecated one included.
+api-path-removed-with-deprecation err
+api-removed-with-deprecation err
+optional-response-header-removed err
+request-parameter-removed-with-deprecation err
+response-optional-property-removed err
+
+# A response field becomes required, or a new response field is required: an instance of the previous
+# release, still running in a mixed-version rollout, omits it. The request-side obligations are upstream
+# errors already.
+response-property-became-required err
+response-required-property-added err
+
+# A default is added, changed or removed on an existing element: a client that relies on the default
+# gets another behaviour. A default on a new optional element is part of that addition, and oasdiff
+# reports none for it.
+request-body-default-value-added err
+request-body-default-value-changed err
+request-body-default-value-removed err
+request-parameter-default-value-added err
+request-parameter-default-value-changed err
+request-parameter-default-value-removed err
+request-property-default-value-added err
+request-property-default-value-changed err
+request-property-default-value-removed err
+response-body-default-value-added err
+response-body-default-value-changed err
+response-body-default-value-removed err
+response-property-default-value-added err
+response-property-default-value-changed err
+response-property-default-value-removed err
+
+# An existing wire type or format changes, in the directions upstream calls compatible, generalized or
+# specialized too, on requests as on responses: a schema that becomes `false` is a removal, and a change
+# of media type or of a security scheme changes how a client talks to the API.
+api-security-component-oauth-scope-changed err
+api-security-component-oauth-token-url-changed err
+api-security-component-oauth-url-changed err
+api-security-component-type-changed err
+request-body-list-of-types-widened err
+request-body-type-compatible err
+request-body-type-generalized err
+request-parameter-list-of-types-widened err
+request-parameter-property-list-of-types-widened err
+request-parameter-property-type-generalized err
+request-parameter-type-generalized err
+request-property-list-of-types-widened err
+request-property-type-compatible err
+request-property-type-generalized err
+response-body-list-of-types-narrowed err
+response-body-type-compatible err
+response-body-type-specialized err
+response-header-schema-became-false err
+response-header-type-compatible err
+response-header-type-specialized err
+response-media-type-name-specialized err
+response-media-type-parameter-added err
+response-property-list-of-types-narrowed err
+response-property-schema-became-false err
+response-property-type-compatible err
+response-property-type-specialized err
+
+# An existing value range narrows on a response: a new or tighter bound, a value or alternative removed,
+# null no longer allowed. An instance of the previous release may still send what the narrower contract
+# excludes. Narrowed request ranges are upstream errors already.
+response-body-all-of-added err
+response-body-any-of-removed err
+response-body-became-not-nullable err
+response-body-const-added err
+response-body-contains-added err
+response-body-content-schema-added err
+response-body-dependent-required-added err
+response-body-dependent-schema-added err
+response-body-else-added err
+response-body-exclusive-max-decreased err
+response-body-exclusive-max-set err
+response-body-exclusive-min-increased err
+response-body-exclusive-min-set err
+response-body-if-added err
+response-body-max-contains-decreased err
+response-body-max-contains-set err
+response-body-max-decreased err
+response-body-max-items-decreased err
+response-body-max-items-set err
+response-body-max-length-decreased err
+response-body-max-length-set err
+response-body-max-properties-decreased err
+response-body-max-properties-set err
+response-body-max-set err
+response-body-media-type-item-schema-added err
+response-body-media-type-schema-added err
+response-body-min-contains-increased err
+response-body-min-contains-set err
+response-body-min-increased err
+response-body-min-items-increased err
+response-body-min-items-set err
+response-body-min-length-increased err
+response-body-min-length-set err
+response-body-min-properties-increased err
+response-body-min-properties-set err
+response-body-min-set err
+response-body-multiple-of-set err
+response-body-multiple-of-specialized err
+response-body-one-of-removed err
+response-body-pattern-property-added err
+response-body-property-names-added err
+response-body-then-added err
+response-body-unevaluated-items-added err
+response-body-unevaluated-properties-added err
+response-header-became-not-nullable err
+response-header-exclusive-max-decreased err
+response-header-exclusive-max-set err
+response-header-exclusive-min-increased err
+response-header-exclusive-min-set err
+response-header-max-contains-decreased err
+response-header-max-contains-set err
+response-header-max-decreased err
+response-header-max-items-decreased err
+response-header-max-items-set err
+response-header-max-length-decreased err
+response-header-max-length-set err
+response-header-max-properties-decreased err
+response-header-max-properties-set err
+response-header-max-set err
+response-header-min-contains-increased err
+response-header-min-contains-set err
+response-header-min-increased err
+response-header-min-items-increased err
+response-header-min-items-set err
+response-header-min-length-increased err
+response-header-min-length-set err
+response-header-min-properties-increased err
+response-header-min-properties-set err
+response-header-min-set err
+response-header-multiple-of-set err
+response-mediatype-enum-value-removed err
+response-property-all-of-added err
+response-property-any-of-removed err
+response-property-became-not-nullable err
+response-property-const-added err
+response-property-contains-added err
+response-property-content-schema-added err
+response-property-dependent-required-added err
+response-property-dependent-schema-added err
+response-property-else-added err
+response-property-enum-value-removed err
+response-property-exclusive-max-decreased err
+response-property-exclusive-max-set err
+response-property-exclusive-min-increased err
+response-property-exclusive-min-set err
+response-property-if-added err
+response-property-max-contains-decreased err
+response-property-max-contains-set err
+response-property-max-decreased err
+response-property-max-items-decreased err
+response-property-max-items-set err
+response-property-max-length-decreased err
+response-property-max-length-set err
+response-property-max-properties-decreased err
+response-property-max-properties-set err
+response-property-max-set err
+response-property-min-contains-increased err
+response-property-min-contains-set err
+response-property-min-increased err
+response-property-min-items-increased err
+response-property-min-items-set err
+response-property-min-length-increased err
+response-property-min-length-set err
+response-property-min-properties-increased err
+response-property-min-properties-set err
+response-property-min-set err
+response-property-multiple-of-set err
+response-property-multiple-of-specialized err
+response-property-one-of-removed err
+response-property-pattern-added err
+response-property-pattern-property-added err
+response-property-property-names-added err
+response-property-then-added err
+response-property-unevaluated-items-added err
+response-property-unevaluated-properties-added err
+
+# Judgement calls: names a generated client is built from. A component schema, an operation id and a tag
+# are not on the wire, but code generators name types, methods and API classes after them, and the
+# contract is what third-party tooling generates from (HLD-admin-api §1). Removing or renaming one fails.
+api-operation-id-removed err
+api-schema-removed err
+api-tag-removed err
+
+# Judgement calls: the document's own version. A break is recorded by its declaration in
+# gradle/accepted-breaks.txt; whether info.version moved with it is review's to judge.
+# Every rule of this group stays at its upstream info, so none is listed.
+
+# Judgement calls: response statuses. A documented non-success status removed is a removal, and an
+# instance of the previous release still returns it. A new success status is additive: a client treats an
+# unknown 2xx as success.
+response-non-success-status-removed err
+
+# Judgement calls: security schemes. A scheme or an OAuth scope removed from the components is a removal,
+# even where nothing references it any more.
+api-security-component-oauth-scope-removed err
+api-security-component-removed err
+
+# Judgement calls: discriminators. Adding one, or a mapping, adds a hint or a subtype; removing one,
+# deleting a mapping, or changing a mapping or the property name changes how existing payloads are typed.
+request-body-discriminator-mapping-changed err
+request-body-discriminator-mapping-deleted err
+request-body-discriminator-property-name-changed err
+request-body-discriminator-removed err
+request-property-discriminator-mapping-changed err
+request-property-discriminator-mapping-deleted err
+request-property-discriminator-property-name-changed err
+request-property-discriminator-removed err
+response-body-discriminator-mapping-changed err
+response-body-discriminator-mapping-deleted err
+response-body-discriminator-property-name-changed err
+response-body-discriminator-removed err
+response-property-discriminator-mapping-changed err
+response-property-discriminator-mapping-deleted err
+response-property-discriminator-property-name-changed err
+response-property-discriminator-removed err
+
+# Judgement calls: readOnly and writeOnly. A read-only property never travels in a request, and a write-only
+# one never in a response: a rule about such a property on that side changes nothing on the wire, and the
+# side the property does travel on reports its own rule. A property that stops travelling on a side is a
+# removal there; one that starts travelling as required is a new obligation or a new required response
+# field.
+request-optional-property-became-read-only err
+request-required-property-became-not-read-only err
+request-required-property-became-read-only err
+response-optional-property-became-write-only err
+response-required-property-became-not-write-only err
+response-required-property-became-write-only err
+
+# Judgement calls: a schema that is no longer the boolean `false`. Nothing could be sent before, so the
+# element is new rather than retyped.
+# Every rule of this group stays at its upstream info, so none is listed.

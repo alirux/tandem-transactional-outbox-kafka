@@ -1,3 +1,5 @@
+import com.codingful.tandem.compatibility.CheckBomModules
+
 plugins {
     `java-platform`
 }
@@ -24,3 +26,8 @@ dependencies {
         // declares it with its own version.
     }
 }
+
+// The modules this BOM manages are a contract of their own: each one the baseline release's BOM manages
+// stays managed, or its removal is a declared break (LLD-api-stability §2.4). The check joins `check` and
+// checkCompatibility as it is registered.
+CheckBomModules.register(project)

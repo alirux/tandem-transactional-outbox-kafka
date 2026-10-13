@@ -11,12 +11,10 @@ import com.codingful.tandem.core.OutboxStatus;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
-import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.test.ControllableClock;
 import com.codingful.tandem.test.InMemoryOutbox;
 import com.codingful.tandem.test.RecordingDispatcher;
 import com.codingful.tandem.test.RecordingMetrics;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -195,8 +193,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).pollInterval(Duration.ofMillis(10)).build();
         MutableControlSource control = new MutableControlSource();
         control.setWholeRelayPaused(true);
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), control);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .controlSource(control)
+                .build();
 
         pool.start();
         try {
@@ -221,8 +221,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).pollInterval(Duration.ofMillis(10)).build();
         MutableControlSource control = new MutableControlSource();
         control.pauseBucket(pausedBucket);
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), control);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .controlSource(control)
+                .build();
 
         pool.start();
         try {
@@ -244,8 +246,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, wakeup);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -279,8 +283,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), () -> Set.of(ownedBucket), RelayControlSource.NOOP, wakeup);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(() -> Set.of(ownedBucket))
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -317,8 +323,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), () -> Set.of(ownedBucket), RelayControlSource.NOOP, wakeup);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(() -> Set.of(ownedBucket))
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -349,9 +357,11 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
-                BucketSource.embedded(BUCKETS), control, wakeup);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .controlSource(control)
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -387,9 +397,11 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
-                BucketSource.embedded(BUCKETS), control, wakeup);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .controlSource(control)
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -425,8 +437,10 @@ class WorkerPoolTest {
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
                 .reclaimInterval(Duration.ofMillis(500)).build();
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(outbox, new RecordingDispatcher(), cfg, TandemMetrics.NOOP,
-                Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets, RelayControlSource.NOOP, wakeup);
+        WorkerPool pool = WorkerPool.builder(outbox, new RecordingDispatcher(), cfg)
+                .bucketSource(buckets)
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         try {
@@ -460,8 +474,9 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
                 .reclaimInterval(Duration.ofMillis(100)).build();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .bucketSource(buckets)
+                .build();
 
         pool.start();
         try {
@@ -489,9 +504,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
                 .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30))
                 .reclaimInterval(Duration.ofMillis(100)).build();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg,
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets,
-                RelayControlSource.NOOP, new RecordingWakeupSource());
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .bucketSource(buckets)
+                .wakeupSource(new RecordingWakeupSource())
+                .build();
 
         pool.start();
         try {
@@ -510,10 +526,10 @@ class WorkerPoolTest {
         // Both halves matter and neither fails loudly: a source never started delivers nothing, and one
         // never stopped leaves a connection and a thread behind every relay restart.
         RecordingWakeupSource wakeup = new RecordingWakeupSource();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(),
-                RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build(),
-                TandemMetrics.NOOP, Clock.systemUTC(), BackoffStrategy.fullJitter(),
-                BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, wakeup);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build())
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .wakeupSource(wakeup)
+                .build();
 
         pool.start();
         assertThat(wakeup.startCalls()).isEqualTo(1);
@@ -538,8 +554,10 @@ class WorkerPoolTest {
                 throw new IllegalStateException("no listening connection");
             }
         };
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS), RelayControlSource.NOOP, unstartable);
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .wakeupSource(unstartable)
+                .build();
 
         pool.start();
         try {
@@ -564,10 +582,9 @@ class WorkerPoolTest {
     @Test
     void GIVEN_a_running_relay_WHEN_stopped_gracefully_THEN_the_bucket_source_is_released() {
         RecordingBucketSource buckets = new RecordingBucketSource(BUCKETS);
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(),
-                RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build(),
-                TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), buckets);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build())
+                .bucketSource(buckets)
+                .build();
 
         pool.start();
         pool.stop();
@@ -581,10 +598,9 @@ class WorkerPoolTest {
         // presence freed at once); kill() simulates a crash, where nothing is released explicitly —
         // ownership is only discovered stale once the lease itself expires (§3.2).
         RecordingBucketSource buckets = new RecordingBucketSource(BUCKETS);
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(),
-                RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build(),
-                TandemMetrics.NOOP, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), buckets);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build())
+                .bucketSource(buckets)
+                .build();
 
         pool.start();
         pool.kill();   // must return without hanging; idempotent
@@ -696,8 +712,11 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(2).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(50)).build();
-        WorkerPool pool = new WorkerPool(outbox, stalls, cfg, metrics, clock,
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(outbox, stalls, cfg)
+                .metrics(metrics)
+                .clock(clock)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -815,8 +834,10 @@ class WorkerPoolTest {
         };
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10)).build();
-        WorkerPool pool = new WorkerPool(alwaysThrows, new RecordingDispatcher(), cfg, TandemMetrics.NOOP, clock,
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(alwaysThrows, new RecordingDispatcher(), cfg)
+                .clock(clock)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
         Instant startedAt = clock.instant();
 
         pool.start();
@@ -879,8 +900,11 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(20)).build();
-        WorkerPool pool = new WorkerPool(alwaysThrows, new RecordingDispatcher(), cfg, metrics, clock,
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(alwaysThrows, new RecordingDispatcher(), cfg)
+                .metrics(metrics)
+                .clock(clock)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -982,8 +1006,9 @@ class WorkerPoolTest {
         };
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10)).build();
-        WorkerPool pool = new WorkerPool(parksOnClaim, new RecordingDispatcher(), cfg, TandemMetrics.NOOP,
-                Clock.systemUTC(), BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(parksOnClaim, new RecordingDispatcher(), cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -1034,8 +1059,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(20)).build();
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, metrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .metrics(metrics)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -1043,6 +1070,35 @@ class WorkerPoolTest {
         } finally {
             pool.stop();
         }
+    }
+
+    @Test
+    void GIVEN_a_backoff_of_its_own_WHEN_a_dispatch_fails_retriably_THEN_the_row_waits_the_delay_it_returns() {
+        ControllableClock clock = ControllableClock.atEpochDay();
+        InMemoryOutbox outbox = new InMemoryOutbox(BUCKETS, InMemoryOutbox.DEFAULT_MAX_ATTEMPTS, clock);
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build());
+        Duration delay = Duration.ofMinutes(7);
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10)).build();
+        WorkerPool pool = WorkerPool.builder(outbox, new RecordingDispatcher().failAll(true), cfg)
+                .backoff(attempts -> delay)
+                .build();
+
+        pool.start();
+        try {
+            // The clock stands still, so the row stays scheduled for later and is not claimed again.
+            awaitUpTo(Duration.ofSeconds(20), () -> "nextAttemptAt:" + nextAttemptAt(outbox),
+                    () -> nextAttemptAt(outbox) != null);
+        } finally {
+            pool.stop();
+        }
+
+        assertThat(nextAttemptAt(outbox)).isEqualTo(clock.instant().plus(delay));
+    }
+
+    private static Instant nextAttemptAt(InMemoryOutbox outbox) {
+        return outbox.findById(1).orElseThrow().nextAttemptAt();
     }
 
     @Test
@@ -1057,8 +1113,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(20)).build();
-        WorkerPool pool = new WorkerPool(outbox, dispatcher, cfg, metrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(outbox, dispatcher, cfg)
+                .metrics(metrics)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -1089,8 +1147,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(20)).build();
-        WorkerPool pool = new WorkerPool(store, new RecordingDispatcher(), cfg, metrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.embedded(BUCKETS));
+        WorkerPool pool = WorkerPool.builder(store, new RecordingDispatcher(), cfg)
+                .metrics(metrics)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
 
         pool.start();
         try {
@@ -1111,8 +1171,10 @@ class WorkerPoolTest {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
                 .metricsInterval(Duration.ofMillis(20)).build();
-        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg, metrics,
-                Clock.systemUTC(), BackoffStrategy.fullJitter(), buckets);
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .metrics(metrics)
+                .bucketSource(buckets)
+                .build();
 
         pool.start();
         try {

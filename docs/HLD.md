@@ -45,8 +45,8 @@ Where a component has a clear functional core with at least one port and one ada
 
 | Hexagonal role | Tandem |
 |---|---|
-| Functional core | `tandem-core` — models, contracts, pure logic (Lamport merge, status state machine); zero external runtime deps |
-| Ports (defined by the core) | `OutboxRepository` (persistence), `OutboxDispatcher` (publish), `PayloadSerializer`, `MessageEncoder` (wire format), `TopicRouter`, `CausalContext`, `TracePropagator` (default no-op), `TandemMetrics` (default no-op) |
+| Functional core | `tandem-core` — models, contracts, pure logic (bucket hash, status state machine); zero external runtime deps |
+| Ports (defined by the core) | `OutboxRepository` (persistence), `OutboxDispatcher` (publish), `PayloadSerializer`, `MessageEncoder` (wire format), `TopicRouter`, `TracePropagator` (default no-op), `TandemMetrics` (default no-op) |
 | Driven (outbound) adapters | `tandem-jdbc` (JDBC persistence), `tandem-kafka` (Kafka publish), `tandem-test` `InMemoryOutbox` (in-memory persistence) |
 | Driving (inbound) adapters | `tandem-spring-producer` usage tiers (template, annotation, Spring events); `tandem-admin` REST layer over `AdminService` |
 | Observability / consumer-side adapters | `tandem-micrometer` (metrics), `tandem-tracing-otel` (trace capture), `tandem-kafka-streams`, `tandem-flink` |
@@ -93,6 +93,9 @@ therefore *always* has mixed versions reading and writing the same contracts.
   `additionalProperties: false`, closed enums that reject unknown values, or strict envelope
   parsing each break a reader the moment the contract grows. This directly shapes the schema
   migration strategy (Q7).
+
+What 1.0 freezes, which Java types count as API, how each contract may grow and the build gates that
+check it: [HLD-api-stability.md](HLD-api-stability.md).
 
 ---
 
@@ -418,7 +421,7 @@ Duplicates are a known, managed outcome. Data loss is not.
 
 **Where it lives:** CloudEvents formatting is a **relay-side** concern in `tandem-kafka` (via `io.cloudevents:cloudevents-kafka`). Consistent with the deployment topology (§3.2), the **client / write-side does not depend on CloudEvents** — it only captures the event `type`; the relay builds the CloudEvent from the stored row + configuration. Topic routing (`aggregate_type` → topic) and payload serialization (`PayloadSerializer` → `data`) are orthogonal and unchanged.
 
-Full mapping, content modes, Tandem extensions (`seq`, emitted when the row carries a number; `logicalclock` and `causationid`, **reserved**: wire names declared so they cannot drift, emitted by nothing, belonging to the unbuilt causal-ordering surface of [HLD-causal-ordering.md](HLD-causal-ordering.md) §0), **event versioning** (the version lives in the CloudEvents `type` as a `.v{n}` suffix, never in the topic; §1.4 compatibility applies), and schema impact: [HLD-cloudevents.md](HLD-cloudevents.md). Publishing an envelope other than CloudEvents: [HLD-alternative-envelope.md](HLD-alternative-envelope.md).
+Full mapping, content modes, Tandem extensions (`seq`, emitted when the row carries a number; `logicalclock` and `causationid`, **reserved** names of the unbuilt causal-ordering feature, emitted by nothing: [HLD-causal-ordering.md](HLD-causal-ordering.md) §0.1), **event versioning** (the version lives in the CloudEvents `type` as a `.v{n}` suffix, never in the topic; §1.4 compatibility applies), and schema impact: [HLD-cloudevents.md](HLD-cloudevents.md). Publishing an envelope other than CloudEvents: [HLD-alternative-envelope.md](HLD-alternative-envelope.md).
 
 ---
 
@@ -937,7 +940,7 @@ Tandem exposes a `ReplayService` API (in `tandem-core`) that wraps these queries
 
 ## 9. Cross-Aggregate Causal Ordering (Optional)
 
-> **Status: designed, not implemented.** What ships today is a handful of published-but-inert declarations (a port, a pure merge function, a nullable field, two header names) and **no way to enable any of it** — no flag, no column, no clock table, no engine adapter. Full design, and the inventory of what exists versus what is missing: [HLD-causal-ordering.md](HLD-causal-ordering.md) (start at §0).
+> **Status: designed, not implemented.** Nothing of it ships (no type, header, column, clock table or engine adapter), and there is **no way to enable it**. Full design, and what building it adds: [HLD-causal-ordering.md](HLD-causal-ordering.md) (start at §0).
 
 By default Tandem orders events only within an aggregate (`seq`). Some consumers need to apply events from *different* aggregates in an order that never shows an effect before its cause — a materialized view folding several aggregates into one global timeline being the canonical case. For those, the design adds an **opt-in** per-aggregate **Lamport clock** producing a total order consistent with cross-aggregate causality.
 
@@ -978,7 +981,7 @@ All throughput/latency targets are stated against the **reference baseline** (si
 | Ordering guarantee | Strict per-aggregate, best-effort cross-aggregate; **zero per-aggregate ordering violations** under all load scenarios |
 | Delivery semantics | At-least-once; consumers must be idempotent; **zero lost events** under all load scenarios |
 | Java compatibility | Java 17+ (LTS) |
-| DB compatibility | PostgreSQL 14+ (primary; 14, 16 and 18 CI-verified, and the floor tracks the majors the community still patches), MySQL 8.0+ (secondary). Managed and PostgreSQL-derived engines, and the engines permanently out of scope for want of `SKIP LOCKED`, are stated in [guide/compatibility.md](../guide/compatibility.md) |
+| DB compatibility | PostgreSQL 14+ (primary; 14, 16 and 18 CI-verified; the floor rises only by decision, [HLD-api-stability.md](HLD-api-stability.md) §2), MySQL 8.0+ (secondary). Managed and PostgreSQL-derived engines, and the engines permanently out of scope for want of `SKIP LOCKED`, are stated in [guide/compatibility.md](../guide/compatibility.md) |
 | Kafka compatibility | Kafka client 3.x |
 | Spring Boot | **3.x and 4.x** autoconfiguration (see §10.1); usable without Spring |
 | Dependency footprint | `tandem-core` zero runtime deps; the client-imported write-side carries minimal/ideally-zero external deps (§1.3); no mandatory Spring dependency |

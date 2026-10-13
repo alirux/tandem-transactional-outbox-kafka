@@ -16,5 +16,5 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                    emits to be of any use, and mismatching it costs latency only
  */
 @ConfigurationProperties("tandem.outbox")
-public record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup) {
+record TandemOutboxProperties(@DefaultValue("256") int bucketCount, @DefaultValue("none") Wakeup wakeup) {
 }

@@ -18,7 +18,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param producer           raw Kafka producer properties (e.g. {@code bootstrap.servers}); default empty
  */
 @ConfigurationProperties("tandem.kafka")
-public record TandemKafkaProperties(
+record TandemKafkaProperties(
         URI source,
         @DefaultValue("application/json") String defaultContentType,
         URI defaultDataSchema,
@@ -27,7 +27,7 @@ public record TandemKafkaProperties(
 
     /** Guarantee a non-null producer map, so an application that sets no {@code tandem.kafka.producer.*}
      *  keys yields an empty map rather than {@code null}. */
-    public TandemKafkaProperties {
+    TandemKafkaProperties {
         producer = producer == null ? Map.of() : producer;
     }
 }

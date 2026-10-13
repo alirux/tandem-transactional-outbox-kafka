@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.port.OutboxRepository;
+import com.codingful.tandem.jdbc.JdbcOutboxRepository;
+import com.codingful.tandem.jdbc.Wakeup;
 import com.codingful.tandem.test.TandemTestContainer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -33,6 +35,8 @@ import org.springframework.context.SmartLifecycle;
 class TandemRelayIntegrationTest {
 
     private static final String TOPIC = "order-topic";
+    private static final String WAKEUP_TOPIC_SUFFIX = "-wakeup-topic";
+    private static final String WAKEUP_TOPIC = "order" + WAKEUP_TOPIC_SUFFIX;
     private static final int BUCKET_COUNT = 256;
 
     private static TandemTestContainer infrastructure;
@@ -81,6 +85,43 @@ class TandemRelayIntegrationTest {
                         Map<String, List<Long>> delivered = consume(consumer, 3, Duration.ofSeconds(30));
                         assertThat(delivered.get("order-A")).containsExactly(1L, 2L);
                         assertThat(delivered.get("order-B")).containsExactly(1L);
+                    }
+                });
+    }
+
+    @Test
+    void GIVEN_the_wakeup_configured_and_a_relay_polling_once_a_minute_WHEN_a_row_commits_THEN_it_is_delivered_at_once() {
+        // The relay's half of the wakeup must reach the engine, not just exist as a bean: with a fixed
+        // one-minute poll (48 s at the earliest, after jitter), only the signal can deliver within seconds.
+        // A topic of its own keeps the other test's consumer, which reads from the earliest offset, off
+        // these records.
+        infrastructure.newRepository(BUCKET_COUNT).insert(message("order-warm-up", 1L));
+        infrastructure.createTopic(WAKEUP_TOPIC, 1);
+        OutboxRepository signallingRepository =
+                JdbcOutboxRepository.builder(infrastructure.dataSource(), BUCKET_COUNT).wakeup(Wakeup.PG_NOTIFY).build();
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
+                .withBean(DataSource.class, () -> infrastructure.dataSource())
+                .withPropertyValues(
+                        "tandem.outbox.wakeup=pg-notify",
+                        "tandem.relay.poll-interval=60s",
+                        "tandem.relay.poll-interval-floor=60s",
+                        "tandem.kafka.topic-suffix=" + WAKEUP_TOPIC_SUFFIX,
+                        "tandem.kafka.source=/tandem/relay-it",
+                        "tandem.kafka.producer[bootstrap.servers]=" + infrastructure.bootstrapServers())
+                .run(context -> {
+                    try (KafkaConsumer<String, byte[]> consumer =
+                            infrastructure.newConsumer("relay-wakeup-it-group", WAKEUP_TOPIC)) {
+                        // The start-up claim delivers the warm-up row; the claim after it finds nothing,
+                        // and the workers settle into the one-minute wait the signal has to cut short.
+                        assertThat(consume(consumer, 1, Duration.ofSeconds(30))).containsOnlyKeys("order-warm-up");
+                        assertThat(consume(consumer, 1, Duration.ofSeconds(1))).isEmpty();
+
+                        signallingRepository.insert(message("order-woken", 1L));
+
+                        assertThat(consume(consumer, 1, Duration.ofSeconds(10))).containsOnlyKeys("order-woken");
                     }
                 });
     }

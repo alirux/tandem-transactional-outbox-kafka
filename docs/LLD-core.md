@@ -8,7 +8,7 @@ Q5 (exceptions), Q24 (DISCARDED). See [open-questions-lld.md](open-questions-lld
 
 `tandem-core` is the functional core (HLD §1.2): it defines the **models**, the **ports**
 (interfaces implemented by the adapters), the **exception** hierarchy, and the **pure logic**
-(Lamport merge, status codes). It contains no I/O and no third-party dependencies.
+(bucket hash, status codes). It contains no I/O and no third-party dependencies.
 
 ---
 
@@ -93,10 +93,10 @@ public final class OutboxMessage {
   serializes it into `headers["content-type"]` at insert (LLD-jdbc §2), the key the relay reads for
   the CloudEvents `datacontenttype` (LLD-kafka §3.2). No dedicated column — reuse `headers` (Pareto).
 - **No `causationId` here.** Causation belongs to the **causal-ordering** feature (the peer of
-  `lamport`; HLD §9), which is designed but **not built** — `TandemHeaders.CAUSATION_ID` declares the
-  header name and nothing writes it ([HLD-causal-ordering.md](HLD-causal-ordering.md) §0). If the feature is
-  ever built, causation propagates as a header/extension exactly like `lamport`, never as a field on
-  this write value — keeping the common path free of plumbing for a capability it does not use.
+  `lamport`; HLD §9), which is designed but **not built**, and nothing of it ships
+  ([HLD-causal-ordering.md](HLD-causal-ordering.md) §0). If the feature is ever built, causation
+  propagates as a header and extension exactly like `lamport`, never as a field on this write value,
+  keeping the common path free of plumbing for a capability it does not use.
 
 ### 1.4 `OutboxRecord` (stored row)
 
@@ -113,7 +113,6 @@ public final class OutboxRecord {
     private final String lastError;       // nullable
     private final Instant nextAttemptAt;  // nullable
     private final Instant createdAt;
-    private final Long   lamport;         // nullable; reserved, always null today (§9)
     // accessors
 }
 ```
@@ -157,7 +156,6 @@ Ports are interfaces **defined by the core** and implemented by adapters (HLD §
 | `PayloadSerializer` | client / `tandem-spring-producer` (JSON) | Object → bytes |
 | `MessageEncoder` | core (`RawMessageEncoder`, opt-in) / `tandem-kafka` (`KafkaMessageEncoder`, CloudEvents default) | Record → wire message |
 | `TopicRouter` | `tandem-kafka` (default) | `aggregateType` → topic |
-| `CausalContext` | *(nobody — reserved, see HLD-causal-ordering.md §0)* | Inbound Lamport timestamp |
 | `TracePropagator` | core (no-op) / `tandem-spring-producer`, `tandem-tracing-otel` | Trace capture (§7.1) |
 | `TandemMetrics` | core (no-op) / `tandem-micrometer` | Metrics (§7) |
 | `ReplayService` | `tandem-jdbc` | Replay (§8) |
@@ -280,10 +278,9 @@ AMQP the router decides ordering: the ordered topology needs `r -> r.aggregateId
 
 **`CloudEventsHeaders`** names the binary-mode forms of Tandem's extensions (`ce_seq`,
 `ce_partitionkey`, and their `cloudEvents_*` AMQP forms), the binary forms of the standard `id`
-attribute (`CE_ID` = `ce_id`, `AMQP_ID` = `cloudEvents_id`), and two reserved names, `logicalclock` and
-`causationid` (`ce_logicalclock`, `ce_causationid`), which nothing emits (HLD-causal-ordering §0).
-`causationid` differs from the row-header name `TandemHeaders.CAUSATION_ID` (`causation_id`) because
-CloudEvents extension names admit only lowercase letters and digits.
+attribute (`CE_ID` = `ce_id`, `AMQP_ID` = `cloudEvents_id`). It declares only names something reads
+or writes: the names the unbuilt causal-ordering feature reserves live in its design
+(HLD-causal-ordering §0.1), not here.
 
 ### 2.5 Optional capability ports (no-op defaults in core)
 
@@ -319,17 +316,7 @@ public interface TandemSpanRecorder {                   // §7.1, HLD-tracing.md
         void end(Throwable failure);
     }
 }
-
-public interface CausalContext {                       // §9 — RESERVED, nothing wires it
-    OptionalLong inboundTimestamp();   // empty → mutation is a causal root
-}
 ```
-
-`CausalContext` is listed here for completeness but is **not** an optional capability port in the
-sense of the two above: it has no `isEnabled()` (an empty `OptionalLong` is the guard) and no
-adapter, no caller and no enablement switch exist. It is reserved API for the unbuilt
-cross-aggregate causal-ordering feature — inventory and status in
-[HLD-causal-ordering.md](HLD-causal-ordering.md) §0.
 
 `TandemSpanAttributes` (also `tandem-core`) declares the `tandem.*` attribute names every
 `TandemSpanRecorder` adapter tags a span with — one declaration shared by the Micrometer
@@ -388,13 +375,6 @@ Kafka exception types — the seam that connects Q17 to Q9/Q10.
 ## 4. Pure logic (in core)
 
 ```java
-public final class LamportClock {                      // HLD-causal-ordering §3
-    /** new = max(local, inbound) + 1 */
-    public static long merge(long local, long inbound) { return Math.max(local, inbound) + 1; }
-}
-```
-
-```java
 public final class BucketHash {                       // §4.3 HLD
     /** Virtual bucket for an aggregate id: a 64-bit FNV-1a hash over the UTF-8 bytes of
         {@code aggregateId}, reduced with {@code Math.floorMod} into {@code [0, bucketCount)}.
@@ -415,8 +395,8 @@ public final class BucketHash {                       // §4.3 HLD
 `Long.MIN_VALUE`** (unlike `abs(...) % n`, which overflows on the minimum value), and it works
 for any `bucketCount`, not only powers of two.
 
-Other pure helpers: `OutboxStatus.fromCode`, header-name constants (`ce_logicalclock`,
-`traceparent`, `correlation-id`, `causation_id`), and the CloudEvents header keys. The
+Other pure helpers: `OutboxStatus.fromCode`, header-name constants (`traceparent`,
+`correlation-id`), and the CloudEvents header keys. The
 **bucket hash is computed in Java by the core** (above): `tandem-jdbc` calls it at insert and
 `InMemoryOutbox` calls the *same* function, so in-memory tests and the real database agree on
 the bucket. The core defines both the `(bucket, bucketCount)` contract **and** the hash itself —

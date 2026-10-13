@@ -1,0 +1,4 @@
+# The optional response property note removed: response-optional-property-removed, raised to err.
+checks compatibility
+verdict fail
+undeclared finding f988331a1043

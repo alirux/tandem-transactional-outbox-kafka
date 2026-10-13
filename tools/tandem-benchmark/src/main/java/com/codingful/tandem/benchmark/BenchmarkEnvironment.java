@@ -4,12 +4,10 @@ import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
-import com.codingful.tandem.jdbc.BackoffStrategy;
 import com.codingful.tandem.jdbc.BucketCountGuard;
 import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.RelayConfig;
-import com.codingful.tandem.jdbc.RelayControlSource;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.test.TandemTestContainer;
@@ -22,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Clock;
 import javax.sql.DataSource;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -80,9 +77,11 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         // every scenario except S8 (which builds its own LEASE-coordinated instances via
         // newRelayInstance instead of this primary pool).
         RelayConfig relayCfg = relayConfigBuilder().build();
-        relayPool = new WorkerPool(store, dispatcher, relayCfg, metrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), BucketSource.forCoordination(relayCfg, dataSource),
-                RelayControlSource.NOOP, newWakeupSource());
+        relayPool = WorkerPool.builder(store, dispatcher, relayCfg)
+                .metrics(metrics)
+                .bucketSource(BucketSource.forCoordination(relayCfg, dataSource))
+                .wakeupSource(newWakeupSource())
+                .build();
         return this;
     }
 
@@ -174,8 +173,11 @@ public final class BenchmarkEnvironment implements AutoCloseable {
         // calls FaultInjector.stallWorkerClaims for this instance's id.
         OutboxStore faultInjectingStore = new FaultInjectingOutboxStore(store, faultInjector);
         BucketSource bucketSource = BucketSource.forCoordination(relayCfg, dataSource);
-        WorkerPool pool = new WorkerPool(faultInjectingStore, dispatcher, relayCfg, instanceMetrics, Clock.systemUTC(),
-                BackoffStrategy.fullJitter(), bucketSource, RelayControlSource.NOOP, wakeupSource);
+        WorkerPool pool = WorkerPool.builder(faultInjectingStore, dispatcher, relayCfg)
+                .metrics(instanceMetrics)
+                .bucketSource(bucketSource)
+                .wakeupSource(wakeupSource)
+                .build();
         return new RelayInstance(pool, bucketSource, producer);
     }
 

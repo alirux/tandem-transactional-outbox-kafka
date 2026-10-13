@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.port.TandemAggregate;
-import com.codingful.tandem.jdbc.PgNotifyWakeup;
+import com.codingful.tandem.jdbc.Wakeup;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.test.TandemTestContainer;
 import java.sql.Connection;
@@ -175,7 +175,7 @@ class TandemProducerIntegrationTest {
         // here fails loudly if it does not — the rows are simply found by the next poll.
         LinkedBlockingQueue<Integer> signalled = new LinkedBlockingQueue<>();
         CountDownLatch subscribed = new CountDownLatch(1);
-        PgNotifyWakeup wakeup = new PgNotifyWakeup(container.dataSource());
+        WakeupSource wakeup = WakeupSource.forWakeup(Wakeup.PG_NOTIFY, container.dataSource());
         wakeup.start(new WakeupSource.Listener() {
             @Override
             public void wake(int bucket) {

@@ -1,0 +1,2 @@
+# Rendered by MicrometerReferenceTest; regenerate with ./gradlew :tandem-micrometer:test -PupdateReferenceFiles
+MicrometerTandemMetrics.maxExpectedPublishLatency=5m

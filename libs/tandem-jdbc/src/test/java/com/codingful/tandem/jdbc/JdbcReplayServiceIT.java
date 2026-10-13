@@ -83,18 +83,6 @@ class JdbcReplayServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void GIVEN_a_replay_that_only_counts_matches_WHEN_it_completes_THEN_no_replay_is_recorded_on_the_row() {
-        insert("order-1", 1);
-        setStatus(1, OutboxStatus.FAILED, 5);
-
-        ReplayResult result = replay.replay(new ReplayCriteria(
-                AggregateId.of("order-1"), null, null, null, Set.of(), true));
-
-        assertThat(result.matched()).isEqualTo(1);
-        assertThat(replaysOf(1)).isZero();   // a dry run must leave the row exactly as it found it
-    }
-
-    @Test
     void GIVEN_a_row_that_was_never_replayed_WHEN_inspected_THEN_its_replay_count_is_zero() {
         insert("order-1", 1);
 
@@ -121,9 +109,14 @@ class JdbcReplayServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void GIVEN_a_dry_run_WHEN_replayed_THEN_it_reports_the_matches_without_changing_any_row() {
+    void GIVEN_a_dry_run_WHEN_replayed_THEN_it_reports_the_matches_and_leaves_the_row_exactly_as_it_was() {
         insert("order-1", 1);
-        setStatus(1, OutboxStatus.FAILED, 3);
+        // A value other than the one a real replay writes in every column it touches, so leaving any of
+        // them alone is observable.
+        execute("UPDATE tandem_outbox SET status = " + OutboxStatus.FAILED.code() + ", attempts = 3, replays = 2,"
+                + " last_error = '" + LAST_FAILURE_REASON + "', next_attempt_at = TIMESTAMPTZ '2026-01-01 00:00:00+00',"
+                + " locked_by = 'relay-1', locked_until = TIMESTAMPTZ '2026-01-01 00:01:00+00' WHERE id = 1");
+        String before = replayedColumnsOf(1);
 
         ReplayResult result = replay.replay(new ReplayCriteria(
                 AggregateId.of("order-1"), null, null, null, Set.of(), true));
@@ -131,7 +124,7 @@ class JdbcReplayServiceIT extends AbstractPostgresIT {
         assertThat(result.matched()).isEqualTo(1);
         assertThat(result.replayed()).isZero();
         assertThat(result.dryRun()).isTrue();
-        assertThat(statusOf(1)).isEqualTo(OutboxStatus.FAILED.code());   // unchanged
+        assertThat(replayedColumnsOf(1)).isEqualTo(before);
     }
 
     @Test
@@ -175,6 +168,21 @@ class JdbcReplayServiceIT extends AbstractPostgresIT {
 
     private static int replaysOf(long id) {
         return intColumn("SELECT replays FROM tandem_outbox WHERE id = ?", id);
+    }
+
+    /** Every column a replay writes, plus the failure reason it keeps, as one comparable value. */
+    private static String replayedColumnsOf(long id) {
+        try (Connection conn = DATA_SOURCE.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT concat_ws('|', status, attempts, replays,"
+                     + " last_error, next_attempt_at, locked_by, locked_until) FROM tandem_outbox WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getString(1);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static String lastErrorOf(long id) {

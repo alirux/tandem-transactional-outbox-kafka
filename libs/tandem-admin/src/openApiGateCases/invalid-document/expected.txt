@@ -1,0 +1,8 @@
+# A document without info, with a schema type OpenAPI does not define, a minLength above its maxLength and
+# an example its schema rejects.
+checks validity
+verdict fail
+invalid info-required
+invalid schema-type-unsupported
+invalid min-length-exceeds-max-length
+invalid example-violates-schema

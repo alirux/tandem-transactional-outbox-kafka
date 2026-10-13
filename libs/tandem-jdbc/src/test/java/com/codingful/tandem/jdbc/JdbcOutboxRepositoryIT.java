@@ -41,7 +41,7 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
 
     private final JdbcOutboxRepository repository = new JdbcOutboxRepository(DATA_SOURCE, BUCKETS);
     private final JdbcOutboxRepository tracingRepository =
-            new JdbcOutboxRepository(DATA_SOURCE, BUCKETS, STUB_PROPAGATOR);
+            JdbcOutboxRepository.builder(DATA_SOURCE, BUCKETS).tracePropagator(STUB_PROPAGATOR).build();
 
     @Test
     void GIVEN_a_message_WHEN_inserted_THEN_the_row_holds_the_mapped_columns_and_the_java_computed_bucket() {

@@ -1,0 +1,4 @@
+# The response property count made required: response-property-became-required, raised to err.
+checks compatibility
+verdict fail
+undeclared finding fce6f0440620

@@ -14,6 +14,10 @@ import java.util.Set;
 /**
  * Relay-side persistence port (LLD-core §2.2): poll/claim/update/cleanup over {@code tandem_outbox}.
  * Implemented by {@code tandem-jdbc} (and {@code InMemoryOutbox} for unit tests).
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface OutboxStore {
 

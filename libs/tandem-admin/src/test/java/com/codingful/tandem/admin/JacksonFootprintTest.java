@@ -2,7 +2,7 @@ package com.codingful.tandem.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.codingful.tandem.admin.outbox.dto.OutboxEntryResponse;
+import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryResponse;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URISyntaxException;

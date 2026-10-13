@@ -27,22 +27,20 @@ The contract leads, the code follows:
 This approach is recorded as a project convention in [AGENTS.md](../AGENTS.md) and applies
 to any future external API Tandem exposes, not only the Admin API.
 
-**CI contract validation (to wire when `tandem-admin` is implemented).** The OpenAPI
-document is validated in CI on every change — independent of any editor — so real spec
-problems are caught at build time. **Specmatic consolidates this**: running it against
-[admin-api.openapi.yaml](admin-api.openapi.yaml) fails on a malformed/unusable contract as
-part of its conformance and backward-compatibility checks (§5), so a separate validation
-step is largely redundant. A dedicated linter (`redocly lint`) remains *optional* for style
-and governance rules (naming, descriptions, examples) that Specmatic does not enforce. See
-§5 for the full testing strategy.
+**CI contract validation.** The OpenAPI document is validated on every build, independent of
+any editor, so real spec problems are caught at build time: `oasdiff validate` checks
+[admin-api.openapi.yaml](admin-api.openapi.yaml) against the OpenAPI specification and fails on
+any finding ([LLD-api-stability.md](LLD-api-stability.md) §6.1). A dedicated linter
+(`redocly lint`) remains *optional* for style and governance rules (naming, descriptions,
+examples). See §5 for the full testing strategy.
 
 **Backward *and* forward compatibility.** Two distinct, equally important promises:
 
 - **Backward compatibility (provider side).** Within a major version (`/v1`), changes are
   **additive only**: new optional fields, new endpoints/operations, never a removal, rename,
   type change, newly-required field, narrowed range, or changed error `type` slug. Breaking
-  changes go to `/v2`. Specmatic's backward-compatibility check (§5) enforces this on every
-  spec change.
+  changes go to `/v2`. The compatibility gate of [LLD-api-stability.md](LLD-api-stability.md)
+  §6 enforces this against the previous release.
 - **Forward compatibility (consumer side).** Older consumers must keep working against a
   newer provider, so consumers must be **tolerant readers** — ignore unknown response fields
   and unknown enum values, never reject a payload for extra properties. Response schemas are
@@ -307,36 +305,36 @@ consumers. Consumer-driven contracts (Pact-style) assume you control and co-evol
 consumers and let them *shape* the contract — the opposite of a stable published contract.
 They are therefore **out of scope by design**.
 
-Tools (to wire when `tandem-admin` is implemented):
+Tools:
 
 - **swagger-request-validator (Atlassian)** — *primary*. Validates that the real HTTP
   interactions in the Spring MockMvc / REST Assured integration tests conform to
   [admin-api.openapi.yaml](admin-api.openapi.yaml). Each endpoint test doubles as a
   conformance test; the OpenAPI stays the single source of truth. Fits the no-mocks,
   Testcontainers-based approach in [AGENTS.md](../AGENTS.md).
-- **Specmatic** — *complement*. Contract-driven (not consumer-driven): uses the OpenAPI as
-  an executable contract to generate requests and validate the provider's responses, and —
-  uniquely among these tools — performs **backward-compatibility checking** between spec
-  versions, directly enforcing the "breaking contract change = breaking library change
-  (semver)" rule. JVM-native (Kotlin + JUnit), so it fits the Java/CI stack without a Python
-  toolchain. *Note:* it has an open-source core plus commercial features — confirm the OSS
-  tier covers CLI/JUnit usage; as a test-only dependency it is never shipped in the published
-  artifact, so license impact on Tandem's Apache 2.0 distribution is minimal but should be
-  verified.
+- **oasdiff**: the document's own gate. It validates the document against the OpenAPI
+  specification on every build, and compares it with the document of the previous release,
+  directly enforcing the "breaking contract change = breaking library change (semver)" rule.
+  Its severities enforce additive evolution and stable defaults, including changes upstream
+  considers compatible such as removing optional response fields. A new value in a response
+  enum remains compatible, since readers are tolerant (§1). A separate comparison protects
+  problem slugs and the document's server URLs, including variable defaults and allowed values.
+  It runs from a pinned container image and is never shipped. Design and acceptance cases in
+  [LLD-api-stability.md](LLD-api-stability.md) §6.
 
-The two are complementary: `swagger-request-validator` asserts conformance *inside* the
-hand-written behavior tests (no-mocks style); Specmatic adds generative conformance and the
-spec backward-compatibility gate.
+The two are complementary: `swagger-request-validator` checks the implementation against the
+current document, inside the hand-written behavior tests (no-mocks style); oasdiff checks the
+document itself and how it evolves. A dedicated linter (`redocly lint`) stays *optional*, only
+for style/governance rules.
 
-**One tool, three jobs.** Specmatic consolidates what would otherwise be three separate
-steps — contract **validation** (well-formedness; replaces the standalone `swagger-cli` /
-`redocly` validate step, see §1), generative **conformance** testing, and **backward-
-compatibility** checking between spec versions. A dedicated linter (`redocly lint`) stays
-*optional*, only for style/governance rules Specmatic does not cover.
+**Not used for validation or compatibility: Specmatic.** It is a contract-testing tool: its
+comparison accepts a document without `info` or with an unknown schema `type`, and treats a new
+response enum value as breaking, against the tolerant-reader rule above. Generative conformance
+testing, the job it is built for, is not wired.
 
 **Explicitly not used:** Pact / Spring Cloud Contract or any other consumer-driven tooling —
-architecturally mismatched for a published, provider-authoritative contract. (Specmatic is
-contract-*driven*, with the OpenAPI authoritative, so it is consistent with this stance.)
+architecturally mismatched for a published, provider-authoritative contract. (oasdiff compares
+two versions of the provider's own document, so it is consistent with this stance.)
 
 ## 6. Decisions
 
@@ -371,15 +369,14 @@ contract-*driven*, with the OpenAPI authoritative, so it is consistent with this
   real problem on `GET /relay/buckets`.
 - **Spec ↔ code binding — hand-write and validate in CI, no codegen.** Server-stub
   generation from the OpenAPI document is rejected in favour of hand-written controllers/DTOs
-  verified by the two tools already committed to in §5 (swagger-request-validator +
-  Specmatic), which catch spec drift at test time regardless of how the implementation was
-  authored. Generated code would fight this project's specific conventions — the javadoc
-  rules (AGENTS.md), the ban on inline comments, and especially the logging rule that every
-  `toString()` reachable from a log statement (`OutboxMessage`, `OutboxRecord`, …) must never
-  print `payload`/`headers` values, each backed by a dedicated unit test. Getting a generator
-  to honour that would need custom templates that become their own artifact to maintain, for a
-  problem (drift) the CI conformance gate already solves. No other Tandem module uses codegen;
-  hand-writing keeps `tandem-admin` consistent with the rest of the codebase.
+  verified by swagger-request-validator (§5), which catches spec drift at test time regardless
+  of how the implementation was authored. Generated code would fight this project's specific
+  conventions — the javadoc rules (AGENTS.md), the ban on inline comments, and especially the
+  logging rule that every `toString()` reachable from a log statement (`OutboxMessage`,
+  `OutboxRecord`, …) must never print `payload`/`headers` values, each backed by a dedicated unit
+  test. Getting a generator to honour that would need custom templates that become their own
+  artifact to maintain, for a problem (drift) the CI conformance gate already solves. No other
+  Tandem module uses codegen; hand-writing keeps `tandem-admin` consistent with the rest of the codebase.
 - **Discard on a non-`FAILED` row — `409 message-not-discardable`,** mirroring `replayMessage`'s
   `409 message-not-replayable`. `DISCARDED` is reachable only from `FAILED` (LLD-core §1.2), and an
   attempt from any other state is worth surfacing. Rejected: a silent no-op (hides a state the

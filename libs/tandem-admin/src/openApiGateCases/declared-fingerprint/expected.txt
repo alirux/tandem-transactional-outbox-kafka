@@ -1,0 +1,7 @@
+# On the contract, aggregateId and aggregateType of GET /outbox/messages made required, and the first declared:
+# both findings are request-parameter-became-required on the same operation, and the declaration accepts the
+# first one only.
+checks compatibility
+verdict fail
+accepted finding 897e924ade7d
+undeclared finding b80cc19d72d8

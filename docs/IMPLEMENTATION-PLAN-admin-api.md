@@ -428,6 +428,15 @@ and service in the parent package could not otherwise see them. Accepted: every 
 is a 1:1 rendering of the already-public OpenAPI schema, so nothing is exposed that a REST client
 could not already see on the wire.
 
+**Update, 2026-10-11, the `internal` move (HLD-api-stability §3, §6):** every type above except
+`TandemAdminAutoConfiguration` now lives under `com.codingful.tandem.admin.internal`: `ProblemDetails`
+and `TandemAdminExceptionHandler` in `internal` itself, the features as `internal.outbox` and
+`internal.relay` with their `dto` sub-packages. The shape inside is unchanged; what changed is the
+promise. The module's Java contract is the autoconfiguration's class name, and nothing under
+`internal` is API whatever its visibility. The two feature advices scope themselves to
+`internal.outbox` and `internal.relay`; the generic advice keeps `com.codingful.tandem.admin`, a prefix
+that covers both.
+
 **Two real bugs found while making this change, not invented ahead of it — both explained by the
 same root cause:**
 

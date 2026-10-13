@@ -1,0 +1,4 @@
+# A new endpoint, a new optional query parameter and a new optional response property, both with a default,
+# the maximum of limit raised, and a description added: nothing is reported.
+checks compatibility
+verdict pass

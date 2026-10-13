@@ -373,8 +373,8 @@ which *is* hand-written, exactly like `tandem-admin`'s handlers.
 - The generated file is **committed**, not gitignored — a consumer building `tandem-cli` from
   source needs only `go build`, not `oapi-codegen` on their machine.
 - CI's `tandem-cli` job (`.github/workflows/ci.yml`, separate from the Gradle build) adds a
-  **regenerate-and-diff** step (`make generate && git diff --exit-code`) as the drift gate — the
-  Go-toolchain equivalent of Specmatic's conformance check for `tandem-admin` — followed by
+  **regenerate-and-diff** step (`make generate && git diff --exit-code`) as the drift gate (the
+  Go-toolchain counterpart of `tandem-admin`'s conformance tests), followed by
   `make lint` (**golangci-lint**, pinned in the Makefile so a local run and CI apply the same
   rules — the standard linter set, which `go vet` alone does not cover, plus `bodyclose` /
   `predeclared` / `unconvert` / `misspell`, and a separate `fmt --diff` pass because v2's

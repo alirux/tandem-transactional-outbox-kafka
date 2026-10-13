@@ -18,11 +18,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The publish adapter (LLD-kafka §2): implements {@link OutboxDispatcher} by handing an
- * {@link OutboxRecord} to a {@link KafkaMessageEncoder} ({@link CloudEventEncoder} unless the caller
- * supplies another) and sending the result <b>asynchronously</b> on one Kafka producer. The
- * returned future completes on the broker ack ({@code acks=all}), or completes <b>exceptionally</b>
- * with an {@code OutboxDispatchException} carrying the retriable/permanent verdict (§4) — never
- * blocking, so the relay overlaps many records of distinct aggregates on a single producer.
+ * {@link OutboxRecord} to a {@link KafkaMessageEncoder} ({@link KafkaMessageEncoder#cloudEvents}
+ * unless the caller supplies another) and sending the result <b>asynchronously</b> on one Kafka
+ * producer. The returned future completes on the broker ack ({@code acks=all}), or completes
+ * <b>exceptionally</b> with an {@code OutboxDispatchException} carrying the retriable/permanent
+ * verdict (§4) — never blocking, so the relay overlaps many records of distinct aggregates on a
+ * single producer.
  */
 public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
 
@@ -36,55 +37,43 @@ public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
 
     /**
      * Builds a producer from {@code producerConfig}, hardening it to the mandated safe values (fails
-     * fast on unsafe overrides, §1). Delegates to the 4-arg constructor with
-     * {@link TandemSpanRecorder#NOOP} — instrumented mode disabled (HLD-tracing.md §7).
+     * fast on unsafe overrides, §1), and publishes Tandem's CloudEvents envelope
+     * ({@link KafkaMessageEncoder#cloudEvents}) with no publish span. {@link #builder} takes another
+     * format or a span recorder.
      *
      * @param producerConfig raw Kafka producer properties; {@code acks}/idempotence/etc. are hardened, not user-overridable
      * @param router         maps each record to its destination topic
      * @param cfg            CloudEvents binding settings ({@code source}, default content type/schema)
      * @throws com.codingful.tandem.core.exception.TandemConfigurationException if {@code producerConfig} overrides a mandated safe value
+     * @throws NullPointerException     if any argument is {@code null}
      */
     public KafkaRelay(Map<String, ?> producerConfig, TopicRouter router, KafkaRelayConfig cfg) {
-        this(producerConfig, router, cfg, TandemSpanRecorder.NOOP);
+        this(builder(producerConfig, KafkaMessageEncoder.cloudEvents(router, cfg)));
+    }
+
+    private KafkaRelay(Builder builder) {
+        Map<String, Object> hardened = KafkaProducerConfig.harden(builder.producerConfig);
+        this.producer = new KafkaProducer<>(hardened);
+        this.encoder = builder.encoder;
+        this.classifier = new DefaultErrorClassifier();
+        this.deliveryTimeoutMs = KafkaProducerConfig.deliveryTimeoutMs(hardened);
+        this.spanRecorder = builder.spanRecorder;
     }
 
     /**
-     * @param producerConfig raw Kafka producer properties; see {@link #KafkaRelay(Map, TopicRouter, KafkaRelayConfig)}
-     * @param router         maps each record to its destination topic
-     * @param cfg            CloudEvents binding settings ({@code source}, default content type/schema)
-     * @param spanRecorder   emits the {@code tandem.relay.publish} span per record when
-     *                       {@link TandemSpanRecorder#isEnabled()} (HLD-tracing.md §6, §9's "instrumented
-     *                       mode"); real adapters ship in {@code tandem-spring-relay} / {@code tandem-tracing-otel}
-     * @throws com.codingful.tandem.core.exception.TandemConfigurationException if {@code producerConfig} overrides a mandated safe value
-     * @throws NullPointerException     if {@code spanRecorder} is {@code null}
-     */
-    public KafkaRelay(Map<String, ?> producerConfig, TopicRouter router, KafkaRelayConfig cfg,
-            TandemSpanRecorder spanRecorder) {
-        this(producerConfig, new CloudEventEncoder(router, cfg), spanRecorder);
-    }
-
-    /**
-     * Publishes in a format of the caller's choosing rather than Tandem's default CloudEvents
-     * envelope (LLD-kafka §3): routing and the CloudEvents settings are the encoder's concern, so
-     * this constructor takes neither. A transport-neutral {@link
-     * com.codingful.tandem.core.port.MessageEncoder} reaches here through
+     * A relay publishing in the format {@code encoder} writes (LLD-kafka §3): routing and the
+     * CloudEvents settings are the encoder's concern. {@link KafkaMessageEncoder#cloudEvents} is
+     * Tandem's default envelope, and a transport-neutral
+     * {@link com.codingful.tandem.core.port.MessageEncoder} reaches here through
      * {@link KafkaMessageEncoder#from}.
      *
      * @param producerConfig raw Kafka producer properties; see {@link #KafkaRelay(Map, TopicRouter, KafkaRelayConfig)}
      * @param encoder        turns each record into the record to send
-     * @param spanRecorder   emits the {@code tandem.relay.publish} span per record when
-     *                       {@link TandemSpanRecorder#isEnabled()} (HLD-tracing.md §6)
-     * @throws com.codingful.tandem.core.exception.TandemConfigurationException if {@code producerConfig} overrides a mandated safe value
-     * @throws NullPointerException     if {@code encoder} or {@code spanRecorder} is {@code null}
+     * @return a builder with no publish span
+     * @throws NullPointerException if either argument is {@code null}
      */
-    public KafkaRelay(Map<String, ?> producerConfig, KafkaMessageEncoder encoder,
-            TandemSpanRecorder spanRecorder) {
-        Map<String, Object> hardened = KafkaProducerConfig.harden(producerConfig);
-        this.producer = new KafkaProducer<>(hardened);
-        this.encoder = Objects.requireNonNull(encoder, "encoder");
-        this.classifier = new DefaultErrorClassifier();
-        this.deliveryTimeoutMs = KafkaProducerConfig.deliveryTimeoutMs(hardened);
-        this.spanRecorder = Objects.requireNonNull(spanRecorder, "spanRecorder");
+    public static Builder builder(Map<String, ?> producerConfig, KafkaMessageEncoder encoder) {
+        return new Builder(producerConfig, encoder);
     }
 
     /** For tests: inject a producer (e.g. Kafka's {@code MockProducer}) and classifier directly. */
@@ -174,5 +163,34 @@ public final class KafkaRelay implements OutboxDispatcher, AutoCloseable {
     @Override
     public void close() {
         producer.close();
+    }
+
+    /**
+     * Builds a {@link KafkaRelay} with optional collaborators (HLD-api-stability §4.3). The producer is
+     * created and hardened by {@link #build()}, which throws
+     * {@link com.codingful.tandem.core.exception.TandemConfigurationException} on an unsafe override.
+     */
+    public static final class Builder {
+        private final Map<String, ?> producerConfig;
+        private final KafkaMessageEncoder encoder;
+        private TandemSpanRecorder spanRecorder = TandemSpanRecorder.NOOP;
+
+        private Builder(Map<String, ?> producerConfig, KafkaMessageEncoder encoder) {
+            this.producerConfig = Objects.requireNonNull(producerConfig, "producerConfig");
+            this.encoder = Objects.requireNonNull(encoder, "encoder");
+        }
+
+        /**
+         * Emits the {@code tandem.relay.publish} span per record when {@link TandemSpanRecorder#isEnabled()}
+         * (HLD-tracing.md §6). Default {@link TandemSpanRecorder#NOOP}.
+         */
+        public Builder spanRecorder(TandemSpanRecorder spanRecorder) {
+            this.spanRecorder = Objects.requireNonNull(spanRecorder, "spanRecorder");
+            return this;
+        }
+
+        public KafkaRelay build() {
+            return new KafkaRelay(this);
+        }
     }
 }

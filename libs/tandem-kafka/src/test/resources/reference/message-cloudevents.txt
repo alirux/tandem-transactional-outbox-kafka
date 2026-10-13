@@ -1,0 +1,30 @@
+# Rendered by PublishedMessageReferenceTest; regenerate with ./gradlew :tandem-kafka:test -PupdateReferenceFiles
+[complete]
+topic order-line-topic
+key order-line-7
+header ce_dataschema https://schemas.example.com/order-line/1
+header ce_id 1001
+header ce_partitionkey order-line-7
+header ce_seq 3
+header ce_source /tandem/reference
+header ce_specversion 1.0
+header ce_subject order-line-7
+header ce_time 2025-03-01T10:15:30.123Z
+header ce_type OrderLineAdded
+header content-type application/vnd.tandem.order-line+json
+header correlation-id checkout-42
+header x-tenant acme
+body {"sku":"A-1","quantity":2}
+
+[minimal]
+topic order-topic
+key order-9
+header ce_id 1002
+header ce_partitionkey order-9
+header ce_source /tandem/reference
+header ce_specversion 1.0
+header ce_subject order-9
+header ce_time 2025-03-01T10:15:31Z
+header ce_type Order
+header content-type application/json
+body {"total":10}

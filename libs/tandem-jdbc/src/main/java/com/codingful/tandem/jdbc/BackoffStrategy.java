@@ -4,7 +4,11 @@ import java.time.Duration;
 
 /**
  * Computes the delay before a retriable failure becomes eligible again (LLD-jdbc §3.6, Q13).
- * Pluggable; the default is {@link FullJitterBackoff}.
+ * Pluggable; the default is {@link #fullJitter()}.
+ *
+ * <p><b>SPI:</b> the application implements this interface and Tandem calls it. A method added in a
+ * minor version is always {@code default}, so an existing implementation keeps working
+ * (HLD-api-stability §4.1).
  */
 @FunctionalInterface
 public interface BackoffStrategy {

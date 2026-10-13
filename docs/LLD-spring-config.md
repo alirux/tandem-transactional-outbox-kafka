@@ -453,6 +453,10 @@ never pull `tandem-kafka`). Kept out of the published jar entirely — the build
 
 Adding, renaming or removing a property without touching the reference fails the build.
 
+Against the previous release, `checkSpringMetadata` compares the metadata in each module's jar with the
+one the release shipped: a key removed, a type changed or a declared default changed fails the build
+unless declared (LLD-api-stability §7).
+
 ### 2.5 `tandem.metrics.*` — the tandem-micrometer adapter
 
 Numbered after §2.4 rather than inline with §2.2/§2.3, deliberately: renumbering would invalidate the
@@ -582,15 +586,22 @@ and `TandemKafkaProperties` becomes a `KafkaRelayConfig(source, defaultContentTy
 plus the raw `producer` map. The properties types carry no logic beyond binding; all validation stays
 where it already lives (`RelayConfig`'s row-lease invariant, the Kafka producer hardening).
 
+Every `@ConfigurationProperties` record is package-private, and so are the adapters the
+autoconfigurations construct (the Jackson serializer, the trace propagators, the span recorder): the
+keys and their defaults are the contract, and each bean is exposed as its port type
+(HLD-api-stability §2, §3). A public record would also break binary compatibility with every property
+added (§4.2 there).
+
 ### 4.3 `tandem-spring-producer` beans
 
 The write-side module contributes exactly the plain tier:
 
 1. runs `BucketCountGuard.check(dataSource, bucketCount)` as an explicit startup step **before** the
    repository is exposed (§3) — a mismatch fails context refresh, loudly;
-2. contributes `OutboxRepository` = `new JdbcOutboxRepository(new TransactionAwareDataSourceProxy(dataSource), bucketCount, tracePropagator)`,
-   where `tracePropagator` is whatever `TracePropagator` bean exists, or `TracePropagator.NOOP` when
-   none does;
+2. contributes `OutboxRepository` = `JdbcOutboxRepository.builder(new
+   TransactionAwareDataSourceProxy(dataSource), bucketCount).tracePropagator(tracePropagator)
+   .wakeup(wakeup).build()`, where `tracePropagator` is whatever `TracePropagator` bean exists, or
+   `TracePropagator.NOOP` when none does, and `wakeup` is `tandem.outbox.wakeup`;
 3. contributes `TracePropagator`, **only** when `tandem.tracing.enabled=true` (§2.6) — a
    `@ConditionalOnProperty`, not a classpath check, so an unrelated dependency landing SLF4J or a
    tracing library on the classpath cannot turn this on by itself. It is
@@ -662,7 +673,7 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
 2. `KafkaMessageEncoder` = the published wire format (LLD-kafka §3), resolved in three steps.
    A **`MessageEncoder` bean**, if the application contributes one, is lifted with
    `KafkaMessageEncoder.from`; a **`KafkaMessageEncoder` bean** takes precedence over both; otherwise
-   `new CloudEventEncoder(topicRouter, kafkaRelayConfig)`, the default.
+   `KafkaMessageEncoder.cloudEvents(topicRouter, kafkaRelayConfig)`, the default.
 
    **The `MessageEncoder` bean is the one an application should reach for.** It is the core's neutral
    port (LLD-core §2.4), so the envelope is written once, names no broker type, and the same class
@@ -675,8 +686,8 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
    This bean is also where **`tandem.kafka.source` is required**, and only on the CloudEvents default:
    the key configures that envelope and nothing else, so an application publishing its own is not asked
    to invent a value for a setting its events never carry;
-3. `OutboxDispatcher` = `new KafkaRelay(producerMap, encoder, spanRecorder)` —
-   the constructor is where the producer hardening runs and the effective `delivery.timeout.ms` is
+3. `OutboxDispatcher` = `KafkaRelay.builder(producerMap, encoder).spanRecorder(spanRecorder).build()` —
+   `build()` is where the producer hardening runs and the effective `delivery.timeout.ms` is
    fixed; `spanRecorder` is whatever `TandemSpanRecorder` bean exists, or `TandemSpanRecorder.NOOP`;
 4. `OutboxStore` = `new JdbcOutboxStore(dataSource, tandem.relay.max-attempts)`;
 5. `TandemMetrics` = `TandemMetrics.NOOP` (a real Micrometer bean overrides it once `tandem-micrometer`
@@ -686,8 +697,8 @@ source set** runs the module on a classpath that genuinely lacks the adapter, an
 7. `TandemSpanRecorder` = `MicrometerTandemSpanRecorder`, **only** when
    `tandem.tracing.publish-span=true` and the application has a `Propagator` bean (§2.6); absent, the
    relay emits no span and instrumented mode stays off;
-8. `WorkerPool` = the full-topology constructor
-   `new WorkerPool(outboxStore, outboxDispatcher, relayConfig, tandemMetrics, Clock.systemUTC(), BackoffStrategy.fullJitter(), bucketSource)`.
+8. `WorkerPool` = `WorkerPool.builder(outboxStore, outboxDispatcher, relayConfig)` with `metrics`,
+   `bucketSource`, `controlSource` and `wakeupSource` set from the beans above.
 
 `tandem.relay.enabled=false` contributes none of these — the supported way to load the relay module
 without running a relay (§2.2).

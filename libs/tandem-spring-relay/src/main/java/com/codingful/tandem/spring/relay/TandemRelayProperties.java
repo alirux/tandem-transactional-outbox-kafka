@@ -40,7 +40,7 @@ import java.time.Duration;
  *                           per worker
  */
 @org.springframework.boot.context.properties.ConfigurationProperties("tandem.relay")
-public record TandemRelayProperties(
+record TandemRelayProperties(
         Coordination coordination,
         String instanceId,
         Duration bucketLease,

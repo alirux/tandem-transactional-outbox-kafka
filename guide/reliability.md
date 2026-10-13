@@ -248,8 +248,10 @@ instance also registers itself, so when a new instance starts, the others releas
     RelayControlSource control =
         new JdbcRelayControlSource(dataSource, cfg.coordination(), cfg.reclaimInterval());
 
-    WorkerPool relay = new WorkerPool(store, kafka, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-        BackoffStrategy.fullJitter(), buckets, control);
+    WorkerPool relay = WorkerPool.builder(store, kafka, cfg)
+        .bucketSource(buckets)
+        .controlSource(control)
+        .build();
     ```
 
 The **instance id** identifies one running instance and must be **unique** among concurrent ones, at

@@ -763,9 +763,9 @@ its design follows from one rule: it may only make discovery faster, never make 
 - **PostgreSQL only.** MySQL has no equivalent primitive (§5.4), so a MySQL deployment stays on the
   adaptive backoff, permanently.
 
-Wiring is explicit, on both sides and independently: `new JdbcOutboxRepository(dataSource,
-bucketCount, tracePropagator, Wakeup.PG_NOTIFY)` for the writer, and the `WorkerPool` constructor
-taking a `WakeupSource` for the relay (`WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource)`). Under
+Wiring is explicit, on both sides and independently: `JdbcOutboxRepository.builder(dataSource,
+bucketCount).wakeup(Wakeup.PG_NOTIFY).build()` for the writer, and `WorkerPool.builder(...)
+.wakeupSource(...)` for the relay (`WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource)`). Under
 Spring both sides read the same key, `tandem.outbox.wakeup: pg-notify`, for the same reason
 `bucket-count` is shared: it is a value the two sides have to agree on
 (LLD-spring-config.md §2.1).
@@ -1012,7 +1012,9 @@ flat baseline needs one `liquibase changelog-sync` to record the already-applied
 The MySQL changelog (`schema/mysql/…`) is **pending Q28** — the schema mapping it must follow
 (status-prefixed indexes, timestamp precision, bucket seeding) is specified in §5.4; the `bucket` is
 computed in Java so there is no DB bucket function to port.
-The schema must stay **additive** across versions (§1.4).
+The schema must stay **additive** across versions (§1.4). Two build gates hold it to that against the
+previous release: every shipped changeset stays byte-identical, and the previous release's adapter runs on
+a database it populated and the current changelog upgraded (LLD-api-stability §5).
 
 ## 7. Manual wiring without Spring (basic round)
 
@@ -1024,9 +1026,9 @@ OutboxRepository repo = new JdbcOutboxRepository(dataSource, bucketCount);
 repo.insert(OutboxMessage.builder()...payload(bytes).build());   // payload is byte[] (you serialize)
 
 // relay (embedded, or its own process):
-OutboxStore       store      = new JdbcOutboxStore(dataSource, bucketCount);
+OutboxStore       store      = new JdbcOutboxStore(dataSource, cfg.maxAttempts());
 TopicRouter       router     = TopicRouter.kebabWithSuffix("-topic");
-OutboxDispatcher  dispatcher = new KafkaRelay(kafkaProps, router);          // tandem-kafka
+OutboxDispatcher  dispatcher = new KafkaRelay(kafkaProps, router, kafkaCfg); // tandem-kafka
 
 // SINGLE (default — a single relay instance):
 WorkerPool        relay      = new WorkerPool(store, dispatcher, cfg);      // §3.1, owns all buckets
@@ -1034,27 +1036,25 @@ WorkerPool        relay      = new WorkerPool(store, dispatcher, cfg);      // �
 // LEASE (multiple relay instances — embedded-multi-replica or standalone):
 //   BucketSource.forCoordination picks embedded(B) for SINGLE, a BucketLeaseManager for LEASE.
 BucketSource      buckets    = BucketSource.forCoordination(cfg, dataSource);   // §3.2
-WorkerPool        relay      = new WorkerPool(store, dispatcher, cfg,
-                                   TandemMetrics.NOOP, Clock.systemUTC(),
-                                   BackoffStrategy.fullJitter(), buckets);       // full constructor
+WorkerPool        relay      = WorkerPool.builder(store, dispatcher, cfg)
+                                   .bucketSource(buckets).build();
 
-// With Admin-API pause/resume support (HLD-admin-api §4.1) — an eighth argument, RelayControlSource,
-// publishes this instance's coordination mode to tandem_meta, caches the desired pause state, and
-// heartbeats on the same cadence (for RelayStatus.state == DOWN) - reclaimInterval is also the
-// heartbeat cadence, published once at startup so the admin can compute a staleness threshold:
+// With Admin-API pause/resume support (HLD-admin-api §4.1): a RelayControlSource publishes this
+// instance's coordination mode to tandem_meta, caches the desired pause state, and heartbeats on the
+// same cadence (for RelayStatus.state == DOWN). reclaimInterval is also the heartbeat cadence,
+// published once at startup so the admin can compute a staleness threshold:
 RelayControlSource control    = new JdbcRelayControlSource(dataSource, cfg.coordination(), cfg.reclaimInterval());
-WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
-                                   TandemMetrics.NOOP, Clock.systemUTC(),
-                                   BackoffStrategy.fullJitter(), buckets, control);
+WorkerPool        relay       = WorkerPool.builder(store, dispatcher, cfg)
+                                   .bucketSource(buckets).controlSource(control).build();
 
-// With the post-commit wakeup (§3.10) — a ninth argument, and the matching Wakeup on the write side.
+// With the post-commit wakeup (§3.10): a WakeupSource, and the matching Wakeup on the write side.
 // Both sides are opt-in and independent: either one alone is harmless, and neither is on by default.
-OutboxRepository  repo        = new JdbcOutboxRepository(dataSource, bucketCount,
-                                   TracePropagator.NOOP, Wakeup.PG_NOTIFY);
+OutboxRepository  repo        = JdbcOutboxRepository.builder(dataSource, bucketCount)
+                                   .wakeup(Wakeup.PG_NOTIFY).build();
 WakeupSource      wakeup      = WakeupSource.forWakeup(Wakeup.PG_NOTIFY, dataSource);
-WorkerPool        relay       = new WorkerPool(store, dispatcher, cfg,
-                                   TandemMetrics.NOOP, Clock.systemUTC(),
-                                   BackoffStrategy.fullJitter(), buckets, control, wakeup);
+WorkerPool        relay       = WorkerPool.builder(store, dispatcher, cfg)
+                                   .bucketSource(buckets).controlSource(control)
+                                   .wakeupSource(wakeup).build();
 
 relay.start();
 // on shutdown: relay.stop();   // graceful — buckets released (LEASE), in-flight recovered by row lease

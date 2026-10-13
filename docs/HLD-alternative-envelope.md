@@ -37,7 +37,7 @@ envelope must keep, the gaps, and the options with a recommendation.
 | `MessageEncoder` | `tandem-core`, `port/` | Broker-neutral format port: `OutboxRecord` to `EncodedMessage` (destination, key, body, `byte[]` headers) |
 | `KafkaMessageEncoder`, `RabbitMessageEncoder` | `tandem-kafka`, `tandem-rabbitmq` | Transport-specific format ports; `KafkaMessageEncoder.from(MessageEncoder)` and `RabbitMessageEncoder.from(MessageEncoder, exchange)` lift a neutral encoder onto each |
 | `CloudEventFactory` | `tandem-cloudevents` | Decides every CloudEvents attribute; knows no broker |
-| `CloudEventEncoder`, `CloudEventAmqpEncoder` | `tandem-kafka`, `tandem-rabbitmq` | The default envelope, bound to each transport's own CloudEvents binding |
+| `KafkaMessageEncoder.cloudEvents`, `CloudEventAmqpEncoder` | `tandem-kafka`, `tandem-rabbitmq` | The default envelope, bound to each transport's own CloudEvents binding |
 | Spring wiring | `TandemKafkaAutoConfiguration` | A `MessageEncoder` bean is lifted onto Kafka; the `tandem.kafka.source` requirement applies only when the default encoder is used |
 | `RawMessageEncoder`, `RawHeaders` | `tandem-core` | The raw passthrough envelope of §6, opt-in (step 2) |
 | `MessageEncoderContract` | `tandem-test` | The contract kit an encoder author runs against their encoder (step 3) |
@@ -104,9 +104,8 @@ Step 4 adds this asymmetry to the guide.
    `EndToEndIT` read `ce_*` headers on Kafka; the RabbitMQ harness reads the `cloudEvents_*` form.
    With another envelope the benchmark measures nothing and the end-to-end test cannot verify order.
 8. **Closed by step 1.** **The `causationid` extension is documented but never emitted.** HLD §4.8 and HLD-cloudevents §3
-   describe `ce_causationid`. The code has only the reserved row-header name
-   `TandemHeaders.CAUSATION_ID`, and the javadoc of `CloudEventsHeaders.EXT_SEQ` says `seq` is "always
-   present", which contradicts HLD-cloudevents §3.
+   describe `ce_causationid`. The code declares no such extension, and the javadoc of
+   `CloudEventsHeaders.EXT_SEQ` says `seq` is "always present", which contradicts HLD-cloudevents §3.
 
 **Not coupled to CloudEvents:** the Admin API contract and the CLI (they mention CloudEvents only in
 the description of the generic `type` column), `tandem-micrometer`, `tandem-tracing-otel`,

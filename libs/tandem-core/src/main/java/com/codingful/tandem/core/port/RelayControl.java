@@ -7,6 +7,10 @@ import com.codingful.tandem.core.RelayCoordinationMode;
  * whole relay or one bucket, and force-releasing a bucket's lease. Implemented by {@code tandem-jdbc}'s
  * {@code JdbcRelayControl}. Per-bucket operations are meaningful only under
  * {@link RelayCoordinationMode#LEASE} — callers must check {@link RelayQuery#coordinationMode()} first.
+ *
+ * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
+ * may add abstract methods, so an application implementing it follows Tandem's minor versions
+ * (HLD-api-stability §4.1).
  */
 public interface RelayControl {
 

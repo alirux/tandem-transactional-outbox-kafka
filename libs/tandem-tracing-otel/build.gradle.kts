@@ -13,4 +13,7 @@ dependencies {
     testImplementation(platform(libs.opentelemetry.bom))
     testImplementation(libs.opentelemetry.sdk)
     testImplementation(libs.opentelemetry.sdk.testing)
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
 }

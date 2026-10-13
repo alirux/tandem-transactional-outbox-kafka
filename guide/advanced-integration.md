@@ -290,13 +290,17 @@ Optional<OutboxRowDetail> detail = query.findById(7);       // with payload and 
 **Replay:**
 
 ```java
-ReplayResult preview = replay.replay(new ReplayCriteria(
-    null, "Order", null, null, Set.of(OutboxStatus.FAILED), true));   // dryRun = true
+ReplayResult preview = replay.replay(ReplayCriteria.builder()
+    .aggregateType("Order")
+    .statuses(Set.of(OutboxStatus.FAILED))
+    .dryRun(true)
+    .build());
 System.out.println(preview.matched() + " rows would be replayed");
 ```
 
-`ReplayCriteria` takes an aggregate id, an aggregate type, an id range and a set of statuses, and
-requires at least one of them; it cannot be built empty. The last argument is `dryRun`.
+`ReplayCriteria` selects by aggregate id, aggregate type, id range (`fromId`, `toId`) and a set of
+statuses, and requires at least one of them; it cannot be built empty. `dryRun(true)` reports what
+would match without changing any row.
 
 **Discard** a `FAILED` row, with the same effect and the same warning as through the API (it skips the
 event and breaks that aggregate's ordering for good):
@@ -304,6 +308,25 @@ event and breaks that aggregate's ordering for good):
 ```java
 boolean discarded = discard.discard(7, "obsolete event");   // false if it is not FAILED
 ```
+
+**Read and steer the relay.** The relay endpoints of the Admin API have two services of their own,
+built the same way:
+
+```java
+RelayQuery relayQuery = new JdbcRelayQuery(dataSource);
+RelayControl relayControl = new JdbcRelayControl(dataSource);
+
+RelayStatusView status = relayQuery.status();   // alive, paused, bucket count, uncovered buckets, workers
+relayControl.pauseAll();                         // relays pause at their next refresh
+relayControl.resumeAll();
+```
+
+A relay follows these only when it was built with a `JdbcRelayControlSource`, as in
+[Reliability](reliability.md#33-single-and-lease); the Spring module wires one by default. The
+whole-relay operations work in every coordination mode. The per-bucket ones (`buckets`, `bucket`
+and `workers` on `RelayQuery`; `pauseBucket`, `resumeBucket` and `releaseBucket` on `RelayControl`)
+mean something only under `LEASE`, where instances share the buckets: check
+`relayQuery.coordinationMode()` first, as the Admin API does before it answers them.
 
 These services do the work and nothing more. The Admin API adds an audit log line with the acting user
 around each write; calling the services directly does not, so log what you do.
@@ -320,11 +343,11 @@ constructor that takes it.
 |---|---|---|---|
 | `TopicRouter` | Which topic a row goes to (§2). | Bean | `KafkaRelay` constructor |
 | `PayloadSerializer` | Object to JSON bytes (§5). | Bean | Yours to call |
-| `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay` constructor |
-| `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool` constructor |
-| `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository` constructor |
-| `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay` constructor |
-| `BackoffStrategy` | The wait between retries. | No property | `WorkerPool` constructor |
+| `MessageEncoder` | The whole message format, see [Message Format](message-format.md). | Bean | `KafkaRelay.builder` |
+| `TandemMetrics` | Where the relay's measurements go. | Bean | `WorkerPool.builder` |
+| `TracePropagator` | What is captured at write time for tracing. | Bean | `JdbcOutboxRepository.builder` |
+| `TandemSpanRecorder` | The relay's publish span. | Bean | `KafkaRelay.builder` |
+| `BackoffStrategy` | The wait between retries. | No property | `WorkerPool.builder` |
 
 **Your own metrics.** `TandemMetrics` has a default (empty) method for each measurement, so you
 override only what you want, **and `isEnabled()` must return `true`**: the relay skips every metric call
@@ -347,8 +370,9 @@ delay. The default is the full-jitter ladder of [Reliability](reliability.md#21-
 ```java
 BackoffStrategy steady = attempts -> Duration.ofSeconds(Math.min(60, 2L << attempts));
 
-WorkerPool relay = new WorkerPool(store, kafka, cfg, TandemMetrics.NOOP, Clock.systemUTC(),
-    steady, BucketSource.embedded(cfg.bucketCount()));
+WorkerPool relay = WorkerPool.builder(store, kafka, cfg)
+    .backoff(steady)
+    .build();
 ```
 
 **The ordering detector.** The relay watches the order it publishes each aggregate's events in, and

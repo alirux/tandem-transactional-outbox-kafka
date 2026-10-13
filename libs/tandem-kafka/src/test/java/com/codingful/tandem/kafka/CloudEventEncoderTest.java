@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
 class CloudEventEncoderTest {
 
     private static final String SOURCE = "/tandem/orders";
-    private final CloudEventEncoder encoder =
-            new CloudEventEncoder(TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of(SOURCE));
+    private final KafkaMessageEncoder encoder =
+            KafkaMessageEncoder.cloudEvents(TopicRouter.kebabWithSuffix("-topic"), KafkaRelayConfig.of(SOURCE));
 
     private static OutboxRecord.Builder recordOf(OutboxMessage message) {
         return OutboxRecord.builder().id(42).message(message).createdAt(Instant.parse("2024-01-01T00:00:00Z"));
