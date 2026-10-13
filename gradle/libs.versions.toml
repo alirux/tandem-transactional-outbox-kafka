@@ -15,6 +15,11 @@ spring-boot-v4 = "4.1.1"
 # entry above, even while the two hold the same value: that one states which Boot 4 line the library is
 # verified against, this one is a runtime that moves whenever it needs a fix.
 spring-boot-relay-app = "4.1.1"
+# Floors the relay image raises above what its Boot BOM manages, for advisories Boot 4.1.1 still ships:
+# Tomcat 11.0.24 (fixed in 11.0.25) and Jackson 3.1.5 (fixed in 3.1.7). Drop each once the Boot line
+# the image runs on manages a patched version itself.
+tomcat-relay-app = "11.0.27"
+jackson3-relay-app = "3.1.7"
 # kafka-clients aligned to the version cloudevents-kafka targets (binding compatibility).
 kafka = "3.9.2"
 # tandem-micrometer's own baseline — not tied to any Spring BOM (the module has no Spring dependency
@@ -210,6 +215,12 @@ log4j-to-slf4j = { module = "org.apache.logging.log4j:log4j-to-slf4j", version.r
 # what the Boot 3.3.x baseline BOM pins, and contributes no jar of its own.
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
 rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
+# The relay image's floors (see tomcat-relay-app above): the three Tomcat jars move in lockstep, and the
+# Jackson 3 BOM keeps its family aligned.
+tomcat-embed-core-relay-app = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat-relay-app" }
+tomcat-embed-el-relay-app = { module = "org.apache.tomcat.embed:tomcat-embed-el", version.ref = "tomcat-relay-app" }
+tomcat-embed-websocket-relay-app = { module = "org.apache.tomcat.embed:tomcat-embed-websocket", version.ref = "tomcat-relay-app" }
+jackson3-bom-relay-app = { module = "tools.jackson:jackson-bom", version.ref = "jackson3-relay-app" }
 
 hdrhistogram = { module = "org.hdrhistogram:HdrHistogram", version.ref = "hdrhistogram" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }

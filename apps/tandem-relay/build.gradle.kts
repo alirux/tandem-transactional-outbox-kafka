@@ -53,6 +53,14 @@ dependencies {
     // The Spring Boot runtime the image ships on, at the application's own catalog version.
     implementation(platform(libs.spring.boot.dependencies.relay.app))
     implementation(platform("com.codingful:tandem-bom:$tandemPin"))
+    // Above what the Boot BOM manages, for advisories its current line still ships (the catalog says
+    // which); these reach the pinned jar too, since pinnedRuntimeClasspath extends implementation.
+    implementation(platform(libs.jackson3.bom.relay.app))
+    constraints {
+        implementation(libs.tomcat.embed.core.relay.app)
+        implementation(libs.tomcat.embed.el.relay.app)
+        implementation(libs.tomcat.embed.websocket.relay.app)
+    }
 
     // The relay, the one transport the image carries (tandem-spring-relay redistributes none), the
     // metrics adapter and the optional second role (LLD-relay §3.2, §4).

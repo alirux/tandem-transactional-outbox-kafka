@@ -139,9 +139,9 @@ Built on Tandem 0.11.1. 74 third-party libraries:
 | org.apache.kafka:kafka-clients                                  | 4.2.1    | Apache-2.0                                           |
 | org.apache.logging.log4j:log4j-api                              | 2.25.5   | Apache-2.0                                           |
 | org.apache.logging.log4j:log4j-to-slf4j                         | 2.25.5   | Apache-2.0                                           |
-| org.apache.tomcat.embed:tomcat-embed-core                       | 11.0.24  | Apache-2.0                                           |
-| org.apache.tomcat.embed:tomcat-embed-el                         | 11.0.24  | Apache-2.0                                           |
-| org.apache.tomcat.embed:tomcat-embed-websocket                  | 11.0.24  | Apache-2.0                                           |
+| org.apache.tomcat.embed:tomcat-embed-core                       | 11.0.27  | Apache-2.0                                           |
+| org.apache.tomcat.embed:tomcat-embed-el                         | 11.0.27  | Apache-2.0                                           |
+| org.apache.tomcat.embed:tomcat-embed-websocket                  | 11.0.27  | Apache-2.0                                           |
 | org.checkerframework:checker-qual                               | 3.55.1   | MIT                                                  |
 | org.hdrhistogram:HdrHistogram                                   | 2.2.2    | CC0-1.0 OR BSD-2-Clause                              |
 | org.jspecify:jspecify                                           | 1.0.1    | Apache-2.0                                           |
@@ -186,8 +186,8 @@ Built on Tandem 0.11.1. 74 third-party libraries:
 | org.springframework:spring-webmvc                               | 7.0.9    | Apache-2.0                                           |
 | org.xerial.snappy:snappy-java                                   | 1.1.10.7 | Apache-2.0                                           |
 | org.yaml:snakeyaml                                              | 2.6      | Apache-2.0                                           |
-| tools.jackson.core:jackson-core                                 | 3.1.5    | Apache-2.0                                           |
-| tools.jackson.core:jackson-databind                             | 3.1.5    | Apache-2.0                                           |
+| tools.jackson.core:jackson-core                                 | 3.1.7    | Apache-2.0                                           |
+| tools.jackson.core:jackson-databind                             | 3.1.7    | Apache-2.0                                           |
 
 <!-- END tandem-relay libraries -->
 
