@@ -3,7 +3,8 @@
 **Version:** 0.1 (Draft)
 **Module:** `tandem-rabbitmq` · package `com.codingful.tandem.rabbitmq`
 **Depends on:** `tandem-core`, `tandem-cloudevents` (the envelope, §5), `com.rabbitmq:amqp-client`
-(AMQP 0.9.1). **Relay-side only**, never on the client write-side (HLD §1.3).
+(AMQP 0.9.1), without the Netty jars it declares for its optional Netty transport (the application
+adds them if it switches its `ConnectionFactory` to Netty). **Relay-side only**, never on the client write-side (HLD §1.3).
 **Versioning:** independent of the library (§9).
 
 `tandem-rabbitmq` is the second publish adapter: it implements `OutboxDispatcher` by binding the

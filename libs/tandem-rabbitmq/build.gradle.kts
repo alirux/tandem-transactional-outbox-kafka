@@ -17,7 +17,12 @@ dependencies {
     // The envelope itself; this module adds only the AMQP binding on top of it.
     api("com.codingful:tandem-cloudevents:$tandemFloor")
     // Relay-side only — never on the client write-side (§1.3).
-    api(libs.rabbitmq.amqp.client)
+    // amqp-client declares Netty (11 jars) for its optional Netty transport, which an application
+    // enables on its own ConnectionFactory; the default socket transport needs none of it. Excluded
+    // here, and in the published POM, so the connector's footprint stays amqp-client and slf4j-api.
+    api(libs.rabbitmq.amqp.client) {
+        exclude(group = "io.netty")
+    }
     // slf4j-api is already a runtime-scope transitive of amqp-client; declaring it explicitly makes it
     // usable at compile time and pins it to a current version (HLD-logging.md §2.2), exactly as
     // tandem-kafka does for the same reason.

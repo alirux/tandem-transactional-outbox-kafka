@@ -27,7 +27,7 @@ driver among them — do reach whoever declares it, and are listed below.
 | `tandem-jdbc`  | none beyond `tandem-core`: the PostgreSQL JDBC driver is test-only, and `compileOnly` for the `pg_notify` wakeup adapter, so neither reaches a consumer |
 | `tandem-cloudevents` | `cloudevents-core` |
 | `tandem-kafka` | `kafka-clients`, `cloudevents-kafka`, `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
-| `tandem-rabbitmq` | `amqp-client`, `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
+| `tandem-rabbitmq` | `amqp-client` (its Netty dependencies excluded: they serve only an optional transport), `cloudevents-core` (via `tandem-cloudevents`), `slf4j-api` |
 | `tandem-spring-producer` | none beyond `tandem-jdbc` — **Spring and Jackson are `compileOnly`**, so the application's own versions are used and none is dragged in |
 | `tandem-spring-relay` | none beyond `tandem-jdbc` — Spring is `compileOnly`, as above, and so are `tandem-kafka` and `tandem-micrometer`: the transport is a port, so the application declares the publish adapter it uses and inherits no other one |
 | `tandem-micrometer` | `micrometer-core` |
@@ -47,7 +47,7 @@ compile / runtime classpath is:
 | org.apache.kafka:kafka-clients          | 3.9.2   | Apache-2.0   |
 | io.cloudevents:cloudevents-kafka        | 4.1.1   | Apache-2.0   |
 | io.cloudevents:cloudevents-core         | 4.1.1   | Apache-2.0   |
-| com.rabbitmq:amqp-client                | 5.25.0  | Apache-2.0   |
+| com.rabbitmq:amqp-client                | 5.37.0  | Apache-2.0   |
 | org.slf4j:slf4j-api                     | 2.0.16  | MIT          |
 | org.testcontainers:postgresql           | 1.21.4  | MIT          |
 | org.testcontainers:kafka                | 1.21.4  | MIT          |

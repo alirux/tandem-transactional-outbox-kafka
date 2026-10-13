@@ -203,7 +203,10 @@ four more:
 | `confirmTimeout` | 30 s | How long a publisher confirm may take (§7). Must stay below the relay's `rowLease` (60 s by default). |
 
 Connection settings (host, credentials, TLS, virtual host) are the `ConnectionFactory`'s, not
-Tandem's. Tandem switches on automatic connection recovery and leaves the rest to you.
+Tandem's. Tandem switches on automatic connection recovery and leaves the rest to you. The connector
+leaves out the Netty jars `amqp-client` declares, since its default socket transport needs none: if
+you switch the factory to Netty (`factory.netty()`), add `io.netty:netty-transport`,
+`netty-codec` and `netty-handler` yourself.
 
 ---
 
