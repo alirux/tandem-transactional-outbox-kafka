@@ -436,6 +436,13 @@ release notes render outside the repository, so a relative path does not resolve
 Do not create or push a tag without the user asking in that turn; pushing one
 publishes the release and stages the Maven Central deployment.
 
+**A major version goes through release candidates** (`v1.0.0-rc.1`, `-rc.2`, …). During the RC
+window the library takes only fixes and the contract changes its reviewers ask for; each contract
+change (anything a compatibility gate or a reference file sees, or a name the review guards) ships
+as a new `rc.N+1`. The final release is tagged on the last RC's commit, and no earlier than **3
+weeks after `rc.1` and 2 weeks after the last RC that changed a contract**: a change to a contract
+deserves a review period of its own, while an RC carrying fixes only restarts nothing.
+
 **After a library release reaches Maven Central, move the compatibility baseline.** One commit sets
 `tandemBaseline` in `gradle.properties` to the new release and empties `gradle/accepted-breaks.txt`,
 setting its `baseline` line to the same value: declarations are bound to the baseline they were written
