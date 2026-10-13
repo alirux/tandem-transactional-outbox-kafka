@@ -229,8 +229,12 @@ resolved (or consciously deferred) to write correct per-module LLDs.
 
 ## H. Minor inconsistencies / cleanup
 
-- [ ] **Q29 (P3)** — **`headers` naming sweep.** Confirm `traceparent`/`correlation-id` everywhere;
-  no stale `trace-id`. *(docs)*
+- [x] **Q29 (P3)** — **`headers` naming sweep.** Confirm `traceparent`/`correlation-id` everywhere;
+  no stale `trace-id`. *(docs)* ✅ Resolved: every header is named through `TandemHeaders`
+  (`correlation-id`, `traceparent`, `tracestate`), and no `trace-id` remains. The other spellings
+  belong to other contracts: `correlation_id` is the outbox column, `correlationId` the Admin API
+  field and query parameter. The published-message reference files (LLD-api-stability §8.2) pin the
+  header names on the wire.
 
 ---
 
