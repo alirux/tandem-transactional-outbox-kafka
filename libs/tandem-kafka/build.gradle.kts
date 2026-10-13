@@ -26,6 +26,9 @@ dependencies {
 
     // Unit tests use Kafka's own in-memory MockProducer (a real test double, not a mock framework).
     testImplementation(project(":tandem-test"))
+    // The reference-file helper (LLD-api-stability §8.1), internal-only and not published (see
+    // libs/tandem-test/build.gradle.kts).
+    testImplementation(testFixtures(project(":tandem-test")))
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.kafka)

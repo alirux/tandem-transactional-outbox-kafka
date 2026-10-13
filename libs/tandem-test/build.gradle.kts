@@ -1,7 +1,7 @@
 description = "Tandem test support — in-memory collaborators and the Testcontainers helper"
 
-// Internal-only helpers shared across modules' own test suites (currently: the Spring modules'
-// configuration-reference check), never published — a Tandem consumer has no use for it. Kept out of
+// Internal-only helpers shared across modules' own test suites (the Spring modules' configuration-reference
+// check, and the reference files of LLD-api-stability §8), never published — a Tandem consumer has no use for it. Kept out of
 // `main` so it never enters the published jar's API surface or javadoc, unlike the real collaborators
 // above; consuming modules add `testImplementation(testFixtures(project(":tandem-test")))`.
 apply(plugin = "java-test-fixtures")
@@ -35,6 +35,10 @@ dependencies {
     api(libs.testcontainers.kafka)
     api(libs.kafka.clients)
     runtimeOnly(libs.postgresql)
+
+    // The reference-file helper's comparison (LLD-api-stability §8.1), on the test fixtures only, which are
+    // never published.
+    "testFixturesImplementation"(libs.assertj.core)
 
     // Testcontainers 1.21.4 resolves commons-compress 1.24.0, which carries two moderate DoS
     // advisories (GHSA DUMP infinite loop / Pack200 OOM), both fixed in 1.26.0. Neither is

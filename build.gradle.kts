@@ -82,6 +82,15 @@ val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associa
 // starts its containers outside the limit.
 val dockerBoundTestTasks = setOf("integrationTest", "floorTest", "pinnedTest", "noKafkaTest", "schemaCompatTest")
 
+// Reference files (LLD-api-stability §8.1): `./gradlew test -PupdateReferenceFiles` runs the reference tests in
+// write mode, each rewriting its file under src/test/resources/reference instead of comparing with it. CI always
+// compares, so the property is refused there. Any value but `false` turns write mode on, the bare flag included.
+val updateReferenceFiles = providers.gradleProperty("updateReferenceFiles").map { it != "false" }.getOrElse(false)
+if (updateReferenceFiles && providers.environmentVariable("CI").isPresent) {
+    throw GradleException("-PupdateReferenceFiles is refused when the CI environment variable is set: a CI run " +
+        "compares the reference files and never rewrites them (LLD-api-stability §8.1).")
+}
+
 abstract class DockerSlots : BuildService<BuildServiceParameters.None>
 
 val dockerSlots = gradle.sharedServices.registerIfAbsent("dockerSlots", DockerSlots::class) {
@@ -100,6 +109,17 @@ tasks.register(CompatibilityBaseline.CHECK_COMPATIBILITY) {
 subprojects {
     tasks.withType<Test>().matching { it.name in dockerBoundTestTasks }.configureEach {
         usesService(dockerSlots)
+    }
+
+    // Every Test task, so a reference test is in the same mode whichever task runs it. The mode is an input, so
+    // neither an up-to-date check nor the build cache hands one mode the result of the other; in write mode the
+    // task's state is not tracked at all, so it always runs and always rewrites what differs.
+    tasks.withType<Test>().configureEach {
+        systemProperty("tandem.updateReferenceFiles", updateReferenceFiles)
+        inputs.property("updateReferenceFiles", updateReferenceFiles)
+        if (updateReferenceFiles) {
+            doNotTrackState("-PupdateReferenceFiles rewrites the reference files in the source tree")
+        }
     }
 
     configurations.matching { it.name !in centralClasspaths }.configureEach {

@@ -241,6 +241,11 @@ package's `package-info` says so once (HLD-api-stability §3).
    Keep a literal only for a genuine *transform output* (e.g. topic routing:
    `router.topicFor(record(aggregateType="OrderLine")) == "order-line-topic"`) —
    deriving it via production code would be tautological.
+   **One exception: reference files** (`src/test/resources/reference/`, LLD-api-stability §8). They pin a
+   contract on the wire, so they write header and other wire names as literals and their test compares
+   against the file, never against the constants: built from the constants, the file could not notice a
+   constant whose value changed. Regenerate one with `./gradlew test -PupdateReferenceFiles` and review its
+   diff; a line changed or removed is a breaking change.
 
 ### Integration tests and Docker
 

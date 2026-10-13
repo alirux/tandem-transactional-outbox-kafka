@@ -2,8 +2,9 @@
 
 **Version:** 0.1  
 **Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3), the Java
-API gate with its interface kinds (§4), the two schema gates (§5), the Admin API gate (§6) and the
-Spring metadata gate (§7) exist.  
+API gate with its interface kinds (§4), the two schema gates (§5), the Admin API gate (§6), the
+Spring metadata gate (§7) and the published message's reference files (§8.2) exist. The reference files
+of the effective defaults (§8.3) and of the metric and span names (§8.4) are deferred.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);
@@ -39,8 +40,8 @@ and how the gates run locally and in CI.
 | Published message | reference file (§8.2) | `test` | `tandem-kafka` | no | no |
 | Admin API | oasdiff: validity, compatibility, frozen names (§6) | `checkOpenApi`, `checkOpenApiCases` | `tandem-admin` | validity and cases: no; the rest: yes (tag) | yes |
 | Spring properties | metadata diff (§7) | `checkSpringMetadata` | `tandem-spring-producer`, `tandem-spring-relay`, `tandem-admin` | yes | no |
-| Effective defaults | reference files (§8.3) | `test` | the three Spring modules, `tandem-jdbc`, `tandem-kafka`, `tandem-micrometer` | no | no |
-| Metric and span names | reference files (§8.4) | `test` | `tandem-micrometer`, `tandem-spring-relay`, `tandem-tracing-otel` | no | no |
+| Effective defaults | reference files (§8.3), deferred | `test` | the three Spring modules, `tandem-jdbc`, `tandem-kafka`, `tandem-micrometer` | no | no |
+| Metric and span names | reference files (§8.4), deferred | `test` | `tandem-micrometer`, `tandem-spring-relay`, `tandem-tracing-otel` | no | no |
 
 The published library modules are those of HLD-api-stability §3. `tandem-bom` carries no code, so its
 only gate is the list of modules it manages; `tandem-rabbitmq` keeps its own version and its own
@@ -752,12 +753,18 @@ gate guards keys and types, and the effective defaults have the reference files 
 
 ## 8. Reference files
 
+The first round builds the published message's files (§8.2): the message is read by consumers Tandem
+does not control, and no other gate sees a header change. The effective defaults (§8.3) and the metric and
+span names (§8.4) change more rarely and on purpose; their files are specified below and built later, and
+until then review guards them (HLD-api-stability §5).
+
 ### 8.1 Mechanism
 
 - **Location.** `src/test/resources/reference/` of the module whose test renders the file. Each file
   belongs to one test, which compares it whole.
-- **The test** renders the output from production code and compares it with the file. On a difference
-  it fails with a unified diff and the command that regenerates the file.
+- **The test** renders the output from production code and compares it with the file as text, with
+  AssertJ. On a difference it fails with the two texts, which the IDE and the test report show as a diff,
+  and the command that regenerates the file.
 - **Helper.** `ReferenceFile`, in `tandem-test`'s test fixtures next to
   `ConfigurationMetadataReference`, compares a rendering with its file or, in write mode, writes it.
 - **Regeneration.** `./gradlew test -PupdateReferenceFiles` runs the tests with the reference tests
