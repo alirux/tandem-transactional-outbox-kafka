@@ -11,16 +11,18 @@ dependencies {
     // makes it usable at compile time and pins it to a current version (HLD-logging.md §2.2).
     api(libs.slf4j.api)
 
-    // kafka-clients 3.9.2 resolves lz4-java 1.10.1, which carries a moderate advisory
-    // (GHSA-xx22-p4ch-683r: the native XXHash bindings can crash the JVM when passed invalid
-    // byte-array ranges), fixed in 1.11.1. Not reachable from Kafka's compression usage, but
-    // tandem-kafka is published, so consumers inherit the flagged coordinate on their runtime
-    // classpath and see it in their own scans. Raise the floor rather than make every consumer
-    // do it. This is a constraint, not a dependency: it sets a minimum if lz4-java is present,
-    // and pulls in nothing on its own. Drop it once kafka-clients ships >= 1.11.1.
+    // kafka-clients 3.9.2 resolves lz4-java 1.10.1, which carries advisories fixed up to 1.11.4:
+    // native XXHash bindings that can crash the JVM (GHSA-xx22-p4ch-683r), unvalidated length
+    // headers that allocate up to 1 GiB (GHSA-4v53-57pg-c464, GHSA-6cx8-rjf8-pr8g), stream decoders
+    // open to CPU and stack exhaustion (GHSA-gm45-99xc-r7wv, GHSA-343h-94h5-c4wr), and native library
+    // extraction to a shared temporary directory (GHSA-mcr4-qmvw-px4g). tandem-kafka is published, so
+    // consumers inherit the flagged coordinate on their runtime classpath and see it in their own
+    // scans. Raise the floor rather than make every consumer do it. This is a constraint, not a
+    // dependency: it sets a minimum if lz4-java is present, and pulls in nothing on its own. Drop it
+    // once kafka-clients ships >= 1.11.4.
     constraints {
         api(libs.lz4.java) {
-            because("CVE remediation: lz4-java < 1.11.1 can crash the JVM via invalid XXHash byte ranges")
+            because("CVE remediation: lz4-java <= 1.11.3 carries advisories fixed in 1.11.4")
         }
     }
 

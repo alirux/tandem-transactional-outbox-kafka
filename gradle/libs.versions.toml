@@ -21,11 +21,10 @@ kafka = "3.9.2"
 # at all). Matches what Boot 3.3.13 manages; Boot 4.1.0 manages 1.17.0, same major (LLD-micrometer §1).
 micrometer = "1.13.15"
 # Not a dependency Tandem declares — only a version floor for what kafka-clients drags in.
-# kafka-clients 3.9.2 resolves lz4-java 1.10.1, which carries a moderate advisory (the native
-# XXHash bindings can crash the JVM on out-of-range byte-array arguments), fixed in 1.11.1.
-# Not reachable through Kafka's compression usage, but tandem-kafka is published, so consumers
-# inherit the flagged coordinate on their runtime classpath. Constrained up in libs/tandem-kafka/build.gradle.kts.
-lz4 = "1.11.1"
+# kafka-clients 3.9.2 resolves lz4-java 1.10.1, which carries advisories fixed up to 1.11.4 (see
+# libs/tandem-kafka/build.gradle.kts). tandem-kafka is published, so consumers inherit the flagged
+# coordinate on their runtime classpath. Constrained up in libs/tandem-kafka/build.gradle.kts.
+lz4 = "1.11.4"
 cloudevents = "4.1.1"
 # The RabbitMQ Java client (AMQP 0.9.1), tandem-rabbitmq's only third-party dependency besides the
 # slf4j-api it already brings transitively. Relay-side only, never on the client write-side (§1.3).
