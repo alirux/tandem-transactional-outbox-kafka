@@ -218,6 +218,10 @@ package's `package-info` says so once (HLD-api-stability §3).
      collaborator — no database required.
    - **Integration tests:** use `TandemTestContainer` from `tandem-test`, which
      wires up a real PostgreSQL and a real Kafka broker via Testcontainers.
+   - **The schema compatibility test** (`schemaCompatTest`, `tandem-jdbc`) is the one test that uses
+     neither: it compiles against the previous release from Maven Central, so no project of the build,
+     `tandem-test` included, may reach its classpath, and it starts its `PostgreSQLContainer` itself
+     (LLD-api-stability §5.2).
    Refactoring the production code under test to make it testable without mocks is
    explicitly allowed — extract a pure function, change visibility, split a class,
    introduce a seam. Prefer a behaviour-preserving refactor over reaching for a mock.
@@ -253,7 +257,9 @@ Integration tests in `tandem-test` require Docker (Testcontainers). They run
 automatically in CI (GitHub Actions ubuntu-latest has Docker available). Locally,
 Docker Desktop or Colima must be running. Integration tests are tagged
 `@Tag("integration")` and run as part of `./gradlew check`; skip them with
-`./gradlew test -x integrationTest` if Docker is unavailable.
+`./gradlew test -x integrationTest` if Docker is unavailable. `check` needs Docker for two more things:
+the OpenAPI gate (`checkOpenApi`, `checkOpenApiCases`), which runs oasdiff from a pinned image, and the
+schema compatibility test once a baseline is set (LLD-api-stability §5.2, §6).
 
 **At most three Docker-bound test tasks run at a time**, whatever the build's parallelism: the root build
 makes them share a build service (`dockerSlots`), because one broker per module starting together is more
@@ -320,6 +326,7 @@ release). When you add a module, walk the whole list in the same change:
 | `unpublishedModules` in the root `build.gradle.kts` | **Only for modules that must NOT be published** (sample/benchmark/coverage). It also opts them out of the shared java-library/publishing convention, so they configure their own toolchain and tasks. |
 | `dependency-graph-exclude-projects` in `.github/workflows/ci.yml` | **Only for modules whose dependencies reach nobody** (samples, benchmark, coverage). The dependency graph CI submits is scoped to the redistributed runtime footprint (LLD-base §1); an unpublished module missing from that regex puts its demo/benchmark dependencies back into the repository's Dependabot alerts. `tandem-relay` is unpublished and stays **out** of the regex on purpose: its runtime classpath ships to operators inside the container image, so its alerts are real (LLD-relay §10). |
 | `README.md` API reference table (**published modules only** — each row links that module's javadoc on javadoc.io, which exists only for a published artifact) · `.github/CONTRIBUTING.md` project layout · `docs/LLD-base.md` (artifactId + package) | Three separate documented module lists — all three go stale independently, and a contributor reading one will not know the module exists. |
+| `springMetadataModules` in the root `build.gradle.kts` | **Spring modules that ship configuration metadata only.** It gives the module `checkSpringMetadata` and a non-incremental `compileJava` (LLD-api-stability §7); a module missing there has no gate on its property keys. |
 | `THIRD-PARTY-NOTICES.md` per-module table | **Every module whose artifact reaches someone**: the published modules, and a deployable that bundles its dependencies (today `tandem-relay`, whose image and jar redistribute the whole runtime; its section is generated from the jar, see Minimal client footprint). It documents what a consumer or an operator actually receives; a module absent from it makes the redistributed footprint unverifiable (state "none beyond …" when it adds no third-party dependency). |
 
 **Independently versioned modules** are of three kinds today: a Maven artifact (`tandem-rabbitmq`), a Go
@@ -338,6 +345,11 @@ and it stays out of the README's API reference table, whose rows link a javadoc.
 a published artifact. The change that adds that workflow takes it out of the set, excludes it from
 `release.yml` (`-x :<module>:publishToMavenCentral`), and gives it a version variable of its own with a guard
 that refuses to publish while it is unset (see `libs/tandem-rabbitmq/build.gradle.kts`).
+
+**The compatibility gates need no list.** A published library module gets `checkJavaApi` and
+`checkInterfaceKinds` from the root convention, and its baseline gates skip it as new until the baseline
+release contains it (LLD-api-stability §2.4). A new task type that compares with the baseline implements
+`BaselineGate`, whose registration adds it to `check` and `checkCompatibility` (§9.1).
 
 Unpublished leaf apps (`tandem-sample*`, `tandem-benchmark`) stay out of the BOM and out of coverage
 aggregation on purpose: no meaningful coverage, and no `integrationTest` phase for the aggregated report
@@ -384,8 +396,17 @@ Tags follow `v<semver>` and pushing one publishes all library modules to Maven C
 (every published module except the independently versioned `tandem-rabbitmq`, below).
 Before creating a release tag:
 
-1. **Check for breaking changes** since the previous release tag — diff the
-   public API surface (`tandem-core` interfaces and public types).
+1. **Check for breaking changes** since the previous release: the compatibility gates do it
+   (LLD-api-stability). `./gradlew check` green, with `tandemBaseline` in `gradle.properties` set to
+   the previous release, means every break they see is declared. The breaks of the release are:
+   - the entries of `gradle/accepted-breaks.txt`;
+   - every line changed or removed in a reference file since the baseline tag
+     (`git diff v<baseline> -- '*/src/test/resources/reference/*'`);
+   - every released interface whose `<b>SPI:</b>` paragraph was removed since then
+     (`git diff v<baseline> -- '*.java' | grep '^-.*<b>SPI:</b>'`);
+   - any change to the names and values review guards (HLD-api-stability §2, §5): the effective
+     defaults and the metric and span names, whose reference files are deferred, and the
+     `Automatic-Module-Name`.
 2. If there are breaking changes, **verify the requested version is bumped per
    semantic versioning** (a breaking change requires a major bump; in `0.x`, a
    minor bump conventionally signals it).
@@ -415,6 +436,11 @@ commit messages). Wrap at ~80 columns. Any link must be an **absolute URL** —
 release notes render outside the repository, so a relative path does not resolve.
 Do not create or push a tag without the user asking in that turn; pushing one
 publishes the release and stages the Maven Central deployment.
+
+**After a library release reaches Maven Central, move the compatibility baseline.** One commit sets
+`tandemBaseline` in `gradle.properties` to the new release and empties `gradle/accepted-breaks.txt`,
+setting its `baseline` line to the same value: declarations are bound to the baseline they were written
+against (LLD-api-stability §2.1, §3).
 
 **After a release reaches Maven Central, run `tools/javadoc-io-sync.sh`** (library or
 `tandem-rabbitmq` release alike). javadoc.io no longer picks up new releases by itself: its

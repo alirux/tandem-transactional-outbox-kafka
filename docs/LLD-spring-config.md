@@ -453,6 +453,10 @@ never pull `tandem-kafka`). Kept out of the published jar entirely — the build
 
 Adding, renaming or removing a property without touching the reference fails the build.
 
+Against the previous release, `checkSpringMetadata` compares the metadata in each module's jar with the
+one the release shipped: a key removed, a type changed or a declared default changed fails the build
+unless declared (LLD-api-stability §7).
+
 ### 2.5 `tandem.metrics.*` — the tandem-micrometer adapter
 
 Numbered after §2.4 rather than inline with §2.2/§2.3, deliberately: renumbering would invalidate the

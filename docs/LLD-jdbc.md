@@ -1012,7 +1012,9 @@ flat baseline needs one `liquibase changelog-sync` to record the already-applied
 The MySQL changelog (`schema/mysql/…`) is **pending Q28** — the schema mapping it must follow
 (status-prefixed indexes, timestamp precision, bucket seeding) is specified in §5.4; the `bucket` is
 computed in Java so there is no DB bucket function to port.
-The schema must stay **additive** across versions (§1.4).
+The schema must stay **additive** across versions (§1.4). Two build gates hold it to that against the
+previous release: every shipped changeset stays byte-identical, and the previous release's adapter runs on
+a database it populated and the current changelog upgraded (LLD-api-stability §5).
 
 ## 7. Manual wiring without Spring (basic round)
 

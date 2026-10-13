@@ -1,10 +1,8 @@
 # Tandem: Compatibility Gates (LLD)
 
 **Version:** 0.1  
-**Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3), the Java
-API gate with its interface kinds (§4), the two schema gates (§5), the Admin API gate (§6), the
-Spring metadata gate (§7) and the published message's reference files (§8.2) exist. The reference files
-of the effective defaults (§8.3) and of the metric and span names (§8.4) are deferred.  
+**Status:** Built, except the reference files of the effective defaults (§8.3) and of the metric and span
+names (§8.4), which are deferred.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);

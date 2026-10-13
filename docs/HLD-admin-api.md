@@ -305,7 +305,7 @@ consumers. Consumer-driven contracts (Pact-style) assume you control and co-evol
 consumers and let them *shape* the contract — the opposite of a stable published contract.
 They are therefore **out of scope by design**.
 
-Tools (to wire when `tandem-admin` is implemented):
+Tools:
 
 - **swagger-request-validator (Atlassian)** — *primary*. Validates that the real HTTP
   interactions in the Spring MockMvc / REST Assured integration tests conform to
@@ -318,7 +318,7 @@ Tools (to wire when `tandem-admin` is implemented):
   Its severities enforce additive evolution and stable defaults, including changes upstream
   considers compatible such as removing optional response fields. A new value in a response
   enum remains compatible, since readers are tolerant (§1). A separate comparison protects
-  problem slugs and effective server URLs, including variable defaults and allowed values.
+  problem slugs and the document's server URLs, including variable defaults and allowed values.
   It runs from a pinned container image and is never shipped. Design and acceptance cases in
   [LLD-api-stability.md](LLD-api-stability.md) §6.
 
