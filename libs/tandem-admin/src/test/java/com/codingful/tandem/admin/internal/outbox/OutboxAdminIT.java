@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.codingful.tandem.admin.AdminMockMvc;
 import com.codingful.tandem.admin.OpenApiConformance;
-import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.jdbc.JdbcDiscardService;
 import com.codingful.tandem.jdbc.JdbcOutboxQuery;
@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * End-to-end slice-1 (reads) and slice-2 (replay/discard) test over a real PostgreSQL
@@ -68,9 +67,7 @@ class OutboxAdminIT {
         JdbcDiscardService discardService = new JdbcDiscardService(container.dataSource());
         OutboxAdminService service =
                 new OutboxAdminService(query, store, replayService, discardService, Clock.systemUTC());
-        mockMvc = MockMvcBuilders.standaloneSetup(new OutboxAdminController(service))
-                .setControllerAdvice(new OutboxExceptionHandler(), new TandemAdminExceptionHandler())
-                .build();
+        mockMvc = AdminMockMvc.create(new OutboxAdminController(service), new OutboxExceptionHandler());
     }
 
     @Test
