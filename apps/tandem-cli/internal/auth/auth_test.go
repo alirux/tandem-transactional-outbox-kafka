@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,17 @@ import (
 
 	"github.com/alirux/tandem-transactional-outbox-kafka/apps/tandem-cli/internal/exitcode"
 )
+
+func TestMain(m *testing.M) {
+	// Tests opt into connection settings with t.Setenv, independently of the shell.
+	for _, name := range []string{envBaseURL, envToken, envAPIKey, envCACert} {
+		if err := os.Unsetenv(name); err != nil {
+			fmt.Fprintf(os.Stderr, "unsetting %s: %v\n", name, err)
+			os.Exit(1)
+		}
+	}
+	os.Exit(m.Run())
+}
 
 func TestResolve_missingBaseURLIsAUsageError(t *testing.T) {
 	_, err := Resolve(Options{}, nil)
@@ -86,6 +98,44 @@ func TestResolve_requestEditorSetsBearerTokenAndAPIKeyIndependently(t *testing.T
 	}
 	if got, want := req.Header.Get("X-API-Key"), "key-456"; got != want {
 		t.Errorf("X-API-Key = %q, want %q", got, want)
+	}
+}
+
+func TestResolve_credentialsFallBackToEnvVarsAndFlagsWin(t *testing.T) {
+	const (
+		envTokenValue = "env-token"
+		flagToken     = "flag-token"
+		envKeyValue   = "env-key"
+		flagKey       = "flag-key"
+	)
+	for _, tc := range []struct {
+		name     string
+		envVar   string
+		envValue string
+		options  Options
+		header   string
+		want     string
+	}{
+		{"tokenFromEnv", envToken, envTokenValue, Options{}, "Authorization", "Bearer " + envTokenValue},
+		{"tokenFlagBeatsEnv", envToken, envTokenValue, Options{Token: flagToken}, "Authorization", "Bearer " + flagToken},
+		{"apiKeyFromEnv", envAPIKey, envKeyValue, Options{}, "X-API-Key", envKeyValue},
+		{"apiKeyFlagBeatsEnv", envAPIKey, envKeyValue, Options{APIKey: flagKey}, "X-API-Key", flagKey},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.envVar, tc.envValue)
+			tc.options.BaseURL = "https://admin.example"
+			resolved, err := Resolve(tc.options, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			req := httptest.NewRequest(http.MethodGet, resolved.BaseURL+"/outbox/summary", nil)
+			if applyErr := resolved.RequestEditor(context.Background(), req); applyErr != nil {
+				t.Fatalf("RequestEditor() error = %v", applyErr)
+			}
+			if got := req.Header.Get(tc.header); got != tc.want {
+				t.Errorf("%s = %q, want %q", tc.header, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -173,6 +223,47 @@ func TestResolve_validCaCertIsLoadedIntoTheTLSConfig(t *testing.T) {
 	}
 	if transport.TLSClientConfig.RootCAs == nil {
 		t.Error("TLSClientConfig.RootCAs is nil, want the loaded CA pool")
+	}
+}
+
+func TestResolve_caCertFallsBackToEnvVarAndFlagWins(t *testing.T) {
+	certDir := t.TempDir()
+	envCertFile := filepath.Join(certDir, "env-ca.pem")
+	flagCertFile := filepath.Join(certDir, "flag-ca.pem")
+	envCert := selfSignedCAPEM(t)
+	flagCert := selfSignedCAPEM(t)
+	writeFile(t, envCertFile, envCert)
+	writeFile(t, flagCertFile, flagCert)
+
+	for _, tc := range []struct {
+		name    string
+		flag    string
+		wantPEM string
+	}{
+		{"caCertFromEnv", "", envCert},
+		{"caCertFlagBeatsEnv", flagCertFile, flagCert},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(envCACert, envCertFile)
+			resolved, err := Resolve(Options{BaseURL: "https://admin.example", CACert: tc.flag}, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			transport, ok := resolved.HTTPClient.Transport.(*http.Transport)
+			if !ok {
+				t.Fatal("HTTPClient.Transport is not *http.Transport")
+			}
+			if transport.TLSClientConfig == nil || transport.TLSClientConfig.RootCAs == nil {
+				t.Fatal("TLSClientConfig.RootCAs is nil, want the selected CA pool")
+			}
+			wantPool := x509.NewCertPool()
+			if !wantPool.AppendCertsFromPEM([]byte(tc.wantPEM)) {
+				t.Fatal("loading the expected CA certificate")
+			}
+			if !transport.TLSClientConfig.RootCAs.Equal(wantPool) {
+				t.Error("TLSClientConfig.RootCAs does not match the selected CA certificate")
+			}
+		})
 	}
 }
 

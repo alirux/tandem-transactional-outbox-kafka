@@ -2,10 +2,23 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/alirux/tandem-transactional-outbox-kafka/apps/tandem-cli/internal/exitcode"
 )
+
+func TestMain(m *testing.M) {
+	// Tests opt into connection settings with t.Setenv, independently of the shell.
+	for _, name := range []string{"TANDEM_ADMIN_URL", "TANDEM_ADMIN_TOKEN", "TANDEM_ADMIN_API_KEY", "TANDEM_ADMIN_CA_CERT"} {
+		if err := os.Unsetenv(name); err != nil {
+			fmt.Fprintf(os.Stderr, "unsetting %s: %v\n", name, err)
+			os.Exit(1)
+		}
+	}
+	os.Exit(m.Run())
+}
 
 // execute runs a fresh root command end to end (LLD-cli.md §10): real cobra parsing, real
 // flag/env resolution, a real HTTP round trip to server, no mocks. Every case gets its own
