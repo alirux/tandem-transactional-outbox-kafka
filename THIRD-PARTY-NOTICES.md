@@ -52,8 +52,8 @@ compile / runtime classpath is:
 | org.testcontainers:postgresql           | 1.21.4  | MIT          |
 | org.testcontainers:kafka                | 1.21.4  | MIT          |
 | org.postgresql:postgresql               | 42.7.12 | BSD-2-Clause |
-| io.micrometer:micrometer-core            | 1.13.6  | Apache-2.0   |
-| io.opentelemetry:opentelemetry-api       | 1.38.0  | Apache-2.0   |
+| io.micrometer:micrometer-core           | 1.13.15 | Apache-2.0   |
+| io.opentelemetry:opentelemetry-api      | 1.38.0  | Apache-2.0   |
 
 `cloudevents-core` is declared directly by `tandem-cloudevents`, and `cloudevents-kafka`
 pulls it in transitively as well. The three
