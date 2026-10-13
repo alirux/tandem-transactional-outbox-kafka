@@ -1,5 +1,6 @@
 import com.codingful.tandem.compatibility.CheckInterfaceKinds
 import com.codingful.tandem.compatibility.CheckJavaApi
+import com.codingful.tandem.compatibility.CheckSpringMetadata
 import com.codingful.tandem.compatibility.CompatibilityBaseline
 
 plugins {
@@ -50,6 +51,10 @@ val independentlyVersionedModules = setOf("tandem-rabbitmq")
 // carries no code; its one gate, checkBomModules, is registered in its own build script.
 val libraryModules = subprojects.map { it.name }.toSet() - unpublishedModules - notYetPublishedModules -
         independentlyVersionedModules - "tandem-bom"
+
+// The library modules whose jar carries Spring configuration metadata: each runs checkSpringMetadata
+// (LLD-api-stability §7).
+val springMetadataModules = setOf("tandem-spring-producer", "tandem-spring-relay", "tandem-admin")
 
 // Independently versioned modules (today: tandem-rabbitmq) depend on their siblings by published
 // coordinate with an explicit floor, because a project dependency would stamp their own version into
@@ -248,6 +253,18 @@ subprojects {
         CompatibilityBaseline.registerLibrary(project)
         val interfaceKinds = CheckInterfaceKinds.register(project, libraryModules)
         CheckJavaApi.register(project, libraryModules, interfaceKinds)
+        if (name in springMetadataModules) {
+            CheckSpringMetadata.register(project, springMetadataModules)
+            // The configuration processor writes a property's description only when it compiles the class
+            // declaring it, so an incremental compilation leaves the others without one. A full compilation
+            // keeps the metadata of every jar complete (LLD-api-stability §7). The flag is not part of the
+            // build cache key, so the input below keys these compilations apart from any an incremental
+            // compilation stored, which the cache would otherwise hand back for the same sources.
+            tasks.named<JavaCompile>("compileJava") {
+                options.isIncremental = false
+                inputs.property("fullCompilation", true)
+            }
+        }
     }
 
     // Common Maven Central / POM metadata. Per-module name+description come from the subproject.

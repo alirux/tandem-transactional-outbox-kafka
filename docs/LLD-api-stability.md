@@ -2,7 +2,8 @@
 
 **Version:** 0.1  
 **Status:** Draft. The gates are being built: the baseline (§2), the declared breaks (§3), the Java
-API gate with its interface kinds (§4), the two schema gates (§5) and the Admin API gate (§6) exist.  
+API gate with its interface kinds (§4), the two schema gates (§5), the Admin API gate (§6) and the
+Spring metadata gate (§7) exist.  
 **Implements:** [HLD-api-stability.md](HLD-api-stability.md) §5  
 **Companion to:** [LLD-jdbc.md](LLD-jdbc.md) §6 (the changelog); [LLD-spring-config.md](LLD-spring-config.md)
 §2.4 (the configuration metadata); [HLD-admin-api.md](HLD-admin-api.md) §5 (contract testing);
@@ -711,23 +712,39 @@ code (`OpenApiGateTest`); the cases cover a document and a severity file oasdiff
 
 ## 7. Spring properties: metadata diff
 
-`checkSpringMetadata` runs in `tandem-spring-producer`, `tandem-spring-relay` and `tandem-admin`. It
-compares `META-INF/spring-configuration-metadata.json` in the baseline jar with the same file in the
-module's jar, and fails when a property of the baseline:
+`checkSpringMetadata` runs in `tandem-spring-producer`, `tandem-spring-relay` and `tandem-admin`, the
+modules the root build names in `springMetadataModules`. It compares
+`META-INF/spring-configuration-metadata.json` in the baseline jar (`compatibilityBaselineArchive`) with
+the same file in the module's `jar`, and fails when a property of the baseline:
 
 - is absent, or carries a `deprecation` of level `error` (Spring's way of declaring a key removed);
-- has another `type`;
-- declared a `defaultValue` and now declares none, or another one.
+- declared a `type` and now declares another one, or none;
+- declared a `defaultValue` and now declares another one, or none.
 
-New properties pass. Descriptions, groups, hints and source types are ignored. A declared break names
-the key: `spring-metadata | <module> | <key>`.
+New properties pass, and so does a type or a default declared where the baseline declared none.
+Descriptions, groups, hints and source types are ignored, and so is a deprecation of level `warning`.
+Defaults are compared as the JSON values the file holds, so `256` and `"256"` differ. A property the
+baseline already declares removed (level `error` there) is not compared: nothing of it is left to keep,
+and a key removed in one major version would otherwise fail every later one.
+
+A break is named by its key, and a property that breaks in more than one way is one break, its reasons
+on one line. A declared break names the key: `spring-metadata | <module> | <key>`. The failure lists
+each undeclared break with the declaration that would accept it, and each stale declaration. The task
+logs each declaration it used with its release-notes line, and writes its verdict to
+`build/compatibility/spring-metadata.txt`.
+
+A file the gate cannot compare is an error, which no declaration accepts (§3, rule 4): a jar without
+the metadata, a file that is not the JSON the processor writes, or a key declared twice with a
+different type, default or deprecation level. A key declared twice the same way is read once.
 
 **A complete file in every jar.** The configuration processor reads descriptions from the sources of
 the classes the compiler processes, so an incremental compilation, which recompiles only some, writes
 metadata without them. `compileJava` in the three modules is therefore non-incremental: every
 compilation regenerates the whole file, so the jar the gate reads, like any jar built locally, carries
 the complete metadata. The three modules are small, and the cost is a few seconds when one of them
-changes.
+changes. The setting is not part of the build cache key, so `compileJava` also declares an input of its
+own, `fullCompilation`: an output an incremental compilation stored, before the setting or on a branch
+without it, has another key, and the cache never hands it back for the same sources.
 
 **Rejected:** *a second full compilation into a directory of the gate's own.* The module's jar could
 still carry incomplete metadata from a local incremental build, and the gate would check a file nobody
@@ -922,11 +939,11 @@ plugin on every build script's classpath. The plugin is published on the Gradle 
 that is `buildSrc`'s one repository besides Maven Central, limited to the plugin's group. The tests of
 the rules run the plugin's worker action on jars they compile, so the rules are loaded and fed the way
 a build loads and feeds them; they add the Guava the worker puts on japicmp's classpath. The parser of
-Java sources (§4.3) is the JDK compiler's own tree API, and oasdiff's JSON is read with Groovy's
-`JsonSlurper`, part of the Groovy that Gradle's API carries, so neither brings a library. `buildSrc` is not a
-module: it has no entry in the settings, is outside the module registration checklist, publishes
-nothing, and adds nothing to THIRD-PARTY-NOTICES.md. A change to it reconfigures the whole build, an
-acceptable cost for code that changes rarely.
+Java sources (§4.3) is the JDK compiler's own tree API, and the JSON of oasdiff (§6) and of the Spring
+metadata (§7) is read with Groovy's `JsonSlurper`, part of the Groovy that Gradle's API carries, so
+neither brings a library. `buildSrc` is not a module: it has no entry in the settings, is outside the
+module registration checklist, publishes nothing, and adds nothing to THIRD-PARTY-NOTICES.md. A change
+to it reconfigures the whole build, an acceptable cost for code that changes rarely.
 
 **Its own tests run because its jar depends on them.** Gradle builds `buildSrc` for every invocation of
 the main build but never runs its tests, and no task of the main build can depend on a task of
@@ -951,7 +968,7 @@ the repository's `.gitignore` excludes, and its sources would never be committed
 | `tandem-bom` | `checkBomModules` |
 | `tandem-jdbc` | `checkShippedChangesets`, the `schemaCompatTest` source set and task |
 | `tandem-admin` | `checkOpenApi` with `extractOpenApiBaseline`, `checkOpenApiCases` and its cases directory (§6.4), `writeOasdiffSeverityLevels` |
-| `tandem-spring-producer`, `tandem-spring-relay`, `tandem-admin` | `checkSpringMetadata`, non-incremental `compileJava` |
+| root convention, the modules of `springMetadataModules` (`tandem-spring-producer`, `tandem-spring-relay`, `tandem-admin`) | `checkSpringMetadata`, non-incremental `compileJava` (§7) |
 | root | `checkCompatibility`, which runs every gate that reads a baseline |
 | root build script | `schemaCompatTest` in `dockerBoundTestTasks`; the configurations of §2.2 in `centralClasspaths`; the property `updateReferenceFiles` passed to every `Test` task, and refused in CI (§8.1) |
 | `gradle.properties` | `tandemBaseline` |
@@ -1043,8 +1060,8 @@ These land with the gates:
   line to the new value.
 - **AGENTS.md, Adding a module**: a published library module gets `checkJavaApi` and
   `checkInterfaceKinds` from the root convention, and its baseline gates skip it as new until the
-  baseline contains it (§2.4); a new Spring module also needs `checkSpringMetadata` and an
-  effective-defaults reference test.
+  baseline contains it (§2.4); a new Spring module also joins `springMetadataModules`, which gives it
+  `checkSpringMetadata` (§7), and needs an effective-defaults reference test.
 - **HLD-api-stability.md**: the "Exists" column of §5 and the status line.
 - **LLD-jdbc.md §6** and **LLD-spring-config.md §2.4**: a pointer to §5 and §7 of this note.
 - **`.github/workflows/ci.yml`**: the comment of the CLI's client drift step, which still names a
