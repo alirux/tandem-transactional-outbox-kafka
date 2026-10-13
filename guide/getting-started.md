@@ -392,7 +392,10 @@ default.
 ### 6.2 Topics
 
 Tandem does not create Kafka topics. Create the topics your aggregate types map to (`order-topic`
-for `Order` with the defaults), or rely on your cluster's auto-creation if it has it enabled. Give
+for `Order` with the defaults) before the relay starts, or rely on your cluster's auto-creation if
+it has it enabled. Until a topic exists, each send to it waits on the worker thread for the
+producer's `max.block.ms` (60 seconds by default), once per row of the batch: the whole worker is
+held up, including rows bound for topics that do exist. Give
 them the partition count you want your consumers to scale with: the aggregate id is the Kafka key,
 so one aggregate always lands on one partition.
 

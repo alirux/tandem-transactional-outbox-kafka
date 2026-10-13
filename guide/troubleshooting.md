@@ -69,7 +69,7 @@ instance within a few seconds.
 
 | Cause | How to recognize it | Fix |
 |---|---|---|
-| **Kafka is unreachable, or the topic does not exist.** | The relay logs `Outbox row dispatch failed, retrying` for the same `rowId`, and the exception is a timeout, often naming the topic. `attempts` on the row climbs. | Fix connectivity or create the topic (Tandem does not create topics). The retries continue on their own. |
+| **Kafka is unreachable, or the topic does not exist.** | The relay logs `Outbox row dispatch failed, retrying` for the same `rowId`, and the exception is a timeout, often naming the topic. `attempts` on the row climbs. A missing topic also delays rows bound for other topics: each send to it waits up to the producer's `max.block.ms` (60 seconds by default) on the worker thread, once per row of the batch, so the worker's whole share of buckets stalls. | Fix connectivity or create the topic (Tandem does not create topics). The retries continue on their own. |
 | **The rows are waiting out a backoff.** | Rows have `attempts` above zero and a `nextAttemptAt` in the future. | Nothing: they retry on schedule. If it lasts, see the row above. |
 | **The rows are behind a `FAILED` row of the same aggregate.** | `blocked` above zero in `outbox summary`; a `FAILED` row exists for that aggregate. | See [§3](#3-a-row-is-failed-or-an-aggregate-is-stuck). |
 | **Buckets have no owner (`LEASE`).** | `tandem-cli relay buckets --uncovered-only` lists buckets, and `uncoveredBuckets` above zero in `relay status`. | An instance died or none is running: start one. For a zombie owner with a stale heartbeat, `relay release-bucket <n>`. |
