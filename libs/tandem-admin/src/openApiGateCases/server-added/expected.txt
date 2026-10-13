@@ -1,2 +1,0 @@
-# A second document server, /admin/v1, added next to {basePath}/v1.
-verdict pass

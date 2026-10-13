@@ -135,15 +135,4 @@ public final class SeverityPolicy {
         }
         return catalog;
     }
-
-    /** The file the policy starts from: every {@code info} rule of the catalog, at {@code info}. */
-    public static String initial(Map<String, String> catalog) {
-        return "# Tandem's compatibility policy for the Admin API contract, as oasdiff severity levels "
-                + "(LLD-api-stability §6.2).\n"
-                + "# Every rule the pinned image classes as info, at its upstream level: raise each to err where the "
-                + "policy says so,\n# and group the rules under comments naming the contract rule each group "
-                + "implements.\n\n"
-                + new TreeMap<>(catalog).entrySet().stream().filter(rule -> rule.getValue().equals("info"))
-                        .map(rule -> rule.getKey() + " info\n").collect(Collectors.joining());
-    }
 }

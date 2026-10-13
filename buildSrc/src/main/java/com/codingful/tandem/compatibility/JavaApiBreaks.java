@@ -214,7 +214,7 @@ final class JavaApiBreaks {
 
     /** The declaration that would accept a break of {@code item}, with a placeholder for its release-notes line. */
     String declaration(String item) {
-        return GATE + " | " + module + " | " + item + " | <release-notes line>";
+        return DeclaredBreaks.declaration(GATE, module, item);
     }
 
     static String names(Collection<JApiCompatibilityChangeType> changes) {

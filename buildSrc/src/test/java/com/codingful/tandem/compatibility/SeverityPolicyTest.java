@@ -97,15 +97,4 @@ class SeverityPolicyTest {
                     .isInstanceOf(GradleException.class).hasMessageContaining("oasdiff catalog");
         }
     }
-
-    @Test
-    void GIVEN_a_catalog_WHEN_the_initial_policy_is_written_THEN_it_lists_every_info_rule_at_info_and_nothing_else() {
-        String initial = SeverityPolicy.initial(CATALOG);
-        SeverityPolicy policy = SeverityPolicy.parse(initial);
-
-        assertThat(policy.oasdiffFile()).isEqualTo(ENDPOINT_ADDED + " info\n" + DEFAULT_CHANGED + " info\n"
-                + OPTIONAL_REMOVED + " info\n");
-        assertThat(policy.problems(CATALOG)).isEmpty();
-        assertThat(initial).startsWith("#");
-    }
 }

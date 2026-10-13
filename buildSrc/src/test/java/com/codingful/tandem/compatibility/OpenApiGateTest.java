@@ -132,8 +132,8 @@ class OpenApiGateTest {
         assertThat(outcome.passed()).isFalse();
         assertThat(outcome.lines()).extracting(OpenApiGate.Line::kind)
                 .containsExactly(OpenApiGate.Kind.ACCEPTED, OpenApiGate.Kind.UNDECLARED);
-        assertThat(outcome.lines().get(0).text()).startsWith(OpenApiGate.FINDING + REQUIRED_ID + ": ");
-        assertThat(outcome.lines().get(1).text()).startsWith(OpenApiGate.FINDING + REQUIRED_TYPE + ": ");
+        assertThat(outcome.lines().get(0).item()).isEqualTo(OpenApiGate.FINDING + REQUIRED_ID);
+        assertThat(outcome.lines().get(1).item()).isEqualTo(OpenApiGate.FINDING + REQUIRED_TYPE);
         assertThat(outcome.undeclared()).containsExactly(OpenApiGate.FINDING + REQUIRED_TYPE);
         assertThat(outcome.accepted()).containsExactly(declaration);
         assertThat(outcome.stale()).isEmpty();
@@ -204,7 +204,8 @@ class OpenApiGateTest {
             assertThat(outcome.passed()).isFalse();
             assertThat(outcome.lines()).singleElement().satisfies(line -> {
                 assertThat(line.kind()).isEqualTo(OpenApiGate.Kind.ERROR);
-                assertThat(line.text()).startsWith("breaking: " + error);
+                assertThat(line.item()).isEqualTo("breaking");
+                assertThat(line.detail()).startsWith(error);
             });
             assertThat(outcome.accepted()).isEmpty();
         });

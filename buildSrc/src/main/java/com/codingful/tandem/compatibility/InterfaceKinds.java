@@ -64,8 +64,8 @@ public final class InterfaceKinds {
         DeclaredBreaks.Matching matching = DeclaredBreaks.match(reclassified, declarations);
         for (String type : matching.undeclared()) {
             problems.add(type + " was SPI in the baseline and is now provided, which breaks every application "
-                    + "implementing it; if intended, declare it as '" + GATE + " | " + module + " | " + type
-                    + " | <release-notes line>'");
+                    + "implementing it; if intended, declare it as '" + DeclaredBreaks.declaration(GATE, module, type)
+                    + "'");
         }
         for (DeclaredBreaks.Entry stale : matching.stale()) {
             problems.add("Declared break matches no SPI interface turned provided, remove it: " + stale);

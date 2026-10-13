@@ -1,3 +1,0 @@
-# The info object removed. Compared with the frozen baseline, which no comparison finding excuses.
-verdict fail
-invalid info-required: must be an object

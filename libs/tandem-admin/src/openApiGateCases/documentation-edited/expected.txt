@@ -1,2 +1,0 @@
-# Documentation only: a summary, a description and a tag description reworded.
-verdict pass

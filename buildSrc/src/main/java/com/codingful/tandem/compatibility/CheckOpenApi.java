@@ -3,6 +3,7 @@ package com.codingful.tandem.compatibility;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -12,24 +13,21 @@ import java.util.stream.Stream;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 /**
@@ -42,35 +40,19 @@ import org.gradle.api.tasks.TaskProvider;
  * {@code info}, and name none the image does not have.
  */
 @CacheableTask
-public abstract class CheckOpenApi extends DefaultTask {
+public abstract class CheckOpenApi extends DefaultTask implements BaselineGate {
 
     /** The contract, relative to the root project. */
     public static final String DOCUMENT = "docs/admin-api.openapi.yaml";
 
-    /** The baseline release; empty when none is set. */
+    /**
+     * The git object of the contract at the baseline tag, so the comparison reruns when the content it compares
+     * changes, not only the tag's name; empty when the tag or the document is missing from this clone, absent
+     * when the module is not compared.
+     */
     @Input
-    public abstract Property<String> getBaseline();
-
-    @Input
-    public abstract Property<String> getModuleName();
-
-    /** The baseline's BOM POM, which says whether the module is new; empty when no baseline is set. */
-    @InputFiles
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract ConfigurableFileCollection getBaselineBom();
-
-    /** Why the module is not compared with the baseline; absent when it is. Derived from the inputs above. */
-    @Internal
-    public abstract Property<String> getSkipReason();
-
-    /** What the baseline BOM's configuration resolved. Derived from its file above. */
-    @Internal
-    public abstract ListProperty<ResolvedComponent> getBaselineComponents();
-
-    /** The document at the baseline tag, as {@code extractOpenApiBaseline} writes it; absent when not compared. */
-    @InputFiles
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract ConfigurableFileCollection getBaselineDocument();
+    @Optional
+    public abstract Property<String> getBaselineDocumentId();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -81,19 +63,18 @@ public abstract class CheckOpenApi extends DefaultTask {
     @PathSensitive(PathSensitivity.NONE)
     public abstract RegularFileProperty getSeverityPolicy();
 
-    @InputFile
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract RegularFileProperty getDeclaredBreaks();
-
     /** The oasdiff image, by tag and digest. */
     @Input
     public abstract Property<String> getImage();
 
-    /** The repository the container mounts. Only where it is, never what it holds, so not an input. */
+    /** The repository git runs in and the container mounts. Only where it is, so not an input. */
     @Internal
     public abstract DirectoryProperty getRepository();
 
-    /** The policy without its comments, the file oasdiff reads, in the directory the container mounts. */
+    /**
+     * The policy without its comments, the file oasdiff reads, in the directory the container mounts, where the
+     * task also writes the baseline document.
+     */
     @OutputFile
     public abstract RegularFileProperty getSeverityLevels();
 
@@ -107,74 +88,42 @@ public abstract class CheckOpenApi extends DefaultTask {
 
     /**
      * Registers the gate in {@code tandem-admin}, whose baseline is already registered, as part of its
-     * {@code check} and of {@code checkCompatibility}, with the baseline's extraction, the acceptance cases of
-     * §6.4 and the helper that writes the policy file from the catalog.
+     * {@code check} and of {@code checkCompatibility}, with the acceptance cases of §6.4.
      *
      * @param image the oasdiff image, by tag and digest, from the version catalog
      */
     public static TaskProvider<CheckOpenApi> register(Project project, Provider<String> image) {
         CompatibilityBaseline baseline = CompatibilityBaseline.of(project);
-        TaskContainer tasks = project.getTasks();
         File root = project.getRootDir();
+        Provider<String> skipReason = baseline.skipReason();
         Provider<Directory> work = project.getLayout().getBuildDirectory().dir("openapi");
-        TaskProvider<ExtractOpenApiBaseline> extract = tasks.register("extractOpenApiBaseline",
-                ExtractOpenApiBaseline.class, task -> {
-            task.setDescription("Writes the Admin API contract at the baseline tag to build/openapi/baseline.yaml.");
-            task.getBaseline().set(baseline.version());
-            task.getDocumentPath().set(DOCUMENT);
-            task.getSkipReason().set(baseline.skipReason());
-            task.getRepository().set(root);
-            task.getDocument().set(work.map(directory -> directory.file("baseline.yaml")));
-            // One git call, and the tag may have moved or been fetched since: never up to date (§6.2).
-            task.getOutputs().upToDateWhen(self -> false);
-        });
-        TaskProvider<CheckOpenApi> gate = tasks.register("checkOpenApi", CheckOpenApi.class, task -> {
-            task.setGroup("verification");
-            task.setDescription("Validates the Admin API contract and checks it against the baseline release with "
-                    + "oasdiff (needs Docker).");
-            task.getBaseline().set(baseline.version());
-            task.getModuleName().set(project.getName());
-            task.getBaselineBom().from(baseline.bom());
-            task.getSkipReason().set(baseline.skipReason());
-            task.getBaselineComponents().addAll(baseline.components(baseline.bom()));
-            task.getBaselineDocument().from(extract.flatMap(ExtractOpenApiBaseline::getDocument));
+        TaskProvider<CheckOpenApi> gate = BaselineGate.register(project, "checkOpenApi", CheckOpenApi.class,
+                "Validates the Admin API contract and checks it against the baseline release with oasdiff (needs "
+                        + "Docker).", Set.of(project.getName()), task -> {
+            task.getBaselineDocumentId().set(project.provider(() -> skipReason.isPresent() ? null
+                    : documentId(root, baseline.version())));
             task.getDocument().set(new File(root, DOCUMENT));
             task.getSeverityPolicy().set(new File(root, SeverityPolicy.PATH));
-            task.getDeclaredBreaks().set(CompatibilityBaseline.declaredBreaks(project));
             task.getImage().set(image);
             task.getRepository().set(root);
             task.getSeverityLevels().set(work.map(directory -> directory.file("severity-levels.txt")));
             task.getReports().set(project.getLayout().getBuildDirectory().dir("reports/openapi"));
             task.getVerdict().set(project.getLayout().getBuildDirectory().file("compatibility/openapi.txt"));
         });
-        CompatibilityBaseline.registerGate(project, gate);
         CheckOpenApiCases.register(project, image);
-        tasks.register("writeOasdiffSeverityLevels", WriteOasdiffSeverityLevels.class, task -> {
-            task.setDescription("Writes " + SeverityPolicy.PATH + " from the pinned oasdiff image's catalog, when "
-                    + "the file does not exist.");
-            task.getImage().set(image);
-            task.getRepository().set(root);
-            task.getPolicy().set(new File(root, SeverityPolicy.PATH));
-            task.getReports().set(project.getLayout().getBuildDirectory().dir("reports/openapi-catalog"));
-        });
         return gate;
     }
 
     @TaskAction
     public void check() {
-        String baseline = getBaseline().get();
-        String module = getModuleName().get();
-        List<DeclaredBreaks.Entry> declarations = DeclaredBreaks.read(getDeclaredBreaks().get().getAsFile())
-                .boundTo(baseline)
-                .requireGateModules(OpenApiGate.GATE, Set.of(module))
-                .entries(OpenApiGate.GATE, module);
+        List<DeclaredBreaks.Entry> declarations = declarations(OpenApiGate.GATE);
         Path reports = getReports().get().getAsFile().toPath();
         Path verdict = getVerdict().get().getAsFile().toPath();
         // A report or a verdict left by an earlier run must never be read as this run's.
         clean(reports, verdict);
         Path severityLevels = getSeverityLevels().get().getAsFile().toPath();
         SeverityPolicy policy = SeverityPolicy.read(getSeverityPolicy().get().getAsFile());
-        Oasdiff.write(severityLevels, policy.oasdiffFile());
+        BaselineGate.write(severityLevels, policy.oasdiffFile());
         Oasdiff oasdiff = new Oasdiff(getImage().get(), getRepository().get().getAsFile().toPath(),
                 severityLevels.getParent());
         List<String> problems = new ArrayList<>(policy.problems(SeverityPolicy.catalog(
@@ -185,13 +134,9 @@ public abstract class CheckOpenApi extends DefaultTask {
                 "json");
         runs.add(validate);
         OpenApiGate.Comparison comparison = null;
-        if (getSkipReason().isPresent()) {
-            getLogger().lifecycle("Baseline comparison skipped: {}", getSkipReason().get());
-        } else {
-            ResolvedComponent.verify(baseline, getBaselineComponents().get());
-            Path baselineDocument = getBaselineDocument().getFiles().stream().map(File::toPath)
-                    .filter(Files::isRegularFile).findFirst()
-                    .orElseThrow(() -> new GradleException("extractOpenApiBaseline wrote no baseline document"));
+        if (compared()) {
+            Path baselineDocument = severityLevels.resolveSibling("baseline.yaml");
+            extractBaseline(baselineDocument);
             comparison = new OpenApiGate.Comparison(
                     oasdiff.run("breaking", reports, "breaking", baselineDocument, document, "--format", "json",
                             "--severity-levels", severityLevels),
@@ -200,17 +145,67 @@ public abstract class CheckOpenApi extends DefaultTask {
             runs.addAll(List.of(comparison.breaking(), comparison.baselineDocument(), comparison.currentDocument()));
         }
         OpenApiGate.Outcome outcome = OpenApiGate.judge(validate, comparison, declarations);
-        Oasdiff.write(verdict, (comparison == null ? "Not compared: " + getSkipReason().get() + "\n" : "")
-                + OpenApiGateCase.render(outcome));
-        outcome.accepted().forEach(entry -> getLogger().lifecycle("Declared break accepted: {}, release notes: {}",
-                entry, entry.releaseNote()));
+        BaselineGate.write(verdict, (comparison == null ? notCompared() + "\n" : "") + outcome.render());
+        logAccepted(outcome.accepted());
         if (!outcome.passed()) {
             problems.add(OpenApiGate.failing(outcome));
         }
         if (!problems.isEmpty()) {
-            throw new GradleException("OpenAPI contract of " + module
-                    + (comparison == null ? "" : " against " + baseline) + " (LLD-api-stability §6):\n  "
+            throw new GradleException("OpenAPI contract of " + getModuleName().get()
+                    + (comparison == null ? "" : " against " + getBaseline().get()) + " (LLD-api-stability §6):\n  "
                     + String.join("\n  ", problems) + advice(outcome, runs) + "\nReports: " + reports.toUri());
+        }
+    }
+
+    /**
+     * Writes the contract at the baseline tag (§2.3). The document is in no published jar, so it comes from the
+     * tag, and a tag missing from this clone fails the build rather than skipping the comparison.
+     */
+    private void extractBaseline(Path file) {
+        String id = getBaselineDocumentId().getOrElse("");
+        if (id.isEmpty()) {
+            throw new GradleException("The baseline tag v" + getBaseline().get() + " is not in this clone, or holds no "
+                    + DOCUMENT + ", so the OpenAPI contract cannot be compared with it. Run `git fetch --tags` "
+                    + "(LLD-api-stability §2.3).");
+        }
+        Git show = git(getRepository().get().getAsFile(), "cat-file", "blob", id);
+        if (show.exitCode() != 0) {
+            throw new GradleException("Cannot read " + DOCUMENT + " at v" + getBaseline().get() + ": "
+                    + show.text().strip());
+        }
+        try {
+            Files.write(file, show.output());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** The git object of the contract at the baseline tag; empty when the clone has no such object. */
+    private static String documentId(File repository, String baseline) {
+        Git id = git(repository, "rev-parse", "--verify", "--quiet", "refs/tags/v" + baseline + ":" + DOCUMENT);
+        return id.exitCode() == 0 ? id.text().strip() : "";
+    }
+
+    /** What git printed, its standard error included, and its exit code. */
+    private record Git(int exitCode, byte[] output) {
+
+        String text() {
+            return new String(output, StandardCharsets.UTF_8);
+        }
+    }
+
+    private static Git git(File repository, String... arguments) {
+        List<String> line = new ArrayList<>(List.of("git"));
+        line.addAll(List.of(arguments));
+        try {
+            Process process = new ProcessBuilder(line).directory(repository).redirectErrorStream(true).start();
+            byte[] output = process.getInputStream().readAllBytes();
+            return new Git(process.waitFor(), output);
+        } catch (IOException e) {
+            throw new GradleException("Cannot run " + String.join(" ", line), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GradleException("Interrupted while running " + String.join(" ", line), e);
         }
     }
 
@@ -220,8 +215,8 @@ public abstract class CheckOpenApi extends DefaultTask {
         if (!outcome.undeclared().isEmpty()) {
             advice.append("\nA break intended in a major version is declared in ").append(DeclaredBreaks.PATH)
                     .append(" (LLD-api-stability §3):");
-            outcome.undeclared().forEach(item -> advice.append("\n  ").append(OpenApiGate.GATE).append(" | ")
-                    .append(OpenApiGate.MODULE).append(" | ").append(item).append(" | <release-notes line>"));
+            outcome.undeclared().forEach(item -> advice.append("\n  ")
+                    .append(DeclaredBreaks.declaration(OpenApiGate.GATE, OpenApiGate.MODULE, item)));
         }
         if (!outcome.stale().isEmpty()) {
             advice.append("\nDeclared breaks that match nothing, to remove:\n")

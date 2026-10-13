@@ -1,3 +1,0 @@
-# GET /relay/status overrides the servers it inherits, keeping {basePath}/v1 with its default and adding
-# /status/v1.
-verdict pass

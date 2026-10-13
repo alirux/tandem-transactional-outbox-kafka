@@ -1,7 +1,6 @@
 package com.codingful.tandem.compatibility;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -79,14 +78,5 @@ final class Oasdiff {
 
     private static String slashed(Path relative) {
         return relative.toString().replace('\\', '/');
-    }
-
-    static void write(Path file, String text) {
-        try {
-            Files.createDirectories(file.getParent());
-            Files.writeString(file, text, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

@@ -1,2 +1,0 @@
-# The two document servers of this case's baseline listed in the other order, their descriptions reworded.
-verdict pass

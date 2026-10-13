@@ -1,0 +1,5 @@
+# The maxLength of the response property note lowered from 100 to 50: response-property-max-length-decreased,
+# raised to err.
+checks compatibility
+verdict fail
+undeclared finding 37e4b35c6b50

@@ -170,8 +170,8 @@ public final class SpringMetadata {
         DeclaredBreaks.Matching matching = DeclaredBreaks.match(breaks.keySet(), declarations);
         List<String> problems = new ArrayList<>();
         for (String key : matching.undeclared()) {
-            problems.add(key + " " + breaks.get(key) + "; if intended, declare it as '" + GATE + " | " + module
-                    + " | " + key + " | <release-notes line>'");
+            problems.add(key + " " + breaks.get(key) + "; if intended, declare it as '"
+                    + DeclaredBreaks.declaration(GATE, module, key) + "'");
         }
         for (DeclaredBreaks.Entry stale : matching.stale()) {
             problems.add("Declared break matches no property the metadata breaks, remove it: " + stale);

@@ -1,3 +1,0 @@
-# The enum of basePath, two values in this case's baseline, loses /admin.
-verdict fail
-undeclared server document {basePath}/v1: basePath enum [/tandem/admin, /admin], now [/tandem/admin], without [/admin]

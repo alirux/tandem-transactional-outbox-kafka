@@ -1,4 +1,5 @@
-# aggregateId made required and declared, in a document whose formatting and line positions all changed: the
-# declaration still matches.
+# The default of limit changed from 50 to 100 and declared, in a document whose keys, styles and lines all
+# moved: the declaration still matches.
+checks compatibility
 verdict pass
-accepted finding 897e924ade7d: ERR request-parameter-became-required at GET /outbox/messages: the `query` request parameter `aggregateId` became required
+accepted finding d9112806f2f2

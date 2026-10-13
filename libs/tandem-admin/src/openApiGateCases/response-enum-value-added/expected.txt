@@ -1,2 +1,3 @@
-# RelayStatus.state, an enum of responses only, gains STOPPING: tolerant readers accept a new value.
+# The response enum status gains FAILED: response-property-enum-value-added, lowered from err to info.
+checks compatibility
 verdict pass

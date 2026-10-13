@@ -1,7 +1,0 @@
-# Response types narrowed in the directions upstream calls specialized: the property OutboxSummary.lagCount
-# from int64 to int32, and, from this case's baseline, the header X-Tandem-Lag of GET /relay/status from
-# number to integer and the body of POST /outbox/replay from any type to object.
-verdict fail
-undeclared finding c235a0681d3e: ERR response-body-type-specialized at POST /outbox/replay: the response's body `type` was narrowed from `any` to `object` for status `200`
-undeclared finding aad2b2fcfadf: ERR response-property-type-specialized at GET /outbox/summary: the `lagCount` response's property `format` was narrowed from `int64` to `int32` for status `200`
-undeclared finding 89e76e429c5a: ERR response-header-type-specialized at GET /relay/status: the `x-tandem-lag` response header's `type` was narrowed from `number` to `integer` for the status `200`

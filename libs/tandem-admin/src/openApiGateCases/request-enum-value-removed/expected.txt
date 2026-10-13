@@ -1,4 +1,0 @@
-# The query parameter status of GET /outbox/messages loses DISCARDED: its schema is written inline, so no
-# response schema changes.
-verdict fail
-undeclared finding 2a29fc590ce9: ERR request-parameter-enum-value-removed at GET /outbox/messages: removed the enum value `DISCARDED` from the `query` request parameter `status`

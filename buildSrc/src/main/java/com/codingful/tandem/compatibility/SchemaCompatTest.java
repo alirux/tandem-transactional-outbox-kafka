@@ -6,17 +6,10 @@ import java.util.Set;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.ListProperty;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.CacheableTask;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
@@ -42,7 +35,7 @@ import org.gradle.testing.jacoco.plugins.JacocoTaskExtension;
  * skipped, and the task logs the reason.
  */
 @CacheableTask
-public abstract class SchemaCompatTest extends Test {
+public abstract class SchemaCompatTest extends Test implements BaselineGate {
 
     /** The source set and the task. */
     public static final String NAME = "schemaCompatTest";
@@ -55,30 +48,6 @@ public abstract class SchemaCompatTest extends Test {
      * the module's processed resources.
      */
     public static final String CURRENT_RESOURCES_PROPERTY = "tandem.schema-compat.current-resources";
-
-    /** The baseline release; empty when none is set. */
-    @Input
-    public abstract Property<String> getBaseline();
-
-    @Input
-    public abstract Property<String> getModuleName();
-
-    /** The baseline's BOM POM, which says whether the module is new; empty when no baseline is set. */
-    @InputFiles
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract ConfigurableFileCollection getBaselineBom();
-
-    /** Why the module is not compared with the baseline; absent when it is. Derived from the inputs above. */
-    @Internal
-    public abstract Property<String> getSkipReason();
-
-    /** What the baseline BOM and the two classpaths resolved. Derived from the BOM above and the classpath. */
-    @Internal
-    public abstract ListProperty<ResolvedComponent> getBaselineComponents();
-
-    @InputFile
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract RegularFileProperty getDeclaredBreaks();
 
     /**
      * Adds the {@code schemaCompatTest} source set to the module, with the module at the baseline release on
@@ -100,22 +69,15 @@ public abstract class SchemaCompatTest extends Test {
         Configuration compileClasspath = project.getConfigurations().getByName(COMPILE_CLASSPATH);
         Configuration runtimeClasspath = project.getConfigurations().getByName(RUNTIME_CLASSPATH);
         FileCollection currentResources = project.files(project.getTasks().named(main.getProcessResourcesTaskName()));
-        TaskProvider<SchemaCompatTest> gate = project.getTasks().register(NAME, SchemaCompatTest.class, task -> {
-            task.setGroup("verification");
-            task.setDescription("Runs the baseline release's adapter on a database it populated, upgraded with the "
-                    + "current changelog (needs Docker).");
+        TaskProvider<SchemaCompatTest> gate = BaselineGate.register(project, NAME, SchemaCompatTest.class,
+                "Runs the baseline release's adapter on a database it populated, upgraded with the current changelog "
+                        + "(needs Docker).", Set.of(project.getName()), task -> {
             task.setTestClassesDirs(scenario.getOutput().getClassesDirs());
             task.setClasspath(scenario.getRuntimeClasspath());
             // The task decides from the failed tests and the declared breaks, once they have all run.
             task.setIgnoreFailures(true);
-            task.getBaseline().set(baseline.version());
-            task.getModuleName().set(project.getName());
-            task.getBaselineBom().from(baseline.bom());
-            task.getSkipReason().set(skipReason);
-            task.getBaselineComponents().addAll(baseline.components(baseline.bom()));
             task.getBaselineComponents().addAll(baseline.comparedComponents(compileClasspath));
             task.getBaselineComponents().addAll(baseline.comparedComponents(runtimeClasspath));
-            task.getDeclaredBreaks().set(CompatibilityBaseline.declaredBreaks(project));
             task.getJvmArgumentProviders().add(new CurrentResources(currentResources));
             task.onlyIf("the module is compared with a compatibility baseline", self -> {
                 if (skipReason.isPresent()) {
@@ -132,20 +94,15 @@ public abstract class SchemaCompatTest extends Test {
         // every Test task, which adds the extension.
         project.getPlugins().withType(JacocoPlugin.class, jacoco -> project.getTasks().withType(SchemaCompatTest.class)
                 .configureEach(task -> task.getExtensions().getByType(JacocoTaskExtension.class).setEnabled(false)));
-        CompatibilityBaseline.registerGate(project, gate);
         return gate;
     }
 
     @TaskAction
     @Override
     public void executeTests() {
-        String baseline = getBaseline().get();
-        String module = getModuleName().get();
-        List<DeclaredBreaks.Entry> declarations = DeclaredBreaks.read(getDeclaredBreaks().get().getAsFile())
-                .boundTo(baseline)
-                .requireGateModules(SchemaCompatOutcome.GATE, Set.of(module))
-                .entries(SchemaCompatOutcome.GATE, module);
-        ResolvedComponent.verify(baseline, getBaselineComponents().get());
+        List<DeclaredBreaks.Entry> declarations = declarations(SchemaCompatOutcome.GATE);
+        // The task runs only when the module is compared: this checks what the baseline classpaths resolved.
+        compared();
         FailureRecorder recorder = new FailureRecorder();
         addTestListener(recorder);
         try {
@@ -153,10 +110,11 @@ public abstract class SchemaCompatTest extends Test {
         } finally {
             removeTestListener(recorder);
         }
+        String module = getModuleName().get();
         SchemaCompatOutcome.Verdict verdict = SchemaCompatOutcome.judge(module, recorder.failures(), declarations);
         verdict.accepted().forEach(line -> getLogger().lifecycle("Declared break accepted: {}", line));
         if (!verdict.problems().isEmpty()) {
-            throw new GradleException("Schema compatibility of " + module + " against " + baseline
+            throw new GradleException("Schema compatibility of " + module + " against " + getBaseline().get()
                     + " (LLD-api-stability §5.2):\n  " + String.join("\n  ", verdict.problems()) + "\nReport: "
                     + getReports().getHtml().getEntryPoint().toURI());
         }

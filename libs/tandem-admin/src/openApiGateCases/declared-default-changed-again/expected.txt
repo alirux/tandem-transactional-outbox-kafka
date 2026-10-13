@@ -1,5 +1,6 @@
 # The default of limit changed from 50 to 100 and declared, then changed again to 101: the new finding is
 # undeclared, and the declaration is stale.
+checks compatibility
 verdict fail
-undeclared finding 4635980a877f: ERR request-parameter-default-value-changed at GET /outbox/messages: for the `query` request parameter `limit`, default value was changed from `50.00` to `101.00`
-stale finding e01fe03fe989
+undeclared finding 57497bcc7fb3
+stale finding d9112806f2f2

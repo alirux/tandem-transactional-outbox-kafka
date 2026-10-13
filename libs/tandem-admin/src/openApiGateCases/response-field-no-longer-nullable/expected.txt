@@ -1,3 +1,0 @@
-# OutboxEntryPage.nextCursor, a response property, no longer nullable.
-verdict fail
-undeclared finding 6a7bc75fe729: ERR response-property-became-not-nullable at GET /outbox/messages: the response property `nextCursor` became not nullable for the status `200`

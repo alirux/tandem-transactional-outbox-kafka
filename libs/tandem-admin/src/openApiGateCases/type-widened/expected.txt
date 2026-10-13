@@ -1,0 +1,4 @@
+# The query parameter limit typed number instead of integer: request-parameter-type-generalized, raised to err.
+checks compatibility
+verdict fail
+undeclared finding f7858b36240f

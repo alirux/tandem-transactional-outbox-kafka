@@ -1,3 +1,0 @@
-# An optional property added to a response schema (WorkerInfo.startedAt) and to a request schema
-# (DiscardRequest.operator).
-verdict pass

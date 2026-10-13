@@ -1,7 +1,0 @@
-# Request types widened in the directions upstream calls generalized: the query parameter limit from integer
-# to number, the request property ReplayRequest.fromId from integer int64 to number, and the request body
-# DiscardRequest from object to any type.
-verdict fail
-undeclared finding ebf8ad7d2f8a: ERR request-parameter-type-generalized at GET /outbox/messages: for the `query` request parameter `limit`, the `type` was widened from `integer` to `number`
-undeclared finding a3d502e752a8: ERR request-body-type-generalized at POST /outbox/messages/{id}/discard: the request's body `type` was widened from `object` to `any`
-undeclared finding b1dfa70e8496: ERR request-property-type-generalized at POST /outbox/replay: the `fromId` request property `type/format` was widened from `integer/int64` to `number`

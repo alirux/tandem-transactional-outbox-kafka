@@ -1,2 +1,3 @@
-# The frozen contract itself.
+# The frozen contract compared with itself, through the whole gate.
+checks validity compatibility frozen-names
 verdict pass

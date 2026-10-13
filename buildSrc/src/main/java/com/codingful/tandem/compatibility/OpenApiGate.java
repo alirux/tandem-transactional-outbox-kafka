@@ -51,16 +51,30 @@ public final class OpenApiGate {
         }
     }
 
-    /** One conclusion of the gate, rendered {@code <kind> <text>}. */
-    public record Line(Kind kind, String text) {
+    /**
+     * One conclusion of the gate, rendered {@code <kind> <item>: <detail>}.
+     *
+     * @param item   what the line is about: a declaration's item, a validation rule, a command
+     * @param detail what oasdiff or the gate says about it; empty when the item says it all
+     */
+    public record Line(Kind kind, String item, String detail) {
+
+        public Line(Kind kind, String item) {
+            this(kind, item, "");
+        }
 
         public boolean fails() {
             return kind != Kind.ACCEPTED;
         }
 
+        /** The line without its detail: what an acceptance case expects (§6.4). */
+        public String identity() {
+            return kind.label() + " " + item;
+        }
+
         @Override
         public String toString() {
-            return kind.label() + " " + text;
+            return detail.isEmpty() ? identity() : identity() + ": " + detail;
         }
     }
 
@@ -76,10 +90,17 @@ public final class OpenApiGate {
         public boolean passed() {
             return lines.stream().noneMatch(Line::fails);
         }
+
+        /** The verdict, then one line per conclusion. */
+        public String render() {
+            return "verdict " + (passed() ? "pass" : "fail") + "\n"
+                    + lines.stream().map(line -> line + "\n").collect(Collectors.joining());
+        }
     }
 
     /**
-     * The runs that compare the current document with the baseline's.
+     * The runs that compare the current document with the baseline's. An acceptance case (§6.4) runs only the
+     * part its change concerns: the runs of the other part are then {@code null}.
      *
      * @param breaking         {@code oasdiff breaking} of the two documents, with Tandem's severity levels
      * @param baselineDocument the baseline document as oasdiff loads it, in JSON
@@ -91,8 +112,10 @@ public final class OpenApiGate {
     /** Breaks a comparison reported, by item, with what each item names; or the errors that kept it from it. */
     private record Reported(Map<String, String> items, List<Line> errors) {
 
-        static Reported error(String text) {
-            return new Reported(Map.of(), List.of(new Line(Kind.ERROR, text)));
+        static final Reported NONE = new Reported(Map.of(), List.of());
+
+        static Reported error(String command, String text) {
+            return new Reported(Map.of(), List.of(new Line(Kind.ERROR, command, text)));
         }
     }
 
@@ -100,24 +123,25 @@ public final class OpenApiGate {
     }
 
     /**
-     * @param validate     {@code oasdiff validate} of the current document
+     * @param validate     {@code oasdiff validate} of the current document; {@code null} when not run
      * @param comparison   the comparison with the baseline; {@code null} when the document is not compared
      * @param declarations the module's {@code openapi} entries of the declared breaks, read only when compared
      */
     public static Outcome judge(OasdiffRun validate, Comparison comparison, List<DeclaredBreaks.Entry> declarations) {
-        List<Line> lines = new ArrayList<>(validity(validate));
+        List<Line> lines = new ArrayList<>(validate == null ? List.of() : validity(validate));
         if (comparison == null) {
             return new Outcome(lines, List.of(), List.of(), List.of());
         }
-        Reported findings = findings(comparison.breaking());
-        Reported names = names(comparison.baselineDocument(), comparison.currentDocument());
+        Reported findings = comparison.breaking() == null ? Reported.NONE : findings(comparison.breaking());
+        Reported names = comparison.currentDocument() == null ? Reported.NONE
+                : names(comparison.baselineDocument(), comparison.currentDocument());
         lines.addAll(findings.errors());
         lines.addAll(names.errors());
         Map<String, String> items = new LinkedHashMap<>(findings.items());
         items.putAll(names.items());
         DeclaredBreaks.Matching matching = DeclaredBreaks.match(items.keySet(), declarations);
         items.forEach((item, what) -> lines.add(new Line(matching.accepted().containsKey(item) ? Kind.ACCEPTED
-                : Kind.UNDECLARED, item + ": " + what)));
+                : Kind.UNDECLARED, item, what)));
         List<DeclaredBreaks.Entry> stale = matching.stale().stream()
                 .filter(entry -> (entry.item().startsWith(FINDING) ? findings : names).errors().isEmpty())
                 .toList();
@@ -135,13 +159,14 @@ public final class OpenApiGate {
         try {
             findings = objects(validate);
         } catch (IllegalArgumentException e) {
-            return List.of(new Line(Kind.ERROR, validate.command() + ": " + e.getMessage()));
+            return List.of(new Line(Kind.ERROR, validate.command(), e.getMessage()));
         }
         if (validate.exitCode() == 1 && findings.isEmpty()) {
             return List.of(exitError(validate));
         }
         return findings.stream()
-                .map(finding -> new Line(Kind.INVALID, finding.get("id") + ": " + oneLine(finding.get("text"))))
+                .map(finding -> new Line(Kind.INVALID, String.valueOf(finding.get("id")),
+                        oneLine(finding.get("text"))))
                 .toList();
     }
 
@@ -154,7 +179,7 @@ public final class OpenApiGate {
         try {
             all = objects(breaking);
         } catch (IllegalArgumentException e) {
-            return Reported.error(breaking.command() + ": " + e.getMessage());
+            return Reported.error(breaking.command(), e.getMessage());
         }
         Map<String, List<String>> byFingerprint = new LinkedHashMap<>();
         for (Map<?, ?> finding : all) {
@@ -170,18 +195,18 @@ public final class OpenApiGate {
             String described = level + " " + finding.get("id") + " at " + location(finding) + ": "
                     + oneLine(finding.get("text"));
             if (level.equals("?")) {
-                return Reported.error(breaking.command() + ": a finding has the unknown level " + finding.get("level")
+                return Reported.error(breaking.command(), "a finding has the unknown level " + finding.get("level")
                         + ", " + described);
             }
             if (!(finding.get("fingerprint") instanceof String fingerprint) || fingerprint.isBlank()) {
-                return Reported.error(breaking.command() + ": a finding has no fingerprint, " + described);
+                return Reported.error(breaking.command(), "a finding has no fingerprint, " + described);
             }
             byFingerprint.computeIfAbsent(fingerprint, key -> new ArrayList<>()).add(described);
         }
         Map<String, String> items = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> entry : byFingerprint.entrySet()) {
             if (entry.getValue().size() > 1) {
-                return Reported.error(breaking.command() + ": the fingerprint " + entry.getKey() + " is shared by "
+                return Reported.error(breaking.command(), "the fingerprint " + entry.getKey() + " is shared by "
                         + entry.getValue().size() + " findings, " + String.join(" | ", entry.getValue()));
             }
             items.put(FINDING + entry.getKey(), entry.getValue().get(0));
@@ -206,9 +231,9 @@ public final class OpenApiGate {
             if (json(run) instanceof Map<?, ?> document) {
                 return document;
             }
-            errors.add(new Line(Kind.ERROR, run.command() + ": the output is not a JSON object"));
+            errors.add(new Line(Kind.ERROR, run.command(), "the output is not a JSON object"));
         } catch (IllegalArgumentException e) {
-            errors.add(new Line(Kind.ERROR, run.command() + ": " + e.getMessage()));
+            errors.add(new Line(Kind.ERROR, run.command(), e.getMessage()));
         }
         return null;
     }

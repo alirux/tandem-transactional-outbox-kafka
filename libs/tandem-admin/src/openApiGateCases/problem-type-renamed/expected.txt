@@ -1,3 +1,0 @@
-# The slug not-found renamed resource-not-found in the example of the NotFound response.
-verdict fail
-undeclared problem-type not-found: no longer appears in the document

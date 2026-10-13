@@ -68,8 +68,8 @@ public final class BomModules {
         List<String> problems = new ArrayList<>();
         for (String removed : matching.undeclared()) {
             problems.add(removed + " is managed by the baseline BOM and no longer by this one, which breaks every "
-                    + "application declaring it without a version; if intended, declare it as '" + GATE + " | "
-                    + module + " | " + removed + " | <release-notes line>'");
+                    + "application declaring it without a version; if intended, declare it as '"
+                    + DeclaredBreaks.declaration(GATE, module, removed) + "'");
         }
         for (DeclaredBreaks.Entry stale : matching.stale()) {
             problems.add("Declared break matches no module the BOM stopped managing, remove it: " + stale);

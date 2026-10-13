@@ -1,3 +1,0 @@
-# The default of the document server's variable basePath changed, the template {basePath}/v1 unchanged.
-verdict fail
-undeclared server document {basePath}/v1: basePath default /tandem/admin, now /other/admin

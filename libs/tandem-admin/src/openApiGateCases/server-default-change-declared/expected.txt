@@ -1,4 +1,0 @@
-# The default of basePath changed and declared by its server definition: one finding for the document's
-# server, not one per operation.
-verdict pass
-accepted server document {basePath}/v1: basePath default /tandem/admin, now /other/admin

@@ -1,5 +1,0 @@
-# aggregateId made required and declared, then aggregateType made required on the same operation: the
-# declaration still accepts the first finding only.
-verdict fail
-accepted finding 897e924ade7d: ERR request-parameter-became-required at GET /outbox/messages: the `query` request parameter `aggregateId` became required
-undeclared finding b80cc19d72d8: ERR request-parameter-became-required at GET /outbox/messages: the `query` request parameter `aggregateType` became required

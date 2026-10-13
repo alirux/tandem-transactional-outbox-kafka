@@ -1,9 +1,0 @@
-# The default of an existing element of each kind removed: the query parameter limit, the request property
-# ReplayRequest.dryRun, and, from this case's baseline, the request body DiscardRequest, the response property
-# OutboxSummary.counts.PENDING and the response body of GET /relay/workers.
-verdict fail
-undeclared finding aea8b1c0c98a: ERR request-parameter-default-value-removed at GET /outbox/messages: for the `query` request parameter `limit`, default value `50.00` was removed
-undeclared finding e968a7c513b8: ERR request-body-default-value-removed at POST /outbox/messages/{id}/discard: the request body `application/json` default value `map[acknowledgeOrderingBreak:false]` was removed
-undeclared finding be6ef2ab3044: ERR request-property-default-value-removed at POST /outbox/replay: the `dryRun` request property default value `false` was removed
-undeclared finding a6e9a19e37f4: ERR response-property-default-value-removed at GET /outbox/summary: the `PENDING` response's property default value `0.00` was removed for the status `200`
-undeclared finding b5d7c9408c1d: ERR response-body-default-value-removed at GET /relay/workers: the response body `application/json` default value `[]` was removed for the status `200`

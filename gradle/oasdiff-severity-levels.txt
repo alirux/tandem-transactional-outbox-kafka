@@ -10,6 +10,11 @@
 # oasdiff rejects a comment or a blank line in this file, so checkOpenApi strips both into
 # build/openapi/severity-levels.txt and hands oasdiff that copy. After an image upgrade, the failure of
 # checkOpenApi names each new info rule to classify here.
+#
+# The file was written once from the catalog of the pinned image, every info rule at info, then classified by
+# editing it:
+#   docker run --rm tufin/oasdiff:v1.33.0 checks changelog --severity info --format text \
+#     | awk 'NR > 1 { print $1, "info" }'
 
 # A response enum gains a value. Tolerant readers accept it (HLD-admin-api §1), so the one rule of this
 # file upstream calls an error is lowered.

@@ -1,9 +1,0 @@
-# A default added to an existing element of each kind: the query parameter aggregateType, the request property
-# DiscardRequest.reason, the request body DiscardRequest, the response property OutboxSummary.counts.PENDING
-# and the response body of GET /relay/workers.
-verdict fail
-undeclared finding 5950c99e7a43: ERR request-parameter-default-value-added at GET /outbox/messages: for the `query` request parameter `aggregateType`, default value `Order` was added
-undeclared finding b3a009f0c28d: ERR request-body-default-value-added at POST /outbox/messages/{id}/discard: the request body `application/json` default value `map[acknowledgeOrderingBreak:false]` was added
-undeclared finding d1e82a208bcd: ERR request-property-default-value-added at POST /outbox/messages/{id}/discard: the `reason` request property default value `operator request` was added
-undeclared finding 21142e3a80ca: ERR response-property-default-value-added at GET /outbox/summary: the `PENDING` response's property default value `0.00` was added for the status `200`
-undeclared finding 48eb92c00dd1: ERR response-body-default-value-added at GET /relay/workers: the response body `application/json` default value `[]` was added for the status `200`

@@ -1,6 +1,5 @@
-# A document oasdiff cannot load, an unterminated quote: every run fails, and the declaration it carries is
+# A document oasdiff cannot load, an unterminated quote: the comparison fails, and the declaration it carries is
 # neither applied nor stale.
+checks compatibility
 verdict fail
-error validate exit 102
 error breaking exit 102
-error document exit 102

@@ -1,3 +1,0 @@
-# The path /relay/workers, whose one operation is deprecated in this case's baseline, removed.
-verdict fail
-undeclared finding 8cf448098f1b: ERR api-path-removed-with-deprecation at GET /relay/workers: api path removed with deprecation

@@ -7,13 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -35,21 +32,18 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 
 /**
- * {@code checkOpenApiCases} (LLD-api-stability §6.4): runs the OpenAPI gate, with the pinned image and the
- * severity policy, on each acceptance case of {@code src/openApiGateCases/}, and fails unless every case
- * concludes exactly the lines its {@code expected.txt} states ({@link OpenApiGateCase}). The directory holds a
- * copy of the contract frozen as the cases' baseline, {@code baseline.yaml}, and one directory per case.
+ * {@code checkOpenApiCases} (LLD-api-stability §6.4): runs the parts of the OpenAPI gate each acceptance case of
+ * {@code src/openApiGateCases/} names, with the pinned image and the severity policy, one case after the other,
+ * and fails unless every case meets its {@code expected.txt} ({@link OpenApiGateCase}). The directory holds a
+ * frozen copy of the contract, {@code contract.yaml}, and one directory per case.
  */
 @CacheableTask
 public abstract class CheckOpenApiCases extends DefaultTask {
 
     /** The cases' directory, relative to the module. */
     public static final String CASES = "src/openApiGateCases";
-    /** The frozen contract every case compares with, unless it carries a baseline of its own. */
-    public static final String FROZEN_BASELINE = "baseline.yaml";
-
-    /** Containers run at once: each lives for one command, and the cases are independent. */
-    private static final int PARALLEL_RUNS = 4;
+    /** The frozen contract, a case's document and baseline unless it carries its own. */
+    public static final String CONTRACT = "contract.yaml";
 
     @InputDirectory
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -99,77 +93,85 @@ public abstract class CheckOpenApiCases extends DefaultTask {
     }
 
     @TaskAction
-    public void check() throws InterruptedException {
+    public void check() {
         Path casesDirectory = getCases().get().getAsFile().toPath();
         Path reports = getReports().get().getAsFile().toPath();
         Path severityLevels = getSeverityLevels().get().getAsFile().toPath();
         delete(reports);
-        Oasdiff.write(severityLevels, SeverityPolicy.read(getSeverityPolicy().get().getAsFile()).oasdiffFile());
+        BaselineGate.write(severityLevels, SeverityPolicy.read(getSeverityPolicy().get().getAsFile()).oasdiffFile());
         Oasdiff oasdiff = new Oasdiff(getImage().get(), getRepository().get().getAsFile().toPath(),
                 severityLevels.getParent());
-        Path frozen = casesDirectory.resolve(FROZEN_BASELINE);
-        OasdiffRun frozenDocument = oasdiff.run("baseline-document", reports, "upgrade", frozen, "--format", "json");
-        List<Path> cases;
+        Path contract = casesDirectory.resolve(CONTRACT);
+        // A document as oasdiff loads it, read once whichever cases compare it: the contract, mostly.
+        Map<Path, OasdiffRun> loaded = new HashMap<>();
+        List<String> names = new ArrayList<>();
+        List<String> problems = new ArrayList<>();
+        for (Path directory : caseDirectories(casesDirectory)) {
+            String name = directory.getFileName().toString();
+            Path caseReports = reports.resolve(name);
+            OpenApiGateCase.Expectation expected =
+                    OpenApiGateCase.parse(read(directory.resolve(OpenApiGateCase.EXPECTED)));
+            Path document = own(directory, OpenApiGateCase.DOCUMENT, contract);
+            Path baseline = own(directory, OpenApiGateCase.BASELINE, contract);
+
+            OasdiffRun validate = !expected.runs(OpenApiGateCase.Part.VALIDITY) ? null
+                    : oasdiff.run("validate", caseReports, "validate", document, "--fail-on", "INFO", "--format",
+                            "json");
+            OasdiffRun breaking = !expected.runs(OpenApiGateCase.Part.COMPATIBILITY) ? null
+                    : oasdiff.run("breaking", caseReports, "breaking", baseline, document, "--format", "json",
+                            "--severity-levels", own(directory, OpenApiGateCase.SEVERITY_LEVELS, severityLevels));
+            OasdiffRun baselineDocument = null;
+            OasdiffRun currentDocument = null;
+            if (expected.runs(OpenApiGateCase.Part.FROZEN_NAMES)) {
+                baselineDocument = loaded.computeIfAbsent(baseline,
+                        file -> oasdiff.run("baseline-document", caseReports, "upgrade", file, "--format", "json"));
+                currentDocument = loaded.computeIfAbsent(document,
+                        file -> oasdiff.run("document", caseReports, "upgrade", file, "--format", "json"));
+            }
+            OpenApiGate.Comparison comparison = breaking == null && currentDocument == null ? null
+                    : new OpenApiGate.Comparison(breaking, baselineDocument, currentDocument);
+            OpenApiGate.Outcome outcome = OpenApiGate.judge(validate, comparison, declarations(directory));
+
+            BaselineGate.write(caseReports.resolve("outcome.txt"), outcome.render());
+            OpenApiGateCase.mismatches(expected, outcome).forEach(mismatch -> problems.add(name + ": " + mismatch));
+            names.add(name);
+        }
+        if (!problems.isEmpty()) {
+            throw new GradleException("OpenAPI gate cases (LLD-api-stability §6.4), in " + casesDirectory
+                    + ":\n  " + String.join("\n  ", problems) + "\nReports: " + reports.toUri());
+        }
+        getLogger().lifecycle("OpenAPI gate cases concluded as expected cases:{}", names.size());
+        BaselineGate.write(getVerdict().get().getAsFile().toPath(), "Every case concluded as expected: "
+                + String.join(", ", names) + "\n");
+    }
+
+    private static List<Path> caseDirectories(Path casesDirectory) {
         try (Stream<Path> children = Files.list(casesDirectory)) {
-            cases = children.filter(Files::isDirectory).sorted().toList();
+            return children.filter(Files::isDirectory).sorted().toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        Map<String, Future<List<String>>> runs = new TreeMap<>();
-        ExecutorService pool = Executors.newFixedThreadPool(PARALLEL_RUNS);
-        try {
-            for (Path directory : cases) {
-                runs.put(directory.getFileName().toString(), pool.submit(() -> run(oasdiff, directory, frozen,
-                        frozenDocument, severityLevels, reports.resolve(directory.getFileName().toString()))));
-            }
-            List<String> problems = new ArrayList<>();
-            for (Map.Entry<String, Future<List<String>>> run : runs.entrySet()) {
-                try {
-                    run.getValue().get().forEach(mismatch -> problems.add(run.getKey() + ": " + mismatch));
-                } catch (ExecutionException e) {
-                    problems.add(run.getKey() + ": " + e.getCause());
-                }
-            }
-            if (!problems.isEmpty()) {
-                throw new GradleException("OpenAPI gate cases (LLD-api-stability §6.4), in " + casesDirectory
-                        + ":\n  " + String.join("\n  ", problems) + "\nReports: " + reports.toUri());
-            }
-        } finally {
-            pool.shutdownNow();
-        }
-        getLogger().lifecycle("OpenAPI gate cases concluded as expected cases:{}", cases.size());
-        Oasdiff.write(getVerdict().get().getAsFile().toPath(), "Every case concluded as expected: "
-                + String.join(", ", runs.keySet()) + "\n");
     }
 
-    /** Runs the gate on one case, and returns how its outcome differs from the case's expectation. */
-    private static List<String> run(Oasdiff oasdiff, Path directory, Path frozen, OasdiffRun frozenDocument,
-            Path severityLevels, Path reports) throws IOException {
-        OpenApiGateCase.Expectation expected = OpenApiGateCase.parse(
-                Files.readString(directory.resolve(OpenApiGateCase.EXPECTED), StandardCharsets.UTF_8));
-        Path document = directory.resolve(OpenApiGateCase.DOCUMENT);
-        OasdiffRun validate = oasdiff.run("validate", reports, "validate", document, "--fail-on", "INFO", "--format",
-                "json");
-        OpenApiGate.Comparison comparison = null;
-        List<DeclaredBreaks.Entry> declarations = List.of();
-        if (expected.compared()) {
-            Path own = directory.resolve(OpenApiGateCase.BASELINE);
-            Path baseline = Files.isRegularFile(own) ? own : frozen;
-            Path caseSeverity = directory.resolve(OpenApiGateCase.SEVERITY_LEVELS);
-            comparison = new OpenApiGate.Comparison(
-                    oasdiff.run("breaking", reports, "breaking", baseline, document, "--format", "json",
-                            "--severity-levels", Files.isRegularFile(caseSeverity) ? caseSeverity : severityLevels),
-                    baseline == frozen ? frozenDocument
-                            : oasdiff.run("baseline-document", reports, "upgrade", baseline, "--format", "json"),
-                    oasdiff.run("document", reports, "upgrade", document, "--format", "json"));
-            Path declared = directory.resolve(OpenApiGateCase.DECLARED_BREAKS);
-            if (Files.isRegularFile(declared)) {
-                declarations = DeclaredBreaks.read(declared.toFile()).entries(OpenApiGate.GATE, OpenApiGate.MODULE);
-            }
+    /** The case's own file, else {@code fallback}. */
+    private static Path own(Path directory, String file, Path fallback) {
+        Path own = directory.resolve(file);
+        return Files.isRegularFile(own) ? own : fallback;
+    }
+
+    private static List<DeclaredBreaks.Entry> declarations(Path directory) {
+        Path declared = directory.resolve(OpenApiGateCase.DECLARED_BREAKS);
+        return Files.isRegularFile(declared)
+                ? DeclaredBreaks.read(declared.toFile()).entries(OpenApiGate.GATE, OpenApiGate.MODULE)
+                : List.of();
+    }
+
+    private static String read(Path file) {
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        OpenApiGate.Outcome outcome = OpenApiGate.judge(validate, comparison, declarations);
-        Oasdiff.write(reports.resolve("outcome.txt"), OpenApiGateCase.render(outcome));
-        return OpenApiGateCase.mismatches(expected, outcome);
     }
 
     private static void delete(Path directory) {
@@ -177,7 +179,7 @@ public abstract class CheckOpenApiCases extends DefaultTask {
             return;
         }
         try (Stream<Path> files = Files.walk(directory)) {
-            for (Path file : files.sorted(java.util.Comparator.reverseOrder()).toList()) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
                 Files.delete(file);
             }
         } catch (IOException e) {

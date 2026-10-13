@@ -1,3 +1,0 @@
-# The query parameter type of GET /outbox/messages, deprecated in this case's baseline, removed.
-verdict fail
-undeclared finding 9df804631f85: ERR request-parameter-removed-with-deprecation at GET /outbox/messages: deleted the `query` request parameter `type` with deprecation

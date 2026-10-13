@@ -1,4 +1,0 @@
-# OutboxSummary.lagAgeSeconds typed decimal, a type OpenAPI does not define. Run without a baseline.
-baseline none
-verdict fail
-invalid schema-type-unsupported: unsupported 'type' value "decimal"

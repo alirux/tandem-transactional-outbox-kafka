@@ -1,3 +1,0 @@
-# The query parameter aggregateId of GET /outbox/messages made required.
-verdict fail
-undeclared finding 897e924ade7d: ERR request-parameter-became-required at GET /outbox/messages: the `query` request parameter `aggregateId` became required

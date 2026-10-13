@@ -95,8 +95,8 @@ published module at the baseline version, not a project, and fails otherwise.
 
 ### 2.3 Resolution from the tag
 
-The OpenAPI document is not in any published jar, so `checkOpenApi` reads it from the tag:
-`git show v<baseline>:docs/admin-api.openapi.yaml`. A missing tag fails the task with a message
+The OpenAPI document is not in any published jar, so `checkOpenApi` reads it from the tag, the object
+`v<baseline>:docs/admin-api.openapi.yaml`. A missing tag fails the task with a message
 asking for `git fetch --tags`; it never skips. CI fetches tags in its checkout (§9.3).
 
 **Rejected:** *shipping the document in the `tandem-admin` jar* so that it resolves from Maven
@@ -509,10 +509,10 @@ replace it: two documents can agree with each other and both be invalid.
 
 ### 6.2 Compatibility
 
-1. `git show v<baseline>:docs/admin-api.openapi.yaml` writes the baseline document to
-   `build/openapi/baseline.yaml` (§2.3). The extraction is a task of its own, `extractOpenApiBaseline`,
-   never up to date, at the cost of one `git` call. Without a baseline, or for a module new since it
-   (§2.4), it writes nothing.
+1. The task writes the baseline document to `build/openapi/baseline.yaml` from the tag (§2.3). Its input
+   is the git object of the document at the tag, `git rev-parse v<baseline>:docs/admin-api.openapi.yaml`,
+   so the comparison reruns when the content changes and the task stays up to date otherwise. Without a
+   baseline, or for a module new since it (§2.4), it reads nothing from git.
 2. `oasdiff breaking build/openapi/baseline.yaml docs/admin-api.openapi.yaml --format json
    --severity-levels build/openapi/severity-levels.txt` lists the `WARN` and `ERR` findings after
    applying Tandem's levels, with their rule id, level, method, path, text and `fingerprint`. The
@@ -571,9 +571,8 @@ reads the catalog of the pinned image (`oasdiff checks changelog --format json`)
 upgrade that brings new rules fails until each is classified, so the classification is reviewed in
 that change rather than remembered. The check runs on every build, with or without a baseline, since it
 depends on the image and the file alone, and its failure names each rule to add and each line to
-remove. The file starts from the catalog: a helper task, `writeOasdiffSeverityLevels`, writes every
-`INFO` rule at its upstream level once, refusing to run when the file exists, and the policy is then
-applied by editing it.
+remove. The file was written once from the catalog, every `INFO` rule at its upstream level, by the
+command its header states, and the policy was then applied by editing it.
 
 **Comments live in the committed file only.** oasdiff rejects a severity file with a comment or a
 blank line. `gradle/oasdiff-severity-levels.txt` groups its rules under comments naming the contract
@@ -642,7 +641,7 @@ what one release-notes line about it describes. Each problem slug's page under `
 stays guarded by the module's own tests; a slug's declaration is
 `openapi | tandem-admin | problem-type <slug> | <release-notes line>`.
 
-**Inputs.** The extracted baseline document, the current document, the severity file, the declared
+**Inputs.** The git object of the baseline document, the current document, the severity file, the declared
 breaks and the image reference (§9.2): the comparison reruns when the content it compares changes, not
 only the tag's name.
 
@@ -665,48 +664,66 @@ stays with the response validation in the integration tests (HLD-admin-api §5).
 
 ### 6.4 Acceptance cases for the gate
 
-The cases live in `libs/tandem-admin/src/openApiGateCases/`: `baseline.yaml`, a copy of the contract
-frozen there as the cases' own baseline, then one directory per case. A case holds its mutated
-document, `openapi.yaml`, and `expected.txt`: comment lines stating the change, `verdict pass` or
-`verdict fail`, and every line the gate must conclude, as it renders them (§6). It may also hold
-`accepted-breaks.txt`, its declarations in the format of §3; its own `baseline.yaml`, the frozen
-contract plus the element the case removes or changes when the contract lacks one (a response header,
-a deprecated operation, a server enum); a `severity-levels.txt` handed to oasdiff as it is, in place
-of the policy; and `baseline none` in `expected.txt`, to run without a baseline.
-`checkOpenApiCases`, a task of `tandem-admin` built on the same `buildSrc` code as `checkOpenApi`, runs
-the gate on each case with the pinned image, four containers at a time. A case holds when the gate
-concludes exactly its lines, no more and no fewer. Its inputs are the case files, the image reference
-and the severity file, so it runs again whenever one of them changes, and it is part of `check`. Each
-mutation starts from the valid frozen baseline and changes only the stated contract fact:
+The cases live in `libs/tandem-admin/src/openApiGateCases/`: `contract.yaml`, a copy of the contract frozen
+there, then one directory per case. A case holds `expected.txt` and, where they differ from the frozen
+contract, its document `openapi.yaml` and its baseline `baseline.yaml`; a missing one is the frozen contract.
+It may also hold `accepted-breaks.txt`, its declarations in the format of §3, and a `severity-levels.txt`
+handed to oasdiff as it is, in place of the policy.
 
-| Case | Expected |
-|---|---|
-| Unchanged document; new optional field (also with a default); new endpoint; new response enum value | Pass |
-| Optional response field or header removed; deprecated endpoint or parameter removed | Fail |
-| Existing response field made required; new required response field | Fail |
-| Default added, changed or removed on an existing request parameter, body/property or response body/property | Fail |
-| Type changed in a direction upstream considers compatible; response range narrowed or enum value removed | Fail |
-| Request enum value removed; request parameter made required | Fail |
-| `aggregateId` made required and declared, then `aggregateType` also made required on the same operation | The second finding fails; the first declaration still matches only the first |
-| A default change declared, then its new value changed again | Fail; the old declaration is stale |
-| Only formatting or line positions change around a declared finding | The declaration still matches |
-| Server variable default changed with the template unchanged; enum narrowed or introduced on an unrestricted variable | Fail |
-| Server enum widened; another server added while the old one remains available; server declarations reordered | Pass |
-| An operation overrides inherited servers and loses a baseline server | Fail |
-| The document's server variable default changed, declared as `server document {basePath}/v1` | Pass, with one finding for the definition rather than one per operation |
-| Missing `info`, unknown schema `type`, contradictory bounds or invalid example | Validation fails, with or without a baseline or declarations |
-| Document/severity file cannot load, command fails, JSON is malformed or a finding has no unambiguous identity | Fail regardless of declarations |
+`expected.txt` holds comment lines stating the change and the rule it exercises, then:
 
-The severity cases cover each applicable rule family in §6.2, including their request/response and
-body/property/header variants: a case may change one element of each kind of its family, and then
-lists the finding of each. They assert the reported item as well as the verdict: a test must not
-pass because an unrelated finding happened to reject its mutation. A response narrowing is made on a
-schema only responses use, since one shared with a request (such as `OutboxStatus`) is reported by a
-request rule as well.
+- `checks` and the parts of the gate the case runs: `validity` (`oasdiff validate` of the document),
+  `compatibility` (`oasdiff breaking` against the baseline, with the policy), `frozen-names` (both documents
+  as `oasdiff upgrade` loads them);
+- `verdict pass` or `verdict fail`;
+- the identity of every line the gate must conclude: the line without what follows its item, such as
+  `undeclared finding d9112806f2f2`, `invalid info-required`, `undeclared server document {basePath}/v1` or
+  `error breaking exit 106`. A compatibility finding is identified by its fingerprint, the item a
+  declaration names; the comment names its rule.
 
-Three failures of the last row are ones the pinned image does not produce: a crash exit code, output
-that is not JSON, and a finding without an identity of its own. `buildSrc`'s unit tests feed them to the same
-code (`OpenApiGateTest`); the cases cover a document and a severity file oasdiff cannot load.
+A case holds when the gate reaches its verdict with exactly those identities, no more and no fewer, so a
+mutation cannot pass on a finding it did not cause. `checkOpenApiCases`, a task of `tandem-admin` built on the
+same `buildSrc` code as `checkOpenApi`, runs the cases one after the other with the pinned image. A case runs
+one oasdiff command per part it checks, and a document read by `oasdiff upgrade` is read once for every case
+that compares it. Its inputs are the case files, the image reference and the severity file, so it runs again
+whenever one of them changes, and it is part of `check`. It does not read oasdiff's catalog: `checkOpenApi`
+does, once (§6.2).
+
+Three cases run on the frozen contract, where its size, references and inherited servers are exercised:
+
+| Case | Change | Expected |
+|---|---|---|
+| `unchanged` | None, through the whole gate | Pass |
+| `declared-fingerprint` | `aggregateId` and `aggregateType` made required on one operation, the first declared | The first accepted, the second undeclared: one rule, method and path, two fingerprints |
+| `slug-and-server` | A problem slug renamed; the document's `basePath` default changed; a path and an operation overriding their servers without `{basePath}/v1` | Fail, one finding per server definition rather than one per operation |
+
+The others are minimal documents, one endpoint and the schema its change needs, one case per rule family of
+§6.1 and §6.2 rather than one per body, property, parameter or header variant: the policy's completeness
+check already gives every rule a level, and a case checks that a family's level is the one the table states.
+
+| Case | Change | Expected |
+|---|---|---|
+| `invalid-document` | Missing `info`, unknown schema `type`, contradictory bounds, invalid example | Four validation findings |
+| `response-enum-value-added` | A response enum gains a value | Pass |
+| `compatible-changes` | A new endpoint; new optional fields, with a default; a request maximum raised; a description added | Pass |
+| `optional-response-field-removed` | An optional response property removed | Fail |
+| `response-field-made-required` | A response property made required | Fail |
+| `default-changed` | A query parameter's default changed | Fail |
+| `type-widened` | A query parameter's type widened, which upstream calls compatible | Fail |
+| `response-range-narrowed` | A response property's maximum length lowered | Fail |
+| `declared-default-changed-again` | A default change declared, then its new value changed again | Fail; the declaration is stale |
+| `declared-finding-reformatted` | A declared change in a document whose keys, styles and lines all moved | The declaration still matches |
+| `document-cannot-load` | A document oasdiff cannot load, with a declaration | Fail; the declaration is neither applied nor stale |
+| `severity-file-cannot-load` | A severity file with a comment line | Fail |
+
+Each fail case changes a rule upstream classes as `INFO`, so it fails only through the policy; the request-side
+errors upstream already raises are in `declared-fingerprint`. The variants of a server change (an enum widened,
+narrowed or introduced, a server added or reordered, an override keeping the template with another default, a
+level that now inherits) are the task's own logic on the documents as oasdiff loads them: `FrozenNamesTest`
+covers each, and `slug-and-server` shows that the loaded documents keep the servers of all three levels.
+
+Three failures are ones the pinned image does not produce: a crash exit code, output that is not JSON, and a
+finding without an identity of its own. `buildSrc`'s unit tests feed them to the same code (`OpenApiGateTest`).
 
 ---
 
@@ -928,8 +945,14 @@ freezes them with the names.
 - the reader of the declared breaks (§3);
 - the task types `CheckInterfaceKinds`, `CheckBomModules`, `CheckJavaApi` (the plugin's
   `JapicmpTask`, extended), `CheckShippedChangesets`, `SchemaCompatTest` (a `Test` task that applies
-  the declared breaks to the scenario's outcome, §5.2), `CheckSpringMetadata`, `CheckOpenApi` with
-  `ExtractOpenApiBaseline` and `WriteOasdiffSeverityLevels`, and `CheckOpenApiCases`;
+  the declared breaks to the scenario's outcome, §5.2), `CheckSpringMetadata`, `CheckOpenApi`, and
+  `CheckOpenApiCases`;
+- `BaselineGate`, the interface every task type that compares with the baseline implements: the inputs
+  they share (the baseline, the module, the baseline BOM, the declared breaks, the components the baseline
+  configurations resolved), their registration into `check` and `checkCompatibility`, the reading of the
+  declared breaks (§3, rules 1 and 2), and the skip line or the check of the resolved components (§2.1,
+  §2.2). An interface rather than a base class, because `CheckJavaApi` and `SchemaCompatTest` extend task
+  types of their own;
 - the japicmp rich-report rules (§4.2);
 - the OpenAPI gate's own code (§6): the run of the pinned image, the judge of its output against the
   declared breaks, the frozen names, the severity policy and the cases' expectations.
@@ -967,7 +990,7 @@ the repository's `.gitignore` excludes, and its sources would never be committed
 | root convention, every published library module | `checkInterfaceKinds`, `checkJavaApi`, the baseline configurations of §2.2 |
 | `tandem-bom` | `checkBomModules` |
 | `tandem-jdbc` | `checkShippedChangesets`, the `schemaCompatTest` source set and task |
-| `tandem-admin` | `checkOpenApi` with `extractOpenApiBaseline`, `checkOpenApiCases` and its cases directory (§6.4), `writeOasdiffSeverityLevels` |
+| `tandem-admin` | `checkOpenApi`, `checkOpenApiCases` and its cases directory (§6.4) |
 | root convention, the modules of `springMetadataModules` (`tandem-spring-producer`, `tandem-spring-relay`, `tandem-admin`) | `checkSpringMetadata`, non-incremental `compileJava` (§7) |
 | root | `checkCompatibility`, which runs every gate that reads a baseline |
 | root build script | `schemaCompatTest` in `dockerBoundTestTasks`; the configurations of §2.2 in `centralClasspaths`; the property `updateReferenceFiles` passed to every `Test` task, and refused in CI (§8.1) |
@@ -976,12 +999,12 @@ the repository's `.gitignore` excludes, and its sources would never be committed
 | version catalog | the japicmp plugin, and the Guava its worker runs on for `buildSrc`'s tests; the oasdiff image, by tag and index digest (`oasdiff-image`); Liquibase as it already is |
 
 Every gate is part of `check`. `checkCompatibility` serves the dry run (§10) and a quick run after the
-baseline moves. A gate joins both as it is registered (`CompatibilityBaseline.registerGate`), so neither
+baseline moves. A gate joins both as it is registered (`BaselineGate.register`), so neither
 keeps a list of gate names, and a later gate registers the same way.
 
 **Inputs.** Each gate declares as task inputs everything its verdict depends on: the value of
-`tandemBaseline`, the baseline files it resolved (archive, sources, BOM, or the document extracted
-from the tag), the current files it compares, and `gradle/accepted-breaks.txt`. `checkJavaApi` also
+`tandemBaseline`, the baseline files it resolved (archive, sources, BOM, or the git object of the
+document at the tag), the current files it compares, and `gradle/accepted-breaks.txt`. `checkJavaApi` also
 takes the file `checkInterfaceKinds` writes (§4.3), and `checkOpenApi` the severity file and the image
 reference (§6). Otherwise Gradle could keep a gate up to date across a change that alters its verdict:
 a declaration removed after a comparison it let pass would leave the gate green until something else

@@ -1,5 +1,0 @@
-# RelayStatus.state, an enum of responses only, loses DOWN.
-verdict fail
-undeclared finding 250b033da8f6: ERR response-property-enum-value-removed at POST /relay/pause: removed the `DOWN` enum value from the `state` response property for the response status `200`
-undeclared finding fbf06bfbfc2d: ERR response-property-enum-value-removed at POST /relay/resume: removed the `DOWN` enum value from the `state` response property for the response status `200`
-undeclared finding 7a4f2906bf01: ERR response-property-enum-value-removed at GET /relay/status: removed the `DOWN` enum value from the `state` response property for the response status `200`

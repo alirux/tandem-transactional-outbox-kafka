@@ -1,0 +1,9 @@
+# On the contract: the problem slug not-found renamed resource-not-found; the default of basePath changed;
+# the path /relay/workers and the operation GET /relay/status override their servers and lose {basePath}/v1.
+# The document's server is one finding, not one per operation that inherits it.
+checks frozen-names
+verdict fail
+undeclared problem-type not-found
+undeclared server document {basePath}/v1
+undeclared server path /relay/workers {basePath}/v1
+undeclared server operation GET /relay/status {basePath}/v1

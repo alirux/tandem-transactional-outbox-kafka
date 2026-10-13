@@ -1,3 +1,0 @@
-# basePath, a variable without an enum, gains one.
-verdict fail
-undeclared server document {basePath}/v1: basePath had no enum, now [/tandem/admin]

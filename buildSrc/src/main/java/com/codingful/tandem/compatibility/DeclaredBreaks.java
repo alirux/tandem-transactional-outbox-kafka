@@ -198,6 +198,11 @@ public final class DeclaredBreaks {
         return new Matching(accepted, undeclared, stale);
     }
 
+    /** The entry that would accept a break of {@code item}, its release-notes line left to write. */
+    public static String declaration(String gate, String module, String item) {
+        return gate + " | " + module + " | " + item + " | <release-notes line>";
+    }
+
     /** One line per entry, for a failure message. */
     public static String lines(Collection<Entry> entries) {
         return entries.stream().map(entry -> "  " + entry).collect(Collectors.joining("\n"));

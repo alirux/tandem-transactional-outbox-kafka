@@ -1,7 +1,0 @@
-# Response ranges narrowed on schemas that only responses use: a minimum set on OutboxSummary.lagAgeSeconds, a
-# maxItems set on the body of GET /relay/workers, and, from this case's baseline, the maxLength of the header
-# X-Tandem-Instance lowered from 100 to 50.
-verdict fail
-undeclared finding 592b0781c558: ERR response-property-min-set at GET /outbox/summary: the `lagAgeSeconds` response property's min was set to `0.00` for the response status `200`
-undeclared finding 94f0a6238061: ERR response-header-max-length-decreased at GET /relay/status: the `x-tandem-instance` response header's maxLength was decreased from `100` to `50` for the status `200`
-undeclared finding 756d36c921a7: ERR response-body-max-items-set at GET /relay/workers: the response's body maxItems was set to `1000`
