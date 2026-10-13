@@ -446,7 +446,10 @@ against (LLD-api-stability §2.1, §3).
 `latest` link, version dropdown and badge only move to a version that was synced and uploaded
 from its versions page, and the README's API reference links `latest`. The script does that
 for the latest release of every published module and waits until the docs are served; it is
-idempotent, and `DRY_RUN=1` only reports the status.
+idempotent, and `DRY_RUN=1` only reports the status. It skips a release candidate, so `latest`
+stays on the last final release; `INCLUDE_PRERELEASE=1` syncs one for its reviewers. For the
+same reason a library tag with a suffix (`v1.0.0-rc.1`) becomes a GitHub pre-release, never
+"Latest".
 
 **After a library release reaches Maven Central, consider the relay image too.** The image contains one
 library release, resolved from Maven Central, so it can only follow a release, never accompany one: move

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
 # Makes javadoc.io serve the latest release of every published Tandem module.
+# A pre-release (a version with a suffix, such as 1.0.0-rc.1) is skipped unless
+# INCLUDE_PRERELEASE=1: javadoc.io's "latest" link follows the last version uploaded,
+# and the README's API reference must not point at a release candidate.
 #
 # Why: javadoc.io does not always notice a new release on Maven Central by itself,
 # so its "latest" link can stay several versions behind. Its versions page has two
@@ -16,6 +19,7 @@
 #   tools/javadoc-io-sync.sh tandem-core          # only the named modules
 #   DRY_RUN=1 tools/javadoc-io-sync.sh            # report the status, change nothing
 #   TIMEOUT=1800 tools/javadoc-io-sync.sh         # wait longer for generation (seconds)
+#   INCLUDE_PRERELEASE=1 tools/javadoc-io-sync.sh # also a release candidate, if it is the latest
 #
 # Exits non-zero if any module's latest release is not available when it finishes.
 # Requires curl.
@@ -30,12 +34,21 @@ TIMEOUT="${TIMEOUT:-900}"
 POLL=20
 SYNC_POLLS=12
 DRY_RUN="${DRY_RUN:-0}"
+INCLUDE_PRERELEASE="${INCLUDE_PRERELEASE:-0}"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+# Maven's <release> includes pre-releases, so the latest final release is the highest
+# version without a suffix.
 latest_release() {
-  curl -fs -m 30 "$CENTRAL/$1/maven-metadata.xml" | sed -n 's:.*<release>\(.*\)</release>.*:\1:p'
+  local metadata
+  metadata="$(curl -fs -m 30 "$CENTRAL/$1/maven-metadata.xml")" || return 1
+  if [ "$INCLUDE_PRERELEASE" = "1" ]; then
+    sed -n 's:.*<release>\(.*\)</release>.*:\1:p' <<<"$metadata"
+  else
+    sed -n 's:.*<version>\([^<-]*\)</version>.*:\1:p' <<<"$metadata" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1
+  fi
 }
 
 modules_from_bom() {

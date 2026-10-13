@@ -60,9 +60,13 @@ jobs:
           git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" > RELEASE_BODY.md
           echo "title=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
 
+      # A version with a suffix (v1.0.0-rc.1) is a pre-release: marked as such, and never "Latest",
+      # the badge that the final release of the library line carries.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.tag_message.outputs.title || github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           body_path: RELEASE_BODY.md
           generate_release_notes: true   # appended below the tag message
