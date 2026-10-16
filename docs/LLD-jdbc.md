@@ -104,10 +104,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
   feature, LLD-core §1.3.)
 - A `UNIQUE(aggregate_id, seq)` violation is translated to `DuplicateSeqException` (Q5). A failed
   `insertAll` batch names an event only when it is certain which one failed: the batch held just that
-  event, or it repeats an `(aggregate_id, seq)` of its own. Otherwise the exception names the batch, and
-  the driver's exception, attached as the cause, carries the offending key: a driver reports a failed
-  batch as a whole (PostgreSQL marks every statement `EXECUTE_FAILED`), so the event bound last is not
-  necessarily the one at fault.
+  event, or it repeats an `(aggregate_id, seq)` of its own. Otherwise the exception names the batch: a
+  driver reports a failed batch as a whole (PostgreSQL marks every statement `EXECUTE_FAILED`), so the
+  event bound last is not necessarily the one at fault.
+- **A failed insert never lets out what the events hold.** The driver's message quotes bound values
+  (PostgreSQL prints a failed batch entry's whole statement, payload and headers included, and a JSON
+  error's context quotes the payload), and applications log the exceptions they receive. So the
+  exception's cause is the driver's exception without its text: an `SQLException` with the same SQLState,
+  vendor code and stack trace. The SQLState also closes the exception's own message. What the text would
+  have added goes to `TRACE`, structural only (HLD-logging): one line with the SQLState, vendor code, the
+  driver's batch entry index and the constraint name, and one per event of the batch with its position,
+  `aggregate_id`, `seq`, `payloadBytes` and `headerNames`, so the failed entry maps to its event.
 - **Optionally, one `pg_notify` follows the insert** on the same connection, telling the relay which
   buckets this call wrote (`Wakeup.PG_NOTIFY`, §3.10). Off by default; when on it is one statement per
   call, over the distinct buckets, so a batch costs the same round trip as a single row.

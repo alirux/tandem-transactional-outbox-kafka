@@ -143,6 +143,10 @@ added.
 | Full header maps if headers might carry app-defined sensitive extensions | The `correlation-id`/`trace_id` values themselves (opaque ids, not PII by design — see HLD-tracing.md) |
 | Bound SQL parameter values in query-failure logs (log the statement shape/name, not the values) | The error `type` slug / exception class name |
 
+The rule also covers what Tandem **throws**, not only what it logs: an application logs the exceptions it
+receives, so an exception carrying a driver message that quotes bound values would put event bodies in the
+application's logs. The write side therefore attaches the driver's exception without its text (LLD-jdbc §2).
+
 `tandem-sample`'s current printing of its own Testcontainers-generated demo credentials
 (`SampleApplication.java`) is out of scope for this rule — it's a local, ephemeral,
 throwaway credential meant to be copy-pasted by the developer running the demo — but must

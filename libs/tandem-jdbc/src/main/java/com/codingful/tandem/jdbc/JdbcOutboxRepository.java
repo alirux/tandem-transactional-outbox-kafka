@@ -8,6 +8,8 @@ import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.exception.OutboxInsertException;
 import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.TracePropagator;
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -25,6 +27,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 
 /**
@@ -63,6 +67,14 @@ import javax.sql.DataSource;
  * normalized — so consumers must not verify signatures/hashes computed over the original bytes.
  */
 public final class JdbcOutboxRepository implements OutboxRepository {
+
+    private static final Logger LOG = System.getLogger(JdbcOutboxRepository.class.getName());
+
+    // Read off the driver's message for the TRACE line only, and only these two shapes: a batch entry's
+    // index and a constraint name are structure, never data, whereas the rest of the text may quote the
+    // bound values. Matched against PostgreSQL's wording; another driver's simply yields neither.
+    private static final Pattern BATCH_ENTRY = Pattern.compile("^Batch entry (\\d+) ");
+    private static final Pattern CONSTRAINT = Pattern.compile("constraint \"([^\"]+)\"");
 
     /**
      * Carries {@code seq} explicitly, for an application-assigned number and for an
@@ -174,7 +186,10 @@ public final class JdbcOutboxRepository implements OutboxRepository {
                 ps.executeUpdate();
             });
             signalWakeup(conn, message);
-        }, e -> translate(e, message));
+        }, e -> {
+            traceFailure(e, List.of(message));
+            return translate(e, message);
+        });
     }
 
     @Override
@@ -201,7 +216,10 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             }
             insertBatch(conn, run, executing);
             signalWakeup(conn, bucketsOf(messages));
-        }, e -> translateBatch(e, executing.get()));
+        }, e -> {
+            traceFailure(e, executing.get());
+            return translateBatch(e, executing.get());
+        });
     }
 
     private void insertBatch(Connection conn, List<OutboxMessage> batch,
@@ -367,7 +385,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
      * batch as a whole (PostgreSQL marks every statement {@code EXECUTE_FAILED} wherever the failure
      * was), so the event bound last is not necessarily the one at fault. Sure means the batch held that
      * one event, or the batch itself repeats an {@code (aggregate_id, seq)}. Otherwise the failure names
-     * the batch, and the driver's exception, attached as the cause, carries the offending key.
+     * the batch; the TRACE line {@link #traceFailure} writes maps the driver's batch entry to its event.
      */
     private static OutboxInsertException translateBatch(SQLException e, List<OutboxMessage> batch) {
         if (batch != null && batch.size() == 1) {
@@ -382,10 +400,10 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         }
         String where = batch == null
                 ? "the outbox batch"
-                : "one of the " + batch.size() + " events of an outbox batch; the cause names it";
+                : "one of the " + batch.size() + " events of an outbox batch";
         return duplicate
-                ? new DuplicateSeqException("duplicate (aggregate_id, seq) in " + where, e)
-                : new OutboxInsertException("failed to insert " + where, e);
+                ? new DuplicateSeqException("duplicate (aggregate_id, seq) in " + where + sqlStateOf(e), withheld(e))
+                : new OutboxInsertException("failed to insert " + where + sqlStateOf(e), withheld(e));
     }
 
     /** The first event repeating the {@code (aggregate_id, seq)} of an earlier one in the same batch. */
@@ -409,10 +427,65 @@ public final class JdbcOutboxRepository implements OutboxRepository {
                 : message.seqSource().toString();
         if (SQLSTATE_UNIQUE_VIOLATION.equals(e.getSQLState())) {
             return new DuplicateSeqException(
-                    "duplicate (aggregate_id, seq) = (" + aggregate + ", " + seq + ')', e);
+                    "duplicate (aggregate_id, seq) = (" + aggregate + ", " + seq + ')' + sqlStateOf(e), withheld(e));
         }
-        return new OutboxInsertException(
-                "failed to insert outbox row for (aggregate_id, seq) = (" + aggregate + ", " + seq + ')', e);
+        return new OutboxInsertException("failed to insert outbox row for (aggregate_id, seq) = ("
+                + aggregate + ", " + seq + ')' + sqlStateOf(e), withheld(e));
+    }
+
+    private static String sqlStateOf(SQLException e) {
+        return "; SQLState " + e.getSQLState();
+    }
+
+    /**
+     * The driver's exception without its text, which is all an application gets as the cause. A driver
+     * quotes bound values in it (PostgreSQL prints a failed batch entry's whole statement, and a JSON
+     * error's context quotes the payload), so attached as it is, every application that logs the failure
+     * would log event bodies (HLD-logging). The SQLState and vendor code say what failed, and the stack
+     * trace where.
+     */
+    private static SQLException withheld(SQLException e) {
+        SQLException withheld = new SQLException(
+                "driver message withheld: it can contain bound values", e.getSQLState(), e.getErrorCode());
+        withheld.setStackTrace(e.getStackTrace());
+        return withheld;
+    }
+
+    /**
+     * One {@code TRACE} line for the failure and one per event it may concern, carrying what locates the
+     * event and nothing it holds: the driver's batch entry index, which the exception cannot name with
+     * certainty, is mapped here to the event's identifiers by its position (LLD-jdbc §2).
+     */
+    private static void traceFailure(SQLException e, List<OutboxMessage> events) {
+        if (!LOG.isLoggable(Level.TRACE)) {
+            return;
+        }
+        for (String line : failureTrace(e, events)) {
+            LOG.log(Level.TRACE, line);
+        }
+    }
+
+    /** The lines {@link #traceFailure} writes, built without a logger so their content can be pinned. */
+    static List<String> failureTrace(SQLException e, List<OutboxMessage> events) {
+        String message = e.getMessage() == null ? "" : e.getMessage();
+        Matcher entry = BATCH_ENTRY.matcher(message);
+        Matcher constraint = CONSTRAINT.matcher(message);
+        List<String> lines = new ArrayList<>();
+        lines.add("Outbox insert failed sqlState:" + e.getSQLState() + ", vendorCode:" + e.getErrorCode()
+                + ", events:" + (events == null ? "?" : events.size())
+                + ", batchEntry:" + (entry.find() ? entry.group(1) : "?")
+                + ", constraint:" + (constraint.find() ? constraint.group(1) : "?"));
+        if (events != null) {
+            for (int i = 0; i < events.size(); i++) {
+                OutboxMessage event = events.get(i);
+                lines.add("Outbox insert failed for event batchEntry:" + i
+                        + ", aggregateId:" + event.aggregateId().value()
+                        + ", seq:" + (event.hasSeq() ? Long.toString(event.seq()) : event.seqSource().toString())
+                        + ", payloadBytes:" + event.payload().length
+                        + ", headerNames:" + event.headers().keySet());
+            }
+        }
+        return lines;
     }
 
     /** Builds a {@link JdbcOutboxRepository} with optional collaborators (HLD-api-stability §4.3). */

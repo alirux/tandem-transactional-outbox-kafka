@@ -291,11 +291,11 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
                 .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
         repository.insert(duplicate);
 
-        // The driver reports the batch as a whole, so the failure names the batch, and its cause the key.
+        // The driver reports the batch as a whole, so the failure names the batch rather than an event.
         assertThatThrownBy(() -> repository.insertAll(List.of(duplicate, valid)))
                 .isInstanceOf(DuplicateSeqException.class)
-                .hasMessageNotContaining(valid.aggregateId().value())
-                .cause().hasMessageContaining(duplicate.aggregateId().value());
+                .hasMessageContaining("2 events")
+                .hasMessageNotContaining(valid.aggregateId().value());
     }
 
     @Test
