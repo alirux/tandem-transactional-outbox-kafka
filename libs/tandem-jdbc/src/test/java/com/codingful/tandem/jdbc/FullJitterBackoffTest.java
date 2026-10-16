@@ -40,6 +40,14 @@ class FullJitterBackoffTest {
     }
 
     @Test
+    void GIVEN_many_consecutive_failures_WHEN_retry_delays_reach_the_overflow_boundary_THEN_retries_remain_schedulable() {
+        for (int attempts = 0; attempts <= 100; attempts++) {
+            Duration delay = backoff.delayFor(attempts);
+            assertThat(delay).isGreaterThan(Duration.ZERO).isLessThanOrEqualTo(Duration.ofMinutes(5));
+        }
+    }
+
+    @Test
     void GIVEN_a_cap_below_the_base_WHEN_constructed_THEN_it_is_rejected() {
         assertThatThrownBy(() -> new FullJitterBackoff(Duration.ofSeconds(10), Duration.ofSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class);

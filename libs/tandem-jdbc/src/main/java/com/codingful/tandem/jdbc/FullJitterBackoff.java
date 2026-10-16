@@ -52,13 +52,11 @@ final class FullJitterBackoff implements BackoffStrategy {
         if (attempts < 0) {
             throw new IllegalArgumentException("attempts must be >= 0");
         }
-        if (attempts >= 62) {
+        // Compared before shifting: a shift that overflows can wrap to any value, zero included, so the
+        // result cannot be checked afterwards. base <= cap >> attempts guarantees base << attempts <= cap.
+        if (attempts >= Long.SIZE - 1 || baseMillis > capMillis >> attempts) {
             return capMillis;
         }
-        long scaled = baseMillis << attempts;             // base * 2^attempts
-        if (scaled < 0 || scaled > capMillis) {           // overflowed or exceeded the cap
-            return capMillis;
-        }
-        return scaled;
+        return baseMillis << attempts;                    // base * 2^attempts
     }
 }
