@@ -102,7 +102,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
   source of truth**: if a `content-type` entry is also present in `headers`, the field overrides it. No
   dedicated column (Pareto). (Causation is not handled here — it belongs to the opt-in causal-ordering
   feature, LLD-core §1.3.)
-- A `UNIQUE(aggregate_id, seq)` violation is translated to `DuplicateSeqException` (Q5).
+- A `UNIQUE(aggregate_id, seq)` violation is translated to `DuplicateSeqException` (Q5). A failed
+  `insertAll` batch names an event only when it is certain which one failed: the batch held just that
+  event, or it repeats an `(aggregate_id, seq)` of its own. Otherwise the exception names the batch, and
+  the driver's exception, attached as the cause, carries the offending key: a driver reports a failed
+  batch as a whole (PostgreSQL marks every statement `EXECUTE_FAILED`), so the event bound last is not
+  necessarily the one at fault.
 - **Optionally, one `pg_notify` follows the insert** on the same connection, telling the relay which
   buckets this call wrote (`Wakeup.PG_NOTIFY`, §3.10). Off by default; when on it is one statement per
   call, over the distinct buckets, so a batch costs the same round trip as a single row.

@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 
 /**
@@ -181,9 +183,9 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         if (messages.isEmpty()) {
             return;
         }
-        // Mutated inside the lambda below and read from the exception mapper on failure — an array
-        // (not a plain local) because the mapper closes over it after the lambda returns/throws.
-        OutboxMessage[] current = new OutboxMessage[1];
+        // The batch being executed when a statement fails, null outside one; read by the exception
+        // mapper, hence a holder the lambdas close over rather than a plain local.
+        AtomicReference<List<OutboxMessage>> executing = new AtomicReference<>();
         Jdbc.exec(dataSource, conn -> {
             lockAggregatesInOrder(conn, messages);
             // The two modes need different column lists, so they cannot share one batch. Split on
@@ -192,26 +194,27 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             List<OutboxMessage> run = new ArrayList<>();
             for (OutboxMessage message : messages) {
                 if (!run.isEmpty() && isManaged(message) != isManaged(run.get(0))) {
-                    insertBatch(conn, run, current);
+                    insertBatch(conn, run, executing);
                     run.clear();
                 }
                 run.add(message);
             }
-            insertBatch(conn, run, current);
+            insertBatch(conn, run, executing);
             signalWakeup(conn, bucketsOf(messages));
-        }, e -> translate(e, current[0]));
+        }, e -> translateBatch(e, executing.get()));
     }
 
-    private void insertBatch(Connection conn, List<OutboxMessage> batch, OutboxMessage[] current)
-            throws SQLException {
+    private void insertBatch(Connection conn, List<OutboxMessage> batch,
+                             AtomicReference<List<OutboxMessage>> executing) throws SQLException {
+        executing.set(batch);
         Jdbc.exec(conn, sqlFor(batch.get(0)), ps -> {
             for (OutboxMessage message : batch) {
-                current[0] = message;
                 bind(ps, message);
                 ps.addBatch();
             }
             ps.executeBatch();
         });
+        executing.set(null);
     }
 
     private static String sqlFor(OutboxMessage message) {
@@ -357,6 +360,43 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             }
         }
         return headers;
+    }
+
+    /**
+     * A failed batch names an event only when it can be sure which one failed: a driver reports a failed
+     * batch as a whole (PostgreSQL marks every statement {@code EXECUTE_FAILED} wherever the failure
+     * was), so the event bound last is not necessarily the one at fault. Sure means the batch held that
+     * one event, or the batch itself repeats an {@code (aggregate_id, seq)}. Otherwise the failure names
+     * the batch, and the driver's exception, attached as the cause, carries the offending key.
+     */
+    private static OutboxInsertException translateBatch(SQLException e, List<OutboxMessage> batch) {
+        if (batch != null && batch.size() == 1) {
+            return translate(e, batch.get(0));
+        }
+        boolean duplicate = SQLSTATE_UNIQUE_VIOLATION.equals(e.getSQLState());
+        if (duplicate && batch != null) {
+            OutboxMessage repeated = repeatedWithin(batch);
+            if (repeated != null) {
+                return translate(e, repeated);
+            }
+        }
+        String where = batch == null
+                ? "the outbox batch"
+                : "one of the " + batch.size() + " events of an outbox batch; the cause names it";
+        return duplicate
+                ? new DuplicateSeqException("duplicate (aggregate_id, seq) in " + where, e)
+                : new OutboxInsertException("failed to insert " + where, e);
+    }
+
+    /** The first event repeating the {@code (aggregate_id, seq)} of an earlier one in the same batch. */
+    private static OutboxMessage repeatedWithin(List<OutboxMessage> batch) {
+        Set<String> seen = new HashSet<>();
+        for (OutboxMessage message : batch) {
+            if (message.hasSeq() && !seen.add(message.aggregateId().value() + '\u0000' + message.seq())) {
+                return message;
+            }
+        }
+        return null;
     }
 
     private static OutboxInsertException translate(SQLException e, OutboxMessage message) {

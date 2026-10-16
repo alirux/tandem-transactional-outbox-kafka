@@ -282,6 +282,56 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_batch_whose_first_event_repeats_a_stored_number_WHEN_inserted_THEN_the_failure_never_blames_another_event() {
+        OutboxMessage duplicate = OutboxMessage.builder()
+                .aggregateId("duplicate-first").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        OutboxMessage valid = OutboxMessage.builder()
+                .aggregateId("valid-last").aggregateType("Order").seq(2)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        repository.insert(duplicate);
+
+        // The driver reports the batch as a whole, so the failure names the batch, and its cause the key.
+        assertThatThrownBy(() -> repository.insertAll(List.of(duplicate, valid)))
+                .isInstanceOf(DuplicateSeqException.class)
+                .hasMessageNotContaining(valid.aggregateId().value())
+                .cause().hasMessageContaining(duplicate.aggregateId().value());
+    }
+
+    @Test
+    void GIVEN_a_batch_with_an_event_the_database_rejects_WHEN_inserted_THEN_the_failure_names_the_batch_not_an_event() {
+        OutboxMessage valid = OutboxMessage.builder()
+                .aggregateId("valid-first").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        OutboxMessage notJson = OutboxMessage.builder()
+                .aggregateId("not-json-last").aggregateType("Order").seq(1)
+                .payload("not json".getBytes(StandardCharsets.UTF_8)).build();
+
+        assertThatThrownBy(() -> repository.insertAll(List.of(valid, notJson)))
+                .isExactlyInstanceOf(OutboxInsertException.class)
+                .hasMessageNotContaining(valid.aggregateId().value())
+                .hasMessageNotContaining(notJson.aggregateId().value());
+    }
+
+    @Test
+    void GIVEN_a_batch_that_repeats_a_number_of_its_own_WHEN_inserted_THEN_the_failure_names_the_repeating_event() {
+        OutboxMessage first = OutboxMessage.builder()
+                .aggregateId("repeated-within").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        OutboxMessage other = OutboxMessage.builder()
+                .aggregateId("unrelated").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        OutboxMessage unnumbered = OutboxMessage.builder()
+                .aggregateId("unnumbered").aggregateType("Order").unsequenced()
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+
+        assertThatThrownBy(() -> repository.insertAll(List.of(first, unnumbered, other, unnumbered, first)))
+                .isInstanceOf(DuplicateSeqException.class)
+                .hasMessageContaining(first.aggregateId().value())
+                .hasMessageNotContaining(other.aggregateId().value());
+    }
+
+    @Test
     void GIVEN_a_batch_whose_last_event_repeats_a_number_already_used_WHEN_inserted_THEN_the_failure_names_that_event() {
         repository.insert(OutboxMessage.builder()
                 .aggregateId("order-batch-fail").aggregateType("Order").seq(1).payload("{}".getBytes()).build());
