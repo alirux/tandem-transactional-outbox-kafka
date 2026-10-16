@@ -48,18 +48,36 @@ public interface OutboxStore {
     }
 
     /**
-     * A retriable failure: back to {@code PENDING}, eligible again after {@code retryDelay}.
+     * A retriable failure of one delivery attempt: back to {@code PENDING}, eligible again after
+     * {@code retryDelay}.
      *
      * <p>The delay is passed <b>relative</b>, exactly like {@code claimBatch}'s lease: the caller owns
      * the backoff policy, the adapter owns the anchor. The JDBC adapter anchors it on the <b>DB clock</b>
      * ({@code next_attempt_at = now() + retryDelay}), which is also the clock the claim compares against
      * — so a relay whose host clock differs from the DB's cannot make a row due early or late
      * (LLD-jdbc §3.2/§3.6).
+     *
+     * <p>The outcome is <b>fenced to the attempt</b> that {@code claimed} describes: it changes the row
+     * only while that attempt still holds it (the row still carries the lease its claim stamped, {@link
+     * OutboxRecord#lockedUntil()}), and does nothing otherwise. A worker that stalls past its
+     * lease may report a failure after the row was reclaimed, claimed again and perhaps delivered by
+     * another worker, and that late outcome must not reverse what the newer attempt did (LLD-jdbc
+     * §3.4.2).
+     *
+     * @param claimed    the row exactly as {@link #claimBatch} returned it to the failing attempt
+     * @param error      the failure reason, recorded as the row's {@code last_error}
+     * @param retryDelay how long until the row is due again; {@code null} makes it due immediately
      */
-    void markForRetry(long id, String error, Duration retryDelay);
+    void markForRetry(OutboxRecord claimed, String error, Duration retryDelay);
 
-    /** A permanent failure: {@code FAILED} (blocks the aggregate until an operator intervenes). */
-    void markFailed(long id, String error);
+    /**
+     * A permanent failure of one delivery attempt: {@code FAILED}, which blocks the aggregate until an
+     * operator intervenes. Fenced to the attempt exactly like {@link #markForRetry}.
+     *
+     * @param claimed the row exactly as {@link #claimBatch} returned it to the failing attempt
+     * @param error   the failure reason, recorded as the row's {@code last_error}
+     */
+    void markFailed(OutboxRecord claimed, String error);
 
     /** Reclaim rows whose lease expired back to {@code PENDING}; returns the count reclaimed. */
     int reclaimExpiredLeases();

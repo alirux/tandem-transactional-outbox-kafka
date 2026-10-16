@@ -3,11 +3,13 @@ package com.codingful.tandem.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codingful.tandem.core.AggregateId;
 import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.OutboxSearchCriteria;
 import com.codingful.tandem.core.OutboxStatus;
+import com.codingful.tandem.core.ReplayCriteria;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import java.time.Duration;
@@ -207,7 +209,7 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 1));   // id 1
         outbox.insert(message("order-1", 2));   // id 2
 
-        long head = claimAll(10).get(0).id();
+        OutboxRecord head = claimAll(10).get(0);
         outbox.markFailed(head, "boom");
 
         // The FAILED head blocks every later row of the aggregate (head-of-chain over status 0/1/3).
@@ -239,8 +241,9 @@ class InMemoryOutboxTest {
     @Test
     void GIVEN_a_row_with_a_future_next_attempt_WHEN_claimed_THEN_it_is_skipped_until_due() {
         outbox.insert(message("order-1", 1));
-        long id = claimAll(10).get(0).id();
-        outbox.markForRetry(id, "boom", Duration.ofSeconds(30));
+        OutboxRecord claimed = claimAll(10).get(0);
+        long id = claimed.id();
+        outbox.markForRetry(claimed, "boom", Duration.ofSeconds(30));
 
         // Not yet due.
         assertThat(claimAll(10)).isEmpty();
@@ -252,11 +255,12 @@ class InMemoryOutboxTest {
     @Test
     void GIVEN_a_retriable_failure_WHEN_the_row_is_scheduled_for_retry_THEN_it_returns_to_pending_with_an_incremented_attempt() {
         outbox.insert(message("order-1", 1));
-        long id = claimAll(10).get(0).id();
+        OutboxRecord claimed = claimAll(10).get(0);
+        long id = claimed.id();
         Duration delay = Duration.ofSeconds(5);
         Instant next = clock.instant().plus(delay);
 
-        outbox.markForRetry(id, "transient", delay);
+        outbox.markForRetry(claimed, "transient", delay);
 
         OutboxRecord r = outbox.byId(id);
         assertThat(r.status()).isEqualTo(OutboxStatus.PENDING);
@@ -270,14 +274,94 @@ class InMemoryOutboxTest {
     @Test
     void GIVEN_a_permanent_failure_WHEN_the_row_is_marked_as_a_permanent_failure_THEN_it_is_failed_with_an_incremented_attempt() {
         outbox.insert(message("order-1", 1));
-        long id = claimAll(10).get(0).id();
+        OutboxRecord claimed = claimAll(10).get(0);
+        long id = claimed.id();
 
-        outbox.markFailed(id, "poison");
+        outbox.markFailed(claimed, "poison");
 
         OutboxRecord r = outbox.byId(id);
         assertThat(r.status()).isEqualTo(OutboxStatus.FAILED);
         assertThat(r.attempts()).isEqualTo(1);
         assertThat(r.lastError()).isEqualTo("poison");
+    }
+
+    @Test
+    void GIVEN_a_row_another_worker_claimed_after_the_lease_expired_WHEN_the_first_attempt_reports_its_failure_THEN_the_newer_attempt_keeps_the_row() {
+        outbox.insert(message("order-1", 1));
+        OutboxRecord superseded = claimAll(10).get(0);
+        clock.advance(LEASE.plusSeconds(1));
+        outbox.reclaimExpiredLeases();
+        OutboxRecord current = claimAll(10).get(0);
+
+        outbox.markForRetry(superseded, "late", null);
+        outbox.markFailed(superseded, "late");
+
+        OutboxRecord r = outbox.byId(current.id());
+        assertThat(r.status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+        assertThat(r.lockedUntil()).isEqualTo(current.lockedUntil());
+        assertThat(r.attempts()).isEqualTo(current.attempts());
+        assertThat(r.lastError()).isEqualTo(InMemoryOutbox.LEASE_EXPIRED_ERROR);
+    }
+
+    @Test
+    void GIVEN_a_row_another_worker_delivered_after_the_lease_expired_WHEN_the_first_attempt_reports_its_failure_THEN_the_delivery_stands() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-1", 2));
+        OutboxRecord superseded = claimAll(10).get(0);
+        clock.advance(LEASE.plusSeconds(1));
+        outbox.reclaimExpiredLeases();
+        outbox.markDone(claimAll(10).get(0).id());
+
+        outbox.markForRetry(superseded, "late", null);
+        outbox.markFailed(superseded, "late");
+
+        assertThat(outbox.byId(superseded.id()).status()).isEqualTo(OutboxStatus.DONE);
+        // The aggregate moves on: its next event is the head now, not a re-run of the delivered one.
+        assertThat(claimAll(10)).extracting(OutboxRecord::seq).containsExactly(2L);
+    }
+
+    @Test
+    void GIVEN_a_row_replayed_and_claimed_again_WHEN_an_older_attempt_reports_its_failure_THEN_the_newest_attempt_keeps_the_row() {
+        outbox.insert(message("order-1", 1));
+        OutboxRecord superseded = claimAll(10).get(0);
+        clock.advance(LEASE.plusSeconds(1));
+        outbox.reclaimExpiredLeases();
+        outbox.markDone(claimAll(10).get(0).id());
+        outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false));
+        // The replay starts the row over with the attempts count the superseded claim saw.
+        OutboxRecord newest = claimAll(10).get(0);
+        assertThat(newest.attempts()).isEqualTo(superseded.attempts());
+
+        outbox.markFailed(superseded, "late");
+
+        assertThat(outbox.byId(newest.id()).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    }
+
+    @Test
+    void GIVEN_a_record_no_claim_returned_WHEN_reported_as_failed_THEN_the_row_is_untouched() {
+        outbox.insert(message("order-1", 1));
+        OutboxRecord unclaimed = outbox.byId(1);
+
+        outbox.markFailed(unclaimed, "boom");
+
+        assertThat(outbox.byId(1).status()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(outbox.byId(1).attempts()).isZero();
+    }
+
+    @Test
+    void GIVEN_any_row_WHEN_forced_to_failed_THEN_it_holds_the_state_a_permanent_failure_leaves() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-1", 2));
+
+        String reason = "poison";
+
+        outbox.forceFailed(1, reason);
+
+        OutboxRecord r = outbox.byId(1);
+        assertThat(r.status()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(r.attempts()).isEqualTo(1);
+        assertThat(r.lastError()).isEqualTo(reason);
+        assertThat(claimAll(10)).as("a forced failure blocks its aggregate like a real one").isEmpty();
     }
 
     @Test
@@ -359,10 +443,10 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 1));   // id 1 — the head that fails
         outbox.insert(message("order-1", 2));   // id 2 — behind the failure
         outbox.insert(message("order-1", 3));   // id 3 — behind the failure
-        claimAll(10);
+        OutboxRecord head = claimAll(10).get(0);
         assertThat(outbox.blockedCount()).hasValue(0);
 
-        outbox.markFailed(1, "poison");
+        outbox.markFailed(head, "poison");
         // Inserted after the claim so it stays PENDING: a healthy aggregate waiting its turn, which is
         // what makes the two readings differ below.
         outbox.insert(message("order-2", 1));   // id 4
@@ -380,9 +464,9 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 3));   // id 3 — behind the failure
         claimAll(10);
         outbox.markDone(1);
-        claimAll(10);
+        OutboxRecord second = claimAll(10).get(0);
 
-        outbox.markFailed(2, "poison");
+        outbox.markFailed(second, "poison");
 
         // Only what follows the failure in chain order counts; the delivered row ahead of it is not
         // waiting for anything.

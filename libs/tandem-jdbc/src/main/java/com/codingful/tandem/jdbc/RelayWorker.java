@@ -164,7 +164,7 @@ final class RelayWorker {
             LOG.log(Level.WARNING, "Outbox row dispatch failed, retrying rowId:" + record.id()
                     + ", aggregateType:" + record.aggregateType() + ", aggregateId:" + record.aggregateId()
                     + ", attempts:" + attemptsAfter + ", delayMs:" + delay.toMillis(), cause);
-            store.markForRetry(record.id(), message, delay);
+            store.markForRetry(record, message, delay);
             if (metrics.isEnabled()) {
                 metrics.incrementRetry();
             }
@@ -172,7 +172,7 @@ final class RelayWorker {
             LOG.log(Level.ERROR, "Outbox row dispatch failed permanently rowId:" + record.id()
                     + ", aggregateType:" + record.aggregateType() + ", aggregateId:" + record.aggregateId()
                     + ", attempts:" + attemptsAfter, cause);
-            store.markFailed(record.id(), message);
+            store.markFailed(record, message);
             // No metrics call here: failed.count is a live count of FAILED rows (WorkerPool.metricsTick,
             // via OutboxStore.failedCount()), not a tally of failure events — a row can later leave
             // FAILED (moved to DISCARDED by an operator), and only a fresh read reflects that.

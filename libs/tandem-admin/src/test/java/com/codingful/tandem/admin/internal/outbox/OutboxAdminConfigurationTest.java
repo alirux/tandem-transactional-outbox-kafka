@@ -120,12 +120,12 @@ class OutboxAdminConfigurationTest {
         }
 
         @Override
-        public void markForRetry(long id, String error, Duration retryDelay) {
+        public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void markFailed(long id, String error) {
+        public void markFailed(OutboxRecord claimed, String error) {
             throw new UnsupportedOperationException();
         }
 

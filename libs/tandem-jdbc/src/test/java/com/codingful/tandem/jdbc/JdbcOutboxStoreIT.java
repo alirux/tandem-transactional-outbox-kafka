@@ -118,23 +118,25 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     @Test
     void GIVEN_a_retried_row_WHEN_its_next_attempt_is_in_the_future_THEN_it_is_not_claimable_until_due() {
         insert("order-1", 1);
-        long id = claim(10).get(0).id();
+        OutboxRecord claimed = claim(10).get(0);
+        long id = claimed.id();
 
-        store.markForRetry(id, "transient", Duration.ofHours(1));
+        store.markForRetry(claimed, "transient", Duration.ofHours(1));
         assertThat(statusOf(id)).isEqualTo(OutboxStatus.PENDING.code());
         assertThat(attemptsOf(id)).isEqualTo(1);
         assertThat(claim(10)).isEmpty();
 
-        store.markForRetry(id, "transient", Duration.ofSeconds(-1));   // already past → now due
+        execute("UPDATE tandem_outbox SET next_attempt_at = now() - interval '1 second'");   // now due
         assertThat(claim(10)).extracting(OutboxRecord::id).containsExactly(id);
     }
 
     @Test
     void GIVEN_no_retry_delay_WHEN_marked_for_retry_THEN_it_is_due_immediately() {
         insert("order-1", 1);
-        long id = claim(10).get(0).id();
+        OutboxRecord claimed = claim(10).get(0);
+        long id = claimed.id();
 
-        store.markForRetry(id, "transient", null);   // now() + NULL = NULL → due immediately, not in the future
+        store.markForRetry(claimed, "transient", null);   // now() + NULL = NULL → due immediately, not in the future
 
         assertThat(claim(10)).extracting(OutboxRecord::id).containsExactly(id);
     }
@@ -143,9 +145,10 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     void GIVEN_a_failed_head_WHEN_present_THEN_it_blocks_its_aggregate_and_bumps_the_attempt() {
         insert("order-1", 1);
         insert("order-1", 2);
-        long head = claim(10).get(0).id();
+        OutboxRecord headClaim = claim(10).get(0);
+        long head = headClaim.id();
 
-        store.markFailed(head, "poison");
+        store.markFailed(headClaim, "poison");
 
         assertThat(statusOf(head)).isEqualTo(OutboxStatus.FAILED.code());
         assertThat(attemptsOf(head)).isEqualTo(1);
@@ -201,14 +204,29 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_record_no_claim_returned_WHEN_reported_as_failed_THEN_the_row_is_untouched() {
+        insert("order-1", 1);
+        OutboxRecord claimed = claim(10).get(0);
+        store.markDone(claimed.id());
+        OutboxRecord withoutLease = claimed.toBuilder().lockedUntil(null).build();
+
+        store.markFailed(withoutLease, "poison");
+        store.markForRetry(withoutLease, "transient", null);
+
+        assertThat(statusOf(claimed.id())).isEqualTo(OutboxStatus.DONE.code());
+        assertThat(attemptsOf(claimed.id())).isZero();
+    }
+
+    @Test
     void GIVEN_a_permanently_failed_head_WHEN_the_failed_count_is_read_THEN_it_reflects_the_live_table() {
         insert("order-1", 1);
         insert("order-2", 1);
-        long first = claim(10).get(0).id();
+        OutboxRecord firstClaim = claim(10).get(0);
+        long first = firstClaim.id();
 
         assertThat(store.failedCount()).hasValue(0);
 
-        store.markFailed(first, "poison");
+        store.markFailed(firstClaim, "poison");
         assertThat(store.failedCount()).hasValue(1);
 
         // A live read, not a tally of failure events: the row leaving FAILED (an operator's DISCARD,
@@ -223,11 +241,12 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-1", 1);   // id 1 — becomes the FAILED head below
         insert("order-1", 2);   // id 2 — behind the failure
         insert("order-1", 3);   // id 3 — behind the failure
-        long head = claim(10).get(0).id();
+        OutboxRecord headClaim = claim(10).get(0);
+        long head = headClaim.id();
 
         assertThat(store.blockedCount()).hasValue(0);
 
-        store.markFailed(head, "poison");
+        store.markFailed(headClaim, "poison");
         // Inserted after the claim so it stays PENDING: a healthy aggregate waiting its turn, which is
         // what makes the two readings differ below.
         insert("order-2", 1);   // id 4
@@ -242,8 +261,9 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     void GIVEN_a_failure_resolved_by_an_operator_WHEN_the_blocked_count_is_read_THEN_the_chain_is_no_longer_blocked() {
         insert("order-1", 1);
         insert("order-1", 2);
-        long head = claim(10).get(0).id();
-        store.markFailed(head, "poison");
+        OutboxRecord headClaim = claim(10).get(0);
+        long head = headClaim.id();
+        store.markFailed(headClaim, "poison");
         assertThat(store.blockedCount()).hasValue(1);
 
         // A live read, like failedCount: once the head leaves FAILED the chain is claimable again and
@@ -261,9 +281,10 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-1", 3);   // id 3 — behind the failure
         long first = claim(10).get(0).id();
         store.markDone(first);
-        long second = claim(10).get(0).id();
+        OutboxRecord secondClaim = claim(10).get(0);
+        long second = secondClaim.id();
 
-        store.markFailed(second, "poison");
+        store.markFailed(secondClaim, "poison");
 
         // Only what comes after the failure in chain order is blocked by it; the delivered row ahead of
         // it is not waiting for anything. This is what separates the reading from "how many rows does a

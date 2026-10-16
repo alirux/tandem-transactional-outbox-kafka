@@ -59,13 +59,13 @@ final class FaultInjectingOutboxStore implements OutboxStore {
     }
 
     @Override
-    public void markForRetry(long id, String error, Duration retryDelay) {
-        delegate.markForRetry(id, error, retryDelay);
+    public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
+        delegate.markForRetry(claimed, error, retryDelay);
     }
 
     @Override
-    public void markFailed(long id, String error) {
-        delegate.markFailed(id, error);
+    public void markFailed(OutboxRecord claimed, String error) {
+        delegate.markFailed(claimed, error);
     }
 
     @Override

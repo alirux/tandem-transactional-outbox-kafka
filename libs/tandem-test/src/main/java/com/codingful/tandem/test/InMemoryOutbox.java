@@ -266,11 +266,11 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
     }
 
     @Override
-    public void markForRetry(long id, String error, Duration retryDelay) {
+    public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
         // The JDBC adapter anchors the delay on the DB clock; single-process, this fake's own clock is
         // the same clock the claim compares against, so anchoring here is the faithful equivalent.
         Instant nextAttemptAt = retryDelay == null ? null : clock.instant().plus(retryDelay);
-        mutate(id, r -> r.toBuilder()
+        mutateAttempt(claimed, r -> r.toBuilder()
                 .status(OutboxStatus.PENDING)
                 .attempts(r.attempts() + 1)
                 .lastError(error)
@@ -281,14 +281,18 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
     }
 
     @Override
-    public void markFailed(long id, String error) {
-        mutate(id, r -> r.toBuilder()
+    public void markFailed(OutboxRecord claimed, String error) {
+        mutateAttempt(claimed, r -> failed(r, error));
+    }
+
+    private static OutboxRecord failed(OutboxRecord r, String error) {
+        return r.toBuilder()
                 .status(OutboxStatus.FAILED)
                 .attempts(r.attempts() + 1)
                 .lastError(error)
                 .lockedBy(null)
                 .lockedUntil(null)
-                .build());
+                .build();
     }
 
     @Override
@@ -359,7 +363,31 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
         }
     }
 
+    /**
+     * The fence of the JDBC adapter (LLD-jdbc §3.4.2): an outcome changes the row only while it still
+     * carries the lease the reporting attempt's claim stamped. Anything else means the attempt was
+     * superseded, and its outcome is dropped.
+     */
+    private void mutateAttempt(OutboxRecord claimed, java.util.function.UnaryOperator<OutboxRecord> change) {
+        mutate(claimed.id(), r -> r.lockedUntil() != null && r.lockedUntil().equals(claimed.lockedUntil())
+                ? change.apply(r) : r);
+    }
+
     // --- test affordances ---
+
+    /**
+     * Put a row in {@code FAILED} directly, the state a permanent delivery failure leaves (attempts
+     * incremented, {@code error} recorded), whatever its current status: a fixture for tests that need a
+     * failed row without driving a claim and a failed attempt first. {@link #markFailed} itself only
+     * accepts the outcome of the attempt that holds the row.
+     *
+     * @param id    the row to fail
+     * @param error the failure reason to record
+     * @throws IllegalArgumentException if no row has this id
+     */
+    public void forceFailed(long id, String error) {
+        mutate(id, r -> failed(r, error));
+    }
 
     /** All stored rows, ordered by id. */
     public List<OutboxRecord> all() {

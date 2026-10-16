@@ -54,6 +54,14 @@ public final class JdbcOutboxStore implements OutboxStore {
     private static final String MARK_DONE_SQL =
             "UPDATE tandem_outbox SET status = 2, locked_by = NULL, locked_until = NULL WHERE id = ANY(?)";
 
+    // Both failure transitions are fenced to the attempt that failed (§3.4.2): the row must still carry
+    // the lease that attempt's claim stamped. Each claim stamps locked_until from the DB's now(), and
+    // every way out of IN_FLIGHT clears it, so the value identifies one claim; attempts would not, an
+    // operator replay resets it. Once the lease expired the row may have been reclaimed, claimed again
+    // and delivered by another worker, and a late outcome of the superseded attempt must not reverse
+    // that (back to PENDING: a republish behind the aggregate's later events; to FAILED: a blocked
+    // chain). Such an outcome updates nothing.
+    //
     // next_attempt_at is anchored on the DB clock (like locked_until above), not on the relay's: the
     // claim compares it with the DB's now(), so anchoring it locally would shift a row's due time by
     // the relay-to-DB clock offset (§3.2/§3.6). The caller supplies only the relative backoff.
@@ -62,13 +70,13 @@ public final class JdbcOutboxStore implements OutboxStore {
                     + "   SET status = 0, attempts = attempts + 1, last_error = ?,"
                     + "       next_attempt_at = now() + (? * interval '1 millisecond'),"
                     + "       locked_by = NULL, locked_until = NULL"
-                    + " WHERE id = ?";
+                    + " WHERE id = ? AND locked_until = ?";
 
     private static final String MARK_FAILED_SQL =
             "UPDATE tandem_outbox"
                     + "   SET status = 3, attempts = attempts + 1, last_error = ?,"
                     + "       locked_by = NULL, locked_until = NULL"
-                    + " WHERE id = ?";
+                    + " WHERE id = ? AND locked_until = ?";
 
     // Failover (§3.5): reset expired IN_FLIGHT leases; each reclaim counts as an attempt and
     // quarantines to FAILED at maxAttempts so a crash-poison row cannot loop forever.
@@ -194,8 +202,8 @@ public final class JdbcOutboxStore implements OutboxStore {
     }
 
     @Override
-    public void markForRetry(long id, String error, Duration retryDelay) {
-        Jdbc.exec(dataSource, "markForRetry failed for id " + id, conn ->
+    public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
+        Jdbc.exec(dataSource, "markForRetry failed for id " + claimed.id(), conn ->
                 Jdbc.exec(conn, MARK_FOR_RETRY_SQL, ps -> {
                     ps.setString(1, error);
                     if (retryDelay == null) {
@@ -203,19 +211,27 @@ public final class JdbcOutboxStore implements OutboxStore {
                     } else {
                         ps.setLong(2, retryDelay.toMillis());
                     }
-                    ps.setLong(3, id);
+                    ps.setLong(3, claimed.id());
+                    ps.setObject(4, leaseOf(claimed), Types.TIMESTAMP_WITH_TIMEZONE);
                     ps.executeUpdate();
                 }));
     }
 
     @Override
-    public void markFailed(long id, String error) {
-        Jdbc.exec(dataSource, "markFailed failed for id " + id, conn ->
+    public void markFailed(OutboxRecord claimed, String error) {
+        Jdbc.exec(dataSource, "markFailed failed for id " + claimed.id(), conn ->
                 Jdbc.exec(conn, MARK_FAILED_SQL, ps -> {
                     ps.setString(1, error);
-                    ps.setLong(2, id);
+                    ps.setLong(2, claimed.id());
+                    ps.setObject(3, leaseOf(claimed), Types.TIMESTAMP_WITH_TIMEZONE);
                     ps.executeUpdate();
                 }));
+    }
+
+    /** The claim's lease, which fences its outcome; null for a record no claim returned, which then matches no row. */
+    private static OffsetDateTime leaseOf(OutboxRecord claimed) {
+        Instant lockedUntil = claimed.lockedUntil();
+        return lockedUntil == null ? null : OffsetDateTime.ofInstant(lockedUntil, ZoneOffset.UTC);
     }
 
     @Override

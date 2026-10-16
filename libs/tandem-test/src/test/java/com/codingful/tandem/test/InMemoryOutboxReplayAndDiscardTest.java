@@ -40,9 +40,9 @@ class InMemoryOutboxReplayAndDiscardTest {
         long done = insert("order-1");
         outbox.markDone(done);
         long failed = insert("order-2");
-        outbox.markFailed(failed, "boom");
+        outbox.forceFailed(failed, "boom");
         long discarded = insert("order-3");
-        outbox.markFailed(discarded, "boom");
+        outbox.forceFailed(discarded, "boom");
         outbox.discard(discarded, "no longer needed");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(null, "Order", null, null, Set.of(), false));
@@ -57,8 +57,8 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_replayed_row_WHEN_inspected_THEN_it_has_a_fresh_attempt_budget_but_keeps_the_failure_reason() {
         long id = insert("order-1");
-        outbox.markFailed(id, "boom");
-        outbox.markFailed(id, LAST_FAILURE_REASON);
+        outbox.forceFailed(id, "boom");
+        outbox.forceFailed(id, LAST_FAILURE_REASON);
 
         outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false));
 
@@ -74,9 +74,9 @@ class InMemoryOutboxReplayAndDiscardTest {
         long id = insert("order-1");
         ReplayCriteria criteria = new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false);
 
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
         outbox.replay(criteria);
-        outbox.markFailed(id, "boom again");
+        outbox.forceFailed(id, "boom again");
         outbox.replay(criteria);
 
         assertThat(outbox.findById(id).orElseThrow().replays()).isEqualTo(2);
@@ -92,7 +92,7 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_dry_run_WHEN_replayed_THEN_it_reports_the_matches_without_changing_any_row() {
         long id = insert("order-1");
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), true));
 
@@ -107,7 +107,7 @@ class InMemoryOutboxReplayAndDiscardTest {
         long stayDone = insert("order-1");
         outbox.markDone(stayDone);
         long resetFailed = insert("order-2");
-        outbox.markFailed(resetFailed, "boom");
+        outbox.forceFailed(resetFailed, "boom");
 
         ReplayResult result = outbox.replay(
                 new ReplayCriteria(null, "Order", null, null, Set.of(OutboxStatus.FAILED), false));
@@ -120,9 +120,9 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_an_id_range_WHEN_replayed_THEN_only_rows_inside_the_range_are_replayed() {
         long first = insert("order-1");
-        outbox.markFailed(first, "boom");
+        outbox.forceFailed(first, "boom");
         long second = insert("order-2");
-        outbox.markFailed(second, "boom");
+        outbox.forceFailed(second, "boom");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(null, null, first, first, Set.of(), false));
 
@@ -144,7 +144,7 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_status_selector_with_no_replayable_status_WHEN_replayed_THEN_nothing_matches() {
         long id = insert("order-1");
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         // PENDING is not a replayable status - intersecting it with {DONE, FAILED} leaves nothing eligible.
         ReplayResult result = outbox.replay(new ReplayCriteria(null, null, null, null, Set.of(OutboxStatus.PENDING), false));
@@ -157,9 +157,9 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_row_from_a_different_aggregate_id_WHEN_replayed_by_aggregate_id_THEN_it_is_excluded() {
         long matching = insert("order-1");
-        outbox.markFailed(matching, "boom");
+        outbox.forceFailed(matching, "boom");
         long other = insert("order-2");
-        outbox.markFailed(other, "boom");
+        outbox.forceFailed(other, "boom");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false));
 
@@ -171,11 +171,11 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_row_of_a_different_aggregate_type_WHEN_replayed_by_aggregate_type_THEN_it_is_excluded() {
         long order = insert("order-1");
-        outbox.markFailed(order, "boom");
+        outbox.forceFailed(order, "boom");
         outbox.insert(OutboxMessage.builder()
                 .aggregateId("cust-1").aggregateType("Customer").seq(1).payload("{}".getBytes()).build());
         long customer = outbox.byId(outbox.size()).id();
-        outbox.markFailed(customer, "boom");
+        outbox.forceFailed(customer, "boom");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(null, "Order", null, null, Set.of(), false));
 
@@ -187,9 +187,9 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_row_below_the_from_id_WHEN_replayed_by_id_range_THEN_it_is_excluded() {
         long below = insert("order-1");
-        outbox.markFailed(below, "boom");
+        outbox.forceFailed(below, "boom");
         long inRange = insert("order-2");
-        outbox.markFailed(inRange, "boom");
+        outbox.forceFailed(inRange, "boom");
 
         ReplayResult result = outbox.replay(new ReplayCriteria(null, null, inRange, inRange, Set.of(), false));
 
@@ -203,7 +203,7 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_failed_row_WHEN_discarded_THEN_it_becomes_discarded_with_the_reason_recorded() {
         long id = insert("order-1");
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         boolean discarded = outbox.discard(id, "duplicate event, safe to skip");
 

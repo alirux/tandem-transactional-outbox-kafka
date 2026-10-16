@@ -29,11 +29,11 @@ class OutboxStoreDefaultTest {
             }
 
             @Override
-            public void markForRetry(long id, String error, Duration retryDelay) {
+            public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
             }
 
             @Override
-            public void markFailed(long id, String error) {
+            public void markFailed(OutboxRecord claimed, String error) {
             }
 
             @Override
@@ -60,8 +60,8 @@ class OutboxStoreDefaultTest {
             @Override
             public List<OutboxRecord> claimBatch(Set<Integer> b, String w, Duration l, int s) { return List.of(); }
             @Override public void markDone(long id) { markedDone.add(id); }
-            @Override public void markForRetry(long id, String error, Duration retryDelay) {}
-            @Override public void markFailed(long id, String error) {}
+            @Override public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {}
+            @Override public void markFailed(OutboxRecord claimed, String error) {}
             @Override public int reclaimExpiredLeases() { return 0; }
             @Override public int cleanup(Instant doneBefore, int batchSize) { return 0; }
         };

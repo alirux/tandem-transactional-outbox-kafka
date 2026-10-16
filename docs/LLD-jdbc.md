@@ -371,7 +371,7 @@ interface BucketSource {
   > still owns an expired bucket (or that a live peer's is free). **Invariant: never gate ownership or
   > expiry on the relay-local clock — all lease deadlines and comparisons must go through the DB `now()`.**
   > This holds for `next_attempt_at` too: the relay computes only the *relative* backoff and the store
-  > anchors it (`markForRetry(id, error, retryDelay)` → `now() + retryDelay`), mirroring how `claimBatch`
+  > anchors it (`markForRetry(claimed, error, retryDelay)` → `now() + retryDelay`), mirroring how `claimBatch`
   > passes `rowLease`. `RelayWorker` deliberately holds **no `Clock`**, so a locally-anchored deadline
   > cannot be reintroduced by accident.
   >
@@ -491,12 +491,24 @@ rows (duplicate, dedup'd) — never a reorder.
 UPDATE tandem_outbox
    SET status = 0, attempts = attempts + 1, last_error = :err,
        next_attempt_at = now() + :backoff, locked_by = NULL, locked_until = NULL
- WHERE id = :id;
+ WHERE id = :id AND locked_until = :claimed_lease;
 -- exhausted: FAILED (blocks the aggregate via head-of-chain until replay/discard)
 UPDATE tandem_outbox
    SET status = 3, attempts = attempts + 1, last_error = :err, locked_by = NULL, locked_until = NULL
- WHERE id = :id;
+ WHERE id = :id AND locked_until = :claimed_lease;
 ```
+**Both are fenced to the attempt that failed.** The port takes the record the claim returned, and the
+update applies only while the row still carries that claim's lease (`locked_until`). A worker stalled
+between the broker's answer and this write can find its lease reclaimed (§3.5) and the row claimed again,
+and perhaps delivered, by another worker; its outcome then belongs to a superseded attempt and updates
+nothing. Unfenced, it would reverse the newer attempt: back to `PENDING`, the row would be republished
+behind the aggregate's later events; to `FAILED`, it would block a chain that is in fact delivered.
+
+The lease is the token because it identifies one claim: each claim stamps it from the DB's `now()`, and
+every way out of `IN_FLIGHT` (done, retry, failure, reclaim, replay) clears it. `attempts` would not do:
+a replay resets it to 0 (HLD §8), so a claim after a replay can carry the count of a much older one.
+`markDone` stays unfenced and keyed by id, because a late ack still reports a delivery that happened.
+
 The classification *retriable vs non-retriable* of the dispatch error is a `tandem-kafka` concern (Q17);
 `tandem-jdbc` just records the outcome.
 

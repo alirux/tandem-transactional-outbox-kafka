@@ -179,7 +179,7 @@ class OutboxAdminServiceTest {
     void GIVEN_a_failed_row_WHEN_replayed_THEN_it_is_reset_to_pending() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         OutboxEntryResponse replayed = service.replayMessage(id, "test-user");
 
@@ -205,7 +205,7 @@ class OutboxAdminServiceTest {
     void GIVEN_a_failed_row_WHEN_discarded_with_acknowledgement_THEN_it_is_discarded_with_the_reason_recorded() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         OutboxEntryResponse discarded = service.discardMessage(id, new DiscardRequest(true, "no longer needed"), "test-user");
 
@@ -218,7 +218,7 @@ class OutboxAdminServiceTest {
     void GIVEN_the_ordering_break_is_not_acknowledged_WHEN_discarded_THEN_it_is_refused() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         assertThatThrownBy(() -> service.discardMessage(id, new DiscardRequest(false, null), "test-user"))
                 .isInstanceOf(OrderingBreakNotAcknowledgedException.class);
@@ -251,7 +251,7 @@ class OutboxAdminServiceTest {
     void GIVEN_failed_rows_for_an_aggregate_WHEN_replayed_in_bulk_THEN_they_are_reset_and_the_counts_reported() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result = service.replayBulk(new ReplayRequest("order-1", null, null, null, null, false), "test-user");
 
@@ -265,7 +265,7 @@ class OutboxAdminServiceTest {
     void GIVEN_a_dry_run_bulk_replay_WHEN_requested_THEN_nothing_changes_but_the_match_count_is_reported() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result = service.replayBulk(new ReplayRequest("order-1", null, null, null, null, true), "test-user");
 
@@ -279,7 +279,7 @@ class OutboxAdminServiceTest {
     void GIVEN_a_status_selector_WHEN_replayed_in_bulk_THEN_only_that_status_resets() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result =
                 service.replayBulk(new ReplayRequest(null, "Order", null, null, List.of("FAILED"), false), "test-user");
@@ -298,7 +298,7 @@ class OutboxAdminServiceTest {
     void GIVEN_only_an_id_range_WHEN_replayed_in_bulk_THEN_it_is_accepted_as_a_selector() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result = service.replayBulk(new ReplayRequest(null, null, id, id, null, false), "test-user");
 
@@ -310,7 +310,7 @@ class OutboxAdminServiceTest {
     void GIVEN_only_a_to_id_upper_bound_WHEN_replayed_in_bulk_THEN_it_is_accepted_as_a_selector() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result = service.replayBulk(new ReplayRequest(null, null, null, id, null, false), "test-user");
 
@@ -322,7 +322,7 @@ class OutboxAdminServiceTest {
     void GIVEN_only_statuses_and_no_other_selector_WHEN_replayed_in_bulk_THEN_it_is_accepted_as_a_selector() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         ReplayResultResponse result = service.replayBulk(new ReplayRequest(null, null, null, null, List.of("FAILED"), false), "test-user");
 
@@ -357,12 +357,12 @@ class OutboxAdminServiceTest {
         }
 
         @Override
-        public void markForRetry(long id, String error, Duration retryDelay) {
+        public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void markFailed(long id, String error) {
+        public void markFailed(OutboxRecord claimed, String error) {
             throw new UnsupportedOperationException();
         }
 

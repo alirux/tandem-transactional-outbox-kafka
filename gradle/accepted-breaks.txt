@@ -4,3 +4,9 @@
 # Entries are bound to the baseline line: when tandemBaseline moves, the entries are removed and the
 # baseline line set to the new release. An entry that matches no break a gate reports fails that gate.
 baseline 1.0.0-rc.1
+japicmp | tandem-core | com.codingful.tandem.core.port.OutboxStore.markForRetry(long,java.lang.String,java.time.Duration) | OutboxStore.markForRetry takes the claimed OutboxRecord instead of its id, so a late failure of a superseded attempt cannot reverse a newer one; a custom OutboxStore implements markForRetry(OutboxRecord, String, Duration)
+japicmp | tandem-core | com.codingful.tandem.core.port.OutboxStore.markFailed(long,java.lang.String) | OutboxStore.markFailed takes the claimed OutboxRecord instead of its id, for the same reason; a custom OutboxStore implements markFailed(OutboxRecord, String)
+japicmp | tandem-jdbc | com.codingful.tandem.jdbc.JdbcOutboxStore.markForRetry(long,java.lang.String,java.time.Duration) | JdbcOutboxStore.markForRetry takes the claimed OutboxRecord, following the port
+japicmp | tandem-jdbc | com.codingful.tandem.jdbc.JdbcOutboxStore.markFailed(long,java.lang.String) | JdbcOutboxStore.markFailed takes the claimed OutboxRecord, following the port
+japicmp | tandem-test | com.codingful.tandem.test.InMemoryOutbox.markForRetry(long,java.lang.String,java.time.Duration) | InMemoryOutbox.markForRetry takes the claimed OutboxRecord, following the port
+japicmp | tandem-test | com.codingful.tandem.test.InMemoryOutbox.markFailed(long,java.lang.String) | InMemoryOutbox.markFailed takes the claimed OutboxRecord, following the port; a test that only needs a FAILED row calls InMemoryOutbox.forceFailed(id, error)

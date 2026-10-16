@@ -84,7 +84,7 @@ class InMemoryOutboxQueryTest {
     void GIVEN_a_status_filter_WHEN_searched_THEN_only_matching_rows_are_returned() {
         insert("order-1", "Order", null, 1);
         long failedId = insert("order-2", "Order", null, 1);
-        outbox.markFailed(failedId, "boom");
+        outbox.forceFailed(failedId, "boom");
 
         List<OutboxRowView> rows =
                 outbox.search(OutboxSearchCriteria.builder().status(OutboxStatus.FAILED).build());

@@ -191,7 +191,7 @@ class OutboxAdminControllerTest {
     void GIVEN_a_failed_message_WHEN_replayed_THEN_it_is_reset_to_pending() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/replay", id))
                 .andExpect(status().isOk())
@@ -224,7 +224,7 @@ class OutboxAdminControllerTest {
     void GIVEN_an_authenticated_caller_WHEN_a_message_is_replayed_THEN_the_request_still_succeeds() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/replay", id).principal(() -> "alice"))
                 .andExpect(status().isOk())
@@ -237,7 +237,7 @@ class OutboxAdminControllerTest {
     void GIVEN_a_failed_message_WHEN_discarded_with_acknowledgement_THEN_it_is_discarded() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/discard", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -253,7 +253,7 @@ class OutboxAdminControllerTest {
     void GIVEN_the_ordering_break_is_not_acknowledged_WHEN_discarded_THEN_a_problem_json_400_is_returned() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/discard", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -304,7 +304,7 @@ class OutboxAdminControllerTest {
     void GIVEN_a_matching_selector_WHEN_bulk_replay_is_requested_THEN_the_matched_and_replayed_counts_are_returned() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
-        outbox.markFailed(id, "boom");
+        outbox.forceFailed(id, "boom");
 
         mockMvc.perform(post("/tandem/admin/v1/outbox/replay")
                         .contentType(MediaType.APPLICATION_JSON)

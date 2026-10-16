@@ -181,10 +181,12 @@ public interface OutboxStore {
     List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId,
                                   Duration lease, int batchSize);
     void markDone(long id);
-    void markForRetry(long id, String error, Duration retryDelay);    // → PENDING; delay is
-                                                                      // relative — the adapter
+    void markForRetry(OutboxRecord claimed, String error,             // → PENDING; delay is
+                      Duration retryDelay);                           // relative, the adapter
                                                                       // anchors it on the DB clock
-    void markFailed(long id, String error);                           // → FAILED
+    void markFailed(OutboxRecord claimed, String error);              // → FAILED
+                                                                      // both fenced to the claim
+                                                                      // (LLD-jdbc §3.4.2)
     int  reclaimExpiredLeases();                                       // → PENDING; returns count
     int  cleanup(Instant doneBefore, int batchSize);                  // housekeeping (Q12)
     default Optional<LagSnapshot> lag() { return Optional.empty(); }   // backlog reading for the
