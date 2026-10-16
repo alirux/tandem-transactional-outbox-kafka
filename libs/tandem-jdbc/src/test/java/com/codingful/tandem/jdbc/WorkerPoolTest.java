@@ -42,10 +42,51 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class WorkerPoolTest {
 
     private static final int BUCKETS = 256;
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    void GIVEN_an_invalid_maintenance_interval_WHEN_startup_is_rejected_THEN_no_relay_is_left_running(long seconds) {
+        RelayConfig cfg = RelayConfig.builder().workersPerInstance(1)
+                .cleanupInterval(Duration.ofSeconds(seconds)).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg);
+        try {
+            assertThatThrownBy(pool::start).isInstanceOf(IllegalArgumentException.class);
+            assertThat(pool.status().state()).isEqualTo(RelayStatus.State.STOPPED);
+            assertThat(pool.status().workersAlive()).isZero();
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_fatal_failure_once_the_workers_are_running_WHEN_startup_fails_THEN_the_relay_is_left_stopped() {
+        // An optional wakeup driver missing from the classpath: an Error, past the point the workers start.
+        NoClassDefFoundError missingDriver = new NoClassDefFoundError("org/postgresql/PGConnection");
+        WakeupSource unloadable = new WakeupSource() {
+            @Override
+            public void start(Listener listener) {
+                throw missingDriver;
+            }
+        };
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(),
+                        RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2).build())
+                .wakeupSource(unloadable)
+                .build();
+        try {
+            assertThatThrownBy(pool::start).isSameAs(missingDriver);
+
+            assertThat(pool.status().state()).isEqualTo(RelayStatus.State.STOPPED);
+            assertThat(pool.status().workersAlive()).isZero();
+        } finally {
+            pool.stop();
+        }
+    }
 
     @Test
     void GIVEN_an_unsafe_row_lease_WHEN_the_relay_starts_THEN_it_aborts_startup() {

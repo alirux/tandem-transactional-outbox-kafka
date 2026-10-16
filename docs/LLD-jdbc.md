@@ -237,6 +237,10 @@ column stays `NULL` when no correlation id is present, which is every row when t
   `reclaimInterval`, the cadence the relay already uses for its own coordination work, so this
   introduces **no new configuration knob** (HLD §1.1). The cap is a hard ceiling — jitter is applied
   before the clamp, so a saturated worker waits within 20% *below* it, never past it.
+- **Start is all or nothing.** `start()` validates the configuration, the maintenance intervals included,
+  before any thread runs. A start that still fails once the workers are running (a wakeup driver missing
+  from the classpath, say) stops what it started before rethrowing, so the pool is left stopped and a later
+  `start()` begins afresh rather than returning on a half-started relay.
 - **Supervised threads (coverage must not be silently lost).** Each worker's poll loop runs inside a
   `try/catch` that never lets an uncaught exception kill the thread silently: a per-iteration error is
   logged and the loop continues (after a short idle backoff); a fatal/unexpected death **restarts the

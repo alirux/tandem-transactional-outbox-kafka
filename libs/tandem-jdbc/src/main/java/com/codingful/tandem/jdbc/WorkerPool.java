@@ -6,6 +6,7 @@ import com.codingful.tandem.core.port.TandemMetrics;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Objects;
@@ -110,7 +111,11 @@ public final class WorkerPool {
         this.wakeups = new WorkerWakeups(workerCount);
     }
 
-    /** Validate config (fail-fast), then start the worker threads and the maintenance jobs. Idempotent guard. */
+    /**
+     * Validate config (fail-fast), then start the worker threads and the maintenance jobs. Idempotent
+     * guard. All or nothing: a start that fails after its first thread is running stops what it started
+     * before rethrowing, so the pool is left stopped and a later {@code start()} begins afresh.
+     */
     public synchronized void start() {
         if (running) {
             return;
@@ -134,10 +139,33 @@ public final class WorkerPool {
                     + ", configuredDeliveryTimeoutMs:" + cfg.deliveryTimeoutMs());
         }
         cfg.checkRowLeaseSafe(dispatcherTimeout.orElse(cfg.deliveryTimeoutMs()), metrics, LOG);
+        // Checked here, before any thread starts: the scheduler rejects a non-positive period only when
+        // the job is scheduled, by which time the workers would already be running.
+        requirePositive(cfg.reclaimInterval(), "reclaimInterval");
+        requirePositive(cfg.cleanupInterval(), "cleanupInterval");
+        if (metrics.isEnabled()) {
+            requirePositive(cfg.metricsInterval(), "metricsInterval");
+        }
         bucketSource.validateOnStart(metrics, LOG);   // LEASE precondition: lease table seeded (§3.2)
         controlSource.onStart();   // publishes this instance's coordination mode (HLD-admin-api §4.1)
         controlSource.refresh();   // known pause state from the first cycle, not just after the first tick
         running = true;
+        try {
+            startThreadsAndJobs();
+        } catch (Throwable failure) {
+            LOG.log(Level.ERROR, "Relay startup failed; stopping what it started instanceId:" + instanceId, failure);
+            stop();
+            throw failure;
+        }
+    }
+
+    private static void requirePositive(Duration interval, String name) {
+        if (interval.isNegative() || interval.isZero()) {
+            throw new IllegalArgumentException(name + " must be positive");
+        }
+    }
+
+    private void startThreadsAndJobs() {
         LOG.log(Level.INFO, "Starting relay instanceId:" + instanceId + ", workers:" + workerCount
                 + ", coordination:" + cfg.coordination() + ", bucketCount:" + cfg.bucketCount()
                 + ", batchSize:" + cfg.batchSize() + ", pollIntervalMs:" + cfg.pollInterval().toMillis()
