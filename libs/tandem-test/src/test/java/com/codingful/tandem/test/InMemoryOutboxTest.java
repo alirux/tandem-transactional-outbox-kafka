@@ -191,6 +191,18 @@ class InMemoryOutboxTest {
     }
 
     @Test
+    void GIVEN_a_schema_reference_that_is_not_a_uri_WHEN_inserted_THEN_it_is_refused_and_nothing_is_stored() {
+        OutboxMessage unpublishable = OutboxMessage.builder()
+                .aggregateId("order-schema").aggregateType("Order").seq(1)
+                .header(TandemHeaders.DATA_SCHEMA, "order schema v2").payload("{}".getBytes()).build();
+
+        assertThatThrownBy(() -> outbox.insert(unpublishable)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> outbox.insertAll(List.of(message("order-1", 1), unpublishable)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(outbox.all()).isEmpty();
+    }
+
+    @Test
     void GIVEN_a_claimed_head_WHEN_marked_done_THEN_the_next_seq_becomes_the_claimable_head() {
         outbox.insert(message("order-1", 1));   // id 1
         outbox.insert(message("order-1", 2));   // id 2

@@ -107,6 +107,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
   event, or it repeats an `(aggregate_id, seq)` of its own. Otherwise the exception names the batch: a
   driver reports a failed batch as a whole (PostgreSQL marks every statement `EXECUTE_FAILED`), so the
   event bound last is not necessarily the one at fault.
+- **A message the relay could never publish is refused before anything is written**: one whose
+  `dataschema` header is not a URI, since building its CloudEvents envelope would fail for good and leave
+  the row `FAILED`, blocking its aggregate. The insert throws `IllegalArgumentException`, and an
+  `insertAll` with one such message writes none. It is checked on insert rather than when the message is
+  built, because the relay rebuilds every row it claims through the same builder (§3.3): a row stored
+  that way by another writer is still read, and fails alone on the relay.
 - **A failed insert never lets out what the events hold.** The driver's message quotes bound values
   (PostgreSQL prints a failed batch entry's whole statement, payload and headers included, and a JSON
   error's context quotes the payload), and applications log the exceptions they receive. So the

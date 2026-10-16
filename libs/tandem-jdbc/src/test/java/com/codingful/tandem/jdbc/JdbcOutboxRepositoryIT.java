@@ -282,6 +282,36 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_relative_schema_reference_WHEN_inserted_THEN_it_is_accepted_as_it_always_was() {
+        repository.insert(OutboxMessage.builder()
+                .aggregateId("order-relative-schema").aggregateType("Order").seq(1)
+                .header(TandemHeaders.DATA_SCHEMA, "schemas/order/v2.json")
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build());
+
+        assertThat(rowCount()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_schema_reference_that_is_not_a_uri_WHEN_inserted_THEN_it_is_refused_and_nothing_is_written() {
+        String notAUri = "order schema v2";
+        OutboxMessage unpublishable = OutboxMessage.builder()
+                .aggregateId("order-schema").aggregateType("Order").seq(1)
+                .header(TandemHeaders.DATA_SCHEMA, notAUri)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+        OutboxMessage valid = OutboxMessage.builder()
+                .aggregateId("order-valid").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+
+        assertThatThrownBy(() -> repository.insert(unpublishable))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(TandemHeaders.DATA_SCHEMA)
+                .hasMessageNotContaining(notAUri);
+        assertThatThrownBy(() -> repository.insertAll(List.of(valid, unpublishable)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(rowCount()).isZero();
+    }
+
+    @Test
     void GIVEN_a_batch_whose_first_event_repeats_a_stored_number_WHEN_inserted_THEN_the_failure_never_blames_another_event() {
         OutboxMessage duplicate = OutboxMessage.builder()
                 .aggregateId("duplicate-first").aggregateType("Order").seq(1)

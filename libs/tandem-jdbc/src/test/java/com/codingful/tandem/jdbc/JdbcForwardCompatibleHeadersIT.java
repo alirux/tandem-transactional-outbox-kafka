@@ -27,6 +27,22 @@ class JdbcForwardCompatibleHeadersIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_stored_schema_reference_that_is_not_a_uri_WHEN_the_relay_claims_a_batch_THEN_every_aggregate_in_it_is_returned() {
+        // Refused on write, but a row another writer stored that way must still be read: the relay then
+        // reports it as its own failure instead of losing the whole batch to it.
+        JdbcOutboxRepository repository = new JdbcOutboxRepository(DATA_SOURCE, 256);
+        for (String aggregate : new String[] {"bad-schema", "healthy"}) {
+            repository.insert(OutboxMessage.builder().aggregateId(aggregate).aggregateType("Order")
+                    .unsequenced().payload("{}".getBytes(StandardCharsets.UTF_8)).build());
+        }
+        execute("UPDATE tandem_outbox SET headers = '{\"dataschema\":\"not a uri\"}'::jsonb WHERE id = 1");
+        Set<Integer> buckets = IntStream.range(0, 256).boxed().collect(Collectors.toSet());
+        JdbcOutboxStore store = new JdbcOutboxStore(DATA_SOURCE, 10);
+
+        assertThat(store.claimBatch(buckets, "worker", Duration.ofSeconds(60), 10)).hasSize(2);
+    }
+
+    @Test
     void GIVEN_an_unknown_nullable_header_WHEN_the_relay_claims_a_batch_THEN_both_its_event_and_other_aggregates_can_be_delivered() {
         JdbcOutboxRepository repository = new JdbcOutboxRepository(DATA_SOURCE, 256);
         for (String aggregate : new String[] {"nullable-header", "healthy"}) {

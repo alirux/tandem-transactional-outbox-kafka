@@ -17,6 +17,8 @@ public interface OutboxRepository {
      * Insert one message within the caller's transaction.
      *
      * @param message the row to insert
+     * @throws IllegalArgumentException if the relay could never publish it: its
+     *         {@link com.codingful.tandem.core.TandemHeaders#DATA_SCHEMA} header is not a URI. Nothing is written
      * @throws com.codingful.tandem.core.exception.OutboxInsertException if the insert fails
      */
     void insert(OutboxMessage message);
@@ -25,6 +27,8 @@ public interface OutboxRepository {
      * Insert several messages within the same transaction.
      *
      * @param messages the rows to insert, in order
+     * @throws IllegalArgumentException if the relay could never publish one of them, as for
+     *         {@link #insert}. Nothing is written
      * @throws com.codingful.tandem.core.exception.OutboxInsertException if the insert fails
      */
     void insertAll(Collection<OutboxMessage> messages);

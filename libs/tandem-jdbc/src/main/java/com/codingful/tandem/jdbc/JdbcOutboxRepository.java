@@ -10,6 +10,8 @@ import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.TracePropagator;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -177,6 +179,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     @Override
     public void insert(OutboxMessage message) {
         Objects.requireNonNull(message, "message");
+        requirePublishable(message);
         Jdbc.exec(dataSource, conn -> {
             if (message.lockedWrite()) {
                 lockAggregate(conn, message.aggregateId().value());
@@ -198,6 +201,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         if (messages.isEmpty()) {
             return;
         }
+        messages.forEach(JdbcOutboxRepository::requirePublishable);   // all of them, before any row is written
         // The batch being executed when a statement fails, null outside one; read by the exception
         // mapper, hence a holder the lambdas close over rather than a plain local.
         AtomicReference<List<OutboxMessage>> executing = new AtomicReference<>();
@@ -220,6 +224,27 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             traceFailure(e, executing.get());
             return translateBatch(e, executing.get());
         });
+    }
+
+    /**
+     * Refuses, before anything reaches the database, a message the relay could never publish: a
+     * {@code dataschema} header that is not a URI makes building its CloudEvents envelope fail, for good,
+     * leaving the row FAILED and its aggregate blocked behind it. Checked here rather than when the
+     * message is built, because the relay rebuilds every row it reads through the same builder, and a
+     * row already stored that way must still be read (§3.3). The value stays out of the message: it is a
+     * header value (HLD-logging).
+     */
+    static void requirePublishable(OutboxMessage message) {
+        String dataSchema = message.headers().get(TandemHeaders.DATA_SCHEMA);
+        if (dataSchema == null) {
+            return;
+        }
+        try {
+            new URI(dataSchema);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("The " + TandemHeaders.DATA_SCHEMA + " header is not a URI ("
+                    + e.getReason() + " at index " + e.getIndex() + ") aggregateId:" + message.aggregateId().value());
+        }
     }
 
     private void insertBatch(Connection conn, List<OutboxMessage> batch,

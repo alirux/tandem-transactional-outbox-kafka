@@ -18,6 +18,8 @@ import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.ReplayService;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -131,6 +133,7 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     @Override
     public void insert(OutboxMessage message) {
+        requirePublishable(message);
         synchronized (lock) {
             doInsert(message);
         }
@@ -138,10 +141,28 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     @Override
     public void insertAll(Collection<OutboxMessage> messages) {
+        messages.forEach(InMemoryOutbox::requirePublishable);   // all of them, before any row is stored
         synchronized (lock) {
             for (OutboxMessage message : messages) {
                 doInsert(message);
             }
+        }
+    }
+
+    /**
+     * Like the JDBC adapter, refuses a message the relay could never publish: a {@code dataschema} header
+     * that is not a URI (LLD-jdbc §2).
+     */
+    private static void requirePublishable(OutboxMessage message) {
+        String dataSchema = message.headers().get(TandemHeaders.DATA_SCHEMA);
+        if (dataSchema == null) {
+            return;
+        }
+        try {
+            new URI(dataSchema);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("The " + TandemHeaders.DATA_SCHEMA + " header is not a URI ("
+                    + e.getReason() + " at index " + e.getIndex() + ") aggregateId:" + message.aggregateId().value());
         }
     }
 
