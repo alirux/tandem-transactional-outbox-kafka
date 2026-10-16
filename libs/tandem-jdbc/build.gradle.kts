@@ -26,6 +26,8 @@ dependencies {
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgresql)
     testRuntimeOnly(libs.postgresql)
+    // A connection pool, so the wakeup's connection is exercised the way applications provide it.
+    testImplementation(libs.hikaricp)
 
     liquibase(libs.liquibase.core)
     liquibase(libs.picocli) { version { require("4.7.7") } }

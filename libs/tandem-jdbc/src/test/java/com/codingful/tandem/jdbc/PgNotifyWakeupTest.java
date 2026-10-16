@@ -36,6 +36,21 @@ class PgNotifyWakeupTest {
     }
 
     @Test
+    void GIVEN_a_listener_waiting_to_reconnect_WHEN_the_relay_shuts_down_THEN_it_is_woken_rather_than_waited_for()
+            throws InterruptedException {
+        PgNotifyWakeup wakeup = new PgNotifyWakeup(unreachable);
+        wakeup.start(listener);
+        Thread.sleep(300);   // the refused connection fails at once: the listener is now between attempts
+
+        long startedAt = System.nanoTime();
+        wakeup.stop();
+
+        // Holding no connection, it has nothing to hand back: waiting out its backoff would only hold up
+        // the shutdown, by up to the receive's own fallback timeout.
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofSeconds(1));
+    }
+
+    @Test
     void GIVEN_a_wakeup_source_WHEN_started_or_stopped_twice_THEN_the_second_call_changes_nothing() {
         // Both halves are reachable from a relay's own lifecycle: stop() is called by both stop() and
         // kill(), and a supervised restart can re-enter start().

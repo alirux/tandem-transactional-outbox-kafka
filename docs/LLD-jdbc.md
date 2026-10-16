@@ -774,6 +774,14 @@ its design follows from one rule: it may only make discovery faster, never make 
   reconnects with full jitter after a failure and asks for a full sweep of every worker whenever it
   subscribes, since nothing emitted while it was disconnected was delivered. It logs and stops for
   good only when the PostgreSQL driver is absent, where retrying could not help.
+- **The connection goes back to the application's pool clean, and only once the listener is done with
+  it.** On a pooled `DataSource`, closing a connection returns its session to the pool instead of
+  ending it. So the listening thread itself ends the subscription: `stop()` only clears the flag that
+  its receive re-checks every second, and the thread then runs `UNLISTEN *` before the close. A session
+  handed back still listening would have every insert's notification queued on it by the driver for an
+  application that never reads them; one closed from another thread would be lent out while the
+  listener still reads it. Closing and interrupting from outside remain only for a receive that does
+  not return.
 - **`WorkerPool` maps a bucket to the one worker that owns it** (`bucket % workerCount`,
   `WorkerWakeups`), so a wakeup costs one worker a claim, not the whole pool. A signal arriving while
   its worker is mid-claim is remembered rather than dropped: that is the case the mechanism exists

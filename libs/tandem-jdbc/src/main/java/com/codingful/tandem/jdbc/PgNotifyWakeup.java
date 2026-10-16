@@ -96,13 +96,18 @@ final class PgNotifyWakeup implements WakeupSource {
             return;
         }
         running = false;
-        // Closing from here is what ends the blocking receive: the listening thread is inside a socket
-        // read, where an interrupt alone would not reach it. The interrupt is kept only as a fallback,
-        // and deliberately not sent first: interrupting a thread mid-read closes its channel underneath
-        // it, so the connection's own close then fails and every shutdown logs an I/O error it caused
-        // itself.
-        closeQuietly(connection);
-        if (!joined(Duration.ofSeconds(2))) {
+        // The listening thread ends by itself: its receive returns every RECEIVE_TIMEOUT_MILLIS to
+        // re-check running, and it then unsubscribes and hands its connection back. Closing that
+        // connection from here would be wrong on the pooled DataSource applications provide: the close
+        // returns the session to the pool, where it can be lent out while this thread still reads the
+        // physical connection it unwrapped, and still subscribed. Without a connection the thread is
+        // only waiting to reconnect, so it is woken at once.
+        if (connection == null) {
+            thread.interrupt();
+        }
+        if (!joined(Duration.ofMillis(3L * RECEIVE_TIMEOUT_MILLIS))) {
+            // A receive that does not return (a dead socket): closing and interrupting is all that is left.
+            closeQuietly(connection);
             thread.interrupt();
             joined(Duration.ofSeconds(3));
         }
@@ -128,7 +133,9 @@ final class PgNotifyWakeup implements WakeupSource {
     private void listen(Listener listener) {
         int failures = 0;
         while (running) {
-            try (Connection conn = dataSource.getConnection()) {
+            Connection conn = null;
+            try {
+                conn = dataSource.getConnection();
                 connection = conn;
                 subscribe(conn);
                 failures = 0;
@@ -151,6 +158,7 @@ final class PgNotifyWakeup implements WakeupSource {
                 return;
             } finally {
                 connection = null;
+                release(conn);
             }
         }
     }
@@ -196,6 +204,24 @@ final class PgNotifyWakeup implements WakeupSource {
         if (LOG.isLoggable(Level.DEBUG)) {
             LOG.log(Level.DEBUG, "Ignoring an unreadable wakeup payload channel:" + Wakeup.CHANNEL);
         }
+    }
+
+    /**
+     * Unsubscribe before closing: on a pooled DataSource the close returns the session to the pool rather
+     * than ending it, and a session still listening would have every insert's notification queued on it
+     * by the driver for an application that never reads them. On a connection that has failed the
+     * unsubscribe fails too, and the pool discards it.
+     */
+    private static void release(Connection conn) {
+        if (conn == null) {
+            return;
+        }
+        try (Statement statement = conn.createStatement()) {
+            statement.execute("UNLISTEN *");
+        } catch (SQLException e) {
+            LOG.log(Level.DEBUG, "Unsubscribing the wakeup connection failed channel:" + Wakeup.CHANNEL, e);
+        }
+        closeQuietly(conn);
     }
 
     private static void closeQuietly(Connection conn) {
