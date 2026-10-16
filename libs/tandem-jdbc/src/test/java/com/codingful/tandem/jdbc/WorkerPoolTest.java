@@ -745,6 +745,35 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_more_expired_rows_than_one_cleanup_batch_WHEN_cleanup_runs_THEN_a_single_pass_removes_them_all() {
+        // With the defaults (1000 rows every 15 minutes) a cleanup that deletes one batch per interval
+        // removes at most ~1.1 rows/s, so any steadier traffic makes the table grow without bound.
+        ControllableClock clock = ControllableClock.atEpochDay();
+        InMemoryOutbox outbox = new InMemoryOutbox(BUCKETS, InMemoryOutbox.DEFAULT_MAX_ATTEMPTS, clock);
+        int rows = 25;
+        for (int i = 0; i < rows; i++) {
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId("order-" + i).aggregateType("Order").unsequenced().payload("{}".getBytes()).build());
+        }
+        outbox.all().forEach(row -> outbox.forceDone(row.id()));
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .retention(Duration.ofDays(1)).cleanupBatchSize(10).cleanupInterval(Duration.ofSeconds(2)).build();
+        clock.advance(Duration.ofDays(2));
+        WorkerPool pool = WorkerPool.builder(outbox, new RecordingDispatcher(), cfg).clock(clock).build();
+
+        pool.start();
+        try {
+            // The first pass runs one interval in and the second one interval later: waiting less than
+            // that second interval leaves room for exactly one pass.
+            awaitUpTo(Duration.ofMillis(3_500),
+                    () -> "every expired row gone after one pass, got " + outbox.size() + " left",
+                    () -> outbox.size() == 0);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_delivery_that_never_completes_WHEN_the_lease_expires_THEN_the_event_is_claimed_again_and_delivered() {
         ControllableClock clock = ControllableClock.atEpochDay();
         InMemoryOutbox outbox = new InMemoryOutbox(BUCKETS, InMemoryOutbox.DEFAULT_MAX_ATTEMPTS, clock);

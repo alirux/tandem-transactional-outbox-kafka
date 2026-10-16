@@ -611,7 +611,10 @@ delay` uses the **DB clock** consistently.
 ### 3.7 Cleanup (`cleanup`) — Q12
 
 Default: periodic **batch `DELETE`** of terminal rows older than the retention window (default 14 days),
-in chunks to avoid long locks:
+in chunks to avoid long locks. **Each pass deletes chunk after chunk until a chunk comes back short**, so
+one pass clears everything past the cutoff: one chunk per interval would cap the rate at
+`cleanupBatchSize / cleanupInterval` (about one row a second with the defaults), and an outbox busier than
+that would grow without bound. The cutoff is fixed for the pass, so the pass ends.
 ```sql
 DELETE FROM tandem_outbox
  WHERE id IN ( SELECT id FROM tandem_outbox

@@ -317,10 +317,20 @@ public final class WorkerPool {
         }
     }
 
+    /**
+     * One pass deletes everything past retention, chunk after chunk (§3.7): one chunk per interval would
+     * cap the cleanup rate (1000 rows every 15 minutes by default, about one row a second), and any outbox
+     * busier than that would grow without bound. Each chunk is its own short statement, so the pass still
+     * holds no long lock, and it ends because the cutoff is fixed for the whole pass.
+     */
     private void cleanupTick() {
         try {
             Instant doneBefore = clock.instant().minus(cfg.retention());
-            store.cleanup(doneBefore, cfg.cleanupBatchSize());
+            int chunk = cfg.cleanupBatchSize();
+            int deleted;
+            do {
+                deleted = store.cleanup(doneBefore, chunk);
+            } while (running && deleted >= chunk);
         } catch (Exception e) {
             LOG.log(Level.ERROR, "Cleanup failed", e);
         }
