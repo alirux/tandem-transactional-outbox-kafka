@@ -33,6 +33,9 @@ public final class BucketCountGuard {
      * {@link BucketCountReconciliation#seedOrValidate()} policy: seed it if none is stored, proceed if
      * they agree, fail fast if they differ. The normal startup call.
      *
+     * <p>Seeding is a transaction of its own, committed even on a pool with autocommit off: call this at
+     * startup, not inside a transaction of yours, whose work it would commit too.
+     *
      * @throws TandemConfigurationException if a different bucket count is already established
      */
     public static void check(DataSource dataSource, int bucketCount) {

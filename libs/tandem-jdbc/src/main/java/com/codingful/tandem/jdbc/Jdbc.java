@@ -107,6 +107,57 @@ final class Jdbc {
     }
 
     /** Runs {@code body} against a statement prepared from {@code sql} on {@code connection}, then closes it. */
+    /**
+     * {@link #run(DataSource, String, SqlOperation)} for an operation that is a transaction of its own:
+     * one of the relay's, which runs on the relay's threads and so never inside an application's
+     * transaction (LLD-jdbc §3, Q9), or an operator's (replay, discard, pause), documented as not to be
+     * called inside one. It commits the work when the pool hands out connections with
+     * autocommit off, as one configured for Hibernate does, where the pool would otherwise roll it back
+     * on return. The connection's autocommit setting itself is left as the pool configured it.
+     * Never for the write side, whose insert belongs to the caller's transaction.
+     */
+    static <T> T runCommitted(DataSource dataSource, String failureMessage, SqlOperation<T> operation) {
+        return run(dataSource, committed(operation), e -> new TandemException(failureMessage, e));
+    }
+
+    /** {@link #runCommitted(DataSource, String, SqlOperation)} for an operation with no result. */
+    static void execCommitted(DataSource dataSource, String failureMessage, SqlAction action) {
+        runCommitted(dataSource, failureMessage, toOperation(action));
+    }
+
+    /** {@link #runCommitted(DataSource, String, SqlOperation)} with a failure mapping of the caller's. */
+    static <T> T runCommitted(DataSource dataSource, SqlOperation<T> operation,
+            Function<SQLException, RuntimeException> exceptionMapper) {
+        return run(dataSource, committed(operation), exceptionMapper);
+    }
+
+    /** {@link #runCommitted(DataSource, SqlOperation, Function)} for an operation with no result. */
+    static void execCommitted(DataSource dataSource, SqlAction action,
+            Function<SQLException, RuntimeException> exceptionMapper) {
+        runCommitted(dataSource, toOperation(action), exceptionMapper);
+    }
+
+    /** Commits {@code operation}'s work when the connection does not, and rolls it back if it fails. */
+    private static <T> SqlOperation<T> committed(SqlOperation<T> operation) {
+        return connection -> {
+            if (connection.getAutoCommit()) {
+                return operation.run(connection);
+            }
+            try {
+                T result = operation.run(connection);
+                connection.commit();
+                return result;
+            } catch (Throwable failure) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+                throw failure;
+            }
+        };
+    }
+
     static <R> R withStatement(Connection connection, String sql, SqlFunction<PreparedStatement, R> body) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             return body.apply(statement);

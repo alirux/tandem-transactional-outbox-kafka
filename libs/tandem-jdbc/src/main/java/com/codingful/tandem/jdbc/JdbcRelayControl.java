@@ -9,6 +9,10 @@ import javax.sql.DataSource;
  * whole-relay pause flag in {@code tandem_meta}, and per-bucket pause/release in
  * {@code tandem_bucket_lease}. The relay itself only ever reads this state (via
  * {@link RelayControlSource}); this adapter is never on the relay's own claim/dispatch path.
+ *
+ * <p>Each call is a transaction of its own, committed even on a pool that hands out connections with
+ * autocommit off (LLD-jdbc §3.1). Do not call it inside a transaction of yours: on a {@code DataSource}
+ * that hands back that transaction's connection, its commit would commit your work too.
  */
 public final class JdbcRelayControl implements RelayControl {
 
@@ -51,7 +55,7 @@ public final class JdbcRelayControl implements RelayControl {
 
     @Override
     public boolean releaseBucket(int bucket) {
-        return Jdbc.run(dataSource, "releaseBucket failed for bucket " + bucket, conn ->
+        return Jdbc.runCommitted(dataSource, "releaseBucket failed for bucket " + bucket, conn ->
                 Jdbc.withStatement(conn, RELEASE_BUCKET_SQL, ps -> {
                     ps.setInt(1, bucket);
                     return ps.executeUpdate() > 0;
@@ -59,7 +63,7 @@ public final class JdbcRelayControl implements RelayControl {
     }
 
     private void setRelayPaused(boolean paused) {
-        Jdbc.exec(dataSource, "setting relay_paused failed", conn ->
+        Jdbc.execCommitted(dataSource, "setting relay_paused failed", conn ->
                 Jdbc.exec(conn, UPSERT_RELAY_PAUSED_SQL, ps -> {
                     ps.setString(1, Boolean.toString(paused));
                     ps.executeUpdate();
@@ -67,7 +71,7 @@ public final class JdbcRelayControl implements RelayControl {
     }
 
     private boolean setBucketPaused(int bucket, boolean paused) {
-        return Jdbc.run(dataSource, "setting bucket paused failed for bucket " + bucket, conn ->
+        return Jdbc.runCommitted(dataSource, "setting bucket paused failed for bucket " + bucket, conn ->
                 Jdbc.withStatement(conn, SET_BUCKET_PAUSED_SQL, ps -> {
                     ps.setBoolean(1, paused);
                     ps.setInt(2, bucket);

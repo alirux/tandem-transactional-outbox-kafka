@@ -280,6 +280,19 @@ column stays `NULL` when no correlation id is present, which is every row when t
 - **Connections:** plain pooled connections (HikariCP or the app's `DataSource`). **No dedicated/affined
   connection** is required (the bucket-lease design removed the advisory-lock connection-affinity of the
   rejected claim model).
+- **Each relay operation commits itself, whatever the pool's autocommit setting.** Claim, ack, retry,
+  reclaim, cleanup and the lease heartbeat are each a transaction of their own (Q9), and they run on the
+  relay's threads, never inside an application transaction. On a pool that hands out connections with
+  autocommit off (a common setting where Hibernate manages transactions) the relay commits each
+  operation, and rolls it back if it fails: otherwise the pool would roll the work back on return, and
+  every claimed event would be published again on every cycle without ever reaching `DONE`. The relay
+  never switches the connection's autocommit itself, since the setting belongs to the application's
+  pool. An operator's actions are transactions of their own too, and commit the same way: replay
+  (`JdbcReplayService`), discard (`JdbcDiscardService`), pause and release (`JdbcRelayControl`), and the
+  bucket-count seeding at startup (`BucketCountGuard`). Their javadoc says not to call them inside a
+  transaction of the application's, since on a `DataSource` that hands back that transaction's
+  connection the commit would confirm it too. The write side is the opposite case: its insert belongs to
+  the caller's transaction, and it never commits.
 - **Admin-API pause (HLD-admin-api §4.1) is a cached read, never a hot-path query.** A `RelayControlSource`
   refreshes the desired whole-relay/per-bucket pause state on the same maintenance cadence as
   `heartbeatTick`/`reclaimTick` (`reclaimInterval`, 5 s by default); `sliceFor()` consults the cached

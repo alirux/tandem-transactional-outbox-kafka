@@ -125,7 +125,7 @@ final class BucketLeaseManager implements BucketSource {
      */
     @Override
     public void validateOnStart(TandemMetrics metrics, Logger logger) {
-        int seeded = Jdbc.run(dataSource,
+        int seeded = Jdbc.runCommitted(dataSource,
                 conn -> Jdbc.withStatement(conn, COUNT_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();
                     return rs.getInt(1);
@@ -136,7 +136,7 @@ final class BucketLeaseManager implements BucketSource {
             throw leaseTableException(metrics, logger, "tandem_bucket_lease is seeded with " + seeded
                     + " rows but coordination=LEASE requires exactly bucketCount=" + bucketCount, null);
         }
-        Jdbc.exec(dataSource,
+        Jdbc.execCommitted(dataSource,
                 conn -> Jdbc.exec(conn, MEMBER_PROBE_SQL, ps -> Jdbc.exec(ps, rs -> { })),
                 e -> leaseTableException(metrics, logger, "the tandem_relay_member table is missing or unreadable ("
                         + e.getMessage() + ")", e));
@@ -165,7 +165,7 @@ final class BucketLeaseManager implements BucketSource {
 
     @Override
     public Set<Integer> ownedBuckets() {
-        return Jdbc.run(dataSource, "reading owned buckets failed", conn ->
+        return Jdbc.runCommitted(dataSource, "reading owned buckets failed", conn ->
                 Jdbc.withStatement(conn, OWNED_BUCKETS_SQL, ps -> {
                     ps.setString(1, ownerId);
                     return Jdbc.withResultSet(ps, rs -> {
@@ -180,7 +180,7 @@ final class BucketLeaseManager implements BucketSource {
 
     @Override
     public OptionalInt uncoveredBuckets() {
-        return Jdbc.run(dataSource, "uncoveredBuckets failed", conn ->
+        return Jdbc.runCommitted(dataSource, "uncoveredBuckets failed", conn ->
                 Jdbc.withStatement(conn, UNCOVERED_BUCKETS_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();   // an aggregate without GROUP BY always returns exactly one row
                     return OptionalInt.of(rs.getInt(1));
@@ -189,7 +189,7 @@ final class BucketLeaseManager implements BucketSource {
 
     @Override
     public void heartbeat() {
-        Jdbc.exec(dataSource, "bucket lease heartbeat failed", conn -> {
+        Jdbc.execCommitted(dataSource, "bucket lease heartbeat failed", conn -> {
             registerMember(conn);          // make this instance visible before counting (§3.2)
             pruneExpiredMembers(conn);     // drop dead instances so the divisor is accurate
             renew(conn);
@@ -206,7 +206,7 @@ final class BucketLeaseManager implements BucketSource {
 
     @Override
     public void release() {
-        Jdbc.exec(dataSource, "releasing bucket leases failed", conn -> {
+        Jdbc.execCommitted(dataSource, "releasing bucket leases failed", conn -> {
             releaseOwnedBuckets(conn);
             deleteMember(conn);   // drop presence immediately so peers rebalance without waiting for expiry
         });

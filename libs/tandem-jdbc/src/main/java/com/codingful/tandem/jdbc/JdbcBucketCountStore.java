@@ -9,7 +9,8 @@ import javax.sql.DataSource;
 /**
  * PostgreSQL adapter for {@link BucketCountStore} (LLD-bucket-count-guard §4), backed by the
  * {@code tandem_meta} table under the key {@code bucket_count}. Each call runs in its own short
- * transaction (autocommit), like {@link JdbcOutboxStore}. Depends only on {@code java.sql}.
+ * transaction, committed even on a pool with autocommit off, like {@link JdbcOutboxStore}. Depends only
+ * on {@code java.sql}.
  */
 final class JdbcBucketCountStore implements BucketCountStore {
 
@@ -33,7 +34,7 @@ final class JdbcBucketCountStore implements BucketCountStore {
 
     @Override
     public OptionalInt read() {
-        return Jdbc.run(dataSource, "Reading tandem_meta bucket_count failed", conn ->
+        return Jdbc.runCommitted(dataSource, "Reading tandem_meta bucket_count failed", conn ->
                 Jdbc.withStatement(conn, READ_SQL, ps -> Jdbc.withResultSet(ps, rs ->
                         rs.next() ? OptionalInt.of(parse(rs.getString(1))) : OptionalInt.empty())));
     }
@@ -43,7 +44,7 @@ final class JdbcBucketCountStore implements BucketCountStore {
         if (candidate <= 0) {
             throw new IllegalArgumentException("candidate bucketCount must be positive: " + candidate);
         }
-        Jdbc.exec(dataSource, "Seeding tandem_meta bucket_count failed", conn ->
+        Jdbc.execCommitted(dataSource, "Seeding tandem_meta bucket_count failed", conn ->
                 Jdbc.exec(conn, SEED_SQL, ps -> {
                     ps.setString(1, Integer.toString(candidate));
                     ps.executeUpdate();   // 0 rows if a value was already present — that's the expected race loser

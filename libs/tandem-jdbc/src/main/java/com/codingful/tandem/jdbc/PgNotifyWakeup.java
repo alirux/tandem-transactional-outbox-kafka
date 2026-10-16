@@ -168,10 +168,20 @@ final class PgNotifyWakeup implements WakeupSource {
      * session left inside one would receive nothing until it ended.
      */
     private static void subscribe(Connection conn) throws SQLException {
-        conn.setAutoCommit(true);
         try (Statement statement = conn.createStatement()) {
             // The channel is a fixed identifier, not a value: LISTEN takes no bind parameter.
             statement.execute("LISTEN " + Wakeup.CHANNEL);
+        }
+        commitIfPending(conn);   // LISTEN takes effect at commit, and receiving needs no transaction open
+    }
+
+    /**
+     * Commits when the pool hands out connections with autocommit off, rather than switching it on: the
+     * setting belongs to the application's pool, and not every pool restores it on return.
+     */
+    private static void commitIfPending(Connection conn) throws SQLException {
+        if (!conn.getAutoCommit()) {
+            conn.commit();
         }
     }
 
@@ -218,6 +228,7 @@ final class PgNotifyWakeup implements WakeupSource {
         }
         try (Statement statement = conn.createStatement()) {
             statement.execute("UNLISTEN *");
+            commitIfPending(conn);
         } catch (SQLException e) {
             LOG.log(Level.DEBUG, "Unsubscribing the wakeup connection failed channel:" + Wakeup.CHANNEL, e);
         }

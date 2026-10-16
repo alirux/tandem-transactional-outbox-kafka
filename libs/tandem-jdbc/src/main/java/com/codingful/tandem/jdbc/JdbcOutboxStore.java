@@ -21,7 +21,8 @@ import javax.sql.DataSource;
 
 /**
  * Relay-side JDBC persistence (LLD-jdbc §3.3–§3.7), PostgreSQL baseline. Each operation runs in its
- * own short transaction (the connection's autocommit) — exclusivity during publish is carried by
+ * own short transaction, committed even on a pool that hands out connections with autocommit off
+ * ({@code Jdbc.runCommitted}) — exclusivity during publish is carried by
  * {@code status = IN_FLIGHT} + the {@code locked_until} lease, not an open transaction (Q9). Depends
  * only on {@code java.sql}.
  */
@@ -167,7 +168,7 @@ public final class JdbcOutboxStore implements OutboxStore {
         if (buckets.isEmpty() || batchSize <= 0) {
             return List.of();
         }
-        return Jdbc.run(dataSource, "claimBatch failed", conn ->
+        return Jdbc.runCommitted(dataSource, "claimBatch failed", conn ->
                 Jdbc.withStatement(conn, CLAIM_SQL, ps -> {
                     Array bucketArray = conn.createArrayOf("integer", buckets.toArray());
                     ps.setArray(1, bucketArray);
@@ -200,7 +201,7 @@ public final class JdbcOutboxStore implements OutboxStore {
         }
         Object[] ids = claimed.stream().map(OutboxRecord::id).toArray();
         Object[] leases = claimed.stream().map(JdbcOutboxStore::leaseOf).toArray();
-        Jdbc.exec(dataSource, "markDoneBatch failed", conn ->
+        Jdbc.execCommitted(dataSource, "markDoneBatch failed", conn ->
                 Jdbc.exec(conn, MARK_DONE_SQL, ps -> {
                     ps.setArray(1, conn.createArrayOf("bigint", ids));
                     ps.setArray(2, conn.createArrayOf("timestamptz", leases));
@@ -210,7 +211,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
-        Jdbc.exec(dataSource, "markForRetry failed for id " + claimed.id(), conn ->
+        Jdbc.execCommitted(dataSource, "markForRetry failed for id " + claimed.id(), conn ->
                 Jdbc.exec(conn, MARK_FOR_RETRY_SQL, ps -> {
                     ps.setString(1, error);
                     if (retryDelay == null) {
@@ -226,7 +227,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public void markFailed(OutboxRecord claimed, String error) {
-        Jdbc.exec(dataSource, "markFailed failed for id " + claimed.id(), conn ->
+        Jdbc.execCommitted(dataSource, "markFailed failed for id " + claimed.id(), conn ->
                 Jdbc.exec(conn, MARK_FAILED_SQL, ps -> {
                     ps.setString(1, error);
                     ps.setLong(2, claimed.id());
@@ -243,7 +244,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public int reclaimExpiredLeases() {
-        return Jdbc.run(dataSource, "reclaimExpiredLeases failed", conn ->
+        return Jdbc.runCommitted(dataSource, "reclaimExpiredLeases failed", conn ->
                 Jdbc.withStatement(conn, RECLAIM_SQL, ps -> {
                     ps.setString(1, LEASE_EXPIRED_ERROR);
                     ps.setInt(2, maxAttempts);
@@ -257,7 +258,7 @@ public final class JdbcOutboxStore implements OutboxStore {
      */
     @Override
     public Optional<LagSnapshot> lag() {
-        return Jdbc.run(dataSource, "lag failed", conn ->
+        return Jdbc.runCommitted(dataSource, "lag failed", conn ->
                 Jdbc.withStatement(conn, LAG_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();   // an aggregate without GROUP BY always returns exactly one row
                     long pending = rs.getLong(1);
@@ -269,7 +270,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public OptionalLong failedCount() {
-        return Jdbc.run(dataSource, "failedCount failed", conn ->
+        return Jdbc.runCommitted(dataSource, "failedCount failed", conn ->
                 Jdbc.withStatement(conn, FAILED_COUNT_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();   // an aggregate without GROUP BY always returns exactly one row
                     return OptionalLong.of(rs.getLong(1));
@@ -278,7 +279,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public OptionalLong blockedCount() {
-        return Jdbc.run(dataSource, "blockedCount failed", conn ->
+        return Jdbc.runCommitted(dataSource, "blockedCount failed", conn ->
                 Jdbc.withStatement(conn, BLOCKED_COUNT_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();   // an aggregate without GROUP BY always returns exactly one row
                     return OptionalLong.of(rs.getLong(1));
@@ -287,7 +288,7 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     @Override
     public OptionalInt replaysOf(long id) {
-        return Jdbc.run(dataSource, "replaysOf failed for id " + id, conn ->
+        return Jdbc.runCommitted(dataSource, "replaysOf failed for id " + id, conn ->
                 Jdbc.withStatement(conn, REPLAYS_SQL, ps -> {
                     ps.setLong(1, id);
                     // Empty when the row is gone — cleanup can delete a DONE row between the ack and this
@@ -302,7 +303,7 @@ public final class JdbcOutboxStore implements OutboxStore {
         if (batchSize <= 0) {
             return 0;
         }
-        return Jdbc.run(dataSource, "cleanup failed", conn ->
+        return Jdbc.runCommitted(dataSource, "cleanup failed", conn ->
                 Jdbc.withStatement(conn, CLEANUP_SQL, ps -> {
                     ps.setObject(1, OffsetDateTime.ofInstant(doneBefore, ZoneOffset.UTC));
                     ps.setInt(2, batchSize);

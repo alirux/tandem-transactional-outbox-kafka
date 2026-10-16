@@ -26,6 +26,10 @@ import javax.sql.DataSource;
  * the admin log: {@code attempts} is the budget of the current delivery round and must reset, while
  * the lifetime count of operator replays survives (HLD §8).
  * Honours {@code dryRun}.
+ *
+ * <p>Each call is a transaction of its own, committed even on a pool that hands out connections with
+ * autocommit off (LLD-jdbc §3.1). Do not call it inside a transaction of yours: on a {@code DataSource}
+ * that hands back that transaction's connection, its commit would commit your work too.
  */
 public final class JdbcReplayService implements ReplayService {
 
@@ -49,7 +53,7 @@ public final class JdbcReplayService implements ReplayService {
         List<Object> params = new ArrayList<>();
         String where = buildWhere(criteria, effectiveStatuses, params);
 
-        return Jdbc.run(dataSource, "replay failed", conn -> {
+        return Jdbc.runCommitted(dataSource, "replay failed", conn -> {
             if (criteria.dryRun()) {
                 long matched = count(conn, where, params);
                 return new ReplayResult(matched, 0, true);
