@@ -56,6 +56,24 @@ class MiniJsonTest {
     // -------------------------------------------------------------------------
 
     @Test
+    void GIVEN_a_header_another_writer_stored_as_an_array_WHEN_parsed_THEN_reading_does_not_fail_and_the_others_are_kept() {
+        assertThat(MiniJson.parseObject("{\"tags\": [\"a\", \"b]\"], \"correlation-id\": \"c-1\"}"))
+                .containsEntry("tags", "[\"a\", \"b]\"]")
+                .containsEntry("correlation-id", "c-1");
+    }
+
+    @Test
+    void GIVEN_a_header_another_writer_stored_as_an_object_WHEN_parsed_THEN_no_header_is_lost_or_made_up() {
+        assertThat(MiniJson.parseObject("{\"meta\": {\"x\": {\"y\": 2}}, \"correlation-id\": \"c-1\"}"))
+                .containsExactly(Map.entry("meta", "{\"x\": {\"y\": 2}}"), Map.entry("correlation-id", "c-1"));
+    }
+
+    @Test
+    void GIVEN_an_array_that_never_closes_WHEN_parsed_THEN_it_is_rejected_as_malformed() {
+        assertThatIllegalArgumentException().isThrownBy(() -> MiniJson.parseObject("{\"tags\": [\"a\""));
+    }
+
+    @Test
     void GIVEN_a_header_written_with_a_null_value_WHEN_parsed_THEN_it_is_absent_and_the_others_are_kept() {
         assertThat(MiniJson.parseObject("{\"optional\":null,\"correlation-id\":\"c-1\"}"))
                 .containsExactly(Map.entry("correlation-id", "c-1"));

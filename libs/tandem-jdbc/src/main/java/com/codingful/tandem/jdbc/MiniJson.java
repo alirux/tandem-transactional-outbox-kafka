@@ -10,8 +10,9 @@ import java.util.Map;
  * passed through as raw JSON text the client already produced).
  *
  * <p>The reader is deliberately <b>tolerant</b> (compatibility, AGENTS): it keeps string values,
- * reads a {@code null} value as an absent header, and preserves any other JSON scalar as its raw literal
- * rather than failing — so a header written by a future/other writer never breaks this reader. Absent
+ * reads a {@code null} value as an absent header, and preserves any other JSON value, scalar, array or
+ * object, as its raw JSON text rather than failing — so a header written by a future/other writer never
+ * breaks this reader. Absent
  * rather than {@code null} because a header map holds no null values: one would fail the row's mapping,
  * and with it the whole claim batch the row came in.
  */
@@ -102,6 +103,10 @@ final class MiniJson {
             } else if (json.startsWith("null", i)) {
                 value = null;   // absent: not put below
                 i += 4;
+            } else if (charAt(json, i) == '[' || charAt(json, i) == '{') {
+                int start = i;
+                i = skipNested(json, i);
+                value = json.substring(start, i);   // tolerant: keep the raw array/object text
             } else {
                 int start = i;
                 while (i < json.length() && json.charAt(i) != ',' && json.charAt(i) != '}') {
@@ -162,6 +167,31 @@ final class MiniJson {
             }
         }
         throw new IllegalArgumentException("unterminated string in: " + json);
+    }
+
+    /**
+     * The index just past the array or object opening at {@code i}, found by balancing brackets outside
+     * strings: a bracket or comma inside a string value belongs to the value, not to the structure.
+     */
+    private static int skipNested(String json, int i) {
+        int depth = 0;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c == '"') {
+                i = readString(json, i, new StringBuilder());
+                continue;
+            }
+            if (c == '[' || c == '{') {
+                depth++;
+            } else if (c == ']' || c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+            i++;
+        }
+        throw new IllegalArgumentException("unterminated array or object in: " + json);
     }
 
     /** {@code charAt} with a bounds check, so truncated input fails like any other malformed JSON. */
