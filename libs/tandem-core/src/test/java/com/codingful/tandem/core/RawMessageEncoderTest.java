@@ -6,6 +6,9 @@ import com.codingful.tandem.core.port.TopicRouter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RawMessageEncoderTest {
 
@@ -57,9 +60,11 @@ class RawMessageEncoderTest {
         assertThat(text(encoded, RawHeaders.TYPE)).isEqualTo(EVENT_TYPE);
     }
 
-    @Test
-    void GIVEN_a_row_stored_without_an_event_type_WHEN_it_is_published_raw_THEN_the_type_header_is_the_aggregate_type() {
-        EncodedMessage encoded = encoder.encode(stored(order().type(null).build()));
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "  "})
+    void GIVEN_a_row_stored_without_an_event_type_WHEN_it_is_published_raw_THEN_the_type_header_is_the_aggregate_type(String type) {
+        EncodedMessage encoded = encoder.encode(stored(order().type(type).build()));
 
         assertThat(text(encoded, RawHeaders.TYPE)).isEqualTo(AGGREGATE_TYPE);
     }

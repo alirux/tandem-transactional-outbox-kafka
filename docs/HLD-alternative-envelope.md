@@ -146,7 +146,7 @@ match how a custom encoder is already selected.
   - a **`tandem-id`** header carries the outbox row id, so consumers can deduplicate and a replay
     republishes the same id;
   - a **`tandem-type`** header carries the event `type`, falling back to `aggregate_type` when the
-    column is null, as the CloudEvents encoder does (LLD-kafka §3.4), so a consumer can dispatch
+    column is null or blank, as the CloudEvents encoder does (LLD-kafka §3.4), so a consumer can dispatch
     without parsing the body;
   - every **row header** follows verbatim, except that `tandem-id` and `tandem-type` are the
     encoder's own: a row header with either name does not reach the wire, the same rule

@@ -54,7 +54,7 @@ public final class CloudEventFactory {
         CloudEventBuilder builder = CloudEventBuilder.v1()
                 .withId(String.valueOf(record.id()))                 // id = outbox id (§6)
                 .withSource(source)
-                .withType(typeOf(record))                            // null `type` falls back to aggregate_type (Q20)
+                .withType(typeOf(record))                            // null or blank `type` falls back to aggregate_type (Q20)
                 .withSubject(subject)
                 .withTime(record.createdAt().atOffset(ZoneOffset.UTC));
 
@@ -97,9 +97,11 @@ public final class CloudEventFactory {
         return passthrough;
     }
 
-    /** CloudEvents {@code type} is required; fall back to {@code aggregate_type} when the column is null (Q20). */
+    /** CloudEvents {@code type} is required; fall back to {@code aggregate_type} when the column is null or blank (Q20). */
     private static String typeOf(OutboxRecord record) {
-        return record.type() != null ? record.type() : record.aggregateType();
+        // Blank counts as absent: CloudEvents requires a non-empty type, and a stricter consumer SDK
+        // rejects an event without one, while aggregate_type is never blank.
+        return record.type() != null && !record.type().isBlank() ? record.type() : record.aggregateType();
     }
 
     private String contentTypeOf(OutboxRecord record) {

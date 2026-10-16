@@ -32,6 +32,14 @@ class CloudEventFactoryTest {
     }
 
     @Test
+    void GIVEN_a_row_whose_event_type_is_blank_WHEN_the_envelope_is_built_THEN_its_type_falls_back_to_the_aggregate_type() {
+        // CloudEvents requires a non-empty type; a consumer on a stricter SDK rejects the event otherwise.
+        OutboxRecord record = recordOf(orderMessage().type("  ").build());
+
+        assertThat(factory.build(record).getType()).isEqualTo(record.aggregateType());
+    }
+
+    @Test
     void GIVEN_a_stored_row_WHEN_the_envelope_is_built_THEN_its_attributes_come_from_the_row_and_the_configured_source() {
         OutboxRecord record = recordOf(orderMessage().type("com.acme.order.placed").build());
 

@@ -171,7 +171,9 @@ technical term *lamport* for the concept; `logicalclock` is only the on-the-wire
 
 ### 3.4 Null `type` fallback (Q20)
 CloudEvents `type` is required but the `type` column is nullable. **`typeOf(record)` = `record.type()`
-if present, else falls back to `aggregate_type`** (configurable fallback). This guarantees a valid
+if present and not blank, else falls back to `aggregate_type`** (configurable fallback). A blank `type`
+counts as absent because CloudEvents requires a non-empty one, and a stricter consumer SDK rejects an
+event without it; `aggregate_type` is never blank. This guarantees a valid
 required attribute without forcing the user to set `type`. Raw mode applies the same fallback for its
 `tandem-type` header, so a consumer always reads a value there too (HLD-alternative-envelope §6).
 

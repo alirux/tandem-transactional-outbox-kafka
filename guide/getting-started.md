@@ -204,7 +204,7 @@ OutboxMessage.builder()
 |---|---|
 | `aggregateType` | Required. `Order` publishes to `order-topic`, `OrderLine` to `order-line-topic`. |
 | `aggregateId` | Required, up to 255 characters. Every event with the same id is delivered in write order. |
-| `type` | Optional. Falls back to `aggregateType` when absent. |
+| `type` | Optional. Falls back to `aggregateType` when absent or blank. |
 | `payload` | Required. **Must be valid JSON**, because the outbox column stores it as `jsonb`. It is read back semantically identical, not byte for byte, so do not sign or hash the bytes you insert. |
 | `contentType` | Optional. `application/json` when left out. |
 | `header(name, value)` | Optional. A header you add here reaches Kafka untouched. |

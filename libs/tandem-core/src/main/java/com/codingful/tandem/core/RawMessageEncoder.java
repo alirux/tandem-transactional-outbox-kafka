@@ -18,7 +18,7 @@ import java.util.Objects;
  *   <li>{@link RawHeaders#ID} carries the outbox row id, so consumers can deduplicate and a replay
  *       republishes the same id;</li>
  *   <li>{@link RawHeaders#TYPE} carries the event type, or the aggregate type when the row stored
- *       none;</li>
+ *       none or a blank one;</li>
  *   <li>every row header follows verbatim and in stored order, except one named like raw's own
  *       headers (see {@link RawHeaders} for the {@code tandem-*} reservation);</li>
  *   <li>{@link TandemHeaders#CONTENT_TYPE} is always present when the record has a content type: the
@@ -51,7 +51,9 @@ public final class RawMessageEncoder implements MessageEncoder {
         headers.put(RawHeaders.ID, utf8(String.valueOf(record.id())));
         // The same fallback the CloudEvents envelope applies (LLD-kafka §3.4), restated rather than
         // shared: the factory lives in a module the core cannot depend on.
-        headers.put(RawHeaders.TYPE, utf8(record.type() != null ? record.type() : record.aggregateType()));
+        // A blank type counts as absent, as in the CloudEvents envelope: the fallback is never blank.
+        boolean typed = record.type() != null && !record.type().isBlank();
+        headers.put(RawHeaders.TYPE, utf8(typed ? record.type() : record.aggregateType()));
         record.headers().forEach((name, value) -> {
             if (!name.equals(RawHeaders.ID) && !name.equals(RawHeaders.TYPE)) {
                 headers.put(name, utf8(value));
