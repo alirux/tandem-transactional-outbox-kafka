@@ -3,4 +3,4 @@
 # One entry per intentional break: gate | module | item | release-notes line
 # Entries are bound to the baseline line: when tandemBaseline moves, the entries are removed and the
 # baseline line set to the new release. An entry that matches no break a gate reports fails that gate.
-baseline
+baseline 1.0.0-rc.1

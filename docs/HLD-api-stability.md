@@ -164,10 +164,8 @@ from its tag. The baseline version is one build property, moved after each relea
 file** (below) compares it instead with a file committed in the repository.
 [LLD-api-stability.md](LLD-api-stability.md) specifies each gate.
 
-The gates land before `1.0.0-rc.1`; those that read a baseline have none set yet, and skip. Run once
-against `0.11.1` before the tag, they must report exactly the breaking rows of §6 and nothing else,
-which checks the gates and the list against each other. Once `1.0.0-rc.1` is published it becomes the
-first baseline.
+`1.0.0-rc.1` is the first baseline. Run against `0.11.1`, the gates report exactly the breaking rows of
+§6 and nothing else, which checks the gates and the list against each other.
 
 | Contract | Gate | Exists |
 |---|---|---|
