@@ -10,8 +10,10 @@ import java.util.Map;
  * passed through as raw JSON text the client already produced).
  *
  * <p>The reader is deliberately <b>tolerant</b> (compatibility, AGENTS): it keeps string values,
- * reads {@code null} as {@code null}, and preserves any other JSON scalar as its raw literal rather
- * than failing — so a header written by a future/other writer never breaks this reader.
+ * reads a {@code null} value as an absent header, and preserves any other JSON scalar as its raw literal
+ * rather than failing — so a header written by a future/other writer never breaks this reader. Absent
+ * rather than {@code null} because a header map holds no null values: one would fail the row's mapping,
+ * and with it the whole claim batch the row came in.
  */
 final class MiniJson {
 
@@ -98,7 +100,7 @@ final class MiniJson {
                 i = readString(json, i, val);
                 value = val.toString();
             } else if (json.startsWith("null", i)) {
-                value = null;
+                value = null;   // absent: not put below
                 i += 4;
             } else {
                 int start = i;
@@ -107,7 +109,9 @@ final class MiniJson {
                 }
                 value = json.substring(start, i).trim();   // tolerant: keep the raw scalar
             }
-            out.put(key.toString(), value);
+            if (value != null) {
+                out.put(key.toString(), value);
+            }
             i = skipWs(json, i);
             char c = charAt(json, i);
             if (c == ',') {

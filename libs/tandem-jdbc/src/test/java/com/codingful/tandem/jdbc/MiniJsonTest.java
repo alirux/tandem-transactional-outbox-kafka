@@ -56,6 +56,12 @@ class MiniJsonTest {
     // -------------------------------------------------------------------------
 
     @Test
+    void GIVEN_a_header_written_with_a_null_value_WHEN_parsed_THEN_it_is_absent_and_the_others_are_kept() {
+        assertThat(MiniJson.parseObject("{\"optional\":null,\"correlation-id\":\"c-1\"}"))
+                .containsExactly(Map.entry("correlation-id", "c-1"));
+    }
+
+    @Test
     void GIVEN_a_null_input_WHEN_parsed_THEN_an_empty_map_is_returned() {
         assertThat(MiniJson.parseObject(null)).isEmpty();
     }
@@ -84,11 +90,6 @@ class MiniJsonTest {
                 Map.entry("a", "1"),
                 Map.entry("b", "2"),
                 Map.entry("c", "3"));
-    }
-
-    @Test
-    void GIVEN_a_json_null_value_WHEN_parsed_THEN_the_map_entry_has_a_null_value() {
-        assertThat(MiniJson.parseObject("{\"k\":null}")).containsEntry("k", null);
     }
 
     @Test
@@ -131,7 +132,6 @@ class MiniJsonTest {
         original.put("content-type", "application/json");
         original.put("with-quotes", "say \"hello\"");
         original.put("with-newline", "line1\nline2");
-        original.put("nullable", null);
 
         Map<String, String> roundTripped = MiniJson.parseObject(MiniJson.writeObject(original));
 

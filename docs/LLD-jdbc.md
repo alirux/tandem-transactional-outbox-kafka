@@ -439,6 +439,11 @@ RETURNING o.*;                                          -- the claimed OutboxRec
   the per-shard concurrency window, not just a fetch size.
 - **Commit immediately** — the row lock is held only for this short tx; exclusivity during publish is
   carried by `status = IN_FLIGHT` + the `locked_until` lease, **not** an open transaction (Q9).
+- **Reading a claimed row must not fail on what another writer stored.** The claim has already marked
+  the whole batch `IN_FLIGHT` when the rows are read back, so one row the mapper rejects loses the batch:
+  every aggregate in it waits for the lease reclaim, and each reclaim counts as an attempt. The `headers`
+  reader is therefore tolerant (HLD §1.4): a `null` value reads as an absent header, and any other non-string
+  scalar is kept as its literal text.
 
 ### 3.4 Publish & mark (Q9 tx2, Q10/E6) — driven by the relay loop
 
