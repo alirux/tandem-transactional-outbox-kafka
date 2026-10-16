@@ -63,7 +63,9 @@ public final class CloudEventAmqpEncoder implements RabbitMessageEncoder {
         }
         // datacontenttype rides the contentType property, not a header: that is what the AMQP binding
         // specifies and where an AMQP consumer looks for it.
-        factory.passthroughHeaders(record).forEach(headers::put);
+        // The envelope's own attributes win over a row header of the same name: an application that
+        // copies a received cloudEvents_id onto its row must not replace the event's identity with it.
+        factory.passthroughHeaders(record).forEach(headers::putIfAbsent);
 
         AMQP.BasicProperties properties = new AMQP.BasicProperties.Builder()
                 .contentType(event.getDataContentType())

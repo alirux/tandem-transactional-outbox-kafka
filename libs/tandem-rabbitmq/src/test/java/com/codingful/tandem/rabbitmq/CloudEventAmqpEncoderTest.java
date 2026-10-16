@@ -98,6 +98,15 @@ class CloudEventAmqpEncoderTest {
     }
 
     @Test
+    void GIVEN_a_forwarded_event_id_in_the_headers_WHEN_the_row_is_bound_THEN_its_identity_comes_from_its_own_row() {
+        OutboxRecord record = recordWith(orderMessage()
+                .header(CloudEventsHeaders.AMQP_ID, "upstream-event-id").build()).build();
+
+        assertThat(encoder().encode(record).properties().getHeaders())
+                .containsEntry(CloudEventsHeaders.AMQP_ID, String.valueOf(record.id()));
+    }
+
+    @Test
     void GIVEN_an_aggregate_type_WHEN_the_default_router_places_it_THEN_the_routing_key_is_its_kebab_case_name() {
         OutboxRecord record = recordWith(OutboxMessage.builder()
                 .aggregateId(AGGREGATE_ID).aggregateType("OrderLine").seq(1).payload(PAYLOAD).build()).build();

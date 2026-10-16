@@ -41,8 +41,14 @@ final class CloudEventEncoder implements KafkaMessageEncoder {
         ProducerRecord<String, byte[]> producerRecord = KafkaMessageFactory.<String>createWriter(topic, key)
                 .writeBinary(factory.build(record));
 
-        factory.passthroughHeaders(record).forEach(
-                (name, value) -> producerRecord.headers().add(name, value.getBytes(StandardCharsets.UTF_8)));
+        // The envelope's own attributes win over a row header of the same name: an application that
+        // copies a received ce_id onto its row would otherwise give the event a second identity, and a
+        // consumer reading the last value would deduplicate on the upstream event's id.
+        factory.passthroughHeaders(record).forEach((name, value) -> {
+            if (producerRecord.headers().lastHeader(name) == null) {
+                producerRecord.headers().add(name, value.getBytes(StandardCharsets.UTF_8));
+            }
+        });
         return producerRecord;
     }
 }

@@ -71,6 +71,31 @@ class CloudEventEncoderTest {
     }
 
     @Test
+    void GIVEN_a_forwarded_event_id_in_the_headers_WHEN_a_new_event_is_encoded_THEN_its_identity_comes_from_its_own_row() {
+        OutboxRecord record = recordOf(OutboxMessage.builder()
+                .aggregateId("order-forwarded").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8))
+                .header(CloudEventsHeaders.CE_ID, "upstream-event-id").build()).build();
+
+        ProducerRecord<String, byte[]> encoded = encoder.encode(record);
+
+        assertThat(header(encoded, CloudEventsHeaders.CE_ID)).isEqualTo(Long.toString(record.id()));
+        assertThat(encoded.headers().headers(CloudEventsHeaders.CE_ID)).hasSize(1);
+    }
+
+    @Test
+    void GIVEN_an_extension_the_envelope_does_not_set_WHEN_encoded_THEN_the_row_header_reaches_the_consumer() {
+        String tenantHeader = CloudEventsHeaders.BINARY_PREFIX + "tenant";
+        String tenant = "acme";
+        OutboxRecord record = recordOf(OutboxMessage.builder()
+                .aggregateId("order-tenant").aggregateType("Order").seq(1)
+                .payload("{}".getBytes(StandardCharsets.UTF_8))
+                .header(tenantHeader, tenant).build()).build();
+
+        assertThat(header(encoder.encode(record), tenantHeader)).isEqualTo(tenant);
+    }
+
+    @Test
     void GIVEN_a_camel_case_aggregate_type_WHEN_encoded_THEN_the_topic_is_kebab_cased() {
         OutboxRecord record = recordOf(OutboxMessage.builder()
                 .aggregateId("ol-1").aggregateType("OrderLine").seq(1).payload("{}".getBytes()).build()).build();
