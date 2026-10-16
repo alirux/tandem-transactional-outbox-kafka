@@ -5,11 +5,15 @@ import com.codingful.tandem.core.exception.OutboxInsertException;
 import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.TandemAggregate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
@@ -55,8 +59,54 @@ class TransactionalOutboxAspect {
             throw new OutboxInsertException("@TransactionalOutbox produced outbox messages outside an active"
                     + " transaction — the insert would not be atomic");
         }
+        List<OutboxMessage> fresh = notYetWritten(messages);
+        if (fresh.isEmpty()) {
+            return;
+        }
         bindingGuard.requireAtomic();
-        outboxRepository.insertAll(messages);
+        outboxRepository.insertAll(fresh);
+        written().addAll(fresh);
+    }
+
+    /**
+     * The messages this transaction has not written yet. An aggregate keeps its events pending until it is
+     * discarded, so one returned by two annotated methods in the same transaction (one calling the other)
+     * still holds the first method's events when the second returns: written again, each would become a
+     * second event with an id of its own, which no consumer could recognise as a duplicate. Compared by
+     * identity, never by content: two changes that happen to produce equal messages are two events.
+     */
+    private List<OutboxMessage> notYetWritten(List<OutboxMessage> messages) {
+        Set<OutboxMessage> written = written();
+        List<OutboxMessage> fresh = new ArrayList<>(messages.size());
+        for (OutboxMessage message : messages) {
+            if (!written.contains(message)) {
+                fresh.add(message);
+            }
+        }
+        return fresh;
+    }
+
+    /**
+     * The messages already written in the current transaction, bound to it and released when it ends. Empty,
+     * and kept nowhere, when the transaction runs no synchronization: nothing could release it then.
+     */
+    @SuppressWarnings("unchecked")
+    private Set<OutboxMessage> written() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return Collections.newSetFromMap(new IdentityHashMap<>());
+        }
+        Set<OutboxMessage> written = (Set<OutboxMessage>) TransactionSynchronizationManager.getResource(this);
+        if (written == null) {
+            written = Collections.newSetFromMap(new IdentityHashMap<>());
+            TransactionSynchronizationManager.bindResource(this, written);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(TransactionalOutboxAspect.this);
+                }
+            });
+        }
+        return written;
     }
 
     /**

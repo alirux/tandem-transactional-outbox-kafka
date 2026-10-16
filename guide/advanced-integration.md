@@ -184,8 +184,11 @@ The annotation is a `@Transactional` with every attribute you would expect (`rol
 return one aggregate or an `Iterable` of aggregates. The annotation needs Spring AOP and AspectJ on the
 classpath, which your Boot version's AOP starter provides.
 
-Build each aggregate's pending list **fresh for the operation**: a list that keeps events already
-inserted would insert them again.
+Within one transaction each pending message is written **once**: an annotated method that calls another
+and returns the same aggregate does not write the first method's events a second time, while two changes
+that produce equal messages remain two events. Across operations, build each aggregate's pending list
+**fresh**: an aggregate kept and returned again by a later transaction would have its old events
+inserted again.
 
 ### 4.2 Spring application events: existing `publishEvent` calls
 
