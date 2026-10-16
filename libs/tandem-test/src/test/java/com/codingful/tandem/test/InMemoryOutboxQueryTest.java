@@ -8,6 +8,7 @@ import com.codingful.tandem.core.OutboxRowDetail;
 import com.codingful.tandem.core.OutboxRowView;
 import com.codingful.tandem.core.OutboxSearchCriteria;
 import com.codingful.tandem.core.OutboxStatus;
+import com.codingful.tandem.jdbc.JdbcOutboxRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -137,6 +138,18 @@ class InMemoryOutboxQueryTest {
         assertThat(rows).extracting(OutboxRowView::aggregateId)
                 .containsExactly(AggregateId.of("order-1"), AggregateId.of("shipment-9"));
         assertThat(rows).extracting(OutboxRowView::correlationId).containsOnly("incident-corr");
+    }
+
+    @Test
+    void GIVEN_a_correlation_id_longer_than_the_column_WHEN_searched_in_full_or_as_stored_THEN_both_find_it_as_the_database_would() {
+        int column = JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH;
+        String longCorrelationId = "corr-" + "x".repeat(column);
+        String stored = longCorrelationId.substring(0, column);
+        insertWithCorrelationId("order-1", longCorrelationId);
+
+        assertThat(outbox.search(OutboxSearchCriteria.builder().correlationId(longCorrelationId).build()))
+                .extracting(OutboxRowView::correlationId).containsExactly(stored);
+        assertThat(outbox.search(OutboxSearchCriteria.builder().correlationId(stored).build())).hasSize(1);
     }
 
     @Test

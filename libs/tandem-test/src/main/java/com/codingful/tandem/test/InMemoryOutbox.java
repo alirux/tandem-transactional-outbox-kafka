@@ -18,6 +18,7 @@ import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.ReplayService;
+import com.codingful.tandem.jdbc.JdbcOutboxRepository;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Clock;
@@ -615,7 +616,7 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
         if (criteria.createdFrom() != null && r.createdAt().isBefore(criteria.createdFrom())) {
             return false;
         }
-        if (criteria.correlationId() != null && !criteria.correlationId().equals(correlationIdOf(r))) {
+        if (criteria.correlationId() != null && !boundedCorrelationId(criteria.correlationId()).equals(correlationIdOf(r))) {
             return false;
         }
         return criteria.createdTo() == null || !r.createdAt().isAfter(criteria.createdTo());
@@ -637,8 +638,14 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
      * {@code headers["correlation-id"]} at insert (LLD-jdbc §2) — here the headers are read directly,
      * since this outbox has no columns.
      */
+    /** The correlation id as the JDBC adapter's column holds it: bounded to its width (LLD-jdbc §2). */
     private static String correlationIdOf(OutboxRecord r) {
-        return r.headers().get(TandemHeaders.CORRELATION_ID);
+        return boundedCorrelationId(r.headers().get(TandemHeaders.CORRELATION_ID));
+    }
+
+    private static String boundedCorrelationId(String correlationId) {
+        int max = JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH;
+        return correlationId == null || correlationId.length() <= max ? correlationId : correlationId.substring(0, max);
     }
 
     private static OutboxRowDetail toRowDetail(Entry e) {

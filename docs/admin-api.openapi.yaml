@@ -107,7 +107,9 @@ paths:
             correlation id usually originates outside this application (an inbound request header,
             a consumed message) and is often the only identifier available when an investigation
             starts. One correlation id normally matches MANY messages, across several aggregates,
-            so combine it with status to narrow the page.
+            so combine it with status to narrow the page. A message stores at most the first 255
+            characters of its correlation id, and a longer value given here is compared on those
+            same 255, so the value from the inbound request finds its messages as it is.
           schema:
             type: string
         - name: limit

@@ -199,7 +199,9 @@ The value is **truncated** to `MAX_CORRELATION_ID_LENGTH` (255, the column width
 rejected: it normally originates outside the application (an inbound HTTP header, a consumed
 message), so it is untrusted input, and an over-long value must not fail the caller's *business*
 transaction — the insert shares it. The `headers` copy keeps the full value; it is not indexed. The
-column stays `NULL` when no correlation id is present, which is every row when tracing is off.
+column stays `NULL` when no correlation id is present, which is every row when tracing is off. A
+search by correlation id (`JdbcOutboxQuery`) truncates the searched value the same way, so the value an
+operator copies in full from the inbound request still finds its rows.
 
 ---
 

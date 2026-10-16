@@ -97,7 +97,7 @@ public final class JdbcOutboxQuery implements OutboxQuery {
             // Exact match on the indexed column (idx_tandem_outbox_correlation) — never a LIKE/prefix
             // scan: this is the incident-time lookup and must stay index-backed on a large outbox.
             predicates.add("correlation_id = ?");
-            params.add(criteria.correlationId());
+            params.add(JdbcOutboxRepository.truncate(criteria.correlationId()));   // stored truncated to the column
         }
 
         StringBuilder sql = new StringBuilder("SELECT ").append(VIEW_COLUMNS).append(" FROM tandem_outbox");

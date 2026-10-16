@@ -138,6 +138,18 @@ class JdbcOutboxQueryIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_correlation_id_longer_than_the_column_WHEN_searched_by_it_in_full_THEN_its_rows_are_found() {
+        // The correlation id arrives from outside the application and is stored truncated to the column;
+        // the operator searches with the value from the inbound request, in full.
+        String longCorrelationId = "corr-" + "x".repeat(JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH);
+        long row = insertWithCorrelationId("order-1", 1, longCorrelationId);
+
+        List<OutboxRowView> rows = query.search(OutboxSearchCriteria.builder().correlationId(longCorrelationId).build());
+
+        assertThat(rows).extracting(OutboxRowView::id).containsExactly(row);
+    }
+
+    @Test
     void GIVEN_a_correlation_id_and_a_status_WHEN_searched_THEN_both_narrow_the_result() {
         insertWithCorrelationId("order-1", 1, "incident-corr");
         long failed = insertWithCorrelationId("order-2", 1, "incident-corr");

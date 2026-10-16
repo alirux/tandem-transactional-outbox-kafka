@@ -374,8 +374,12 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         }
     }
 
-    /** Bounds an untrusted, externally-originated correlation id to the column width; {@code null} stays null. */
-    private static String truncate(String correlationId) {
+    /**
+     * Bounds an untrusted, externally-originated correlation id to the column width; {@code null} stays
+     * null. Also applied to a searched value ({@link JdbcOutboxQuery}), which an operator copies in full
+     * from the inbound request and must match the truncated one stored.
+     */
+    static String truncate(String correlationId) {
         return correlationId == null || correlationId.length() <= MAX_CORRELATION_ID_LENGTH
                 ? correlationId
                 : correlationId.substring(0, MAX_CORRELATION_ID_LENGTH);
