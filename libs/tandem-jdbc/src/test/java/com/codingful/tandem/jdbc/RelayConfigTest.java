@@ -9,10 +9,38 @@ import com.codingful.tandem.test.RecordingMetrics;
 import java.lang.System.Logger;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RelayConfigTest {
 
     private static final Logger LOG = System.getLogger(RelayConfigTest.class.getName());
+
+    @ParameterizedTest
+    @ValueSource(longs = {5, 0, -1})
+    void GIVEN_a_bucket_lease_no_longer_than_its_renewal_interval_WHEN_a_lease_coordinated_relay_is_configured_THEN_it_is_refused(
+            long leaseSeconds) {
+        // The heartbeat renews ownership every reclaimInterval: a lease that does not outlast it expires
+        // before it is renewed, and the instance's buckets go uncovered without a word.
+        assertThatThrownBy(() -> RelayConfig.builder().coordination(Coordination.LEASE)
+                .reclaimInterval(Duration.ofSeconds(5)).bucketLease(Duration.ofSeconds(leaseSeconds)).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bucketLease");
+    }
+
+    @Test
+    void GIVEN_a_bucket_lease_just_longer_than_its_renewal_interval_WHEN_a_lease_coordinated_relay_is_configured_THEN_it_is_accepted() {
+        assertThatCode(() -> RelayConfig.builder().coordination(Coordination.LEASE)
+                .reclaimInterval(Duration.ofSeconds(5)).bucketLease(Duration.ofMillis(5_001)).build())
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void GIVEN_a_relay_without_bucket_leases_WHEN_configured_with_a_short_bucket_lease_THEN_the_unused_setting_is_not_held_against_it() {
+        assertThatCode(() -> RelayConfig.builder().coordination(Coordination.SINGLE)
+                .reclaimInterval(Duration.ofSeconds(5)).bucketLease(Duration.ofSeconds(1)).build())
+                .doesNotThrowAnyException();
+    }
 
     @Test
     void GIVEN_the_basic_round_defaults_WHEN_read_THEN_they_match_the_specified_values() {

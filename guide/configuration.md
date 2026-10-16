@@ -66,7 +66,7 @@ Read by the relay only. Every property is optional.
 | `tandem.relay.enabled` | `true` | Whether this application runs a relay. `false` loads the module without starting one, so one image can play either role. | Do not start the `WorkerPool` |
 | `tandem.relay.coordination` | `SINGLE` | `SINGLE` for exactly one relay instance, `LEASE` for several sharing the buckets through the database. See [Reliability](reliability.md#33-single-and-lease). | `RelayConfig.builder().coordination(...)` |
 | `tandem.relay.instance-id` | derived (`tandem-<host>-<pid>-<random>`) | The unique name of this instance under `LEASE`, at most 64 characters. Set it for a stable name across restarts. | `.instanceId(...)` |
-| `tandem.relay.bucket-lease` | `30s` | How long a bucket claim under `LEASE` lasts unless renewed. A dead instance's buckets are taken over once it expires. | `.bucketLease(...)` |
+| `tandem.relay.bucket-lease` | `30s` | How long a bucket claim under `LEASE` lasts unless renewed. A dead instance's buckets are taken over once it expires. Must be longer than `reclaim-interval`, which renews it. | `.bucketLease(...)` |
 
 ### 3.2 Delivery and retries
 

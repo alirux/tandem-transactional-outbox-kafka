@@ -49,6 +49,13 @@ public final class RelayConfig {
     private final boolean orderViolationDetection;
 
     private RelayConfig(Builder b) {
+        if (b.coordination == Coordination.LEASE && b.bucketLease.compareTo(b.reclaimInterval) <= 0) {
+            // The heartbeat renews ownership every reclaimInterval: a lease that does not outlast it expires
+            // before it is renewed, and the instance's buckets go uncovered without a word (§3.2).
+            throw new IllegalArgumentException("bucketLease must be longer than reclaimInterval under LEASE"
+                    + " coordination bucketLeaseMs:" + b.bucketLease.toMillis()
+                    + ", reclaimIntervalMs:" + b.reclaimInterval.toMillis());
+        }
         this.bucketCount = b.bucketCount;
         this.coordination = b.coordination;
         this.instanceId = b.instanceId != null ? b.instanceId : deriveInstanceId();
@@ -322,8 +329,9 @@ public final class RelayConfig {
         }
 
         /**
-         * The bucket-ownership lease held under {@code LEASE}, renewed each {@code reclaimInterval}.
-         * Independent of {@code rowLease}. Default 30s.
+         * The bucket-ownership lease held under {@code LEASE}, renewed each {@code reclaimInterval}, so it
+         * must be longer than that ({@link #build()} refuses it otherwise). Independent of {@code rowLease}.
+         * Default 30s.
          */
         public Builder bucketLease(Duration bucketLease) {
             this.bucketLease = Objects.requireNonNull(bucketLease, "bucketLease");
@@ -481,6 +489,7 @@ public final class RelayConfig {
             return this;
         }
 
+        /** @throws IllegalArgumentException if, under {@code LEASE}, {@code bucketLease} is not longer than {@code reclaimInterval} */
         public RelayConfig build() {
             return new RelayConfig(this);
         }

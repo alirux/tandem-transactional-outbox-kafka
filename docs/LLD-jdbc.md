@@ -1039,7 +1039,7 @@ The defaults the basic round needs (the full property reference is the `tandem.*
 | `bucketCount` (B) | 256 | immutable after first deploy (B5) |
 | `coordination` | `SINGLE` | `SINGLE` (one relay instance owns all buckets, no table) or `LEASE` (lease-partitioned, any number of instances); statically declared (§3.2) |
 | `instanceId` | derived `host-pid-<rand>` | `LEASE` only: unique lease owner (≤ 64 chars); operator may override for stability across restarts |
-| `bucketLease` | 30 s | `LEASE` only: bucket-ownership lease, renewed each `reclaimInterval`; **independent** of `rowLease` (§3.2/§3.5) |
+| `bucketLease` | 30 s | `LEASE` only: bucket-ownership lease, renewed each `reclaimInterval`, so it **must be longer** than that (refused at build otherwise: a shorter lease expires before it is renewed and leaves buckets uncovered); **independent** of `rowLease` (§3.2/§3.5) |
 | `workersPerInstance` | `cores × 2` | per-process worker threads |
 | `pollInterval` | 100 ms | **ceiling** of the idle backoff when claims keep returning empty, ±20% jitter; not a per-batch sleep (§3.1). Bounds discovery latency for a quiet bucket and the idle query load. A cycle that *throws* backs off from here exponentially, capped at `reclaimInterval` |
 | `pollIntervalFloor` | 10 ms | where that backoff restarts after a claim that returned rows, so what a row of a live stream waits (§3.1). Capped to `pollInterval`; equal to it means a fixed interval |
