@@ -158,8 +158,9 @@ Only the binding differs, and it is written here:
 - `datacontenttype` becomes the AMQP `contentType` property rather than a header, which is what the
   binding specifies and what an AMQP consumer expects to find;
 - the payload is the body, and the stored passthrough headers are copied verbatim, except one named like
-  a header the envelope writes: the envelope's value wins, so a forwarded `cloudEvents_id` cannot
-  replace the event's identity.
+  an attribute the envelope owns (the spec's, `cloudEvents_seq` and `cloudEvents_partitionkey`), whether
+  or not this event carries it: a forwarded `cloudEvents_id` cannot replace the event's identity, and a
+  forwarded `cloudEvents_seq` cannot number an event written `unsequenced()`.
 
 There is no CloudEvents SDK binding to delegate to: the SDK ships an AMQP binding for Proton, which
 is AMQP 1.0, and none for 0.9.1. The binding is written by hand, which is thirty lines and the reason

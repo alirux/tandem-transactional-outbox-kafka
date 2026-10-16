@@ -5,10 +5,13 @@ import com.codingful.tandem.core.CloudEventsHeaders;
 import com.codingful.tandem.core.OutboxRecord;
 import com.rabbitmq.client.AMQP;
 import io.cloudevents.CloudEvent;
+import io.cloudevents.SpecVersion;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Tandem's default format on AMQP (LLD-rabbitmq §5): writes the CloudEvent a {@link CloudEventFactory}
@@ -22,6 +25,14 @@ import java.util.Objects;
 public final class CloudEventAmqpEncoder implements RabbitMessageEncoder {
 
     private static final String PREFIX = CloudEventsHeaders.AMQP_BINARY_PREFIX;
+
+    /**
+     * The headers of every attribute the envelope owns: the spec's own and Tandem's extensions. A row
+     * header with one of these names never reaches the wire, whether or not this event carries the
+     * attribute: a forwarded {@code cloudEvents_id} would replace the event's identity, and a forwarded
+     * {@code cloudEvents_seq} would number an event its writer declared unsequenced.
+     */
+    private static final Set<String> RESERVED_HEADERS = reservedHeaders();
 
     private final RabbitRouter router;
     private final CloudEventFactory factory;
@@ -63,9 +74,11 @@ public final class CloudEventAmqpEncoder implements RabbitMessageEncoder {
         }
         // datacontenttype rides the contentType property, not a header: that is what the AMQP binding
         // specifies and where an AMQP consumer looks for it.
-        // The envelope's own attributes win over a row header of the same name: an application that
-        // copies a received cloudEvents_id onto its row must not replace the event's identity with it.
-        factory.passthroughHeaders(record).forEach(headers::putIfAbsent);
+        factory.passthroughHeaders(record).forEach((name, value) -> {
+            if (!RESERVED_HEADERS.contains(name)) {
+                headers.put(name, value);
+            }
+        });
 
         AMQP.BasicProperties properties = new AMQP.BasicProperties.Builder()
                 .contentType(event.getDataContentType())
@@ -74,5 +87,14 @@ public final class CloudEventAmqpEncoder implements RabbitMessageEncoder {
 
         byte[] body = event.getData() == null ? new byte[0] : event.getData().toBytes();
         return new AmqpMessage(router.routeFor(record), properties, body);
+    }
+
+    private static Set<String> reservedHeaders() {
+        Set<String> attributes = new HashSet<>(SpecVersion.V1.getAllAttributes());
+        attributes.add(CloudEventsHeaders.EXT_SEQ);
+        attributes.add(CloudEventsHeaders.EXT_PARTITION_KEY);
+        Set<String> headers = new HashSet<>();
+        attributes.forEach(attribute -> headers.add(PREFIX + attribute));
+        return Set.copyOf(headers);
     }
 }

@@ -107,6 +107,24 @@ class CloudEventAmqpEncoderTest {
     }
 
     @Test
+    void GIVEN_an_unsequenced_row_with_a_forwarded_sequence_header_WHEN_it_is_bound_THEN_no_sequence_is_published() {
+        OutboxRecord record = recordWith(OutboxMessage.builder()
+                .aggregateId(AGGREGATE_ID).aggregateType("Order").unsequenced().payload(PAYLOAD)
+                .header(CloudEventsHeaders.AMQP_SEQ, "upstream-sequence").build()).build();
+
+        assertThat(encoder().encode(record).properties().getHeaders()).doesNotContainKey(CloudEventsHeaders.AMQP_SEQ);
+    }
+
+    @Test
+    void GIVEN_an_extension_the_envelope_does_not_own_WHEN_the_row_is_bound_THEN_the_row_header_reaches_the_consumer() {
+        String tenantHeader = PREFIX + "tenant";
+        String tenant = "acme";
+        OutboxRecord record = recordWith(orderMessage().header(tenantHeader, tenant).build()).build();
+
+        assertThat(encoder().encode(record).properties().getHeaders()).containsEntry(tenantHeader, tenant);
+    }
+
+    @Test
     void GIVEN_an_aggregate_type_WHEN_the_default_router_places_it_THEN_the_routing_key_is_its_kebab_case_name() {
         OutboxRecord record = recordWith(OutboxMessage.builder()
                 .aggregateId(AGGREGATE_ID).aggregateType("OrderLine").seq(1).payload(PAYLOAD).build()).build();

@@ -84,6 +84,16 @@ class CloudEventEncoderTest {
     }
 
     @Test
+    void GIVEN_an_unsequenced_event_with_a_forwarded_sequence_header_WHEN_encoded_THEN_no_sequence_is_published() {
+        OutboxRecord record = recordOf(OutboxMessage.builder()
+                .aggregateId("order-unsequenced").aggregateType("Order").unsequenced()
+                .payload("{}".getBytes(StandardCharsets.UTF_8))
+                .header(CloudEventsHeaders.CE_SEQ, "upstream-sequence").build()).build();
+
+        assertThat(encoder.encode(record).headers().headers(CloudEventsHeaders.CE_SEQ)).isEmpty();
+    }
+
+    @Test
     void GIVEN_an_extension_the_envelope_does_not_set_WHEN_encoded_THEN_the_row_header_reaches_the_consumer() {
         String tenantHeader = CloudEventsHeaders.BINARY_PREFIX + "tenant";
         String tenant = "acme";

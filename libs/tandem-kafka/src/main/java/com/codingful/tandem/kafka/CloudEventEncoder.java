@@ -1,11 +1,15 @@
 package com.codingful.tandem.kafka;
 
 import com.codingful.tandem.cloudevents.CloudEventFactory;
+import com.codingful.tandem.core.CloudEventsHeaders;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.port.TopicRouter;
+import io.cloudevents.SpecVersion;
 import io.cloudevents.kafka.KafkaMessageFactory;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 /**
@@ -18,6 +22,15 @@ import org.apache.kafka.clients.producer.ProducerRecord;
  * sources, is decided by the factory and is the same event over any transport.
  */
 final class CloudEventEncoder implements KafkaMessageEncoder {
+
+    /**
+     * The headers of every attribute the envelope owns: the spec's own and Tandem's extensions. A row
+     * header with one of these names never reaches the wire, whether or not this event carries the
+     * attribute: an application that copies a received {@code ce_id} onto its row would otherwise give
+     * the event a second identity, and a forwarded {@code ce_seq} would number an event its writer
+     * declared unsequenced.
+     */
+    private static final Set<String> RESERVED_HEADERS = reservedHeaders();
 
     private final TopicRouter router;
     private final CloudEventFactory factory;
@@ -41,14 +54,20 @@ final class CloudEventEncoder implements KafkaMessageEncoder {
         ProducerRecord<String, byte[]> producerRecord = KafkaMessageFactory.<String>createWriter(topic, key)
                 .writeBinary(factory.build(record));
 
-        // The envelope's own attributes win over a row header of the same name: an application that
-        // copies a received ce_id onto its row would otherwise give the event a second identity, and a
-        // consumer reading the last value would deduplicate on the upstream event's id.
         factory.passthroughHeaders(record).forEach((name, value) -> {
-            if (producerRecord.headers().lastHeader(name) == null) {
+            if (!RESERVED_HEADERS.contains(name)) {
                 producerRecord.headers().add(name, value.getBytes(StandardCharsets.UTF_8));
             }
         });
         return producerRecord;
+    }
+
+    private static Set<String> reservedHeaders() {
+        Set<String> attributes = new HashSet<>(SpecVersion.V1.getAllAttributes());
+        attributes.add(CloudEventsHeaders.EXT_SEQ);
+        attributes.add(CloudEventsHeaders.EXT_PARTITION_KEY);
+        Set<String> headers = new HashSet<>();
+        attributes.forEach(attribute -> headers.add(CloudEventsHeaders.BINARY_PREFIX + attribute));
+        return Set.copyOf(headers);
     }
 }

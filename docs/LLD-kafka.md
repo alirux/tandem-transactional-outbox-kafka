@@ -156,9 +156,11 @@ Event **versioning** lives in the `type` (`.v{n}` suffix), not in the topic — 
 ### 3.3 Header combination
 The Kafka record headers in binary mode = the `ce_*` attribute headers + `content-type` + the stored
 `headers` (e.g. `correlation-id`), except `content-type` and `dataschema`, which the envelope carries
-as attributes. **A stored header named like a header the envelope writes does not reach the wire**: the
-envelope's value wins, so an application that copies a received `ce_id` onto its row cannot give the new
-event a second identity. Any other `ce_*` row header (an application's own extension) passes through.
+as attributes. **A stored header named like an attribute the envelope owns never reaches the wire**,
+whether or not this event carries that attribute: the spec's attributes (`ce_id`, `ce_type`, `ce_time`,
+…) and Tandem's extensions (`ce_seq`, `ce_partitionkey`). An application that copies a received `ce_id`
+onto its row cannot give the new event a second identity, and a forwarded `ce_seq` cannot number an event
+written `unsequenced()`. Any other `ce_*` row header (an application's own extension) passes through.
 Trace headers (`traceparent`/`tracestate`) pass through as bare headers like any other
 row header; they are not mapped to the CloudEvents Distributed-Tracing extension (§6). The causal-ordering value
 *would be* carried as the CloudEvents extension **`logicalclock`** → header **`ce_logicalclock`** in
