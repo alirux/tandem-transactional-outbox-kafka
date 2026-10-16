@@ -61,6 +61,10 @@ public final class WorkerPool {
      */
     private volatile Set<Integer> ownedBuckets = Set.of();
     private volatile boolean running;
+    // Which start() the worker threads belong to. A stop() whose join times out (a worker blocked in I/O
+    // that ignores the interrupt) leaves that thread alive; when it unblocks after a later start(), running
+    // is true again, and only this tells it the run it was started for is over (§3.1).
+    private volatile long run;
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
 
@@ -149,6 +153,7 @@ public final class WorkerPool {
         bucketSource.validateOnStart(metrics, LOG);   // LEASE precondition: lease table seeded (§3.2)
         controlSource.onStart();   // publishes this instance's coordination mode (HLD-admin-api §4.1)
         controlSource.refresh();   // known pause state from the first cycle, not just after the first tick
+        run++;
         running = true;
         try {
             startThreadsAndJobs();
@@ -178,7 +183,7 @@ public final class WorkerPool {
             String workerId = "tandem-relay-" + instanceId + "-w" + index;
             workers[i] = new RelayWorker(store, dispatcher, cfg, backoff, metrics, clock, workerId,
                     () -> sliceFor(index));
-            startWorkerThread(index);
+            startWorkerThread(index, run);
         }
         startWakeups();
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> daemon(r, "tandem-relay-" + instanceId + "-jobs"));
@@ -220,12 +225,17 @@ public final class WorkerPool {
         return mine;
     }
 
-    private void startWorkerThread(int index) {
+    /** Whether a worker thread started for {@code workerRun} should keep working. */
+    private boolean isCurrent(long workerRun) {
+        return running && run == workerRun;
+    }
+
+    private void startWorkerThread(int index, long workerRun) {
         // Starting counts as this worker's first cycle, so a worker that hangs on its very first claim
         // shows an ageing timestamp rather than none at all — and a restarted one does not inherit the
         // dead thread's staleness (§3.8).
         lastCycleAtMillis.set(index, clock.millis());
-        Thread t = new Thread(() -> runWorker(index), "tandem-relay-" + instanceId + "-w" + index);
+        Thread t = new Thread(() -> runWorker(index, workerRun), "tandem-relay-" + instanceId + "-w" + index);
         t.setDaemon(true);
         // Supervised: an Error that escapes the loop kills the thread; restart it so its buckets are
         // not abandoned (critical for the embedded topology, which has no lease table to self-heal, §3.1).
@@ -233,11 +243,12 @@ public final class WorkerPool {
         // the lock (visibility) and a restart cannot slip in after shutdown began. beginHalt() holds the
         // lock only for the brief transition, not the join, so this handler never stalls behind a join;
         // if it does restart just as shutdown starts, that worker is a daemon that exits on running=false.
+        // A worker of an earlier run is not restarted: its slot now belongs to the current run's thread.
         t.setUncaughtExceptionHandler((thread, error) -> {
             LOG.log(Level.ERROR, "Relay worker died; restarting workerIndex:" + index, error);
             synchronized (this) {
-                if (running) {
-                    startWorkerThread(index);
+                if (isCurrent(workerRun)) {
+                    startWorkerThread(index, workerRun);
                 }
             }
         });
@@ -245,13 +256,13 @@ public final class WorkerPool {
         t.start();
     }
 
-    private void runWorker(int index) {
+    private void runWorker(int index, long workerRun) {
         RelayWorker worker = workers[index];
         // A local, so the failure counter is this thread's by construction — never shared, never
         // contended, and reset with the thread when a supervised restart replaces it (§3.1).
         PollBackoff backoff = new PollBackoff(cfg.pollIntervalFloor(), cfg.pollInterval(),
                 cfg.pollBackoffFactor(), cfg.reclaimInterval());
-        while (running) {
+        while (isCurrent(workerRun)) {
             try {
                 int claimed = worker.claimAndDispatch();
                 worker.flushDone();
@@ -259,10 +270,10 @@ public final class WorkerPool {
                 // Progress, deliberately marked only on a cycle that completed without throwing: a
                 // worker whose every iteration fails is not making progress, and status() must say so
                 // (§3.8). Claiming nothing is still progress — an idle relay is a working relay.
-                lastCycleAtMillis.set(index, clock.millis());
-                if (!running) {
-                    break;
+                if (!isCurrent(workerRun)) {
+                    break;   // before marking progress: a worker of an earlier run must not freshen the current one's
                 }
+                lastCycleAtMillis.set(index, clock.millis());
                 if (claimed > 0 && LOG.isLoggable(Level.DEBUG)) {
                     LOG.log(Level.DEBUG, "Worker claimed rows workerIndex:" + index + ", claimed:" + claimed);
                 }

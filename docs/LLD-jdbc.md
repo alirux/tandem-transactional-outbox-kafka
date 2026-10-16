@@ -252,7 +252,10 @@ column stays `NULL` when no correlation id is present, which is every row when t
 - **Start is all or nothing.** `start()` validates the configuration, the maintenance intervals included,
   before any thread runs. A start that still fails once the workers are running (a wakeup driver missing
   from the classpath, say) stops what it started before rethrowing, so the pool is left stopped and a later
-  `start()` begins afresh rather than returning on a half-started relay.
+  `start()` begins afresh rather than returning on a half-started relay. Each start is a new **run**: a
+  worker that outlived its `stop()` (blocked in I/O that ignores the interrupt, past the join timeout)
+  exits once it unblocks instead of joining the next run, and is never restarted into it. Its late
+  outcomes are harmless, being fenced to their claims (§3.4.1, §3.4.2).
 - **Supervised threads (coverage must not be silently lost).** Each worker's poll loop runs inside a
   `try/catch` that never lets an uncaught exception kill the thread silently: a per-iteration error is
   logged and the loop continues (after a short idle backoff); a fatal/unexpected death **restarts the

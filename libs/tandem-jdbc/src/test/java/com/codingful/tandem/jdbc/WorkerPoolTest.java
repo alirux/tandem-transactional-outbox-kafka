@@ -49,6 +49,49 @@ class WorkerPoolTest {
 
     private static final int BUCKETS = 256;
 
+    @Test
+    void GIVEN_a_worker_still_blocked_after_shutdown_times_out_WHEN_the_relay_restarts_THEN_the_old_worker_exits_after_unblocking()
+            throws InterruptedException {
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        outbox.insert(OutboxMessage.builder().aggregateId("blocked-during-shutdown")
+                .aggregateType("Order").unsequenced().payload("{}".getBytes()).build());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        var originalThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+        OutboxDispatcher dispatcher = record -> {
+            if (originalThread.compareAndSet(null, Thread.currentThread())) {
+                entered.countDown();
+                while (release.getCount() != 0) {
+                    try {
+                        release.await();
+                    } catch (InterruptedException ignored) {
+                        // Models an I/O operation that does not finish when its caller is interrupted.
+                    }
+                }
+            }
+            return CompletableFuture.completedFuture(null);
+        };
+        WorkerPool pool = new WorkerPool(outbox, dispatcher,
+                RelayConfig.builder().workersPerInstance(1).build());
+        try {
+            pool.start();
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            pool.stop();
+            assertThat(originalThread.get().isAlive()).as("The original I/O has not returned yet").isTrue();
+            pool.start();
+            release.countDown();
+            originalThread.get().join(1_000);
+
+            assertThat(originalThread.get().isAlive()).as("A worker from the previous run must terminate").isFalse();
+        } finally {
+            release.countDown();
+            pool.stop();
+            if (originalThread.get() != null) {
+                originalThread.get().join(5_000);
+            }
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(longs = {0, -1})
     void GIVEN_an_invalid_maintenance_interval_WHEN_startup_is_rejected_THEN_no_relay_is_left_running(long seconds) {
