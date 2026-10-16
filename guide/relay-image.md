@@ -436,6 +436,7 @@ The startup log states both too, in its line `Tandem relay application starting`
 | Image | Tandem library | Status |
 |---|---|---|
 | `0.1.0` | `0.11.1` | Released 2026-10-03 |
+| `0.1.1` | `0.11.1` | Released 2026-10-16 |
 
 A new library release reaches the image only once it is on Maven Central, so an image release always
 follows a library release, sometimes after a while. Running the write side, the relay image and the
