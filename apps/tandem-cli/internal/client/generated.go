@@ -267,7 +267,7 @@ type SearchOutboxMessagesParams struct {
 	CreatedFrom *time.Time `form:"createdFrom,omitempty" json:"createdFrom,omitempty"`
 	CreatedTo   *time.Time `form:"createdTo,omitempty" json:"createdTo,omitempty"`
 
-	// CorrelationId Exact match on the message's correlation id - the incident-time lookup, since the correlation id usually originates outside this application (an inbound request header, a consumed message) and is often the only identifier available when an investigation starts. One correlation id normally matches MANY messages, across several aggregates, so combine it with status to narrow the page.
+	// CorrelationId Exact match on the message's correlation id - the incident-time lookup, since the correlation id usually originates outside this application (an inbound request header, a consumed message) and is often the only identifier available when an investigation starts. One correlation id normally matches MANY messages, across several aggregates, so combine it with status to narrow the page. A message stores at most the first 255 characters of its correlation id, and a longer value given here is compared on those same 255, so the value from the inbound request finds its messages as it is.
 	CorrelationId *string `form:"correlationId,omitempty" json:"correlationId,omitempty"`
 	Limit         *int    `form:"limit,omitempty" json:"limit,omitempty"`
 
