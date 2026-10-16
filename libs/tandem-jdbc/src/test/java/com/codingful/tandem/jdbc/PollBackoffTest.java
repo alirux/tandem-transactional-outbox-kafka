@@ -18,6 +18,15 @@ class PollBackoffTest {
     private static final Duration CAP = Duration.ofSeconds(5);
     private static final int SAMPLES = 200;
 
+    @Test
+    void GIVEN_a_two_hundred_millisecond_poll_interval_WHEN_the_database_fails_for_many_cycles_THEN_retry_waits_remain_schedulable() {
+        PollBackoff backoff = new PollBackoff(FLOOR, Duration.ofMillis(200), FACTOR, CAP);
+        for (int failure = 0; failure < 100; failure++) {
+            assertThat(backoff.waitAfterFailedCycle()).as("failure index %s", failure)
+                    .isBetween(1L, CAP.toMillis());
+        }
+    }
+
     private static PollBackoff backoff() {
         return new PollBackoff(FLOOR, POLL, FACTOR, CAP);
     }

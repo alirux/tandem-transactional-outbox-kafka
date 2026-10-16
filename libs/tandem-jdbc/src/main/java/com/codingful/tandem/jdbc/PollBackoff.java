@@ -134,11 +134,13 @@ final class PollBackoff {
             // which would turn a saturated backoff back into a spin.
             return errorCapMillis;
         }
-        long scaled = idleCeilingMillis << failures;
-        if (scaled < 0 || scaled > errorCapMillis) {
+        // Compared before shifting: a shift that overflows can wrap to any value, zero included (200 << 61
+        // is 0), so the result cannot be checked afterwards. ceiling <= cap >> failures guarantees
+        // ceiling << failures <= cap.
+        if (idleCeilingMillis > errorCapMillis >> failures) {
             return errorCapMillis;
         }
-        return scaled;
+        return idleCeilingMillis << failures;
     }
 
     /** {@code random[millis * (1 - JITTER), millis * (1 + JITTER)]}, never below 1 ms. */
