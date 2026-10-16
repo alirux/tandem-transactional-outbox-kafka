@@ -811,7 +811,7 @@ class WorkerPoolTest {
             }
 
             @Override
-            public void markDone(long id) {
+            public void markDone(OutboxRecord claimed) {
             }
 
             @Override
@@ -875,7 +875,7 @@ class WorkerPoolTest {
             }
 
             @Override
-            public void markDone(long id) {
+            public void markDone(OutboxRecord claimed) {
             }
 
             @Override
@@ -983,7 +983,7 @@ class WorkerPoolTest {
             }
 
             @Override
-            public void markDone(long id) {
+            public void markDone(OutboxRecord claimed) {
             }
 
             @Override
@@ -1262,13 +1262,13 @@ class WorkerPoolTest {
         }
 
         @Override
-        public void markDone(long id) {
-            delegate.markDone(id);
+        public void markDone(OutboxRecord claimed) {
+            delegate.markDone(claimed);
         }
 
         @Override
-        public void markDoneBatch(Collection<Long> ids) {
-            delegate.markDoneBatch(ids);
+        public void markDoneBatch(Collection<OutboxRecord> claimed) {
+            delegate.markDoneBatch(claimed);
         }
 
         @Override

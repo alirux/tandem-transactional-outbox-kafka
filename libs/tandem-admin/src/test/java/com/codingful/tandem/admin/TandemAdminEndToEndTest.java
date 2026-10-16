@@ -108,7 +108,7 @@ class TandemAdminEndToEndTest {
                 }
 
                 @Override
-                public void markDone(long id) {
+                public void markDone(OutboxRecord claimed) {
                     throw new UnsupportedOperationException();
                 }
 

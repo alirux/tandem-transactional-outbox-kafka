@@ -14,13 +14,14 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Set;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * A worker that stalls between the broker's answer and its database write can find its lease reclaimed
- * and the row taken over by another worker. Its failure, processed late, belongs to a superseded attempt
- * and must change nothing (LLD-jdbc §3.4.2). The broker has already answered in every scenario here:
+ * and the row taken over by another worker. Its outcome, processed late, belongs to a superseded attempt
+ * and must change nothing (LLD-jdbc §3.4.1, §3.4.2). The broker has already answered in every scenario here:
  * only the stalled worker's write is delayed, so none needs a publish exceeding its delivery timeout.
  */
 class RelayWorkerStaleOutcomeIT extends AbstractPostgresIT {
@@ -90,15 +91,62 @@ class RelayWorkerStaleOutcomeIT extends AbstractPostgresIT {
     }
 
     private long insertHead() throws SQLException {
-        new JdbcOutboxRepository(DATA_SOURCE, BUCKETS).insert(OutboxMessage.builder()
-                .aggregateId(AGGREGATE).aggregateType("Order")
-                .seq(1).payload("{}".getBytes(StandardCharsets.UTF_8)).build());
+        insertEvent(1);
         try (var connection = DATA_SOURCE.getConnection();
              var statement = connection.prepareStatement("SELECT id FROM tandem_outbox");
              var result = statement.executeQuery()) {
             assertThat(result.next()).isTrue();
             return result.getLong(1);
         }
+    }
+
+    @Test
+    void GIVEN_a_delivered_event_requested_for_replay_WHEN_an_ack_from_before_the_replay_is_flushed_THEN_the_replay_remains_pending()
+            throws SQLException {
+        long head = insertHead();
+        RelayWorker stalled = deliveringWorker("stalled");
+        assertThat(stalled.claimAndDispatch()).isEqualTo(1);
+        expireLeasesAndReclaim();
+
+        RelayWorker successor = deliveringWorker("successor");
+        assertThat(successor.claimAndDispatch()).isEqualTo(1);
+        assertThat(successor.flushDone()).isEqualTo(1);
+        var replay = new JdbcReplayService(DATA_SOURCE).replay(
+                new ReplayCriteria(AggregateId.of(AGGREGATE), null, null, null, Set.of(), false));
+        assertThat(replay.replayed()).isEqualTo(1);
+        assertThat(statusOf(head)).isEqualTo(OutboxStatus.PENDING.code());
+
+        // Both deliveries preceded the operator's request. Neither fulfils the new replay.
+        stalled.flushDone();
+
+        assertThat(statusOf(head)).as("An earlier delivery must not cancel a requested replay")
+                .isEqualTo(OutboxStatus.PENDING.code());
+        assertThat(deliveringWorker("replay-worker").claimAndDispatch()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_head_another_worker_is_still_delivering_WHEN_the_old_ack_is_flushed_THEN_the_aggregate_waits_for_the_newer_attempt()
+            throws SQLException {
+        long head = insertHead();
+        insertEvent(2);
+        RelayWorker stalled = deliveringWorker("stalled");
+        assertThat(stalled.claimAndDispatch()).isEqualTo(1);
+        expireLeasesAndReclaim();
+        RelayWorker successor = deliveringWorker("successor");
+        assertThat(successor.claimAndDispatch()).isEqualTo(1);   // acked, not yet written
+
+        stalled.flushDone();
+
+        assertThat(statusOf(head)).isEqualTo(OutboxStatus.IN_FLIGHT.code());
+        assertThat(deliveringWorker("next").claimAndDispatch())
+                .as("The next event must not go out while the newer attempt may still publish the head")
+                .isZero();
+    }
+
+    private void insertEvent(long seq) {
+        new JdbcOutboxRepository(DATA_SOURCE, BUCKETS).insert(OutboxMessage.builder()
+                .aggregateId(AGGREGATE).aggregateType("Order")
+                .seq(seq).payload("{}".getBytes(StandardCharsets.UTF_8)).build());
     }
 
     /** A worker that claimed the head and got the broker's failure, but has not written it yet. */

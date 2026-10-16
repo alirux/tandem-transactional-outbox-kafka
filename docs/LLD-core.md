@@ -180,13 +180,13 @@ public interface OutboxStore {
         Transaction boundaries: Q9 (LLD-jdbc). */
     List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId,
                                   Duration lease, int batchSize);
-    void markDone(long id);
+    void markDone(OutboxRecord claimed);                              // → DONE
     void markForRetry(OutboxRecord claimed, String error,             // → PENDING; delay is
                       Duration retryDelay);                           // relative, the adapter
                                                                       // anchors it on the DB clock
     void markFailed(OutboxRecord claimed, String error);              // → FAILED
-                                                                      // both fenced to the claim
-                                                                      // (LLD-jdbc §3.4.2)
+                                                                      // all three fenced to the
+                                                                      // claim (LLD-jdbc §3.4.1-2)
     int  reclaimExpiredLeases();                                       // → PENDING; returns count
     int  cleanup(Instant doneBefore, int batchSize);                  // housekeeping (Q12)
     default Optional<LagSnapshot> lag() { return Optional.empty(); }   // backlog reading for the

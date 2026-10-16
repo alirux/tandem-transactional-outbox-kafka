@@ -97,7 +97,7 @@ class CommitOrderReorderIT extends AbstractPostgresIT {
             // One at a time: the head-of-chain gate holds seq=2 back until seq=1 is DONE.
             List<OutboxRecord> first = store.claimBatch(allBuckets, WORKER_ID, Duration.ofSeconds(30), 10);
             assertThat(seqs(first)).containsExactly(1L);
-            store.markDone(first.get(0).id());
+            store.markDone(first.get(0));
 
             List<OutboxRecord> second = store.claimBatch(allBuckets, WORKER_ID, Duration.ofSeconds(30), 10);
             assertThat(seqs(second)).containsExactly(2L);

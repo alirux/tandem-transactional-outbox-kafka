@@ -74,7 +74,7 @@ class LockedWriteIT extends AbstractPostgresIT {
         JdbcOutboxStore store = new JdbcOutboxStore(DATA_SOURCE, 10);
         List<OutboxRecord> first = store.claimBatch(buckets(), WORKER_ID, Duration.ofSeconds(30), 10);
         assertThat(seqs(first)).containsExactly(1L);
-        store.markDone(first.get(0).id());
+        store.markDone(first.get(0));
         List<OutboxRecord> second = store.claimBatch(buckets(), WORKER_ID, Duration.ofSeconds(30), 10);
         assertThat(seqs(second)).containsExactly(2L);
     }

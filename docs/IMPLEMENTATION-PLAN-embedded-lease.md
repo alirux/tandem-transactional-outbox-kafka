@@ -160,10 +160,9 @@ fail-fast + metric + one-line log pattern):
 ## 6. Companion hardening (separate, optional — do NOT bundle)
 
 Independently tracked, not required for this feature:
-- **Fence the status-update SQL.** *(Done for the failure outcomes: `markForRetry`/`markFailed` take the
-  claimed record and apply only while the row carries its lease, LLD-jdbc §3.4.2, since a late failure
-  could reverse a peer's delivery and reorder the aggregate. `markDone` stays keyed by id: a late ack
-  still reports a real delivery.)* `markDone`/`markForRetry`/`markFailed` originally updated by `id` with no
+- **Fence the status-update SQL.** *(Done: `markDone`/`markForRetry`/`markFailed` take the claimed
+  record and apply only while the row carries its lease, LLD-jdbc §3.4.1/§3.4.2, since a late outcome
+  could reverse or pre-empt a peer's attempt and reorder the aggregate, or cancel a replay.)* `markDone`/`markForRetry`/`markFailed` originally updated by `id` with no
   `locked_by`/`locked_until` guard, so a stale writer (a late flush after a peer reclaim) can stomp a row
   another instance now owns. Adding `AND locked_by = :me` makes the late write a safe no-op. The HLD
   already deems the transient double-ownership "harmless" (at most a duplicate, never a reorder), so this

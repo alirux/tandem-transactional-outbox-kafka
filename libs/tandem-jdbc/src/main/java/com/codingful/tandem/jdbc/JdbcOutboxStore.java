@@ -51,8 +51,12 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     // Also clears the lease columns: a DONE row keeping a stale locked_by/locked_until would read as
     // still-owned in the table (and later in the Admin API), and clearing keeps parity with InMemoryOutbox.
+    // Fenced to the acked attempt's lease like the failure transitions below (§3.4.1): the two arrays
+    // pair each id with the lease its claim stamped.
     private static final String MARK_DONE_SQL =
-            "UPDATE tandem_outbox SET status = 2, locked_by = NULL, locked_until = NULL WHERE id = ANY(?)";
+            "UPDATE tandem_outbox o SET status = 2, locked_by = NULL, locked_until = NULL"
+                    + "  FROM unnest(?::bigint[], ?::timestamptz[]) AS acked(id, lease)"
+                    + " WHERE o.id = acked.id AND o.locked_until = acked.lease";
 
     // Both failure transitions are fenced to the attempt that failed (§3.4.2): the row must still carry
     // the lease that attempt's claim stamped. Each claim stamps locked_until from the DB's now(), and
@@ -181,22 +185,25 @@ public final class JdbcOutboxStore implements OutboxStore {
     }
 
     @Override
-    public void markDone(long id) {
-        markDoneBatch(List.of(id));
+    public void markDone(OutboxRecord claimed) {
+        markDoneBatch(List.of(claimed));
     }
 
     /**
-     * Mark several acked rows {@code DONE} in one statement (§3.4.1). The ids may span different
-     * aggregates — mark-DONE is order-independent — so batching is safe and cuts DB round-trips.
+     * Mark several acked rows {@code DONE} in one statement (§3.4.1). The rows may span different
+     * aggregates (mark-DONE is order-independent), so batching is safe and cuts DB round-trips.
      */
     @Override
-    public void markDoneBatch(Collection<Long> ids) {
-        if (ids.isEmpty()) {
+    public void markDoneBatch(Collection<OutboxRecord> claimed) {
+        if (claimed.isEmpty()) {
             return;
         }
+        Object[] ids = claimed.stream().map(OutboxRecord::id).toArray();
+        Object[] leases = claimed.stream().map(JdbcOutboxStore::leaseOf).toArray();
         Jdbc.exec(dataSource, "markDoneBatch failed", conn ->
                 Jdbc.exec(conn, MARK_DONE_SQL, ps -> {
-                    ps.setArray(1, conn.createArrayOf("bigint", ids.toArray()));
+                    ps.setArray(1, conn.createArrayOf("bigint", ids));
+                    ps.setArray(2, conn.createArrayOf("timestamptz", leases));
                     ps.executeUpdate();
                 }));
     }

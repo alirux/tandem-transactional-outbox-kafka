@@ -31,11 +31,11 @@ A faithful in-memory implementation of **both** `OutboxRepository` (write-side) 
   given buckets (earliest not-DONE row, eligible by `next_attempt_at`), mark `IN_FLIGHT` — mirrors the
   SQL semantics of LLD-jdbc §3.3.
 - `markDone` / `markForRetry` / `markFailed` / `reclaimExpiredLeases` / `cleanup`: mutate the map.
-  `markForRetry` and `markFailed` are fenced to the claim like the JDBC adapter's (LLD-jdbc §3.4.2): a
-  record whose lease the row no longer carries changes nothing.
+  `markDone`, `markForRetry` and `markFailed` are fenced to the claim like the JDBC adapter's (LLD-jdbc
+  §3.4.1, §3.4.2): a record whose lease the row no longer carries changes nothing.
 - Test affordances: inspect rows by status, advance a controllable clock (to test backoff/lease
-  expiry deterministically), and `forceFailed(id, error)`, which puts any row in `FAILED` for a test
-  that needs a failed row without driving a claim and a failed attempt first.
+  expiry deterministically), and `forceDone(id)` / `forceFailed(id, error)`, which put any row in `DONE`
+  or `FAILED` for a test that needs one without driving a claim and its outcome first.
 
 This lets unit tests exercise the write-side and the relay loop with zero I/O.
 

@@ -191,11 +191,11 @@ final class RelayWorker {
         if (acked.isEmpty()) {
             return 0;
         }
-        List<Long> batch = new ArrayList<>();
+        List<OutboxRecord> batch = new ArrayList<>();
         List<OutboxRecord> suspected = new ArrayList<>();
         OutboxRecord record;
         while ((record = acked.poll()) != null) {
-            batch.add(record.id());
+            batch.add(record);
             if (watermarks != null && watermarks.record(record) == PublishOrderWatermarks.Verdict.REGRESSED) {
                 suspected.add(record);
             }

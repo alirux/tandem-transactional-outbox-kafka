@@ -334,7 +334,7 @@ class OutboxAdminServiceTest {
     void GIVEN_an_empty_statuses_list_WHEN_replayed_in_bulk_THEN_it_is_treated_the_same_as_omitted() {
         insert("order-1", 1, "{}");
         long id = outbox.all().get(0).id();
-        outbox.markDone(id);
+        outbox.forceDone(id);
 
         // Empty statuses (as opposed to omitted/null) must default the same way: every replayable
         // status for the given aggregate, not "no statuses eligible".
@@ -352,7 +352,7 @@ class OutboxAdminServiceTest {
         }
 
         @Override
-        public void markDone(long id) {
+        public void markDone(OutboxRecord claimed) {
             throw new UnsupportedOperationException();
         }
 

@@ -257,12 +257,16 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
     }
 
     @Override
-    public void markDone(long id) {
-        mutate(id, r -> r.toBuilder()
+    public void markDone(OutboxRecord claimed) {
+        mutateAttempt(claimed, InMemoryOutbox::done);
+    }
+
+    private static OutboxRecord done(OutboxRecord r) {
+        return r.toBuilder()
                 .status(OutboxStatus.DONE)
                 .lockedBy(null)
                 .lockedUntil(null)
-                .build());
+                .build();
     }
 
     @Override
@@ -387,6 +391,18 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
      */
     public void forceFailed(long id, String error) {
         mutate(id, r -> failed(r, error));
+    }
+
+    /**
+     * Put a row in {@code DONE} directly, whatever its current status: a fixture for tests that need a
+     * delivered row without driving a claim and an ack first. {@link #markDone} itself only accepts the
+     * ack of the attempt that holds the row.
+     *
+     * @param id the row to mark delivered
+     * @throws IllegalArgumentException if no row has this id
+     */
+    public void forceDone(long id) {
+        mutate(id, InMemoryOutbox::done);
     }
 
     /** All stored rows, ordered by id. */

@@ -448,17 +448,17 @@ with overlapping in-flight sends** on the single async producer (`dispatch` retu
 LLD-kafka §2), up to `batch_size` in flight. It does **not** publish one row at a time:
 
 ```
-doneIds = concurrent collector
+acked = concurrent collector
 for row in batch:                              # distinct aggregates → independent
     dispatcher.dispatch(row)                   # async; future completes on ack (LLD-kafka §2)
         .whenComplete((ok, err) -> {
-            if err == null: doneIds.add(row.id)               # success → DONE (batched, §3.4.1)
+            if err == null: acked.add(row)                    # success → DONE (batched, §3.4.1)
                             metrics.recordPublishLatency(now() - row.createdAt())   # §4, HLD §7
             else:           store.markForRetryOrFailed(row, err)   # §3.4.2; this aggregate stops
             freeInFlightSlot()                                 # lets the loop claim more (§3.1)
         })
 # flush periodically (every N ids / few ms), not once per row:
-store.markDoneBatch(drain(doneIds))            # tx2
+store.markDoneBatch(drain(acked))              # tx2
 ```
 
 The latency sample is taken **on the completion handler, at the ack instant** — `RelayWorker` carries
@@ -477,13 +477,23 @@ Per-aggregate ordering and the poison gate hold **structurally**, not via an inn
   the aggregate's later rows remain blocked by the head-of-chain predicate next cycle — the aggregate
   stops with no explicit `break`, and the worker keeps its bucket ownership throughout.
 
-**3.4.1 `markDoneBatch` (Q9 tx2 — acked ids across aggregates):**
+**3.4.1 `markDoneBatch` (Q9 tx2 — acked rows across aggregates):**
 ```sql
-UPDATE tandem_outbox SET status = 2 WHERE id = ANY(:done_ids);   -- DONE
+UPDATE tandem_outbox o SET status = 2, locked_by = NULL, locked_until = NULL   -- DONE
+  FROM unnest(:ids, :claimed_leases) AS acked(id, lease)
+ WHERE o.id = acked.id AND o.locked_until = acked.lease;
 ```
-`:done_ids` accumulates **acked ids across different aggregates** (mark-DONE is order-independent), so
+The batch accumulates **acked rows across different aggregates** (mark-DONE is order-independent), so
 batching is safe and cuts DB round-trips at high rates. A crash before the flush re-publishes those
 rows (duplicate, dedup'd) — never a reorder.
+
+Each ack is **fenced to its attempt** like the failures below (§3.4.2): it completes the row only while
+the row still carries the lease that attempt's claim stamped. A late ack reports a delivery that came
+before whatever happened to the row since, so it cannot stand for it. Unfenced, it would complete a row
+that another worker took over and may still be publishing, freeing the aggregate's next event to go
+out before that publish lands; or it would cancel a replay an operator requested after the delivery.
+The cost is narrow: an ack arriving after the reclaim, while the row is still `PENDING`, is dropped, so
+the row is published once more, in order, which consumer dedup already absorbs.
 
 **3.4.2 `markForRetry` / `markFailed`:**
 ```sql
@@ -497,7 +507,7 @@ UPDATE tandem_outbox
    SET status = 3, attempts = attempts + 1, last_error = :err, locked_by = NULL, locked_until = NULL
  WHERE id = :id AND locked_until = :claimed_lease;
 ```
-**Both are fenced to the attempt that failed.** The port takes the record the claim returned, and the
+**Both are fenced to the attempt that failed**, like the ack (§3.4.1). The port takes the record the claim returned, and the
 update applies only while the row still carries that claim's lease (`locked_until`). A worker stalled
 between the broker's answer and this write can find its lease reclaimed (§3.5) and the row claimed again,
 and perhaps delivered, by another worker; its outcome then belongs to a superseded attempt and updates
@@ -505,9 +515,8 @@ nothing. Unfenced, it would reverse the newer attempt: back to `PENDING`, the ro
 behind the aggregate's later events; to `FAILED`, it would block a chain that is in fact delivered.
 
 The lease is the token because it identifies one claim: each claim stamps it from the DB's `now()`, and
-every way out of `IN_FLIGHT` (done, retry, failure, reclaim, replay) clears it. `attempts` would not do:
-a replay resets it to 0 (HLD §8), so a claim after a replay can carry the count of a much older one.
-`markDone` stays unfenced and keyed by id, because a late ack still reports a delivery that happened.
+every way out of `IN_FLIGHT` (done, retry, failure, reclaim) clears it. `attempts` would not do: a replay
+resets it to 0 (HLD §8), so a claim after a replay can carry the count of a much older one.
 
 The classification *retriable vs non-retriable* of the dispatch error is a `tandem-kafka` concern (Q17);
 `tandem-jdbc` just records the outcome.

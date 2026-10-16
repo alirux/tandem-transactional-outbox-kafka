@@ -93,9 +93,10 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-1", 1);
         insert("order-1", 2);
 
-        long head = claim(10).get(0).id();
+        OutboxRecord headClaim = claim(10).get(0);
+        long head = headClaim.id();
         assertThat(claim(10)).isEmpty();   // successor blocked until the head finishes
-        store.markDoneBatch(List.of(head));
+        store.markDoneBatch(List.of(headClaim));
 
         assertThat(claim(10)).extracting(OutboxRecord::id).containsExactly(2L);
     }
@@ -105,8 +106,9 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-1", 1);
         insert("order-1", 2);
 
-        long head = claim(10).get(0).id();
-        store.markDone(head);
+        OutboxRecord headClaim = claim(10).get(0);
+        long head = headClaim.id();
+        store.markDone(headClaim);
 
         assertThat(statusOf(head)).isEqualTo(OutboxStatus.DONE.code());
         // A delivered row holding a stale lease diverges from the in-memory double and leaves dead
@@ -191,8 +193,8 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-2", 1);   // id 2 — becomes DONE below
         insert("order-3", 1);   // id 3 — stays PENDING
         insert("order-4", 1);   // id 4 — stays PENDING
-        claim(2);               // claims the two lowest ids, leaving 3 and 4 waiting
-        store.markDone(2);
+        List<OutboxRecord> claimed = claim(2);   // claims the two lowest ids, leaving 3 and 4 waiting
+        store.markDone(claimed.stream().filter(r -> r.id() == 2).findFirst().orElseThrow());
 
         LagSnapshot lag = store.lag().orElseThrow();
 
@@ -204,10 +206,25 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_batch_of_acks_one_of_them_superseded_WHEN_marked_done_THEN_only_the_current_attempts_are_done() {
+        insert("order-1", 1);   // id 1 — its lease expires and another worker claims it
+        insert("order-2", 1);   // id 2 — still held by the acked attempt
+        List<OutboxRecord> acked = claim(10);
+        execute("UPDATE tandem_outbox SET locked_until = now() - interval '1 second' WHERE id = 1");
+        assertThat(store.reclaimExpiredLeases()).isEqualTo(1);
+        assertThat(claim(10)).extracting(OutboxRecord::id).containsExactly(1L);
+
+        store.markDoneBatch(acked);
+
+        assertThat(statusOf(1)).isEqualTo(OutboxStatus.IN_FLIGHT.code());
+        assertThat(statusOf(2)).isEqualTo(OutboxStatus.DONE.code());
+    }
+
+    @Test
     void GIVEN_a_record_no_claim_returned_WHEN_reported_as_failed_THEN_the_row_is_untouched() {
         insert("order-1", 1);
         OutboxRecord claimed = claim(10).get(0);
-        store.markDone(claimed.id());
+        store.markDone(claimed);
         OutboxRecord withoutLease = claimed.toBuilder().lockedUntil(null).build();
 
         store.markFailed(withoutLease, "poison");
@@ -279,8 +296,7 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         insert("order-1", 1);   // id 1 — delivered before the failure
         insert("order-1", 2);   // id 2 — becomes the FAILED row
         insert("order-1", 3);   // id 3 — behind the failure
-        long first = claim(10).get(0).id();
-        store.markDone(first);
+        store.markDone(claim(10).get(0));
         OutboxRecord secondClaim = claim(10).get(0);
         long second = secondClaim.id();
 
@@ -296,8 +312,8 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     void GIVEN_terminal_rows_older_than_the_cutoff_WHEN_cleaned_up_THEN_they_are_deleted_and_others_kept() {
         insert("order-1", 1);   // id 1 → DONE
         insert("order-2", 1);   // id 2 → DONE
+        store.markDoneBatch(claim(10));
         insert("order-3", 1);   // id 3 → stays PENDING
-        store.markDoneBatch(List.of(1L, 2L));
 
         // Cutoff after the rows' creation → both DONE rows are eligible.
         assertThat(store.cleanup(Instant.now().plus(Duration.ofHours(1)), 10)).isEqualTo(2);
@@ -318,7 +334,7 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         for (int i = 1; i <= 6; i++) {
             insert("order-" + i, 1);
         }
-        store.markDoneBatch(List.of(1L, 2L, 3L, 4L, 5L, 6L));
+        store.markDoneBatch(claim(10));
         Instant cutoff = Instant.now().plus(Duration.ofHours(1));
 
         try (Connection holder = DATA_SOURCE.getConnection()) {
@@ -345,7 +361,7 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
     @Test
     void GIVEN_terminal_rows_newer_than_the_cutoff_WHEN_cleaned_up_THEN_they_are_retained() {
         insert("order-1", 1);
-        store.markDoneBatch(List.of(1L));
+        store.markDoneBatch(claim(10));
 
         assertThat(store.cleanup(Instant.now().minus(Duration.ofHours(1)), 10)).isZero();
         assertThat(rowExists(1)).isTrue();

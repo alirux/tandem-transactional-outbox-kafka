@@ -33,17 +33,29 @@ public interface OutboxStore {
      */
     List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId, Duration lease, int batchSize);
 
-    /** Mark a delivered row {@code DONE}. */
-    void markDone(long id);
+    /**
+     * Mark the row a delivery attempt published {@code DONE}.
+     *
+     * <p>Fenced to the attempt exactly like {@link #markForRetry}: an ack that arrives after the row
+     * was reclaimed changes nothing. It reports a delivery that came before whatever happened to the
+     * row since, so it cannot stand for a newer attempt still publishing, nor for a replay an operator
+     * requested afterwards (LLD-jdbc §3.4.1). At worst the row is published once more, in order.
+     *
+     * @param claimed the row exactly as {@link #claimBatch} returned it to the acked attempt
+     */
+    void markDone(OutboxRecord claimed);
 
     /**
-     * Mark several acked rows {@code DONE} in one call (§3.4.1). The ids may span different aggregates
-     * — mark-DONE is order-independent — so the relay batches them to cut round-trips. The default
-     * loops {@link #markDone}; the JDBC adapter overrides it with a single batched UPDATE.
+     * Mark several acked rows {@code DONE} in one call (§3.4.1), each fenced like {@link #markDone}. The
+     * rows may span different aggregates (mark-DONE is order-independent), so the relay batches them to
+     * cut round-trips. The default loops {@link #markDone}; the JDBC adapter overrides it with a single
+     * batched UPDATE.
+     *
+     * @param claimed the rows exactly as {@link #claimBatch} returned them to the acked attempts
      */
-    default void markDoneBatch(Collection<Long> ids) {
-        for (Long id : ids) {
-            markDone(id);
+    default void markDoneBatch(Collection<OutboxRecord> claimed) {
+        for (OutboxRecord record : claimed) {
+            markDone(record);
         }
     }
 

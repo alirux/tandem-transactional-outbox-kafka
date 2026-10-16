@@ -38,7 +38,7 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_done_and_failed_and_discarded_rows_WHEN_replayed_by_aggregate_THEN_only_the_replayable_ones_reset() {
         long done = insert("order-1");
-        outbox.markDone(done);
+        outbox.forceDone(done);
         long failed = insert("order-2");
         outbox.forceFailed(failed, "boom");
         long discarded = insert("order-3");
@@ -105,7 +105,7 @@ class InMemoryOutboxReplayAndDiscardTest {
     @Test
     void GIVEN_a_status_selector_WHEN_replaying_by_type_THEN_only_rows_in_that_status_reset() {
         long stayDone = insert("order-1");
-        outbox.markDone(stayDone);
+        outbox.forceDone(stayDone);
         long resetFailed = insert("order-2");
         outbox.forceFailed(resetFailed, "boom");
 

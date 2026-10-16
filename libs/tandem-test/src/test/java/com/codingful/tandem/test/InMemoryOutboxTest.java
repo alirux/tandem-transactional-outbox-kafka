@@ -195,8 +195,8 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 1));   // id 1
         outbox.insert(message("order-1", 2));   // id 2
 
-        long head = claimAll(10).get(0).id();
-        assertThat(head).isEqualTo(1L);
+        OutboxRecord head = claimAll(10).get(0);
+        assertThat(head.id()).isEqualTo(1L);
         // Before the head is done, seq 2 must NOT be claimable (would reorder the aggregate).
         assertThat(claimAll(10)).isEmpty();
 
@@ -310,7 +310,7 @@ class InMemoryOutboxTest {
         OutboxRecord superseded = claimAll(10).get(0);
         clock.advance(LEASE.plusSeconds(1));
         outbox.reclaimExpiredLeases();
-        outbox.markDone(claimAll(10).get(0).id());
+        outbox.markDone(claimAll(10).get(0));
 
         outbox.markForRetry(superseded, "late", null);
         outbox.markFailed(superseded, "late");
@@ -326,7 +326,7 @@ class InMemoryOutboxTest {
         OutboxRecord superseded = claimAll(10).get(0);
         clock.advance(LEASE.plusSeconds(1));
         outbox.reclaimExpiredLeases();
-        outbox.markDone(claimAll(10).get(0).id());
+        outbox.markDone(claimAll(10).get(0));
         outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false));
         // The replay starts the row over with the attempts count the superseded claim saw.
         OutboxRecord newest = claimAll(10).get(0);
@@ -335,6 +335,44 @@ class InMemoryOutboxTest {
         outbox.markFailed(superseded, "late");
 
         assertThat(outbox.byId(newest.id()).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    }
+
+    @Test
+    void GIVEN_a_row_another_worker_claimed_after_the_lease_expired_WHEN_the_first_attempt_ack_arrives_THEN_the_aggregate_waits_for_the_newer_attempt() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-1", 2));
+        OutboxRecord superseded = claimAll(10).get(0);
+        clock.advance(LEASE.plusSeconds(1));
+        outbox.reclaimExpiredLeases();
+        OutboxRecord current = claimAll(10).get(0);
+
+        outbox.markDone(superseded);
+
+        assertThat(outbox.byId(current.id()).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+        assertThat(claimAll(10)).isEmpty();
+    }
+
+    @Test
+    void GIVEN_a_delivered_row_requested_for_replay_WHEN_an_ack_from_before_the_replay_arrives_THEN_the_replay_stays_pending() {
+        outbox.insert(message("order-1", 1));
+        OutboxRecord delivered = claimAll(10).get(0);
+        outbox.markDone(delivered);
+        outbox.replay(new ReplayCriteria(AggregateId.of("order-1"), null, null, null, Set.of(), false));
+
+        outbox.markDone(delivered);
+
+        assertThat(outbox.byId(delivered.id()).status()).isEqualTo(OutboxStatus.PENDING);
+    }
+
+    @Test
+    void GIVEN_any_row_WHEN_forced_to_done_THEN_its_aggregate_moves_on() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-1", 2));
+
+        outbox.forceDone(1);
+
+        assertThat(outbox.byId(1).status()).isEqualTo(OutboxStatus.DONE);
+        assertThat(claimAll(10)).extracting(OutboxRecord::id).containsExactly(2L);
     }
 
     @Test
@@ -413,8 +451,8 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 1));   // id 1 → will be DONE
         outbox.insert(message("order-2", 1));   // id 2 → will be DONE
         outbox.insert(message("order-3", 1));   // id 3 → stays PENDING
-        outbox.markDone(1);
-        outbox.markDone(2);
+        outbox.forceDone(1);
+        outbox.forceDone(2);
 
         clock.advance(Duration.ofDays(1));
         Instant cutoff = clock.instant();
@@ -431,7 +469,7 @@ class InMemoryOutboxTest {
     @Test
     void GIVEN_a_done_row_newer_than_the_cutoff_WHEN_housekeeping_runs_THEN_it_is_retained() {
         outbox.insert(message("order-1", 1));
-        outbox.markDone(1);
+        outbox.forceDone(1);
 
         // Cutoff is before the row's creation → not eligible.
         assertThat(outbox.cleanup(clock.instant().minus(Duration.ofDays(1)), 10)).isZero();
@@ -462,8 +500,7 @@ class InMemoryOutboxTest {
         outbox.insert(message("order-1", 1));   // id 1 — delivered before the failure
         outbox.insert(message("order-1", 2));   // id 2 — fails
         outbox.insert(message("order-1", 3));   // id 3 — behind the failure
-        claimAll(10);
-        outbox.markDone(1);
+        outbox.markDone(claimAll(10).get(0));
         OutboxRecord second = claimAll(10).get(0);
 
         outbox.markFailed(second, "poison");
