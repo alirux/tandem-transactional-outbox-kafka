@@ -81,6 +81,17 @@ class JdbcRelayQueryIT extends AbstractPostgresIT {
         assertThat(new JdbcRelayQuery(clockBehind).status().alive()).isTrue();
     }
 
+    /** A sub-second reclaimInterval is a legitimate setting for faster failover, and heartbeats that often. */
+    @Test
+    void GIVEN_a_relay_heartbeating_more_than_once_a_second_WHEN_the_status_is_read_THEN_it_is_alive() {
+        JdbcRelayControlSource relay =
+                new JdbcRelayControlSource(DATA_SOURCE, Coordination.SINGLE, Duration.ofMillis(500));
+        relay.onStart();
+        relay.heartbeat();
+
+        assertThat(query.status().alive()).isTrue();
+    }
+
     @Test
     void GIVEN_the_relay_is_paused_WHEN_the_status_is_read_THEN_it_reports_paused() {
         execute("INSERT INTO tandem_meta (key, value) VALUES ('relay_paused', 'true')",

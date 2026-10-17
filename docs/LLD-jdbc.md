@@ -307,8 +307,9 @@ operator copies in full from the inbound request still finds its rows.
   connection cost class. Unlike `refresh()`'s pause state, this is unconditional on coordination
   mode: `SINGLE` heartbeats exactly like `LEASE` does, closing the gap where only `LEASE`'s
   `tandem_relay_member` gave an admin any liveness signal at all. `JdbcRelayControlSource` also
-  publishes its own cadence once at `onStart()` (`relay_heartbeat_interval_seconds`), so the admin
-  can compute a staleness threshold instead of guessing one.
+  publishes its own cadence once at `onStart()` (`relay_heartbeat_interval_seconds`, in whole seconds
+  rounded up, so a sub-second `reclaimInterval` never publishes `0`), so the admin can compute a
+  staleness threshold instead of guessing one.
 
 ### 3.2 Bucket assignment — the coordination mode
 

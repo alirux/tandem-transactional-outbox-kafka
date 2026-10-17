@@ -60,10 +60,19 @@ public final class JdbcRelayControlSource implements RelayControlSource {
                 ps.executeUpdate();
             });
             Jdbc.exec(conn, UPSERT_HEARTBEAT_INTERVAL_SQL, ps -> {
-                ps.setString(1, Long.toString(heartbeatInterval.toSeconds()));
+                ps.setString(1, Long.toString(publishedIntervalSeconds(heartbeatInterval)));
                 ps.executeUpdate();
             });
         });
+    }
+
+    /**
+     * Whole seconds, rounded up: the column holds seconds, and a sub-second interval truncated to
+     * {@code 0} would give the Admin API a staleness threshold of zero, which no heartbeat ever meets.
+     */
+    static long publishedIntervalSeconds(Duration interval) {
+        long seconds = interval.toSeconds();
+        return interval.equals(Duration.ofSeconds(seconds)) ? seconds : seconds + 1;
     }
 
     @Override
