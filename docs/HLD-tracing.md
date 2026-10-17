@@ -182,7 +182,8 @@ leaves it `NULL`, and an older reader never selects it.
     `tandem.tracing.publish-span` flag, separate from the write side's `tandem.tracing.enabled`
     because under the split topology the two run in different processes and the costs differ (a
     header on the row versus export volume in the backend). **Implemented.**
-    **A row carrying no `traceparent` gets no span**, rather than a root span: the relay would
+    **A row whose `traceparent` the configured propagator cannot extract gets no span** (absent, or
+    in a format that propagator does not read), rather than a root span: the relay would
     otherwise become the root of a new trace holding one publish and nothing about the business
     operation behind it — the same orphan outcome §9 rejected when it ruled out force-sampling.
     Instrumented mode therefore builds on propagation mode.

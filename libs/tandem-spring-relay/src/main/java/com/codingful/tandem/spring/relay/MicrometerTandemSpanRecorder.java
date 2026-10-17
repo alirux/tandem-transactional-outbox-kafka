@@ -20,7 +20,8 @@ import java.util.Objects;
  * dispatch completion callback — never inside a thread-local scope, which would close when the dispatch
  * call returns rather than when the send completes (§6.2).
  *
- * <p><b>A row carrying no trace context gets no span.</b> Starting one anyway would make the relay the
+ * <p><b>A row whose context the propagator cannot read gets no span</b>: one carrying no trace
+ * context at all, or one written in a format the configured propagator does not extract. Starting one anyway would make the relay the
  * root of a brand-new trace holding a single publish span and nothing about the business operation that
  * produced the event — the same orphan-span outcome §9 rejected when it decided the relay must never
  * force-sample. Instrumented mode therefore builds on propagation mode: with capture off at the write
@@ -73,6 +74,12 @@ final class MicrometerTandemSpanRecorder implements TandemSpanRecorder {
             builder.tag(TandemSpanAttributes.CORRELATION_ID, correlationId);
         }
         io.micrometer.tracing.Span span = builder.start();
+        // Micrometer's builder does not say whether the propagator found a parent, so the started span
+        // does: one with none is a root the propagator could not read the row's context into.
+        if (span.context().parentId() == null) {
+            span.abandon();
+            return TandemSpanRecorder.Span.NOOP;
+        }
         return new TandemSpanRecorder.Span() {
 
             @Override

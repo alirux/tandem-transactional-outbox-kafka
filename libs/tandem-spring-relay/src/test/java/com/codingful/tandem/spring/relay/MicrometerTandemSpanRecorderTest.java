@@ -98,6 +98,16 @@ class MicrometerTandemSpanRecorderTest {
     }
 
     @Test
+    void GIVEN_a_row_carrying_an_unparseable_trace_context_WHEN_it_is_published_THEN_no_orphan_trace_is_created() {
+        TandemSpanRecorder.Span span = recorder.startPublishSpan(
+                42L, "Order", "order-1", 0, "order-topic", "not-a-valid-traceparent", null, "corr-1");
+        span.end();
+
+        assertThat(span).isSameAs(TandemSpanRecorder.Span.NOOP);
+        assertThat(exporter.getFinishedSpanItems()).isEmpty();
+    }
+
+    @Test
     void GIVEN_a_row_carrying_vendor_trace_state_WHEN_it_is_published_THEN_that_state_is_carried_into_the_span() {
         recorder.startPublishSpan(42L, "Order", "order-1", 0, "order-topic", TRACEPARENT, "vendor=abc", null).end();
 
