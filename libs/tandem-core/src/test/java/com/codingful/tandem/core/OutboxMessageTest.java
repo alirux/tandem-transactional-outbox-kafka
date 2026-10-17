@@ -60,6 +60,22 @@ class OutboxMessageTest {
     }
 
     @Test
+    void GIVEN_an_aggregate_type_at_the_column_width_WHEN_built_THEN_255_is_accepted_and_256_is_rejected() {
+        assertThat(validBuilder().aggregateType("a".repeat(255)).build().aggregateType()).hasSize(255);
+        assertThatThrownBy(() -> validBuilder().aggregateType("a".repeat(256)).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("aggregateType");
+    }
+
+    @Test
+    void GIVEN_an_event_type_at_the_column_width_WHEN_built_THEN_255_is_accepted_and_256_is_rejected() {
+        assertThat(validBuilder().type("a".repeat(255)).build().type()).hasSize(255);
+        assertThatThrownBy(() -> validBuilder().type("a".repeat(256)).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("type");
+    }
+
+    @Test
     void GIVEN_a_missing_payload_WHEN_built_THEN_it_is_rejected() {
         assertThatThrownBy(() -> OutboxMessage.builder()
                 .aggregateId("order-1")

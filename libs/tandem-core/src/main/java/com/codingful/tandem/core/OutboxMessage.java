@@ -37,6 +37,8 @@ import java.util.Objects;
  */
 public final class OutboxMessage {
 
+    private static final int MAX_COLUMN_LENGTH = 255;
+
     private final AggregateId aggregateId;
     private final String aggregateType;
     private final String type;            // CloudEvents `type`; nullable (Q20)
@@ -49,8 +51,8 @@ public final class OutboxMessage {
 
     private OutboxMessage(Builder b) {
         this.aggregateId = Objects.requireNonNull(b.aggregateId, "aggregateId");
-        this.aggregateType = requireNonBlank(b.aggregateType, "aggregateType");
-        this.type = b.type;
+        this.aggregateType = requireWithinColumn(requireNonBlank(b.aggregateType, "aggregateType"), "aggregateType");
+        this.type = b.type == null ? null : requireWithinColumn(b.type, "type");
         this.seqSource = resolveSeqSource(b);
         this.seq = b.seq;
         this.lockedWrite = b.lockedWrite;
@@ -212,6 +214,17 @@ public final class OutboxMessage {
         return value;
     }
 
+    /**
+     * The bound of the {@code VARCHAR(255)} column, counted in {@code char}s like {@link AggregateId}:
+     * checked here so that a value an in-memory outbox accepts is one the database accepts too.
+     */
+    private static String requireWithinColumn(String value, String field) {
+        if (value.length() > MAX_COLUMN_LENGTH) {
+            throw new IllegalArgumentException(field + " exceeds " + MAX_COLUMN_LENGTH + " chars");
+        }
+        return value;
+    }
+
     public static final class Builder {
         private AggregateId aggregateId;
         private String aggregateType;
@@ -347,9 +360,12 @@ public final class OutboxMessage {
         }
 
         /**
-         * @throws NullPointerException  if a required field ({@code aggregateId}, {@code payload}) is unset
-         * @throws IllegalStateException if none of {@link #seq(long)}, {@link #managedSeq()} and
-         *                               {@link #unsequenced()} was stated, or if more than one was
+         * @throws NullPointerException     if a required field ({@code aggregateId}, {@code aggregateType},
+         *                                  {@code payload}) is unset
+         * @throws IllegalArgumentException if {@code aggregateType} is blank, or {@code aggregateType} or
+         *                                  {@code type} is longer than 255 chars
+         * @throws IllegalStateException    if none of {@link #seq(long)}, {@link #managedSeq()} and
+         *                                  {@link #unsequenced()} was stated, or if more than one was
          */
         public OutboxMessage build() {
             return new OutboxMessage(this);

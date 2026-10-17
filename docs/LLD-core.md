@@ -85,6 +85,9 @@ public final class OutboxMessage {
   its own `seqSource` read from the column — a resolved managed number is indistinguishable from an
   application-assigned one once stored, so for a persisted row the record's accessor is the authority,
   not the wrapped message's.
+- **`aggregateType` and `type` are bounded like `AggregateId`**: `build()` rejects either one longer
+  than 255 `char`s, the width of their `VARCHAR(255)` columns, so a message the in-memory outbox
+  accepts is one the database accepts too.
 - **`lockedWrite`** asks the write-side adapter to serialise concurrent writers to the aggregate with
   a transaction-scoped advisory lock ([HLD-managed-seq](HLD-managed-seq.md) §4.2) — independent of
   `seqSource()`, combines with any of the three modes. Unlike them it changes no readable value on
