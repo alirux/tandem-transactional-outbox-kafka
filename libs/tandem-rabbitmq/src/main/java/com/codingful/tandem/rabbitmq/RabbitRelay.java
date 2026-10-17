@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -249,7 +250,11 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
             return;
         }
         LOG.warn("AMQP channel shut down, failing pending confirms pendingCount:{}", lost, cause);
-        failPendingUpTo(lastTag, cause);
+        // Never classified: a channel closed over one message's error (404 on a missing exchange) loses the
+        // confirms of every message pending on it and cannot say which one caused it, so none is judged.
+        failPendingUpTo(lastTag, () -> new OutboxDispatchException(
+                "AMQP publish failed (retriable): the channel shut down before the broker confirmed the publish",
+                true, cause));
     }
 
     private void expire(long tag) {
@@ -263,11 +268,11 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
                 + confirmTimeoutMs + " ms", true));
     }
 
-    private void failPendingUpTo(long lastTag, Throwable cause) {
+    private void failPendingUpTo(long lastTag, Supplier<OutboxDispatchException> failure) {
         for (Long tag : List.copyOf(pending.headMap(lastTag, true).keySet())) {
             Pending entry = discard(tag);
             if (entry != null) {
-                fail(entry, classifier.classify(cause));
+                fail(entry, failure.get());
             }
         }
     }
@@ -335,7 +340,7 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
         } catch (IOException closeFailure) {
             LOG.warn("Closing the AMQP publish channel failed", closeFailure);
         }
-        failPendingUpTo(Long.MAX_VALUE, channelClosed());
+        failPendingUpTo(Long.MAX_VALUE, () -> classifier.classify(channelClosed()));
     }
 
     private static IOException channelClosed() {

@@ -8,10 +8,12 @@ import com.rabbitmq.client.ShutdownSignalException;
  * Default AMQP error mapping (LLD-rabbitmq §4).
  *
  * <ul>
- *   <li><b>Permanent</b> — the broker refused this message for a reason no retry changes: a missing
- *       exchange ({@code 404}), a refused permission ({@code 403}), or a violated precondition
+ *   <li><b>Permanent</b> — a publish that fails because the broker refused this message for a reason no
+ *       retry changes: a missing exchange ({@code 404}), a refused permission ({@code 403}), or a violated precondition
  *       ({@code 406}). Each is a configuration fact, so retrying would only block the aggregate for
- *       the whole backoff ladder.</li>
+ *       the whole backoff ladder. A shutdown that fails the confirms still pending is not judged here:
+ *       {@code RabbitRelay} retries those whatever the reply code, since the close cannot say which message
+ *       caused it.</li>
  *   <li><b>Retriable</b> — everything else: a nack, a channel or connection shutdown, an I/O failure,
  *       <b>and unknown errors by default</b>. Failing a row permanently is the unrecoverable
  *       direction, so the default leans the other way, exactly as the Kafka classifier does.</li>

@@ -7,6 +7,8 @@ import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.exception.OutboxDispatchException;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.ShutdownSignalException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -151,6 +153,30 @@ class RabbitRelayTest {
 
         assertThat(failureOf(first).isRetriable()).isTrue();
         assertThat(failureOf(second).isRetriable()).isTrue();
+    }
+
+    @Test
+    void GIVEN_rows_in_flight_to_two_exchanges_WHEN_the_broker_closes_the_channel_because_one_exchange_is_missing_THEN_the_row_bound_for_the_other_is_retried() {
+        String missingExchange = "audit-events";
+        RabbitRouter byType = record -> new AmqpRoute(
+                record.aggregateType().equals("Audit") ? missingExchange : EXCHANGE, "order-topic");
+        RabbitRelay relay = new RabbitRelay(channel,
+                new CloudEventAmqpEncoder(byType, RabbitRelayConfig.of("/tandem/orders", EXCHANGE)),
+                new DefaultRabbitErrorClassifier(), CONFIRM_TIMEOUT_MS, TandemSpanRecorder.NOOP, timeouts);
+
+        CompletableFuture<Void> healthy = relay.dispatch(record(1, "order-1"));
+        relay.dispatch(OutboxRecord.builder()
+                .id(2)
+                .message(OutboxMessage.builder()
+                        .aggregateId("audit-1").aggregateType("Audit").seq(1).payload("{}".getBytes()).build())
+                .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+                .build());
+        AMQP.Channel.Close reason = new AMQP.Channel.Close.Builder()
+                .replyCode(404).replyText("NOT_FOUND - no exchange '" + missingExchange + "'")
+                .classId(60).methodId(40).build();
+        channel.shutdown(new ShutdownSignalException(false, false, reason, "channel"));
+
+        assertThat(failureOf(healthy).isRetriable()).isTrue();
     }
 
     @Test
