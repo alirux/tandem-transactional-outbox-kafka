@@ -110,6 +110,29 @@ class TandemProducerAutoConfigurationTest {
     }
 
     @Test
+    void GIVEN_two_transaction_managers_and_no_primary_WHEN_the_context_starts_THEN_it_starts_without_a_template() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .withBean("domainTx", PlatformTransactionManager.class,
+                        () -> new DataSourceTransactionManager(new NoopDataSource()))
+                .withBean("ordersTx", PlatformTransactionManager.class,
+                        () -> new DataSourceTransactionManager(new NoopDataSource()))
+                .run(context -> assertThat(context).hasNotFailed()
+                        .doesNotHaveBean(TransactionalOutboxTemplate.class));
+    }
+
+    @Test
+    void GIVEN_two_transaction_managers_one_primary_WHEN_the_context_starts_THEN_the_template_is_contributed() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .withBean("domainTx", PlatformTransactionManager.class,
+                        () -> new DataSourceTransactionManager(new NoopDataSource()), definition -> definition.setPrimary(true))
+                .withBean("ordersTx", PlatformTransactionManager.class,
+                        () -> new DataSourceTransactionManager(new NoopDataSource()))
+                .run(context -> assertThat(context).hasSingleBean(TransactionalOutboxTemplate.class));
+    }
+
+    @Test
     void GIVEN_no_transaction_manager_WHEN_the_context_starts_THEN_no_template_is_contributed() {
         runner.withBean(DataSource.class, NoopDataSource::new)
                 .withBean(OutboxRepository.class, InMemoryOutbox::new)

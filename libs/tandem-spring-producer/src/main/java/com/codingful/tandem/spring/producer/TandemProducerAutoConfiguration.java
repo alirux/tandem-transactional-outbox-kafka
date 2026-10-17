@@ -189,11 +189,13 @@ public class TandemProducerAutoConfiguration {
     /**
      * The Template tier (LLD-spring-producer §3). Contributed only when a {@link PlatformTransactionManager}
      * exists — the template owns its transaction — so the plain repository tier still works without one.
+     * With several and none primary it backs off rather than guess which one runs the outbox's
+     * transaction, and the application builds its own template on the right one.
      * The optional {@link PayloadSerializer} enables object payloads; absent, only {@code add(...)} works.
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(PlatformTransactionManager.class)
+    @ConditionalOnSingleCandidate(PlatformTransactionManager.class)
     TransactionalOutboxTemplate tandemTransactionalOutboxTemplate(OutboxRepository outboxRepository,
             PlatformTransactionManager transactionManager, ObjectProvider<PayloadSerializer> payloadSerializer,
             ObjectProvider<TransactionBindingGuard> bindingGuard) {

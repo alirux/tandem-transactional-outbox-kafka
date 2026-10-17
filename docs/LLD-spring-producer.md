@@ -277,7 +277,7 @@ so a `PlatformTransactionManager` is available. Every contributed bean is `@Cond
 | Bean | Condition | Needs |
 |---|---|---|
 | `PayloadSerializer` (Jackson) | `@ConditionalOnClass(ObjectMapper)` | the app's `ObjectMapper` if present |
-| `TransactionalOutboxTemplate` | `@ConditionalOnBean(PlatformTransactionManager)` | `OutboxRepository`, `PlatformTransactionManager`, optional `PayloadSerializer` |
+| `TransactionalOutboxTemplate` | `@ConditionalOnSingleCandidate(PlatformTransactionManager)`: with several and none primary it backs off instead of failing the application's start | `OutboxRepository`, `PlatformTransactionManager`, optional `PayloadSerializer` |
 | `@TransactionalOutbox` advisor + aspect | `@ConditionalOnClass` AOP present | `OutboxRepository` |
 | Spring-events listener + mapper registry | always (registry may be empty) | `OutboxRepository`, the `OutboxEventMapper` beans, optional `PayloadSerializer` |
 
