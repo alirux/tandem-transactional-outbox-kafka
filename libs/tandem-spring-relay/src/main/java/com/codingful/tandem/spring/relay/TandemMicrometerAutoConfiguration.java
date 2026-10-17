@@ -3,10 +3,13 @@ package com.codingful.tandem.spring.relay;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.micrometer.MicrometerTandemMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -32,13 +35,22 @@ import org.springframework.context.annotation.Bean;
  * {@link ConditionalOnBean} below is evaluated when this class is processed. Left unordered, this class
  * sorts ahead of them, sees no registry, and the relay silently runs on the no-op metrics. Naming the
  * composite registry autoconfiguration alone is enough, since every exporter orders itself before it.
+ *
+ * <p>Gated on exactly what the relay is gated on, like {@link TandemKafkaAutoConfiguration}: the meters
+ * describe a running relay, and registered without one they would report its backlog and its live
+ * workers as zero to every dashboard and alert reading them. The {@code DataSource} condition is why it
+ * is also ordered after Spring Boot's {@code DataSource} autoconfiguration, by name for both generations.
  */
 @AutoConfiguration(before = TandemRelayAutoConfiguration.class, afterName = {
         // Spring Boot 3.x
         "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",
         // Spring Boot 4.x, relocated into spring-boot-micrometer-metrics
-        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration"})
+        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
+        "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",   // Spring Boot 3.x
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"})  // Spring Boot 4.x
 @ConditionalOnClass({MeterRegistry.class, MicrometerTandemMetrics.class})
+@ConditionalOnSingleCandidate(DataSource.class)
+@ConditionalOnProperty(prefix = "tandem.relay", name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(TandemMetricsProperties.class)
 public class TandemMicrometerAutoConfiguration {
 

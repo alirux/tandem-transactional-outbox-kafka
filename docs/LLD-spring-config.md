@@ -647,7 +647,9 @@ the configuration class, before any method-level condition is evaluated (§1.1 r
 autoconfiguration classes and not across the `@Bean` methods of one class. `TandemMicrometerAutoConfiguration`
 is wired the same way for the same reason. It is additionally ordered **after** Spring Boot's own
 metrics autoconfiguration, by name, because its bean is conditional on the `MeterRegistry` those
-contribute (LLD-micrometer §5).
+contribute (LLD-micrometer §5). Both are gated on what the relay itself is gated on (a single
+`DataSource`, `tandem.relay.enabled`): without a relay the Kafka producer has nothing to publish for, and
+the relay's meters would report its backlog and its live workers as zero.
 
 **Each of these classes declares its own ordering against the beans it is conditional on.** Being
 `before` the relay autoconfiguration places a class ahead of that one and nothing more: it does not
@@ -655,7 +657,7 @@ inherit that class's `afterName` entries. A bean condition is evaluated when the
 processed, and unordered autoconfigurations sort by class name, which puts `com.codingful…` ahead of
 everything in `org.springframework…`. So `TandemKafkaAutoConfiguration`, conditional on a single
 `DataSource`, is ordered after Boot's `DataSourceAutoConfiguration` itself, and
-`TandemMicrometerAutoConfiguration` after the metrics autoconfiguration, both by name and for both
+`TandemMicrometerAutoConfiguration` after the metrics autoconfiguration and the `DataSource` one, both by name and for both
 generations (§1.1). The wiring tests that guard this take the bean in question from Boot's real
 autoconfiguration: a bean handed to the context runner directly exists before any autoconfiguration is
 processed, so a test built that way passes whatever the ordering is.

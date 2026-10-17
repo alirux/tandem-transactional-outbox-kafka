@@ -18,6 +18,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 
 /**
  * Proves the cross-class {@code @ConditionalOnMissingBean} ordering LLD-micrometer §5 relies on:
@@ -97,6 +98,61 @@ class TandemMicrometerAutoConfigurationTest {
             highest = Math.max(highest, Double.parseDouble(matcher.group(1)));
         }
         return highest;
+    }
+
+    @Test
+    void GIVEN_the_relay_switched_off_WHEN_the_context_starts_THEN_no_relay_meter_reports_a_relay_that_is_not_there() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TandemMicrometerAutoConfiguration.class,
+                        TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
+                .withBean(DataSource.class, NoopDataSource::new)
+                .withBean(MeterRegistry.class, () -> registry)
+                .withPropertyValues("tandem.relay.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(TandemMetrics.class);
+                    assertThat(registry.getMeters()).isEmpty();
+                });
+    }
+
+    @Test
+    void GIVEN_no_datasource_WHEN_the_context_starts_THEN_no_relay_meter_is_registered() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TandemMicrometerAutoConfiguration.class,
+                        TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
+                .withBean(MeterRegistry.class, () -> registry)
+                .run(context -> {
+                    assertThat(context).hasNotFailed().doesNotHaveBean(TandemMetrics.class);
+                    assertThat(registry.getMeters()).isEmpty();
+                });
+    }
+
+    /** The DataSource condition holds only when evaluated after Spring Boot contributed the DataSource. */
+    @Test
+    void GIVEN_the_datasource_contributed_by_spring_boot_itself_WHEN_the_context_starts_THEN_the_micrometer_adapter_wins_over_the_noop_default() {
+        Class<?>[] springBootDataSource = TandemRelayAutoConfigurationTest.presentOnThisSpringGeneration(
+                "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+                "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration");
+        assertThat(springBootDataSource).as("Spring Boot's DataSource autoconfiguration on the test classpath").hasSize(1);
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TandemMicrometerAutoConfiguration.class,
+                        TandemKafkaAutoConfiguration.class, TandemRelayAutoConfiguration.class))
+                .withConfiguration(AutoConfigurations.of(springBootDataSource))
+                .withUserConfiguration(TandemRelayAutoConfigurationTest.UnstartedLifecycle.class)
+                .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .withPropertyValues(
+                        // A DataSource that opens no connection until asked, which nothing here does.
+                        "spring.datasource.type=" + SimpleDriverDataSource.class.getName(),
+                        "spring.datasource.url=jdbc:postgresql://localhost/tandem",
+                        "tandem.kafka.source=/tandem/test",
+                        "tandem.kafka.producer[bootstrap.servers]=localhost:9092")
+                .run(context -> assertThat(context.getBean(TandemMetrics.class))
+                        .isInstanceOf(MicrometerTandemMetrics.class));
     }
 
     @Test

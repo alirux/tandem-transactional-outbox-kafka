@@ -214,8 +214,12 @@ using it costs nothing and removes the guesswork:
 // New file: TandemMicrometerAutoConfiguration.java
 @AutoConfiguration(before = TandemRelayAutoConfiguration.class, afterName = {
         "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",   // Boot 3.x
-        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration"}) // Boot 4.x
+        "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",  // Boot 4.x
+        "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",                        // Boot 3.x
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"})                       // Boot 4.x
 @ConditionalOnClass({MeterRegistry.class, MicrometerTandemMetrics.class})
+@ConditionalOnSingleCandidate(DataSource.class)                                      // only where a relay runs:
+@ConditionalOnProperty(prefix = "tandem.relay", name = "enabled", matchIfMissing = true) // its meters describe one
 @EnableConfigurationProperties(TandemMetricsProperties.class)
 public class TandemMicrometerAutoConfiguration {
 
