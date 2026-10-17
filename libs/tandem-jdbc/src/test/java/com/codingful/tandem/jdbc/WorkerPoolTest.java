@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -1095,6 +1096,57 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_slow_backlog_reading_WHEN_the_metrics_are_read_THEN_the_relays_other_jobs_keep_their_cadence() throws InterruptedException {
+        // The backlog gauges count every PENDING row, which after an outage is the largest the outbox ever
+        // gets: the reading slows down exactly when the backlog is worth seeing. The lease heartbeat, the
+        // pause refresh and the lease reclaim must not wait for it, for the same reason as for cleanup.
+        CountDownLatch readingEntered = new CountDownLatch(1);
+        CountDownLatch releaseReading = new CountDownLatch(1);
+        SlowLagStore store = new SlowLagStore(new InMemoryOutbox(), readingEntered, releaseReading);
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1)
+                .reclaimInterval(Duration.ofMillis(20)).metricsInterval(Duration.ofMillis(10)).build();
+        WorkerPool pool = WorkerPool.builder(store, new RecordingDispatcher(), cfg).metrics(new RecordingMetrics()).build();
+
+        pool.start();
+        try {
+            assertThat(readingEntered.await(20, TimeUnit.SECONDS)).as("a backlog reading to start").isTrue();
+            int reclaimsSoFar = store.reclaims();
+
+            awaitUpTo(Duration.ofSeconds(20), () -> "lease reclaims to go on during the backlog reading, got "
+                            + (store.reclaims() - reclaimsSoFar),
+                    () -> store.reclaims() >= reclaimsSoFar + 3);
+        } finally {
+            releaseReading.countDown();
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_a_relay_reading_its_metrics_WHEN_it_stops_THEN_no_thread_of_the_relay_survives() {
+        String instanceId = "ms-" + UUID.randomUUID().toString().substring(0, 8);
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1).instanceId(instanceId)
+                .metricsInterval(Duration.ofMillis(10)).build();
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .metrics(new RecordingMetrics()).build();
+
+        pool.start();
+        pool.stop();
+
+        awaitUpTo(Duration.ofSeconds(20), () -> "the relay's threads to end, got " + relayThreadNames(instanceId),
+                () -> relayThreadNames(instanceId).isEmpty());
+    }
+
+    private static List<String> relayThreadNames(String instanceId) {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(Thread::isAlive)
+                .map(Thread::getName)
+                .filter(name -> name.contains(instanceId))
+                .toList();
+    }
+
+    @Test
     void GIVEN_a_database_that_is_down_WHEN_the_metrics_adapter_reads_THEN_the_in_process_gauges_still_report_the_stall() {
         // The outage the cycle-age gauge exists to show: every query fails, the backlog gauges included.
         // Those cannot be read, but the worker gauges come from the process itself, and an outage is
@@ -1575,6 +1627,40 @@ class WorkerPoolTest {
                 Thread.currentThread().interrupt();
             }
             return 0;
+        }
+
+        @Override
+        public int reclaimExpiredLeases() {
+            reclaims.incrementAndGet();
+            return super.reclaimExpiredLeases();
+        }
+
+        int reclaims() {
+            return reclaims.get();
+        }
+    }
+
+    /** A backlog reading that lasts until the test releases it, and a count of the lease reclaims. */
+    private static final class SlowLagStore extends DelegatingStore {
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+        private final AtomicInteger reclaims = new AtomicInteger();
+
+        SlowLagStore(InMemoryOutbox delegate, CountDownLatch entered, CountDownLatch release) {
+            super(delegate);
+            this.entered = entered;
+            this.release = release;
+        }
+
+        @Override
+        public Optional<LagSnapshot> lag() {
+            entered.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return super.lag();
         }
 
         @Override

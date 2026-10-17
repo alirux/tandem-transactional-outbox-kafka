@@ -643,7 +643,8 @@ one pass clears everything past the cutoff: one chunk per interval would cap the
 that would grow without bound. The cutoff is fixed for the pass, so the pass ends. Such a pass can run
 for minutes on a large backlog, so cleanup has **a thread of its own**: on the one the other periodic jobs
 share it would hold back the bucket lease renewal (§3.2), the pause refresh and the lease reclaim (§3.5)
-until it ended, long enough for a bucket lease to expire under an instance that is still running.
+until it ended, long enough for a bucket lease to expire under an instance that is still running. The
+metrics reading (§4) has a thread of its own for the same reason.
 ```sql
 DELETE FROM tandem_outbox
  WHERE id IN ( SELECT id FROM tandem_outbox
@@ -862,7 +863,8 @@ Spring both sides read the same key, `tandem.outbox.wakeup: pg-notify`, for the 
 Emitted through the `TandemMetrics` port (no Micrometer dependency here). Mapping to HLD §7:
 `recordLag` / `recordLagAgeSeconds` (both from `OutboxStore.lag()` — a **single** query returning the
 count of PENDING rows and the oldest `created_at`, so the two gauges always describe the same instant;
-read every `metricsInterval`, default 10 s), `recordFailed` (from `OutboxStore.failedCount()`, the same
+read every `metricsInterval`, default 10 s, on a thread of its own: the readings grow with the backlog and
+must not hold back the lease heartbeat or the reclaim, §3.7), `recordFailed` (from `OutboxStore.failedCount()`, the same
 cadence — a **live** count of `FAILED` rows, not a tally of failure events: a row can leave `FAILED`
 via the admin `DISCARDED` transition, and only a fresh read reflects that; an event-driven counter
 would never go back down, permanently misreporting a resolved incident as still open),
@@ -1058,7 +1060,7 @@ The defaults the basic round needs (the full property reference is the `tandem.*
 | `rowLease` | 60 s | row IN_FLIGHT lease; **hard invariant `rowLease > delivery.timeout.ms`** (default = 2×); relay fail-fasts otherwise (§3.5) |
 | backoff | base 1 s, ×2, cap ~5 min, max 10 attempts | full jitter (§3.6) |
 | `retention` | 14 days | cleanup of DONE/DISCARDED (§3.7) |
-| `metricsInterval` | 10 s | how often the lag gauges are read; the job is **only scheduled when a metrics adapter is wired** (§4) |
+| `metricsInterval` | 10 s | how often the lag gauges are read, on a thread of its own; the job is **only scheduled when a metrics adapter is wired** (§4) |
 | `logEveryRows` | 10,000 | per-worker `INFO` progress log every N dispatch outcomes (ok + ko combined) — a row-count cadence, not a clock one, so an idle relay stays silent; unlike `metricsInterval`, always on, no adapter needed |
 | `wakeup` | `NONE` | post-commit signalling (§3.10), opt-in on each side separately: `Wakeup.PG_NOTIFY` on `JdbcOutboxRepository` emits, a `WakeupSource` on `WorkerPool` listens. Not a `RelayConfig` field, since each side is a collaborator rather than a setting |
 | `topicSuffix` | `-topic` | LLD-kafka §5 |

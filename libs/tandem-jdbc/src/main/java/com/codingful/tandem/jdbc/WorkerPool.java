@@ -72,9 +72,11 @@ public final class WorkerPool {
     private volatile long run;
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
-    // Cleanup's own thread: a pass clears the whole retention backlog and can run for minutes, which on
-    // the shared one would hold back the lease heartbeat, the pause refresh and the reclaim (§3.7).
+    // Cleanup and the metrics reading each get a thread of their own: a cleanup pass clears the whole
+    // retention backlog and the lag queries grow with it, so either can run long, and on the shared one
+    // it would hold back the lease heartbeat, the pause refresh and the reclaim (§3.7, §4).
     private ScheduledExecutorService cleanupScheduler;
+    private ScheduledExecutorService metricsScheduler;
 
     /**
      * Embedded topology with the basic-round defaults: no-op metrics, system clock, full-jitter backoff,
@@ -241,8 +243,10 @@ public final class WorkerPool {
             // so an outbox nobody is watching pays nothing for the gauges (§4). The first reading is
             // taken immediately rather than one interval in: a relay that just started may be inheriting
             // a backlog from the instance it replaced, and that is the moment worth seeing.
+            metricsScheduler = Executors.newSingleThreadScheduledExecutor(
+                    r -> daemon(r, "tandem-relay-" + instanceId + "-metrics"));
             long metricsMs = cfg.metricsInterval().toMillis();
-            scheduler.scheduleWithFixedDelay(this::metricsTick, 0, metricsMs, TimeUnit.MILLISECONDS);
+            metricsScheduler.scheduleWithFixedDelay(this::metricsTick, 0, metricsMs, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -559,6 +563,9 @@ public final class WorkerPool {
         }
         if (cleanupScheduler != null) {
             cleanupScheduler.shutdownNow();
+        }
+        if (metricsScheduler != null) {
+            metricsScheduler.shutdownNow();
         }
         Thread[] snapshot = threads.clone();
         for (Thread t : snapshot) {
