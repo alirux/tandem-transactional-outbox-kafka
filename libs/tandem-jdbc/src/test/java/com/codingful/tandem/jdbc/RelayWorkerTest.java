@@ -1,16 +1,20 @@
 package com.codingful.tandem.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.OutboxStatus;
+import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.test.ControllableClock;
 import com.codingful.tandem.test.InMemoryOutbox;
 import com.codingful.tandem.test.RecordingDispatcher;
 import com.codingful.tandem.test.RecordingMetrics;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -283,5 +287,107 @@ class RelayWorkerTest {
 
         assertThat(worker.okCount()).isEqualTo(2);
         assertThat(worker.koCount()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_published_event_WHEN_recording_its_delivery_fails_once_THEN_the_next_cycle_records_it_without_publishing_it_again() {
+        insert("order-1", 1);
+        long id = outbox.all().get(0).id();
+        DeliveryRecordFailsOnceStore store = new DeliveryRecordFailsOnceStore(outbox);
+        RelayWorker worker = new RelayWorker(store, dispatcher, cfg, attempts -> Duration.ofSeconds(10),
+                TandemMetrics.NOOP, clock, "worker-1", outbox::allBuckets);
+
+        worker.claimAndDispatch();
+        assertThatThrownBy(worker::flushDone).isInstanceOf(IllegalStateException.class);
+        worker.flushDone();
+
+        assertThat(outbox.byId(id).status()).isEqualTo(OutboxStatus.DONE);
+        assertThat(dispatcher.dispatchCount()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_failed_publish_WHEN_recording_its_retry_fails_once_THEN_the_next_cycle_records_it_for_retry() {
+        insert("order-1", 1);
+        long id = outbox.all().get(0).id();
+        dispatcher.failRecord(id, true);
+        DeliveryRecordFailsOnceStore store = new DeliveryRecordFailsOnceStore(outbox, true);
+        RelayWorker worker = new RelayWorker(store, dispatcher, cfg, attempts -> Duration.ofSeconds(10),
+                TandemMetrics.NOOP, clock, "worker-1", outbox::allBuckets);
+
+        worker.claimAndDispatch();
+        assertThatThrownBy(worker::flushFailures).isInstanceOf(IllegalStateException.class);
+        assertThat(outbox.byId(id).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+        assertThat(worker.flushFailures()).isEqualTo(1);
+
+        OutboxRecord recorded = outbox.byId(id);
+        assertThat(recorded.status()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(recorded.attempts()).isEqualTo(1);
+        assertThat(recorded.lastError()).isNotBlank();
+        assertThat(worker.flushFailures()).isZero();
+    }
+
+    /** A database that rejects the first write recording deliveries, as a brief outage would, and then recovers. */
+    private static final class DeliveryRecordFailsOnceStore implements OutboxStore {
+        private final InMemoryOutbox delegate;
+        private final boolean failRetryWrite;
+        private boolean failed;
+
+        DeliveryRecordFailsOnceStore(InMemoryOutbox delegate) {
+            this(delegate, false);
+        }
+
+        /** @param failRetryWrite whether the failing write is the one recording a retry rather than a delivery */
+        DeliveryRecordFailsOnceStore(InMemoryOutbox delegate, boolean failRetryWrite) {
+            this.delegate = delegate;
+            this.failRetryWrite = failRetryWrite;
+        }
+
+        private void failOnce() {
+            if (!failed) {
+                failed = true;
+                throw new IllegalStateException("database briefly unreachable");
+            }
+        }
+
+        @Override
+        public List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId, Duration lease, int batchSize) {
+            return delegate.claimBatch(buckets, workerId, lease, batchSize);
+        }
+
+        @Override
+        public void markDone(OutboxRecord claimed) {
+            delegate.markDone(claimed);
+        }
+
+        @Override
+        public void markDoneBatch(Collection<OutboxRecord> claimed) {
+            if (!failRetryWrite) {
+                failOnce();
+            }
+            delegate.markDoneBatch(claimed);
+        }
+
+        @Override
+        public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
+            if (failRetryWrite) {
+                failOnce();
+            }
+            delegate.markForRetry(claimed, error, retryDelay);
+        }
+
+        @Override
+        public void markFailed(OutboxRecord claimed, String error) {
+            delegate.markFailed(claimed, error);
+        }
+
+        @Override
+        public int reclaimExpiredLeases() {
+            return delegate.reclaimExpiredLeases();
+        }
+
+        @Override
+        public int cleanup(Instant doneBefore, int batchSize) {
+            return delegate.cleanup(doneBefore, batchSize);
+        }
     }
 }

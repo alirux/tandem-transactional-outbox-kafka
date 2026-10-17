@@ -1,6 +1,7 @@
 package com.codingful.tandem.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.AggregateId;
 import com.codingful.tandem.core.OutboxMessage;
@@ -294,6 +295,81 @@ class RelayWorkerOrderViolationTest {
             if (++guard > 1_000) {
                 throw new IllegalStateException("relay did not quiesce");
             }
+        }
+    }
+
+    @Test
+    void GIVEN_a_suspected_event_WHEN_recording_its_delivery_fails_once_THEN_the_violation_is_reported_once_after_it_is_recorded() {
+        insert(ORDER_1, 2);
+        insert(ORDER_1, 1);
+        MarkDoneFailsOnDemandStore store = new MarkDoneFailsOnDemandStore(outbox);
+        RelayWorker worker = worker(store);
+        worker.claimAndDispatch();
+        worker.flushDone();                        // seq 2 goes out first and is recorded
+        worker.claimAndDispatch();                 // seq 1 goes out behind it
+        store.failNextMarkDone = true;
+
+        assertThatThrownBy(worker::flushDone).isInstanceOf(IllegalStateException.class);
+        assertThat(metrics.orderViolations()).isZero();   // not before the delivery is recorded
+        worker.flushDone();
+
+        assertThat(outbox.byStatus(OutboxStatus.DONE)).hasSize(2);
+        assertThat(metrics.orderViolations()).isEqualTo(1);
+        worker.flushDone();
+        assertThat(metrics.orderViolations()).isEqualTo(1);
+    }
+
+    /** A database that rejects the next write recording deliveries when told to, and works otherwise. */
+    private static final class MarkDoneFailsOnDemandStore implements OutboxStore {
+        private final OutboxStore delegate;
+        boolean failNextMarkDone;
+
+        MarkDoneFailsOnDemandStore(OutboxStore delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId, Duration lease, int batchSize) {
+            return delegate.claimBatch(buckets, workerId, lease, batchSize);
+        }
+
+        @Override
+        public void markDone(OutboxRecord claimed) {
+            delegate.markDone(claimed);
+        }
+
+        @Override
+        public void markDoneBatch(Collection<OutboxRecord> claimed) {
+            if (failNextMarkDone) {
+                failNextMarkDone = false;
+                throw new IllegalStateException("database briefly unreachable");
+            }
+            delegate.markDoneBatch(claimed);
+        }
+
+        @Override
+        public void markForRetry(OutboxRecord claimed, String error, Duration retryDelay) {
+            delegate.markForRetry(claimed, error, retryDelay);
+        }
+
+        @Override
+        public void markFailed(OutboxRecord claimed, String error) {
+            delegate.markFailed(claimed, error);
+        }
+
+        @Override
+        public int reclaimExpiredLeases() {
+            return delegate.reclaimExpiredLeases();
+        }
+
+        @Override
+        public int cleanup(java.time.Instant doneBefore, int batchSize) {
+            return delegate.cleanup(doneBefore, batchSize);
+        }
+
+        @Override
+        public OptionalInt replaysOf(long id) {
+            return delegate.replaysOf(id);
         }
     }
 

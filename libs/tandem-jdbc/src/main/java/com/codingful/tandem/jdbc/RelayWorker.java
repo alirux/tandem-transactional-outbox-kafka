@@ -53,6 +53,12 @@ final class RelayWorker {
     private final ConcurrentLinkedQueue<OutboxRecord> acked = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<FailedDispatch> failures = new ConcurrentLinkedQueue<>();
 
+    // Outcomes taken off the queues but not yet written. Worker-thread only, like the queues' consumer
+    // side: a failed write keeps them for the next cycle instead of losing them (§3.4.1). The suspected
+    // list belongs to the same batch: those rows were judged once and must not be judged again.
+    private final List<OutboxRecord> unwrittenDone = new ArrayList<>();
+    private final List<OutboxRecord> unreportedSuspects = new ArrayList<>();
+
     // Null when ordering detection is off (RelayConfig.orderViolationDetection) — nothing is
     // allocated in that case. Otherwise touched only from this worker's own loop, never from a
     // completion thread, so it needs no synchronization (§3.9).
@@ -186,28 +192,35 @@ final class RelayWorker {
      * <p>The queue is FIFO over the completion order, so draining it <i>is</i> the publish sequence —
      * which is the only place that sequence is ever observable, since the rows themselves are left
      * perfectly ordered in the table (HLD §8).
+     *
+     * <p>If the write throws, the batch is kept and written again, with any newer acks, on the next
+     * call; the exception still propagates. Safe because each ack is fenced to its claim's lease
+     * (§3.4.1): a write that arrives after the row was reclaimed updates nothing. Each row is judged by
+     * the detector once, when it leaves the queue, never again on a retried write.
      */
     int flushDone() {
-        if (acked.isEmpty()) {
-            return 0;
-        }
-        List<OutboxRecord> batch = new ArrayList<>();
-        List<OutboxRecord> suspected = new ArrayList<>();
         OutboxRecord record;
         while ((record = acked.poll()) != null) {
-            batch.add(record);
+            unwrittenDone.add(record);
             if (watermarks != null && watermarks.record(record) == PublishOrderWatermarks.Verdict.REGRESSED) {
-                suspected.add(record);
+                unreportedSuspects.add(record);
             }
         }
-        store.markDoneBatch(batch);
+        if (unwrittenDone.isEmpty()) {
+            return 0;
+        }
+        store.markDoneBatch(unwrittenDone);
+        int written = unwrittenDone.size();
+        List<OutboxRecord> suspected = List.copyOf(unreportedSuspects);
+        unwrittenDone.clear();
+        unreportedSuspects.clear();
         // Strictly after the mark-DONE: the detector is a diagnostic and must never be able to leave a
         // delivered row IN_FLIGHT waiting for a lease to expire. Normally an empty list, so the lookups
         // below cost nothing on the hot path.
         for (OutboxRecord suspect : suspected) {
             reportIfRegression(suspect);
         }
-        return batch.size();
+        return written;
     }
 
     /**
@@ -256,12 +269,18 @@ final class RelayWorker {
      * Process the failures captured by the completion handler: mark each row for retry or FAILED on
      * <b>this</b> (worker) thread, keeping the JDBC writes off the dispatcher's I/O thread. Returns the
      * number of failures processed.
+     *
+     * <p>A failure leaves the queue only once its write succeeded. If handling one throws, it and the
+     * ones behind it stay queued and are handled again on the next call, and the exception still
+     * propagates; the retry is safe because the write is fenced to the claim's lease (§3.4.2). The
+     * failure's log line is written before the write, so one that fails is logged again on the retry.
      */
     int flushFailures() {
         int processed = 0;
         FailedDispatch failure;
-        while ((failure = failures.poll()) != null) {
+        while ((failure = failures.peek()) != null) {
             handleFailure(failure.record(), failure.error());
+            failures.poll();
             processed++;
         }
         return processed;

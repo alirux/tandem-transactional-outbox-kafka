@@ -532,6 +532,10 @@ UPDATE tandem_outbox o SET status = 2, locked_by = NULL, locked_until = NULL   -
 The batch accumulates **acked rows across different aggregates** (mark-DONE is order-independent), so
 batching is safe and cuts DB round-trips at high rates. A crash before the flush re-publishes those
 rows (duplicate, dedup'd) — never a reorder.
+A flush whose write fails (a brief database outage) does not drop the outcomes: the worker keeps the
+batch and writes it again, with newer acks, on its next cycle. The fence below makes that safe: if the
+row was reclaimed meanwhile, the late write updates nothing. Failures (§3.4.2) are kept and retried
+the same way.
 
 Each ack is **fenced to its attempt** like the failures below (§3.4.2): it completes the row only while
 the row still carries the lease that attempt's claim stamped. A late ack reports a delivery that came
