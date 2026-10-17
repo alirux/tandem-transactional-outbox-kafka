@@ -149,7 +149,7 @@ Read by the Admin API, provided by `tandem-admin`. See [Admin API](admin-api.md#
 
 | Property | Default | Meaning |
 |---|---|---|
-| `tandem.admin.enabled` | `false` | Whether the application exposes the Admin API. It changes delivery state, so it is off unless you turn it on, and securing it is your application's job. |
+| `tandem.admin.enabled` | `false` | Whether the application exposes the Admin API. It changes delivery state, so it is off unless you turn it on, and securing it is your application's job. Only `true` turns it on: any other value, `yes` or `1` included, leaves it off. |
 | `tandem.admin.base-path` | `/tandem/admin` | The path before the fixed `/v1` version segment. |
 
 ---

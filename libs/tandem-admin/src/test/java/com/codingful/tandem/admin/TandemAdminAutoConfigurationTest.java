@@ -38,6 +38,16 @@ class TandemAdminAutoConfigurationTest {
     }
 
     @Test
+    void GIVEN_the_admin_api_switched_off_with_a_value_other_than_false_WHEN_the_context_starts_THEN_nothing_is_contributed() {
+        for (String off : new String[] {"no", "off", "0"}) {
+            runner.withBean(DataSource.class, NoopDataSource::new)
+                    .withPropertyValues("tandem.admin.enabled=" + off)
+                    .run(context -> assertThat(context).as("tandem.admin.enabled=" + off)
+                            .doesNotHaveBean(OutboxQuery.class));
+        }
+    }
+
+    @Test
     void GIVEN_no_datasource_WHEN_the_context_starts_THEN_nothing_is_contributed_even_if_enabled() {
         runner.withPropertyValues("tandem.admin.enabled=true")
                 .run(context -> assertThat(context).doesNotHaveBean(OutboxQuery.class));

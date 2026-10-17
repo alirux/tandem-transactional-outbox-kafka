@@ -34,10 +34,8 @@ class RoleCheck {
     private static final String UNKNOWN = "unknown";
 
     RoleCheck(Environment environment, ObjectProvider<BuildProperties> build) {
-        // The library's own defaults: the relay runs unless switched off, the Admin API only when
-        // switched on.
-        boolean relay = environment.getProperty(RELAY_ENABLED_KEY, Boolean.class, true);
-        boolean admin = environment.getProperty(ADMIN_ENABLED_KEY, Boolean.class, false);
+        boolean relay = relayEnabled(environment);
+        boolean admin = adminEnabled(environment);
         requireARole(relay, admin);
 
         BuildProperties buildProperties = build.getIfAvailable();
@@ -50,6 +48,22 @@ class RoleCheck {
                     + " keep its port on an internal network serverPort:{}",
                     environment.getProperty("server.port"));
         }
+    }
+
+    /**
+     * Read exactly as the relay's autoconfiguration reads it: it runs unless the value is {@code false}.
+     * A boolean conversion would read {@code no} or {@code off} as false while the relay runs anyway.
+     */
+    static boolean relayEnabled(Environment environment) {
+        return !"false".equalsIgnoreCase(environment.getProperty(RELAY_ENABLED_KEY, "true"));
+    }
+
+    /**
+     * Read exactly as the Admin API's autoconfiguration reads it: on only for {@code true}, so the warning
+     * below is logged whenever, and only when, the API is actually served.
+     */
+    static boolean adminEnabled(Environment environment) {
+        return "true".equalsIgnoreCase(environment.getProperty(ADMIN_ENABLED_KEY, "false"));
     }
 
     /**

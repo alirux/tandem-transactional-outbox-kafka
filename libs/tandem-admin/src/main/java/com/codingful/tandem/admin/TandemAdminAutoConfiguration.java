@@ -45,7 +45,9 @@ import org.springframework.context.annotation.Import;
         "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",   // Spring Boot 4.x
         "com.codingful.tandem.spring.relay.TandemRelayAutoConfiguration"})
 @ConditionalOnSingleCandidate(DataSource.class)
-@ConditionalOnProperty(prefix = "tandem.admin", name = "enabled", matchIfMissing = false)
+// havingValue, not the bare form: that one enables on any value but "false", so "no", "off" or "0" would
+// switch on an unauthenticated surface that changes delivery state. Only "true" turns it on.
+@ConditionalOnProperty(prefix = "tandem.admin", name = "enabled", havingValue = "true")
 @Import({TandemAdminExceptionHandler.class, OutboxAdminConfiguration.class, RelayAdminConfiguration.class})
 public class TandemAdminAutoConfiguration {
 
