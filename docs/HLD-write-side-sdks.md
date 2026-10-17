@@ -175,9 +175,8 @@ whether a value happens to be present.
 
 - **`payload`** is the already-serialized event, sent as UTF-8 JSON text and cast to `jsonb`.
   PostgreSQL rejects anything that is not JSON. It stores the parsed value, so what the relay
-  publishes is semantically equal to what was written but not byte-identical. The `bytea` payload
-  column HLD §5.2 allows for binary serializers is not part of the contract, because the Java writer
-  does not support it either; it reaches the SDKs when it reaches Java.
+  publishes is semantically equal to what was written but not byte-identical. A `bytea` payload
+  column is not supported (HLD §5.2), by the Java writer or by the SDKs.
 - **`headers`** is a JSON object of string to string, written as `{}` when empty, never `NULL`.
   These names are part of the contract (`TandemHeaders`):
 

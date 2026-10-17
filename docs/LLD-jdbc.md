@@ -96,7 +96,7 @@ INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 ```
 - `bucket` is computed in Java from `aggregate_id` (§1).
-- `payload` is the `byte[]` from the `PayloadSerializer` (JSONB for JSON, BYTEA for binary; §5.2 HLD).
+- `payload` is the `byte[]` from the `PayloadSerializer`, bound as JSON text into the `JSONB` column; a `BYTEA` column is not supported (HLD §5.2).
 - **`contentType`, when set, is merged into `headers["content-type"]`** before the INSERT — the key the
   relay reads for the CloudEvents `datacontenttype` (LLD-kafka §3.2). The typed field is the **single
   source of truth**: if a `content-type` entry is also present in `headers`, the field overrides it. No

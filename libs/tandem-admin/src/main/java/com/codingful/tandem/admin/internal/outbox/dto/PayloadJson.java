@@ -13,9 +13,10 @@ import java.nio.charset.StandardCharsets;
  * dragged a version-specific type into a {@code @Bean} signature and stopped the module from
  * starting on Boot 4 at all.
  *
- * <p>The verdict cannot be assumed: {@code payload} is {@code JSONB} by default — validated by the
- * engine, so always JSON — but the baseline schema documents switching it to {@code BYTEA} for a
- * binary serializer (Avro/Protobuf), where the bytes are neither JSON nor necessarily UTF-8. A
+ * <p>The verdict cannot be assumed: the JDBC adapter's {@code payload} column is {@code JSONB},
+ * validated by the engine and so always JSON, but the query port this renders from can be backed by
+ * another store holding any bytes (the in-memory outbox accepts any payload), neither JSON nor
+ * necessarily UTF-8. A
  * cheaper heuristic ("starts with <code>{</code>") would emit a malformed response body for a binary
  * payload whose first byte happens to be {@code 0x7B}, so the check is a real, strict scan and its
  * failure direction is the safe one: anything not provably a JSON value is rendered as a JSON

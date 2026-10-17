@@ -21,8 +21,8 @@ resolved (or consciously deferred) to write correct per-module LLDs.
   with delivery state; **`OutboxStatus`** enum ↔ `SMALLINT`. Detail → `LLD-core.md`. *(tandem-core; HLD §5)*
 - [x] **Q3 (P1)** — **`payload` type.** ✅ Resolved: core treats payload as **`byte[]`** via a
   pluggable **`PayloadSerializer`** (no forced JSON lib — minimal footprint §1.3); column is
-  **`JSONB` by default** (readable/inspectable) and **`BYTEA`** for binary serializers
-  (Avro/Protobuf). *(tandem-core / jdbc / kafka; HLD §5.1, §4.8)*
+  **`JSONB`** (readable/inspectable); a binary serializer (Avro/Protobuf) JSON-encodes its output,
+  and a `BYTEA` column is not supported (HLD §5.2). *(tandem-core / jdbc / kafka; HLD §5.1, §4.8)*
 - [x] **Q4 (P1)** — **Metrics vs zero-dependency core.** ✅ Resolved: a **`TandemMetrics` port**
   in `tandem-core` (no-op default); the relay/poller calls it without knowing Micrometer. The
   **Micrometer adapter lives in an optional relay-side module `tandem-micrometer`**, so the

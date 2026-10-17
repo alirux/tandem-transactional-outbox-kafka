@@ -445,7 +445,7 @@ CREATE TABLE tandem_outbox (
     bucket          SMALLINT     NOT NULL,   -- Math.floorMod(fnv1a64(aggregate_id), B), computed in Java; §4.3
     seq             BIGINT,                  -- per-aggregate causal sequence; NULL when the row declares none (§4.2)
     seq_source      SMALLINT     NOT NULL,   -- 0 = APPLICATION, 1 = MANAGED, 2 = NONE — which mode wrote the row
-    payload         JSONB        NOT NULL,   -- BYTEA when a binary serializer is used (§5.2)
+    payload         JSONB        NOT NULL,   -- JSON only (§5.2)
     status          SMALLINT     NOT NULL DEFAULT 0,
     -- 0 = PENDING, 1 = IN_FLIGHT, 2 = DONE, 3 = FAILED, 4 = DISCARDED
     -- … plus type, headers, the delivery-state columns (locked_by, locked_until, attempts,
@@ -486,7 +486,7 @@ would need a generated-column workaround (§5.4, LLD-jdbc §5).
 | `bucket` | Virtual bucket `Math.floorMod(fnv1a64(aggregate_id), B)`, computed **in Java** by `tandem-jdbc` at insert (engine-independent; §4.3); the unit of worker ownership. All events of an aggregate share a bucket |
 | `seq` | Per-aggregate causal sequence number, or `NULL` where the row declares none (§4.2); enforced by `UNIQUE(aggregate_id, seq)`, which a `NULL` sits outside |
 | `seq_source` | Which of the three modes wrote the row — `0` APPLICATION, `1` MANAGED, `2` NONE. A stored number cannot otherwise say where it came from, and only an application-assigned one is an ordering the relay can check a published order against (§8). Deliberately not range-constrained: a `CHECK` would make a fourth source a breaking change, so readers tolerate an unknown value and fall back to `id` |
-| `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` by default (readable/inspectable); `BYTEA` when a binary serializer (Avro/Protobuf) is used. Becomes CloudEvents `data`. |
+| `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` (readable/inspectable), so it must be valid JSON: a binary format (Avro/Protobuf) is encoded into JSON by the application, for instance as a base64 string. A `BYTEA` column is not supported, since the bundled adapters bind and read the column as JSON; the `BYTEA` mention in the comment of the `v1` changeset is immutable with that changeset and does not describe a supported option. Becomes CloudEvents `data`. |
 | `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers |
 | `status` | State machine: `PENDING → IN_FLIGHT → DONE` / `FAILED`; `FAILED → DISCARDED` (admin only). See §5.3 |
 | `locked_by` | Worker identity (e.g. `worker-0@hostname`); enables lease-based failover. A long instance id is shortened (its tail is kept) to fit the column |
@@ -1014,7 +1014,7 @@ Tandem is positioned in the gap between a hand-rolled outbox (correct, but you b
 | Lease duration (`rowLease`) | Configurable; default = 60s | Hard invariant **`rowLease > delivery.timeout.ms`** (default = 2×); relay fail-fasts otherwise with a formula-bearing exception/log/metric (LLD-jdbc §3.5) |
 | Backoff strategy | Exponential with jitter; max attempts configurable | Default: base 1s, multiplier 2, max 10 attempts |
 | ~~Topic routing~~ | **Resolved:** `kebab-case(aggregate_type)` + suffix `-topic` (configurable, no pluralization); override via custom `TopicRouter` or a static map (LLD-kafka §5) | |
-| Payload serialization | JSON default; Avro/Protobuf via pluggable `PayloadSerializer` | |
+| Payload serialization | JSON (`JSONB` column); a binary format is JSON-encoded by the application (§5.2) | |
 | ~~`@TransactionalOutbox` event extraction~~ | **Resolved (Q22):** `TandemAggregate` — the aspect reads `pendingOutboxMessages()` off the returned aggregate (single or `Iterable`); the optional `aggregateType` attribute becomes a fail-fast guard (LLD-spring-producer §4) | |
 | ~~Spring-events tier event mapping~~ | **Resolved (Q22):** both — a published `OutboxMessage` is inserted directly, otherwise a registered `OutboxEventMapper<T>` SPI maps it; the synchronous listener is scoped to those types and fails fast without an active transaction (LLD-spring-producer §5) | |
 | ~~Lamport clock store~~ | **Resolved:** Tandem-managed `tandem_aggregate_clock` table (clean boundary — Tandem never writes domain tables); atomic upsert serializes the per-aggregate advance (HLD-causal-ordering.md §3.1) | |

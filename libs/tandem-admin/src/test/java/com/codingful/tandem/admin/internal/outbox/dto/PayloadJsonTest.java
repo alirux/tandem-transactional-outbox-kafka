@@ -35,8 +35,8 @@ class PayloadJsonTest {
 
     @Test
     void GIVEN_binary_bytes_that_begin_like_an_object_WHEN_rendered_THEN_they_are_quoted_not_embedded() {
-        // Why the check is a real scan and not a "starts with {" heuristic: a BYTEA payload written by
-        // a binary serializer (the baseline schema documents that option) can start with 0x7B.
+        // Why the check is a real scan and not a "starts with {" heuristic: a binary payload held by a
+        // store other than the JSONB column can start with 0x7B.
         byte[] avroish = {'{', 0x00, 0x12, (byte) 0xFF, 0x7F};
 
         String rendered = PayloadJson.render(avroish);

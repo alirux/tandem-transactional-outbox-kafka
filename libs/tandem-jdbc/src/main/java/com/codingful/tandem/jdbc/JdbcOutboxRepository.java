@@ -62,8 +62,8 @@ import javax.sql.DataSource;
  * adapter requires {@link OutboxMessage#payload()} to be valid UTF-8 JSON. A non-JSON payload is
  * rejected by Postgres at insert time and surfaces as an {@link OutboxInsertException} (SQLSTATE
  * {@code 22P02}, {@code invalid_text_representation}). Callers that must carry opaque (non-JSON)
- * bytes should JSON-encode them (e.g. a base64 string) before insert, or use a schema whose
- * {@code payload} column is {@code bytea}/{@code text}. Note also that {@code jsonb} stores the
+ * bytes JSON-encode them (e.g. a base64 string) before insert: a {@code bytea} column is not
+ * supported, since the payload is bound and read back as JSON text. Note also that {@code jsonb} stores the
  * <b>parsed</b> value, not the original text: the payload read back (and published to Kafka) is
  * semantically identical but not byte-identical — key order, whitespace and number formatting are
  * normalized — so consumers must not verify signatures/hashes computed over the original bytes.
