@@ -220,6 +220,14 @@ class OutboxAdminControllerTest {
     }
 
     @Test
+    void GIVEN_an_id_that_is_not_a_number_WHEN_a_message_is_replayed_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/replay", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
     @Tag("boot3-only")   // chains .principal(...) after the bare static factory — same builder note
     void GIVEN_an_authenticated_caller_WHEN_a_message_is_replayed_THEN_the_request_still_succeeds() throws Exception {
         insert("order-1", "{}");

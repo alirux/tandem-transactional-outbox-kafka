@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class RelayAdminControllerTest {
 
     private static final int BUCKETS = 8;
+    private static final String INVALID_PARAMETER = "https://tandem.codingful.com/problems/invalid-parameter";
 
     private InMemoryRelayControl control;
     private MockMvc mockMvc;
@@ -212,6 +213,58 @@ class RelayAdminControllerTest {
         mockMvc.perform(get("/tandem/admin/v1/relay/workers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].workerId").value("instance-1"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    @Tag("boot3-only")
+    void GIVEN_a_body_that_is_not_json_WHEN_the_relay_is_paused_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/relay/pause")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bucket\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(INVALID_PARAMETER))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    @Tag("boot3-only")
+    void GIVEN_a_body_that_is_not_json_WHEN_the_relay_is_resumed_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/relay/resume")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bucket\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(INVALID_PARAMETER))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_an_uncovered_only_flag_that_is_not_a_boolean_WHEN_buckets_are_listed_THEN_a_problem_json_400_is_returned() throws Exception {
+        control.setCoordinationMode(RelayCoordinationMode.LEASE);
+
+        mockMvc.perform(get("/tandem/admin/v1/relay/buckets?uncoveredOnly=maybe"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(INVALID_PARAMETER))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_a_bucket_that_is_not_a_number_WHEN_it_is_read_THEN_a_problem_json_400_is_returned() throws Exception {
+        control.setCoordinationMode(RelayCoordinationMode.LEASE);
+
+        mockMvc.perform(get("/tandem/admin/v1/relay/buckets/{bucket}", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(INVALID_PARAMETER))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_a_bucket_that_is_not_a_number_WHEN_it_is_released_THEN_a_problem_json_400_is_returned() throws Exception {
+        control.setCoordinationMode(RelayCoordinationMode.LEASE);
+
+        mockMvc.perform(post("/tandem/admin/v1/relay/buckets/{bucket}/release", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(INVALID_PARAMETER))
                 .andExpect(OpenApiConformance.conformsToOpenApi());
     }
 }

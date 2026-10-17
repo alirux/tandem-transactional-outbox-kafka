@@ -1978,6 +1978,8 @@ type ReplayMessageResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *OutboxEntry
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
@@ -1991,6 +1993,11 @@ type ReplayMessageResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r ReplayMessageResponse) GetJSON200() *OutboxEntry {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r ReplayMessageResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -2164,6 +2171,8 @@ type GetRelayBucketsResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *[]BucketStatus
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
@@ -2175,6 +2184,11 @@ type GetRelayBucketsResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetRelayBucketsResponse) GetJSON200() *[]BucketStatus {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetRelayBucketsResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -2226,6 +2240,8 @@ type GetRelayBucketResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *BucketStatus
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
@@ -2239,6 +2255,11 @@ type GetRelayBucketResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetRelayBucketResponse) GetJSON200() *BucketStatus {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetRelayBucketResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -2295,6 +2316,8 @@ type ReleaseBucketResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *BucketStatus
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
@@ -2308,6 +2331,11 @@ type ReleaseBucketResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r ReleaseBucketResponse) GetJSON200() *BucketStatus {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r ReleaseBucketResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -2364,6 +2392,8 @@ type PauseRelayResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *RelayStatus
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
@@ -2377,6 +2407,11 @@ type PauseRelayResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PauseRelayResponse) GetJSON200() *RelayStatus {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PauseRelayResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -2433,6 +2468,8 @@ type ResumeRelayResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *RelayStatus
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
@@ -2446,6 +2483,11 @@ type ResumeRelayResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r ResumeRelayResponse) GetJSON200() *RelayStatus {
 	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r ResumeRelayResponse) GetApplicationproblemJSON400() *InvalidParameter {
+	return r.ApplicationproblemJSON400
 }
 
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
@@ -3046,6 +3088,13 @@ func ParseReplayMessageResponse(rsp *http.Response) (*ReplayMessageResponse, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3187,6 +3236,13 @@ func ParseGetRelayBucketsResponse(rsp *http.Response) (*GetRelayBucketsResponse,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3233,6 +3289,13 @@ func ParseGetRelayBucketResponse(rsp *http.Response) (*GetRelayBucketResponse, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -3288,6 +3351,13 @@ func ParseReleaseBucketResponse(rsp *http.Response) (*ReleaseBucketResponse, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3342,6 +3412,13 @@ func ParsePauseRelayResponse(rsp *http.Response) (*PauseRelayResponse, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3395,6 +3472,13 @@ func ParseResumeRelayResponse(rsp *http.Response) (*ResumeRelayResponse, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest InvalidParameter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
