@@ -3,6 +3,7 @@ package com.codingful.tandem.test;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TopicRouter;
 import com.codingful.tandem.jdbc.BucketCountGuard;
+import com.codingful.tandem.jdbc.BucketSource;
 import com.codingful.tandem.jdbc.JdbcOutboxRepository;
 import com.codingful.tandem.jdbc.JdbcOutboxStore;
 import com.codingful.tandem.jdbc.RelayConfig;
@@ -151,7 +152,8 @@ public final class TandemTestContainer implements AutoCloseable {
 
     /**
      * A relay wired end-to-end: a {@link JdbcOutboxStore} polling Postgres and a {@link KafkaRelay}
-     * publishing to this broker. The dispatcher is tracked and closed when this container closes;
+     * publishing to this broker, owning its buckets as {@code cfg}'s coordination says (through the
+     * lease table under {@code LEASE}). The dispatcher is tracked and closed when this container closes;
      * the caller {@code start()}s and {@code stop()}s the returned pool.
      */
     public WorkerPool newRelay(RelayConfig cfg, TopicRouter router, KafkaRelayConfig kafkaCfg) {
@@ -171,7 +173,11 @@ public final class TandemTestContainer implements AutoCloseable {
         OutboxStore store = newStore(cfg.maxAttempts());
         KafkaRelay relay = KafkaRelay.builder(producerConfig(), encoder).build();
         relays.add(relay);
-        return new WorkerPool(store, relay, cfg);
+        // The buckets the configured coordination says this relay owns: every one under SINGLE, its
+        // share of the lease table under LEASE, which a pool built without a source would not consult.
+        return WorkerPool.builder(store, relay, cfg)
+                .bucketSource(BucketSource.forCoordination(cfg, dataSource))
+                .build();
     }
 
     /** Create a topic with the given partition count (so per-aggregate keys distribute across partitions). */

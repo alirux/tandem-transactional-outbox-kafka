@@ -6,12 +6,16 @@ import com.codingful.tandem.core.CloudEventsHeaders;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.port.TopicRouter;
+import com.codingful.tandem.jdbc.Coordination;
 import com.codingful.tandem.jdbc.RelayConfig;
 import com.codingful.tandem.jdbc.WorkerPool;
 import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
 import com.codingful.tandem.test.encoder.DebeziumStyleEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -80,6 +84,44 @@ class EndToEndIT {
                 } finally {
                     relay.stop();
                 }
+            }
+        }
+    }
+
+    /** A relay configured for LEASE takes its buckets through the lease table, as an application's would. */
+    @Test
+    void GIVEN_a_relay_configured_for_lease_coordination_WHEN_it_starts_THEN_it_owns_its_buckets_through_the_lease_table()
+            throws Exception {
+        String instanceId = "e2e-lease-relay";
+        try (TandemTestContainer tandem = new TandemTestContainer()) {
+            tandem.start();
+            WorkerPool relay = tandem.newRelay(
+                    RelayConfig.builder().bucketCount(BUCKETS).coordination(Coordination.LEASE)
+                            .instanceId(instanceId).build(),
+                    TopicRouter.kebabWithSuffix("-topic"),
+                    KafkaRelayConfig.of("/tandem/orders"));
+            relay.start();
+            try {
+                long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+                int owned = 0;
+                while (owned < BUCKETS && System.nanoTime() < deadline) {
+                    owned = bucketsOwnedBy(tandem, instanceId);
+                    Thread.sleep(50);
+                }
+                assertThat(owned).isEqualTo(BUCKETS);
+            } finally {
+                relay.stop();
+            }
+        }
+    }
+
+    private static int bucketsOwnedBy(TandemTestContainer tandem, String owner) throws Exception {
+        try (Connection conn = tandem.dataSource().getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM tandem_bucket_lease WHERE owner = ?")) {
+            ps.setString(1, owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
             }
         }
     }
