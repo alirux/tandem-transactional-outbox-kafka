@@ -168,9 +168,12 @@ return value:
   transaction but produced no aggregate; this is allowed, not an error);
 - **each message instance is written once per transaction.** An aggregate keeps its events pending,
   so one returned by two annotated methods in the same transaction (one calling the other) still holds
-  the first method's events when the second returns. The aspect remembers, in a resource bound to the
-  transaction and released at its completion, the instances it has written, and skips them. The
-  comparison is by identity, never by content: two changes that produce equal messages are two events;
+  the first method's events when the second returns, and one result can name the same aggregate twice.
+  The aspect remembers the instances it has written, in a synchronization registered with the
+  transaction, and skips them. A synchronization, not a bound resource, because Spring suspends it with
+  its transaction: an inner `REQUIRES_NEW` keeps a record of its own, so a message it wrote before
+  rolling back is written again by the outer transaction instead of being lost. The comparison is by
+  identity, never by content: two changes that produce equal messages are two events;
 - if `aggregateType` is set on the annotation, every extracted message is asserted to carry it —
   a mismatch fails fast (`OutboxInsertException`), turning the attribute into a real guard rather than
   decoration.

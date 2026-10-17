@@ -69,17 +69,19 @@ class TransactionalOutboxAspect {
     }
 
     /**
-     * The messages this transaction has not written yet. An aggregate keeps its events pending until it is
-     * discarded, so one returned by two annotated methods in the same transaction (one calling the other)
-     * still holds the first method's events when the second returns: written again, each would become a
-     * second event with an id of its own, which no consumer could recognise as a duplicate. Compared by
-     * identity, never by content: two changes that happen to produce equal messages are two events.
+     * The messages this transaction has not written yet, each instance once. An aggregate keeps its events
+     * pending until it is discarded, so one returned by two annotated methods in the same transaction (one
+     * calling the other) still holds the first method's events when the second returns, and one result can
+     * name the same aggregate twice: written again, each would become a second event with an id of its own,
+     * which no consumer could recognise as a duplicate. Compared by identity, never by content: two changes
+     * that happen to produce equal messages are two events.
      */
     private List<OutboxMessage> notYetWritten(List<OutboxMessage> messages) {
         Set<OutboxMessage> written = written();
+        Set<OutboxMessage> selected = identitySet();
         List<OutboxMessage> fresh = new ArrayList<>(messages.size());
         for (OutboxMessage message : messages) {
-            if (!written.contains(message)) {
+            if (!written.contains(message) && selected.add(message)) {
                 fresh.add(message);
             }
         }
@@ -87,26 +89,39 @@ class TransactionalOutboxAspect {
     }
 
     /**
-     * The messages already written in the current transaction, bound to it and released when it ends. Empty,
-     * and kept nowhere, when the transaction runs no synchronization: nothing could release it then.
+     * The messages already written in the current transaction. Held by a synchronization registered with
+     * it, not by a bound resource: Spring sets synchronizations aside with the transaction they belong to
+     * when it suspends one (an inner {@code REQUIRES_NEW}, say), and drops them when it completes, so an
+     * inner transaction keeps a record of its own and a message it wrote before rolling back is written
+     * again by the outer one. Empty, and kept nowhere, when the transaction runs no synchronization.
      */
-    @SuppressWarnings("unchecked")
     private Set<OutboxMessage> written() {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            return Collections.newSetFromMap(new IdentityHashMap<>());
+            return identitySet();
         }
-        Set<OutboxMessage> written = (Set<OutboxMessage>) TransactionSynchronizationManager.getResource(this);
-        if (written == null) {
-            written = Collections.newSetFromMap(new IdentityHashMap<>());
-            TransactionSynchronizationManager.bindResource(this, written);
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    TransactionSynchronizationManager.unbindResourceIfPossible(TransactionalOutboxAspect.this);
-                }
-            });
+        for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+            if (synchronization instanceof WrittenMessages written && written.owner == this) {
+                return written.messages;
+            }
         }
-        return written;
+        WrittenMessages written = new WrittenMessages(this);
+        TransactionSynchronizationManager.registerSynchronization(written);
+        return written.messages;
+    }
+
+    private static Set<OutboxMessage> identitySet() {
+        return Collections.newSetFromMap(new IdentityHashMap<>());
+    }
+
+    /** One transaction's record of the messages this aspect wrote in it; it reacts to no callback. */
+    private static final class WrittenMessages implements TransactionSynchronization {
+
+        private final TransactionalOutboxAspect owner;
+        private final Set<OutboxMessage> messages = identitySet();
+
+        private WrittenMessages(TransactionalOutboxAspect owner) {
+            this.owner = owner;
+        }
     }
 
     /**

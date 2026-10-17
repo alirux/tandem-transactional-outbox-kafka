@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
+import com.codingful.tandem.core.port.OutboxRepository;
 import com.codingful.tandem.core.port.TandemAggregate;
 import com.codingful.tandem.jdbc.Wakeup;
 import com.codingful.tandem.jdbc.WakeupSource;
 import com.codingful.tandem.test.TandemTestContainer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,7 +33,10 @@ import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Integration tests (LLD-spring-producer §3–§5) proving that every write-side tier inserts <b>within</b>
@@ -109,6 +114,35 @@ class TandemProducerIntegrationTest {
             TransactionBindingGuard guard = context.getBean(TransactionBindingGuard.class);
             assertThat(guard.isDisabled()).isFalse();
             assertThat(guard.checksBinding()).isFalse();
+        });
+    }
+
+    @Test
+    void GIVEN_an_independent_transaction_that_rolls_back_WHEN_its_event_is_retried_in_the_outer_transaction_THEN_the_event_is_committed() {
+        runner.run(context -> {
+            var manager = context.getBean(PlatformTransactionManager.class);
+            var outer = new TransactionTemplate(manager);
+            var inner = new TransactionTemplate(manager);
+            inner.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            var aspect = new TransactionalOutboxAspect(
+                    context.getBean(OutboxRepository.class),
+                    context.getBean(TransactionBindingGuard.class));
+            OutboxMessage first = OutboxMessage.builder().aggregateId("suspended-outer")
+                    .aggregateType("Order").unsequenced().payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+            OutboxMessage retried = OutboxMessage.builder().aggregateId("independent-rollback-retried")
+                    .aggregateType("Order").unsequenced().payload("{}".getBytes(StandardCharsets.UTF_8)).build();
+
+            outer.executeWithoutResult(outerStatus -> {
+                aspect.insertPending(List.of(first), "");
+                inner.executeWithoutResult(innerStatus -> {
+                    aspect.insertPending(List.of(retried), "");
+                    innerStatus.setRollbackOnly();
+                });
+                aspect.insertPending(List.of(retried), "");
+            });
+
+            assertThat(outboxRowCount(first.aggregateId().value())).isEqualTo(1);
+            assertThat(outboxRowCount(retried.aggregateId().value())).isEqualTo(1);
         });
     }
 

@@ -94,6 +94,18 @@ class TransactionalOutboxAspectTest {
     }
 
     @Test
+    void GIVEN_the_same_pending_event_returned_twice_WHEN_collected_in_one_transaction_THEN_it_is_written_once() {
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox, TransactionBindingGuard.disabled());
+        OutboxMessage event = OutboxMessage.builder().aggregateId("repeated-aggregate")
+                .aggregateType("Order").unsequenced().payload(new byte[] {1}).build();
+
+        withActiveTransaction(() -> aspect.insertPending(List.of(event, event), ""));
+
+        assertThat(outbox.all()).hasSize(1);
+    }
+
+    @Test
     void GIVEN_no_active_transaction_WHEN_pending_messages_would_be_inserted_THEN_it_fails_fast() {
         InMemoryOutbox outbox = new InMemoryOutbox();
         TransactionalOutboxAspect aspect = new TransactionalOutboxAspect(outbox, TransactionBindingGuard.disabled());
