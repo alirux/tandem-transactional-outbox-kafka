@@ -1,5 +1,6 @@
 package com.codingful.tandem.admin.internal.outbox;
 
+import com.codingful.tandem.admin.internal.InvalidRequestException;
 import com.codingful.tandem.admin.internal.outbox.dto.DiscardRequest;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryPageResponse;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryResponse;
@@ -147,14 +148,19 @@ final class OutboxAdminService {
         if (!hasSelector) {
             throw new ReplayNoSelectorException();
         }
-        ReplayCriteria criteria = ReplayCriteria.builder()
-                .aggregateId(request.aggregateId() == null ? null : AggregateId.of(request.aggregateId()))
-                .aggregateType(request.aggregateType())
-                .fromId(request.fromId())
-                .toId(request.toId())
-                .statuses(statuses)
-                .dryRun(request.dryRun())
-                .build();
+        ReplayCriteria criteria;
+        try {
+            criteria = ReplayCriteria.builder()
+                    .aggregateId(request.aggregateId() == null ? null : AggregateId.of(request.aggregateId()))
+                    .aggregateType(request.aggregateType())
+                    .fromId(request.fromId())
+                    .toId(request.toId())
+                    .statuses(statuses)
+                    .dryRun(request.dryRun())
+                    .build();
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException(e.getMessage(), e);
+        }
         ReplayResult result = replayService.replay(criteria);
         LOG.info("Outbox bulk replay executed matched:{}, replayed:{}, dryRun:{}, actor:{}",
                 result.matched(), result.replayed(), result.dryRun(), actor);
@@ -181,7 +187,7 @@ final class OutboxAdminService {
             try {
                 parsed.add(OutboxStatus.valueOf(status));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid status: " + status, e);
+                throw new InvalidRequestException("Invalid status: " + status, e);
             }
         }
         return parsed;

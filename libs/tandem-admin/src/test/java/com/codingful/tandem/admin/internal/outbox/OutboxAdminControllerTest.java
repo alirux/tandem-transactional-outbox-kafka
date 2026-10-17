@@ -1,5 +1,6 @@
 package com.codingful.tandem.admin.internal.outbox;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -382,6 +383,51 @@ class OutboxAdminControllerTest {
                 .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/internal-error"))
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_a_stored_status_this_version_cannot_read_WHEN_summary_is_requested_THEN_it_is_a_500_not_the_callers_400() throws Exception {
+        String rowDetail = "unknown status code:9";
+        OutboxAdminService service = new OutboxAdminService(
+                new UnreadableStatusQuery(rowDetail), outbox, outbox, outbox, Clock.systemUTC());
+        MockMvc newerRelayMockMvc = AdminMockMvc.create(
+                new OutboxAdminController(service), new OutboxExceptionHandler());
+
+        String body = newerRelayMockMvc.perform(get("/tandem/admin/v1/outbox/summary"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/internal-error"))
+                .andExpect(OpenApiConformance.conformsToOpenApi())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain(rowDetail);
+    }
+
+    @Test
+    void GIVEN_an_aggregate_id_longer_than_its_column_WHEN_messages_are_searched_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(get("/tandem/admin/v1/outbox/messages?aggregateId=" + "a".repeat(256)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    /**
+     * Fails the way a read of a row written by a newer relay does: the stored value is outside what this
+     * version knows, which the core reports with an {@code IllegalArgumentException}.
+     */
+    private record UnreadableStatusQuery(String detail) implements OutboxQuery {
+        @Override
+        public Map<OutboxStatus, Long> statusCounts() {
+            throw new IllegalArgumentException(detail);
+        }
+
+        @Override
+        public List<OutboxRowView> search(OutboxSearchCriteria criteria) {
+            throw new IllegalArgumentException(detail);
+        }
+
+        @Override
+        public Optional<OutboxRowDetail> findById(long id) {
+            throw new IllegalArgumentException(detail);
+        }
     }
 
     /** Always fails — exercises the generic 500 handler, a path no valid input reaches. */

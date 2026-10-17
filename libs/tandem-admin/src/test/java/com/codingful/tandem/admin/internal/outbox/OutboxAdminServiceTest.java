@@ -3,6 +3,7 @@ package com.codingful.tandem.admin.internal.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codingful.tandem.admin.internal.InvalidRequestException;
 import com.codingful.tandem.admin.internal.outbox.dto.DiscardRequest;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryPageResponse;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryResponse;
@@ -291,7 +292,13 @@ class OutboxAdminServiceTest {
     @Test
     void GIVEN_an_invalid_status_name_WHEN_replayed_in_bulk_THEN_it_is_rejected() {
         assertThatThrownBy(() -> service.replayBulk(new ReplayRequest("order-1", null, null, null, List.of("NOT_A_STATUS"), false), "test-user"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    void GIVEN_an_aggregate_id_longer_than_its_column_WHEN_replayed_in_bulk_THEN_it_is_rejected_as_the_callers_value() {
+        assertThatThrownBy(() -> service.replayBulk(new ReplayRequest("a".repeat(256), null, null, null, null, false), "test-user"))
+                .isInstanceOf(InvalidRequestException.class);
     }
 
     @Test

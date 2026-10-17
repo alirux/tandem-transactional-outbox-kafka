@@ -1,5 +1,6 @@
 package com.codingful.tandem.admin.internal.outbox;
 
+import com.codingful.tandem.admin.internal.InvalidRequestException;
 import com.codingful.tandem.admin.internal.outbox.dto.DiscardRequest;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryPageResponse;
 import com.codingful.tandem.admin.internal.outbox.dto.OutboxEntryResponse;
@@ -56,17 +57,22 @@ class OutboxAdminController {
             @RequestParam(name = "limit", defaultValue = "" + OutboxSearchCriteria.DEFAULT_LIMIT) int limit,
             @RequestParam(name = "cursor", required = false) String cursor) {
 
-        OutboxSearchCriteria criteria = OutboxSearchCriteria.builder()
-                .status(status == null ? null : parseStatus(status))
-                .aggregateId(aggregateId == null ? null : AggregateId.of(aggregateId))
-                .aggregateType(aggregateType)
-                .type(type)
-                .createdFrom(createdFrom)
-                .createdTo(createdTo)
-                .correlationId(correlationId)
-                .afterId(cursor == null ? null : parseCursor(cursor))
-                .limit(limit)
-                .build();
+        OutboxSearchCriteria criteria;
+        try {
+            criteria = OutboxSearchCriteria.builder()
+                    .status(status == null ? null : parseStatus(status))
+                    .aggregateId(aggregateId == null ? null : AggregateId.of(aggregateId))
+                    .aggregateType(aggregateType)
+                    .type(type)
+                    .createdFrom(createdFrom)
+                    .createdTo(createdTo)
+                    .correlationId(correlationId)
+                    .afterId(cursor == null ? null : parseCursor(cursor))
+                    .limit(limit)
+                    .build();
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException(e.getMessage(), e);
+        }
         return service.search(criteria);
     }
 
@@ -105,7 +111,7 @@ class OutboxAdminController {
         try {
             return OutboxStatus.valueOf(status);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid status: " + status, e);
+            throw new InvalidRequestException("Invalid status: " + status, e);
         }
     }
 
@@ -113,7 +119,7 @@ class OutboxAdminController {
         try {
             return Long.parseLong(cursor);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid cursor: " + cursor, e);
+            throw new InvalidRequestException("Invalid cursor: " + cursor, e);
         }
     }
 }

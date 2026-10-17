@@ -15,7 +15,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 /**
  * Generic error handling shared by every feature package's controllers — the cases with no
- * feature-specific meaning: an unparseable parameter, or a genuinely unexpected failure. A feature
+ * feature-specific meaning: an unparseable parameter, or a genuinely unexpected failure. Only a value
+ * of the request is a {@code 400}: a controller reports one as an {@link InvalidRequestException}, and
+ * a bare {@link IllegalArgumentException} (stored data this version cannot read, for instance) is a
+ * {@code 500}. A feature
  * package (e.g. {@code outbox}) adds its own {@code @RestControllerAdvice} for exceptions that carry
  * a feature-specific problem slug (e.g. {@code not-found}) — Spring dispatches to whichever advice's
  * {@code @ExceptionHandler} matches, so several can coexist. Authentication (401) is deliberately not
@@ -51,7 +54,7 @@ public class TandemAdminExceptionHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(TandemAdminExceptionHandler.class);
 
-    @ExceptionHandler({IllegalArgumentException.class, NumberFormatException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({InvalidRequestException.class, MethodArgumentTypeMismatchException.class})
     ResponseEntity<ProblemDetail> handleBadRequest(RuntimeException e) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, "invalid-parameter", "Invalid request parameter", e.getMessage());
     }
