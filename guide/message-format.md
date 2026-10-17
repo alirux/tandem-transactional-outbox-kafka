@@ -199,6 +199,76 @@ There is no sequence number, even for a row written with one.
     your own headers with that prefix. Nothing rejects such a header at insert; it just disappears
     from the published message.
 
+
+### A binary payload (Avro, Protobuf)
+
+The outbox column is `jsonb`, so a binary payload cannot be stored as it is
+([Getting Started](getting-started.md#51-what-an-event-contains)). Store it as a JSON string holding
+its base64 text, and let the encoder turn it back into bytes, so your consumers read the format they
+expect and never see the base64. The writer encodes:
+
+```java
+byte[] avro = serializer.serialize(event);   // your serializer's own output
+
+OutboxMessage.builder()
+    .aggregateType("Order")
+    .aggregateId(order.id().toString())
+    .type("com.acme.order.placed")
+    .unsequenced()
+    .payload(('"' + Base64.getEncoder().encodeToString(avro) + '"').getBytes(UTF_8))
+    .contentType("application/avro")
+    .build();
+```
+
+and the encoder decodes, around raw passthrough:
+
+```java
+/** Publishes a payload stored as a base64 JSON string as the bytes it encodes. */
+public final class Base64PayloadEncoder implements MessageEncoder {
+
+    private final MessageEncoder delegate;
+
+    public Base64PayloadEncoder(MessageEncoder delegate) {
+        this.delegate = delegate;
+    }
+
+    @Override
+    public EncodedMessage encode(OutboxRecord record) {
+        EncodedMessage message = delegate.encode(record);
+        return new EncodedMessage(message.destination(), message.key(), decode(message.body()),
+                message.headers());
+    }
+
+    // The column holds the JSON string "<base64>": drop the quotes, decode what is between them.
+    private static byte[] decode(byte[] json) {
+        int last = json.length - 1;
+        if (last < 1 || json[0] != '"' || json[last] != '"') {
+            throw new IllegalArgumentException("payload is not a base64 JSON string");
+        }
+        return Base64.getDecoder().decode(Arrays.copyOfRange(json, 1, last));
+    }
+}
+```
+
+```java
+var relay = KafkaRelay.builder(producerConfig, KafkaMessageEncoder.from(
+        new Base64PayloadEncoder(new RawMessageEncoder(TopicRouter.kebabWithSuffix("-topic"))))).build();
+```
+
+The consumer reads the bytes your serializer produced, with the `content-type` you wrote. Bytes from
+a schema registry serializer keep its framing, so the matching deserializer reads them; serialize for
+the topic the router picks, since that is the subject such a serializer registers under.
+
+What this costs, and what it does not:
+
+- **About a third more storage** per row, the base64 overhead, and the payload is no longer readable
+  in the database or in the Admin API, which shows the base64 string.
+- **A row that is not a base64 string fails for good** (rule 3 below), so keep every writer of the
+  stream on the same encoding.
+- **Nothing on the wire changes for any other encoder**: decoding happens in this one class.
+- **The contract kit needs base64 rows**: the built-in ones carry a JSON object, which this encoder
+  rejects, so pass your own with `records(...)`.
+
 ---
 
 ## 5. Four rules your encoder must follow
