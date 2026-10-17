@@ -236,7 +236,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OutboxEntry'
         '400':
-          description: acknowledgeOrderingBreak not set
+          description: acknowledgeOrderingBreak not set, or a request body that could not be read
           content:
             application/problem+json:
               schema:
@@ -285,7 +285,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReplayResult'
         '400':
-          description: No selector provided
+          description: No selector provided, or a request body that could not be read
           content:
             application/problem+json:
               schema:
@@ -526,7 +526,8 @@ components:
   responses:
     InvalidParameter:
       description: A query or path parameter could not be parsed (e.g. an unknown status name, a
-        non-numeric id or cursor)
+        non-numeric id or cursor), or a request body could not be read (missing, not JSON, or a
+        field of the wrong type)
       content:
         application/problem+json:
           schema:

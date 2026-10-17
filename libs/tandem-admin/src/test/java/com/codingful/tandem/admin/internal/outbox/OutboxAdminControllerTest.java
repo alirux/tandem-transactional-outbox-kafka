@@ -301,6 +301,40 @@ class OutboxAdminControllerTest {
 
     @Test
     @Tag("boot3-only")
+    void GIVEN_a_body_that_is_not_json_WHEN_bulk_replay_is_requested_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/outbox/replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"aggregateId\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    @Tag("boot3-only")
+    void GIVEN_a_selector_of_the_wrong_type_WHEN_bulk_replay_is_requested_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/outbox/replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromId\":\"not-a-number\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_no_body_WHEN_a_message_is_discarded_THEN_a_problem_json_400_is_returned() throws Exception {
+        insert("order-1", "{}");
+        long id = outbox.all().get(0).id();
+        outbox.forceFailed(id, "boom");
+
+        mockMvc.perform(post("/tandem/admin/v1/outbox/messages/{id}/discard", id))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    @Tag("boot3-only")
     void GIVEN_a_matching_selector_WHEN_bulk_replay_is_requested_THEN_the_matched_and_replayed_counts_are_returned() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();
