@@ -19,11 +19,11 @@ public final class ControllableClock extends Clock {
 
     /** @param start the clock's initial instant, in UTC */
     public ControllableClock(Instant start) {
-        this(start, ZoneOffset.UTC);
+        this(new AtomicReference<>(Objects.requireNonNull(start, "start")), ZoneOffset.UTC);
     }
 
-    private ControllableClock(Instant start, ZoneId zone) {
-        this.instant = new AtomicReference<>(Objects.requireNonNull(start, "start"));
+    private ControllableClock(AtomicReference<Instant> instant, ZoneId zone) {
+        this.instant = instant;
         this.zone = Objects.requireNonNull(zone, "zone");
     }
 
@@ -54,6 +54,8 @@ public final class ControllableClock extends Clock {
 
     @Override
     public Clock withZone(ZoneId zone) {
-        return new ControllableClock(instant.get(), zone);
+        // The same instant source, as Clock#withZone requires: a clock derived for a zone keeps
+        // following advance() and set() on either of the two.
+        return new ControllableClock(instant, zone);
     }
 }
