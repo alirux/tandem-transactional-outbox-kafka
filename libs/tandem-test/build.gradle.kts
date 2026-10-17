@@ -53,3 +53,11 @@ dependencies {
         }
     }
 }
+
+// The published jar must carry the schema TandemTestContainer applies: the repository's checkout is not
+// there for a consumer, so the committed baseline is packaged as a classpath resource.
+tasks.named<ProcessResources>("processResources") {
+    from(rootProject.layout.projectDirectory.file("schema/postgres/tandem-baseline.sql")) {
+        into("tandem/schema/postgres")
+    }
+}

@@ -12,10 +12,9 @@ import com.codingful.tandem.kafka.KafkaMessageEncoder;
 import com.codingful.tandem.kafka.KafkaRelay;
 import com.codingful.tandem.kafka.KafkaRelayConfig;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -59,6 +58,9 @@ public final class TandemTestContainer implements AutoCloseable {
     public static final String POSTGRES_IMAGE_PROPERTY = "tandem.test.postgres.image";
 
     private static final String POSTGRES_IMAGE_ENV = "TANDEM_TEST_POSTGRES_IMAGE";
+
+    /** Where the jar carries the baseline schema the container applies. */
+    static final String BASELINE_RESOURCE = "/tandem/schema/postgres/tandem-baseline.sql";
 
     private final PostgreSQLContainer<?> postgres = newPostgresContainer();
     private final KafkaContainer kafka =
@@ -236,20 +238,15 @@ public final class TandemTestContainer implements AutoCloseable {
         }
     }
 
-    /** Locate {@code schema/postgres/tandem-baseline.sql} by walking up from the working directory. */
+    /** Read the baseline schema the jar carries, so it works outside this repository's checkout. */
     private static String readBaseline() {
-        Path dir = Path.of("").toAbsolutePath();
-        while (dir != null) {
-            Path candidate = dir.resolve("schema/postgres/tandem-baseline.sql");
-            if (Files.exists(candidate)) {
-                try {
-                    return Files.readString(candidate, StandardCharsets.UTF_8);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+        try (InputStream in = TandemTestContainer.class.getResourceAsStream(BASELINE_RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("could not locate " + BASELINE_RESOURCE + " on the classpath");
             }
-            dir = dir.getParent();
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        throw new IllegalStateException("could not locate schema/postgres/tandem-baseline.sql");
     }
 }
