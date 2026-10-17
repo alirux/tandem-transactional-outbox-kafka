@@ -1037,6 +1037,38 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_database_that_is_down_WHEN_the_metrics_adapter_reads_THEN_the_in_process_gauges_still_report_the_stall() {
+        // The outage the cycle-age gauge exists to show: every query fails, the backlog gauges included.
+        // Those cannot be read, but the worker gauges come from the process itself, and an outage is
+        // exactly when they must keep moving.
+        ControllableClock clock = ControllableClock.atEpochDay();
+        RecordingMetrics metrics = new RecordingMetrics();
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1).pollInterval(Duration.ofMillis(10))
+                .metricsInterval(Duration.ofMillis(20)).build();
+        WorkerPool pool = WorkerPool.builder(new DatabaseDownStore(new InMemoryOutbox()), new RecordingDispatcher(), cfg)
+                .metrics(metrics)
+                .clock(clock)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
+
+        pool.start();
+        try {
+            awaitUpTo(Duration.ofSeconds(20),
+                    () -> "a first reading of the worker gauges, got activeWorkers:" + metrics.activeWorkers(),
+                    () -> metrics.activeWorkers() == 1 && metrics.workerCycleAgeSeconds() == 0);
+
+            clock.advance(Duration.ofSeconds(45));
+
+            awaitUpTo(Duration.ofSeconds(20),
+                    () -> "the cycle-age gauge to reflect 45s of no progress, got " + metrics.workerCycleAgeSeconds(),
+                    () -> metrics.workerCycleAgeSeconds() == 45);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_database_that_keeps_failing_WHEN_the_relay_retries_THEN_it_slows_down_instead_of_hammering_it()
             throws InterruptedException {
         // Without a growing backoff a worker retries at pollInterval forever — here ~100 times a
@@ -1461,6 +1493,29 @@ class WorkerPoolTest {
 
         int claimAttempts() {
             return claimAttempts.get();
+        }
+    }
+
+    /** A database that is unreachable for every query, the backlog readings included. */
+    private static final class DatabaseDownStore extends DelegatingStore {
+
+        DatabaseDownStore(InMemoryOutbox delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public List<OutboxRecord> claimBatch(Set<Integer> buckets, String workerId, Duration lease, int batchSize) {
+            throw new RuntimeException("simulated database outage");
+        }
+
+        @Override
+        public Optional<LagSnapshot> lag() {
+            throw new RuntimeException("simulated database outage");
+        }
+
+        @Override
+        public OptionalLong failedCount() {
+            throw new RuntimeException("simulated database outage");
         }
     }
 

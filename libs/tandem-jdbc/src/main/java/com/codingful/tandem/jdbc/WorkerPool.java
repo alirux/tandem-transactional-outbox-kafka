@@ -341,8 +341,22 @@ public final class WorkerPool {
      * the slowest of them has gone without progress (§4, §3.8). Failing here must never disturb
      * delivery — an unreadable gauge is a monitoring problem, not a relay problem — so, like the other
      * maintenance jobs, it swallows the failure after logging it.
+     *
+     * <p>The worker gauges come first and apart from the database readings: they are the ones that show
+     * a relay making no progress, and a database outage, which fails every reading below them, is
+     * exactly when they must keep moving.
      */
     private void metricsTick() {
+        try {
+            // One status() call for both gauges below: it is already an in-process, database-free
+            // snapshot (§3.8), so there is no cost split to weigh — only two readings of one moment
+            // to keep consistent with each other, exactly like the single lag() query below.
+            RelayStatus status = status();
+            metrics.recordActiveWorkers(status.workersAlive());
+            metrics.recordWorkerCycleAgeSeconds(status.oldestWorkerCycleAgeSecondsAt(clock.instant()));
+        } catch (Exception e) {
+            LOG.log(Level.ERROR, "Reading relay worker metrics failed instanceId:" + instanceId, e);
+        }
         try {
             store.lag().ifPresent(lag -> {
                 metrics.recordLag(lag.pending());
@@ -351,14 +365,8 @@ public final class WorkerPool {
             store.failedCount().ifPresent(metrics::recordFailed);
             store.blockedCount().ifPresent(metrics::recordBlocked);
             bucketSource.uncoveredBuckets().ifPresent(metrics::recordUncoveredBuckets);
-            // One status() call for both gauges below: it is already an in-process, database-free
-            // snapshot (§3.8), so there is no cost split to weigh — only two readings of one moment
-            // to keep consistent with each other, exactly like the single lag() query above.
-            RelayStatus status = status();
-            metrics.recordActiveWorkers(status.workersAlive());
-            metrics.recordWorkerCycleAgeSeconds(status.oldestWorkerCycleAgeSecondsAt(clock.instant()));
         } catch (Exception e) {
-            LOG.log(Level.ERROR, "Reading relay metrics failed", e);
+            LOG.log(Level.ERROR, "Reading relay metrics failed instanceId:" + instanceId, e);
         }
     }
 
