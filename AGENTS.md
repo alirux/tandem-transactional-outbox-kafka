@@ -357,6 +357,33 @@ to depend on.
 
 ## Commit messages
 
+- **The subject follows Conventional Commits, with a mandatory scope:**
+  `<type>(<scope>): <description>`, e.g. `fix(jdbc): run the relay's cleanup on a thread of its own`.
+  - **type**, one of a closed set: `feat` (new capability), `fix` (behaviour that broke a promise),
+    `docs`, `test`, `refactor`, `perf`, `build` (Gradle, dependencies, release/baseline mechanics),
+    `ci` (workflows and actions). No `chore`, no others.
+  - **scope** is the component the change is about: the module name without `tandem-` (`core`, `jdbc`,
+    `kafka`, `cloudevents`, `admin`, `micrometer`, `tracing-otel`, `rabbitmq`, `spring-producer`,
+    `spring-relay`, `test`, `bom`, `cli`, `relay`, `sample`, `sample-spring`, `benchmark`, `coverage`), or,
+    for what lives outside a module, one of `schema`, `site`, `guide`, `deps`, `repo` (README, AGENTS,
+    CONTRIBUTING, licensing and other repository-wide files). `relay` is the `apps/tandem-relay` image;
+    the relay engine is `jdbc`. A change spanning modules takes the scope of the one that carries it; a
+    design doc takes the scope of the component it describes (`docs(jdbc): …` for LLD-jdbc).
+  - **description**: imperative, no trailing period, the resulting behaviour (the rules below), and the
+    whole subject **at most 72 characters**. **Case follows commitlint's `config-conventional`**:
+    `type-case` and `scope-case` lower-case; `subject-case` never sentence-case, start-case, pascal-case
+    or upper-case, so the description starts with a lowercase letter while proper nouns inside it keep
+    their own case (`fix(admin): answer a body not sent as JSON with 400`).
+  - **breaking change**: `!` before the colon (`feat(jdbc)!: …`). It is what the tag's **Breaking**
+    section is built from (Releases), so it is never omitted when a published contract breaks.
+  - Why: four independent release schemes (library, `cli-v*`, `rabbitmq-v*`, `relay-v*`) collect their
+    notes from the log, and the scope is how a component's commits are found
+    (`git log --grep '^[a-z]*(cli)'`).
+  - **Enforced in CI** by `.github/workflows/commitlint.yml` against `commitlint.config.mjs`, which holds
+    the type and scope lists: a new module or area scope goes there in the same change as this list. A
+    pull request is checked on its title (the squash-merge subject) and, when it has one commit, on that
+    commit; a push to `main` on every commit it brings. Check locally before pushing with the command in
+    the config file's header.
 - **Describe what changed and why — nothing else.** Three kinds of content stay
   out, and all three are easy to write without noticing:
   - **Implementation detail** — *how* it was done. The diff already says that.

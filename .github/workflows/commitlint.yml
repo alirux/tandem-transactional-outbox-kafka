@@ -1,0 +1,62 @@
+name: Commit messages
+
+# Checks commit subjects against commitlint.config.mjs (AGENTS.md "Commit messages"). Pull requests are
+# squash-merged with their title as the subject, or with the commit's own when there is only one, so a
+# pull request checks its title and, for a single commit, that commit. A push to main checks every
+# commit it brings, which covers the commits made directly on main.
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, edited, reopened, synchronize ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  COMMITLINT_VERSION: 21.2.3
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install commitlint
+        run: >-
+          npm install --no-save --no-package-lock
+          "@commitlint/cli@$COMMITLINT_VERSION" "@commitlint/config-conventional@$COMMITLINT_VERSION"
+
+      - name: Check the pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | npx --no-install commitlint --verbose
+
+      - name: Check the commit of a single-commit pull request
+        if: github.event_name == 'pull_request' && github.event.pull_request.commits == 1
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: npx --no-install commitlint --from "$BASE" --to "$HEAD" --verbose
+
+      - name: Check the commits pushed to main
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            npx --no-install commitlint --last --verbose
+          else
+            npx --no-install commitlint --from "$BEFORE" --to "$AFTER" --verbose
+          fi

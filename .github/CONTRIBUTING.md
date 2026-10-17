@@ -246,6 +246,40 @@ adapter modules depend on `tandem-core`, never the reverse. See
 6. Open a pull request against `main` with a clear description of the change and why it's
    needed.
 
+## Commit messages
+
+The subject line follows [Conventional Commits](https://www.conventionalcommits.org/) with a
+**mandatory scope**:
+
+```
+<type>(<scope>): <description>
+```
+
+- **type** is one of `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build` (Gradle,
+  dependencies, release mechanics) or `ci` (workflows).
+- **scope** names the component the change is about: the module without its `tandem-` prefix
+  (`core`, `jdbc`, `kafka`, `admin`, `rabbitmq`, `spring-relay`, `cli`, `relay`, …), or `schema`,
+  `site`, `guide`, `deps` or `repo` for what lives outside a module. The full list is in
+  [AGENTS.md](../AGENTS.md#commit-messages).
+- **description** is imperative, with no trailing period, and states the resulting behaviour rather
+  than how it was reached. Letter case follows the rules of commitlint's `config-conventional`: type
+  and scope in lower case, and a description that starts with a lowercase letter (names such as Kafka
+  or Admin API keep their own case). The whole subject stays within 72 characters.
+- A change that breaks a published contract (an API, the `tandem_*` schema, the message format)
+  adds `!` before the colon: `feat(jdbc)!: …`.
+
+For example: `fix(admin): answer an unreadable request body with 400, not 500`. A body is optional
+and short. Give your pull request a title in the same form: pull requests are squash-merged, and the
+title becomes the commit subject.
+
+The *Commit messages* workflow checks the pull request title (and the commit, when there is only
+one) with [commitlint](https://commitlint.js.org/), against [`commitlint.config.mjs`](../commitlint.config.mjs).
+To check your branch before pushing:
+
+```bash
+npx --yes -p @commitlint/cli@21.2.3 -p @commitlint/config-conventional@21.2.3 commitlint --from origin/main
+```
+
 ## Code style
 
 There's no auto-formatter enforced yet; match the style of the surrounding code. Keep comments
