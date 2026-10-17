@@ -46,6 +46,14 @@ or connection shutdown the adapter therefore completes every pending future **re
 the relay redelivers those rows. This is the ordinary outbox path, not an error path: at-least-once
 delivery with deduplication on `ce_id` is what the design already promises (HLD §4.5).
 
+**A channel the broker closes is replaced.** A channel-level error (a publish to an exchange deleted
+while the relay runs, say) closes the publishing channel and leaves the connection up, and connection
+recovery never reopens such a channel. The next publish therefore opens a replacement on the same
+connection, so the relay heals as soon as the topology is back instead of failing every later row until
+it restarts. Delivery tags keep counting across the replacement, and a shutdown fails only the
+publishes of the channel that went away, so a late notice from the old channel never settles one of the
+new.
+
 ---
 
 ## 2. `OutboxDispatcher` implementation (`RabbitRelay`)

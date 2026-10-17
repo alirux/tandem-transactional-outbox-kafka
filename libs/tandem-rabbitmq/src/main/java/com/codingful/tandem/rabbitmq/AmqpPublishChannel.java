@@ -6,18 +6,32 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** {@link PublishChannel} over a real AMQP connection: confirms enabled, mandatory publishing (§1). */
 final class AmqpPublishChannel implements PublishChannel {
 
+    private static final Logger LOG = LoggerFactory.getLogger(AmqpPublishChannel.class);
+
     private static final boolean MANDATORY = true;
 
     private final Connection connection;
-    private final Channel channel;
+
+    /** Replaced only under the relay's publish lock, which every publish holds (§2). */
+    private volatile Channel channel;
+
+    /** The delivery tags issued by the channels the current one replaced. */
+    private long tagOffset;
+
+    private volatile ConfirmHandler confirmHandler;
+    private volatile ReturnHandler returnHandler;
+    private volatile ShutdownHandler shutdownHandler;
 
     private AmqpPublishChannel(Connection connection, Channel channel) {
         this.connection = connection;
         this.channel = channel;
+        attach(channel, 0);
     }
 
     /**
@@ -70,7 +84,51 @@ final class AmqpPublishChannel implements PublishChannel {
 
     @Override
     public long nextPublishSeqNo() {
-        return channel.getNextPublishSeqNo();
+        reopenIfClosedByBroker();
+        return tagOffset + channel.getNextPublishSeqNo();
+    }
+
+    /**
+     * The broker closes a channel over a channel-level error, such as a publish to an exchange that no
+     * longer exists, and connection recovery does not reopen it: every later publish would fail on the
+     * closed channel until the relay restarts. Tags keep counting across the replacement, so a late
+     * confirm or shutdown of the old channel never settles a publish of the new one.
+     */
+    private void reopenIfClosedByBroker() {
+        Channel closed = channel;
+        if (closed.isOpen() || !connection.isOpen()) {
+            return;   // open, or the whole connection is down and its recovery reopens the channel
+        }
+        Channel replacement = null;
+        try {
+            replacement = connection.createChannel();
+            replacement.confirmSelect();
+            long issued = tagOffset + closed.getNextPublishSeqNo() - 1;
+            attach(replacement, issued);
+            channel = replacement;
+            tagOffset = issued;
+        } catch (IOException | RuntimeException reopenFailure) {
+            // The closed channel stays in place: the publish fails on it, retriably or not as the
+            // broker's reason says, and the next publish tries again.
+            closeQuietly(replacement);
+            LOG.warn("Reopening the AMQP publish channel failed host:{}, port:{}", connection.getAddress(),
+                    connection.getPort(), reopenFailure);
+        }
+    }
+
+    /** Relays the channel's callbacks to the registered handlers, its delivery tags shifted by {@code offset}. */
+    private void attach(Channel target, long offset) {
+        target.addConfirmListener(
+                (deliveryTag, multiple) -> confirmHandler.handle(offset + deliveryTag, multiple, true),
+                (deliveryTag, multiple) -> confirmHandler.handle(offset + deliveryTag, multiple, false));
+        target.addReturnListener(returned -> returnHandler.handle(returned.getProperties().getMessageId(),
+                returned.getReplyCode(), returned.getReplyText()));
+        target.addShutdownListener(cause -> {
+            ShutdownHandler handler = shutdownHandler;
+            if (handler != null) {
+                handler.handle(cause, offset + target.getNextPublishSeqNo() - 1);
+            }
+        });
     }
 
     @Override
@@ -80,20 +138,17 @@ final class AmqpPublishChannel implements PublishChannel {
 
     @Override
     public void onConfirm(ConfirmHandler handler) {
-        channel.addConfirmListener(
-                (deliveryTag, multiple) -> handler.handle(deliveryTag, multiple, true),
-                (deliveryTag, multiple) -> handler.handle(deliveryTag, multiple, false));
+        this.confirmHandler = handler;
     }
 
     @Override
     public void onReturn(ReturnHandler handler) {
-        channel.addReturnListener(returned -> handler.handle(returned.getProperties().getMessageId(),
-                returned.getReplyCode(), returned.getReplyText()));
+        this.returnHandler = handler;
     }
 
     @Override
     public void onShutdown(ShutdownHandler handler) {
-        channel.addShutdownListener(handler::handle);
+        this.shutdownHandler = handler;
     }
 
     @Override

@@ -199,6 +199,39 @@ class RabbitRelayIT {
     }
 
     @Test
+    void GIVEN_an_exchange_recreated_while_the_relay_runs_WHEN_the_next_row_is_published_THEN_it_arrives()
+            throws Exception {
+        String exchange = "tandem-recreated";
+        String queue = "recreated-orders";
+        try (Connection connection = connectionFactory().newConnection();
+             Channel operator = connection.createChannel()) {
+            declareBound(operator, exchange, queue);
+
+            try (RabbitRelay relay = new RabbitRelay(connectionFactory(), RabbitRelayConfig.of(SOURCE, exchange))) {
+                relay.dispatch(order(601, "order-recreated", 1)).get(10, TimeUnit.SECONDS);
+
+                // The operator redeploys the topology: one publish lands in the gap and the broker
+                // closes the publishing channel over it.
+                operator.exchangeDelete(exchange);
+                assertThatThrownBy(() -> relay.dispatch(order(602, "order-recreated", 2)).get(10, TimeUnit.SECONDS))
+                        .cause()
+                        .isInstanceOf(OutboxDispatchException.class);
+                declareBound(operator, exchange, queue);
+
+                relay.dispatch(order(603, "order-recreated", 3)).get(10, TimeUnit.SECONDS);
+                assertThat(headerText(consumeOne(operator, queue), PREFIX + "id")).isEqualTo("601");
+                assertThat(headerText(consumeOne(operator, queue), PREFIX + "id")).isEqualTo("603");
+            }
+        }
+    }
+
+    private static void declareBound(Channel channel, String exchange, String queue) throws Exception {
+        channel.exchangeDeclare(exchange, BuiltinExchangeType.TOPIC, true);
+        channel.queueDeclare(queue, true, false, false, null);
+        channel.queueBind(queue, exchange, ORDER_ROUTING_KEY);
+    }
+
+    @Test
     void GIVEN_an_exchange_nobody_created_WHEN_the_relay_starts_THEN_it_refuses_to_start_instead_of_failing_row_by_row() {
         assertThatThrownBy(() -> new RabbitRelay(connectionFactory(), RabbitRelayConfig.of(SOURCE, "no-such-exchange")))
                 .isInstanceOf(TandemConfigurationException.class)

@@ -154,6 +154,22 @@ class RabbitRelayTest {
     }
 
     @Test
+    void GIVEN_a_row_published_on_a_replacement_channel_WHEN_the_replaced_one_reports_its_shutdown_late_THEN_only_its_own_rows_fail() {
+        RabbitRelay relay = relay();
+
+        CompletableFuture<Void> onClosedChannel = relay.dispatch(record(1, "order-1"));
+        CompletableFuture<Void> onReplacement = relay.dispatch(record(2, "order-2"));
+
+        channel.shutdown(new IOException("channel error"), channel.published().get(0).deliveryTag());
+
+        assertThat(failureOf(onClosedChannel).isRetriable()).isTrue();
+        assertThat(onReplacement).isNotDone();
+        channel.confirm(channel.last().deliveryTag());
+        assertThat(onReplacement).isCompletedWithValue(null);
+        assertThat(relay.inFlightConfirms()).isZero();
+    }
+
+    @Test
     void GIVEN_a_broker_that_rejects_the_write_WHEN_a_row_is_dispatched_THEN_the_row_is_retried_and_its_slot_is_released() {
         RabbitRelay relay = relay();
         channel.failNextPublishWith(new IOException("channel is closed"));

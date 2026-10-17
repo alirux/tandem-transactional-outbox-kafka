@@ -60,8 +60,14 @@ final class RecordingPublishChannel implements PublishChannel {
         returnHandler.handle(messageId, replyCode, replyText);
     }
 
+    /** The channel goes away with every tag it issued. */
     void shutdown(Throwable cause) {
-        shutdownHandler.handle(cause);
+        shutdownHandler.handle(cause, nextTag - 1);
+    }
+
+    /** A channel that was replaced goes away late: only tags up to {@code lastTag} were its own. */
+    void shutdown(Throwable cause, long lastTag) {
+        shutdownHandler.handle(cause, lastTag);
     }
 
     boolean isClosed() {

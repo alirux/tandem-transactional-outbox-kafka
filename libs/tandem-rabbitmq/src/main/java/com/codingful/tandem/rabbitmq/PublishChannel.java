@@ -44,9 +44,12 @@ interface PublishChannel extends AutoCloseable {
         void handle(String messageId, int replyCode, String replyText);
     }
 
-    /** The channel or its connection went away; every pending confirm is lost with it (§1). */
+    /**
+     * The channel or its connection went away, and the confirms of every tag up to {@code lastTag}
+     * with it (§1). A later tag belongs to the channel that replaced it.
+     */
     @FunctionalInterface
     interface ShutdownHandler {
-        void handle(Throwable cause);
+        void handle(Throwable cause, long lastTag);
     }
 }

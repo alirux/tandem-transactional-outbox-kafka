@@ -243,12 +243,13 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
         entry.returnReason = replyCode + " " + replyText;
     }
 
-    private void onShutdown(Throwable cause) {
-        if (pending.isEmpty()) {
+    private void onShutdown(Throwable cause, long lastTag) {
+        int lost = pending.headMap(lastTag, true).size();
+        if (lost == 0) {
             return;
         }
-        LOG.warn("AMQP channel shut down, failing pending confirms pendingCount:{}", pending.size(), cause);
-        failAllPending(cause);
+        LOG.warn("AMQP channel shut down, failing pending confirms pendingCount:{}", lost, cause);
+        failPendingUpTo(lastTag, cause);
     }
 
     private void expire(long tag) {
@@ -262,8 +263,8 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
                 + confirmTimeoutMs + " ms", true));
     }
 
-    private void failAllPending(Throwable cause) {
-        for (Long tag : List.copyOf(pending.keySet())) {
+    private void failPendingUpTo(long lastTag, Throwable cause) {
+        for (Long tag : List.copyOf(pending.headMap(lastTag, true).keySet())) {
             Pending entry = discard(tag);
             if (entry != null) {
                 fail(entry, classifier.classify(cause));
@@ -334,7 +335,7 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
         } catch (IOException closeFailure) {
             LOG.warn("Closing the AMQP publish channel failed", closeFailure);
         }
-        failAllPending(channelClosed());
+        failPendingUpTo(Long.MAX_VALUE, channelClosed());
     }
 
     private static IOException channelClosed() {
