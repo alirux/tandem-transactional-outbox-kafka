@@ -1,0 +1,11 @@
+{
+  "id": 3,
+  "aggregateId": "order-3",
+  "aggregateType": "Order",
+  "seq": 1,
+  "status": "DONE",
+  "attempts": 1,
+  "createdAt": "2026-08-05T00:00:00Z",
+  "payload": {"note": "fish & chips <hot>"},
+  "headers": {"x-query": "a=1&b=2"}
+}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -224,14 +225,22 @@ func entryPairs(_ *App, e client.OutboxEntry) [][2]string {
 		pairs = append(pairs, [2]string{"lockedBy", *e.LockedBy})
 	}
 	if e.Payload != nil {
-		payloadBytes, _ := json.Marshal(e.Payload)
-		pairs = append(pairs, [2]string{"payload", string(payloadBytes)})
+		pairs = append(pairs, [2]string{"payload", compactJSON(e.Payload)})
 	}
 	if e.Headers != nil {
-		headerBytes, _ := json.Marshal(*e.Headers)
-		pairs = append(pairs, [2]string{"headers", string(headerBytes)})
+		pairs = append(pairs, [2]string{"headers", compactJSON(*e.Headers)})
 	}
 	return pairs
+}
+
+// compactJSON renders v on one line as the server sent it. json.Marshal would rewrite &, < and >
+// as \u0026, \u003c and \u003e, an escaping meant for HTML pages and not what the message holds.
+func compactJSON(v any) string {
+	var b strings.Builder
+	encoder := json.NewEncoder(&b)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(v)
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func newOutboxReplayCmd() *cobra.Command {

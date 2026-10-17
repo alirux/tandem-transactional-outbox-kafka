@@ -209,6 +209,23 @@ func TestOutboxGet_humanRendersPayloadAndHeaders(t *testing.T) {
 	}
 }
 
+// The payload and headers are shown as the server sent them: Go's JSON encoder would otherwise
+// rewrite &, < and > as \u0026, \u003c and \u003e, which is not what the message holds.
+func TestOutboxGet_humanRendersPayloadAndHeadersWithoutHTMLEscaping(t *testing.T) {
+	server := newFixtureServer(t, map[string]route{
+		"GET /outbox/messages/3": {200, "outbox_entry_markup.json"},
+	})
+	stdout, _, code := execute(t, server.URL, "outbox", "get", "3")
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stdout=%q", code, stdout)
+	}
+	for _, want := range []string{`"fish & chips <hot>"`, `"a=1&b=2"`} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout = %q, missing %s", stdout, want)
+		}
+	}
+}
+
 func TestOutboxGet_rendersTypeLastErrorDiscardReasonCorrelationIdAndLockedByWhenPresent(t *testing.T) {
 	server := newFixtureServer(t, map[string]route{
 		"GET /outbox/messages/2": {200, "outbox_entry_full.json"},
