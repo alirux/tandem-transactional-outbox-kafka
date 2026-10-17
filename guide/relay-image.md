@@ -354,8 +354,9 @@ relay a direct connection, or one through session pooling. See
 
 ### 8.1 The schema is yours to apply
 
-The image **does not create, migrate or check** the `tandem_*` tables. Whoever owns the database
-applies the schema, before the first start, with the same files an embedded relay uses
+The image **does not create or migrate** the `tandem_*` tables, and it does not validate their structure:
+at startup it only reads (and on the very first start writes) the bucket count in `tandem_meta`. Whoever
+owns the database applies the schema, before the first start, with the same files an embedded relay uses
 ([Getting Started](getting-started.md#4-step-2-create-the-schema)):
 
 - a **new database**: `schema/postgres/tandem-baseline.sql`, the whole schema in one script, or the

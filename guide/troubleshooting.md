@@ -32,7 +32,7 @@ tandem-cli outbox search --status FAILED --limit 5
 |---|---|
 | `state: DOWN`, or no relay log line since start | [§2.1](#21-the-relay-is-not-running) |
 | `state: PAUSED` | [§2.2](#22-the-relay-is-paused) |
-| `FAILED` above zero, or `blocked` above zero | [§3](#3-a-row-is-failed-or-an-aggregate-is-stuck) |
+| `FAILED` above zero in `outbox summary` or `outbox search`, or the `tandem.outbox.blocked.count` metric above zero | [§3](#3-a-row-is-failed-or-an-aggregate-is-stuck) |
 | `PENDING` growing with a healthy `RUNNING` relay | [§2.3](#23-the-relay-runs-but-rows-stay-pending) |
 | The application did not start | [§4](#4-the-application-does-not-start) |
 | Writing an event throws, or seems to do nothing | [§5](#5-writing-events) |
