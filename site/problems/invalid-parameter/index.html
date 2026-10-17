@@ -32,8 +32,9 @@
       unknown status name, a non-numeric message id, or a malformed pagination cursor. The request
       never reached the outbox; nothing changed.</p>
     <p>The <code>detail</code> names the offending parameter and the value that failed to bind.</p>
-    <p>A <code>POST</code> whose JSON body is missing, does not parse, or carries a field of the
-      wrong type (a non-numeric <code>fromId</code>, say) gets the same problem type. Its
+    <p>A <code>POST</code> whose JSON body is missing, is not sent as
+      <code>application/json</code>, does not parse, or carries a field of the wrong type (a
+      non-numeric <code>fromId</code>, say) gets the same problem type. Its
       <code>detail</code> is a fixed sentence and does not quote the body back.</p>
 
     <h2>What to do</h2>

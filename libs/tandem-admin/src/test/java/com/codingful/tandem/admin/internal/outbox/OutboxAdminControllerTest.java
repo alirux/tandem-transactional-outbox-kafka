@@ -322,6 +322,17 @@ class OutboxAdminControllerTest {
     }
 
     @Test
+    @Tag("boot3-only")
+    void GIVEN_a_body_that_is_not_declared_as_json_WHEN_bulk_replay_is_requested_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/outbox/replay")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("{\"aggregateId\":\"order-1\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
     void GIVEN_no_body_WHEN_a_message_is_discarded_THEN_a_problem_json_400_is_returned() throws Exception {
         insert("order-1", "{}");
         long id = outbox.all().get(0).id();

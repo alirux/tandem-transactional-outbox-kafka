@@ -16,6 +16,8 @@ dependencies {
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.web)
     compileOnly(libs.slf4j.api)
+    // Spring MVC's request exceptions extend ServletException, which an advice naming one compiles against.
+    compileOnly(libs.jakarta.servlet.api)
     // Annotations ONLY, never a databind type: Boot 3 carries Jackson 2 and Boot 4 carries Jackson 3,
     // and jackson-annotations is the single artifact both generations share. The wire DTOs use it to
     // pin the rendering (@JsonRawValue for the payload fragment, @JsonFormat for the timestamps) while

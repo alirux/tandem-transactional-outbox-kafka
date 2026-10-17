@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -56,11 +57,12 @@ public class TandemAdminExceptionHandler {
     }
 
     /**
-     * A request body that is missing, is not JSON, or does not bind to the endpoint's schema. The
-     * detail is fixed text: the parser's own message quotes the body and the server's internals.
+     * A request body that is missing, is not sent as JSON, does not parse, or does not bind to the
+     * endpoint's schema. The detail is fixed text: the parser's own message quotes the body and the
+     * server's internals.
      */
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    ResponseEntity<ProblemDetail> handleUnreadableBody(HttpMessageNotReadableException e) {
+    @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})
+    ResponseEntity<ProblemDetail> handleUnreadableBody(Exception e) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, "invalid-parameter", "Invalid request parameter",
                 "The request body is missing, is not valid JSON, or does not match the endpoint's schema");
     }
