@@ -67,6 +67,9 @@ public final class WorkerPool {
     private volatile long run;
     private boolean stopping;   // guarded by this: a shutdown is transitioning; start() refuses meanwhile
     private ScheduledExecutorService scheduler;
+    // Cleanup's own thread: a pass clears the whole retention backlog and can run for minutes, which on
+    // the shared one would hold back the lease heartbeat, the pause refresh and the reclaim (§3.7).
+    private ScheduledExecutorService cleanupScheduler;
 
     /**
      * Embedded topology with the basic-round defaults: no-op metrics, system clock, full-jitter backoff,
@@ -189,8 +192,10 @@ public final class WorkerPool {
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> daemon(r, "tandem-relay-" + instanceId + "-jobs"));
         long reclaimMs = cfg.reclaimInterval().toMillis();
         scheduler.scheduleWithFixedDelay(this::reclaimTick, reclaimMs, reclaimMs, TimeUnit.MILLISECONDS);
+        cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
+                r -> daemon(r, "tandem-relay-" + instanceId + "-cleanup"));
         long cleanupMs = cfg.cleanupInterval().toMillis();
-        scheduler.scheduleWithFixedDelay(this::cleanupTick, cleanupMs, cleanupMs, TimeUnit.MILLISECONDS);
+        cleanupScheduler.scheduleWithFixedDelay(this::cleanupTick, cleanupMs, cleanupMs, TimeUnit.MILLISECONDS);
         // Initial delay 0, unlike reclaimTick/controlTick: under LEASE this is the first bucket claim, and
         // a relay that waited a full reclaimInterval to own any bucket would sit idle for no reason — same
         // rationale as metricsTick's immediate first read below.
@@ -516,6 +521,9 @@ public final class WorkerPool {
         stopping = true;
         if (scheduler != null) {
             scheduler.shutdownNow();
+        }
+        if (cleanupScheduler != null) {
+            cleanupScheduler.shutdownNow();
         }
         Thread[] snapshot = threads.clone();
         for (Thread t : snapshot) {

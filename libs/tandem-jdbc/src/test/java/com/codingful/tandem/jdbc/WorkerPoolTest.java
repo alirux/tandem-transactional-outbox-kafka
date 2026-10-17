@@ -1037,6 +1037,33 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_long_cleanup_pass_WHEN_it_runs_THEN_the_relays_other_jobs_keep_their_cadence() throws InterruptedException {
+        // A pass clears the whole retention backlog (§3.7), which on a large outbox takes minutes. The
+        // lease heartbeat, the pause refresh and the lease reclaim must not wait for it: a bucket lease
+        // left unrenewed that long expires, and the instance stops delivering.
+        CountDownLatch cleanupEntered = new CountDownLatch(1);
+        CountDownLatch releaseCleanup = new CountDownLatch(1);
+        SlowCleanupStore store = new SlowCleanupStore(new InMemoryOutbox(), cleanupEntered, releaseCleanup);
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1)
+                .reclaimInterval(Duration.ofMillis(20)).cleanupInterval(Duration.ofMillis(10)).build();
+        WorkerPool pool = new WorkerPool(store, new RecordingDispatcher(), cfg);
+
+        pool.start();
+        try {
+            assertThat(cleanupEntered.await(20, TimeUnit.SECONDS)).as("a cleanup pass to start").isTrue();
+            int reclaimsSoFar = store.reclaims();
+
+            awaitUpTo(Duration.ofSeconds(20), () -> "lease reclaims to go on during the cleanup pass, got "
+                            + (store.reclaims() - reclaimsSoFar),
+                    () -> store.reclaims() >= reclaimsSoFar + 3);
+        } finally {
+            releaseCleanup.countDown();
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_database_that_is_down_WHEN_the_metrics_adapter_reads_THEN_the_in_process_gauges_still_report_the_stall() {
         // The outage the cycle-age gauge exists to show: every query fails, the backlog gauges included.
         // Those cannot be read, but the worker gauges come from the process itself, and an outage is
@@ -1493,6 +1520,40 @@ class WorkerPoolTest {
 
         int claimAttempts() {
             return claimAttempts.get();
+        }
+    }
+
+    /** A cleanup pass that lasts until the test releases it, and a count of the lease reclaims. */
+    private static final class SlowCleanupStore extends DelegatingStore {
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+        private final AtomicInteger reclaims = new AtomicInteger();
+
+        SlowCleanupStore(InMemoryOutbox delegate, CountDownLatch entered, CountDownLatch release) {
+            super(delegate);
+            this.entered = entered;
+            this.release = release;
+        }
+
+        @Override
+        public int cleanup(Instant doneBefore, int batchSize) {
+            entered.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return 0;
+        }
+
+        @Override
+        public int reclaimExpiredLeases() {
+            reclaims.incrementAndGet();
+            return super.reclaimExpiredLeases();
+        }
+
+        int reclaims() {
+            return reclaims.get();
         }
     }
 

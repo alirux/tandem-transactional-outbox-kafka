@@ -635,7 +635,10 @@ Default: periodic **batch `DELETE`** of terminal rows older than the retention w
 in chunks to avoid long locks. **Each pass deletes chunk after chunk until a chunk comes back short**, so
 one pass clears everything past the cutoff: one chunk per interval would cap the rate at
 `cleanupBatchSize / cleanupInterval` (about one row a second with the defaults), and an outbox busier than
-that would grow without bound. The cutoff is fixed for the pass, so the pass ends.
+that would grow without bound. The cutoff is fixed for the pass, so the pass ends. Such a pass can run
+for minutes on a large backlog, so cleanup has **a thread of its own**: on the one the other periodic jobs
+share it would hold back the bucket lease renewal (§3.2), the pause refresh and the lease reclaim (§3.5)
+until it ended, long enough for a bucket lease to expire under an instance that is still running.
 ```sql
 DELETE FROM tandem_outbox
  WHERE id IN ( SELECT id FROM tandem_outbox
