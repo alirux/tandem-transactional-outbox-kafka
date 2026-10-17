@@ -1929,6 +1929,16 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_an_instance_id_just_too_long_for_the_full_form_WHEN_a_worker_is_named_THEN_it_keeps_the_whole_id() {
+        String instanceId = "pod-" + "z".repeat(51);   // 55 characters: valid, yet the full form would be 71
+
+        String workerId = WorkerPool.workerId(instanceId, 0);
+
+        assertThat(workerId).hasSizeLessThanOrEqualTo(WorkerPool.LOCKED_BY_MAX_LENGTH);
+        assertThat(workerId).isEqualTo(instanceId + "-w0");
+    }
+
+    @Test
     void GIVEN_a_long_instance_id_WHEN_two_workers_are_named_THEN_their_ids_stay_distinct() {
         String instanceId = "y".repeat(64);
 

@@ -197,8 +197,9 @@ public final class WorkerPool {
     }
 
     /**
-     * The id a worker writes into {@code locked_by}: {@code tandem-relay-<instanceId>-w<index>}, or, when
-     * that exceeds the column, the tail of the instance id (its most specific part) plus the suffix.
+     * The id a worker writes into {@code locked_by}: {@code tandem-relay-<instanceId>-w<index>}; when that
+     * exceeds the column, the instance id without the prefix, and when even that does not fit, the tail of
+     * the instance id (its most specific part), always followed by the suffix.
      */
     static String workerId(String instanceId, int index) {
         String suffix = "-w" + index;
@@ -207,7 +208,7 @@ public final class WorkerPool {
             return full;
         }
         int keep = LOCKED_BY_MAX_LENGTH - suffix.length();
-        return instanceId.substring(instanceId.length() - keep) + suffix;
+        return (instanceId.length() <= keep ? instanceId : instanceId.substring(instanceId.length() - keep)) + suffix;
     }
 
     private void startThreadsAndJobs() {
