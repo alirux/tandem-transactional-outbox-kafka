@@ -226,6 +226,34 @@ func TestResolve_validCaCertIsLoadedIntoTheTLSConfig(t *testing.T) {
 	}
 }
 
+// An operator behind a corporate proxy reaches the Admin API the way every other Go tool does,
+// through the standard proxy environment. The environment is read once per process, so this is the
+// only test here that asks the transport for a proxy.
+func TestResolve_proxyEnvironmentIsHonoured(t *testing.T) {
+	const proxy = "http://proxy.internal:3128"
+	t.Setenv("HTTPS_PROXY", proxy)
+	t.Setenv("NO_PROXY", "")
+
+	resolved, err := Resolve(Options{BaseURL: "https://admin.example"}, nil)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	transport, ok := resolved.HTTPClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("HTTPClient.Transport is not *http.Transport")
+	}
+	if transport.Proxy == nil {
+		t.Fatal("the transport ignores the proxy environment")
+	}
+	got, err := transport.Proxy(httptest.NewRequest(http.MethodGet, "https://admin.example/outbox/summary", nil))
+	if err != nil {
+		t.Fatalf("Proxy() error = %v", err)
+	}
+	if got == nil || got.String() != proxy {
+		t.Errorf("Proxy() = %v, want %s", got, proxy)
+	}
+}
+
 func TestResolve_caCertFallsBackToEnvVarAndFlagWins(t *testing.T) {
 	certDir := t.TempDir()
 	envCertFile := filepath.Join(certDir, "env-ca.pem")

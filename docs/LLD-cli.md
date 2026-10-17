@@ -250,6 +250,10 @@ verification outright. `--insecure` is a deliberate, loud escape hatch — it pr
 stderr on every use — and it exists because an ops tool that refuses to reach a self-signed
 internal endpoint does not make anyone safer; it just sends the operator back to `curl -k`.
 
+**Proxy.** The CLI reaches the Admin API through the standard proxy environment (`HTTPS_PROXY`,
+`HTTP_PROXY`, `NO_PROXY`), as every Go tool does: its transport is Go's default one with only the TLS
+settings above replaced.
+
 **No config file / profile support in v1** — Pareto: the common case is one Admin API endpoint per
 invocation context (a laptop, a CI job), fully covered by the env vars; multi-environment profile
 switching is deferred to when an adopter actually asks for it (§11).

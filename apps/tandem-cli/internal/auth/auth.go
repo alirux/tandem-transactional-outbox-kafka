@@ -97,9 +97,11 @@ func Resolve(o Options, warn func(string)) (*Resolved, error) {
 		}
 	}
 
-	httpClient := &http.Client{
-		Transport: &http.Transport{TLSClientConfig: tlsConfig},
-	}
+	// Go's own default transport, so the CLI keeps what every Go tool does: the proxy environment
+	// (HTTPS_PROXY, NO_PROXY), dial and handshake timeouts, HTTP/2. Only the TLS settings are ours.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsConfig
+	httpClient := &http.Client{Transport: transport}
 	switch {
 	case o.TimeoutSet && o.Timeout <= 0:
 		// --timeout 0: no client-side deadline.
