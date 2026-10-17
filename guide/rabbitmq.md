@@ -216,7 +216,8 @@ Each event is one AMQP message:
 
 - **exchange**: the configured one;
 - **routing key**: the kebab-cased aggregate type plus the suffix, `order-topic` by default;
-- **body**: your payload, exactly as inserted;
+- **body**: your payload, the same JSON you inserted, not the same bytes (the `jsonb` column may
+  normalize whitespace, key order and number formatting);
 - **`contentType` property**: the event's content type;
 - **`messageId` property**: the outbox row id;
 - **delivery mode**: persistent;

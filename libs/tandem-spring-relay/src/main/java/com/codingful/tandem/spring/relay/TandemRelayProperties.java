@@ -26,7 +26,8 @@ import java.time.Duration;
  * @param rowLease           per-row claim lease; default {@code 60s} (must exceed the delivery timeout)
  * @param maxAttempts        delivery attempts before a row is quarantined; default {@code 10}
  * @param retention          how long DONE rows are kept before cleanup; default {@code 14d}
- * @param cleanupBatchSize   rows deleted per cleanup pass; default {@code 1000}
+ * @param cleanupBatchSize   rows deleted per cleanup statement; a pass repeats it until no row past
+ *                           retention is left; default {@code 1000}
  * @param reclaimInterval    how often expired row leases are reclaimed, and the cap of the relay's
  *                           backoff after a failing cycle; default {@code 5s}
  * @param cleanupInterval    how often DONE rows are cleaned up; default {@code 15m}

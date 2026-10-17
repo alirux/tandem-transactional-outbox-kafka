@@ -358,11 +358,12 @@ payload and headers, to keep pages small; fetch one message to read them.
     ```
 
 ```json
-{"items":[{"id":1,"aggregateId":"order-lease-1","aggregateType":"Order","type":"OrderPlaced","seq":1,"status":"DONE","attempts":0,"replays":0,"createdAt":"2026-09-20T12:01:22.449393Z"}],"nextCursor":"1"}
+{"items":[{"id":1,"aggregateId":"order-lease-1","aggregateType":"Order","type":"OrderPlaced","seq":1,"status":"FAILED","attempts":10,"replays":0,"lastError":"Topic order-topic not present in metadata after 60000 ms.","createdAt":"2026-09-20T12:01:22.449393Z"}],"nextCursor":null}
 ```
 
 `seq` is absent for a message written with no sequence number, and it is not zero: do not fill one in.
-`nextCursor` is `null` on the last page.
+`nextCursor` is `null` on a page with fewer items than `limit`. A page that is exactly full still carries
+one, even when it is the last: the next request then returns no items and a `null` cursor.
 
 **Reading every page.** Pass the cursor back until it is `null`:
 

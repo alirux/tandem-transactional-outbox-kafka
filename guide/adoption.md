@@ -60,7 +60,7 @@ Everything else in this guide is additive, opt-in, or has a documented workaroun
 | Your shape | What it costs you |
 |---|---|
 | 1: already serialized | Adoption is close to free. |
-| 2: JPA `@Version` | A five-minute fix once found (flush earlier, or stop supplying a version with `unsequenced()`, §3.2), but **silent if missed**. |
+| 2: JPA `@Version` | A five-minute fix once found (flush before the outbox insert, so the row lock is taken first and the version read is the new one), but **silent if missed**. `unsequenced()` (§3.2) removes only the stale version: without the early flush, two writers can still commit in the opposite order of their inserts. |
 | 3: child-only writes | Budget real design time: add an explicit `SELECT … FOR UPDATE` on the aggregate row, redraw the aggregate boundary, or opt into `lockedWrite()` (§3.2), the only option needing no shared domain row, since its lock is keyed on the aggregate id. |
 | 4: no serialization | Same fix as case 3. `lockedWrite()` is the fastest way to add ordering without touching your persistence layer. |
 
@@ -214,10 +214,12 @@ start, in that order.
     };
     ```
 
-!!! danger "The hard constraint: the Kafka record key becomes `aggregate_id`, and it is not configurable"
-    Tandem always sets the producer record key to `aggregate_id.value()`; that's the mechanism
-    that keeps one aggregate's events on one Kafka partition, closing the ordering chain from the
-    DB write lock through to the consumer. If your existing producer keys records differently
+!!! danger "The hard constraint: the Kafka record key becomes `aggregate_id`"
+    Tandem's CloudEvents encoders always set the producer record key to `aggregate_id.value()`, and
+    offer no setting to change it. A custom encoder ([Message Format](message-format.md)) chooses its
+    own key, and gives up per-aggregate ordering on the consumer side if that key is not the
+    aggregate. The key is the mechanism that keeps one aggregate's events on one Kafka partition,
+    closing the ordering chain from the DB write lock through to the consumer. If your existing producer keys records differently
     (a composite key, a different field, a different string format for what is logically the same
     id), switching producers changes which partition a given entity's events land on. Kafka itself
     makes no ordering promise *across* partitions, but any consumer that relies on partition

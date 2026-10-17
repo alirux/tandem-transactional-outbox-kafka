@@ -82,7 +82,7 @@ Read by the relay only. Every property is optional.
 |---|---|---|---|
 | `tandem.relay.retention` | `14d` | How long `DONE` and `DISCARDED` rows are kept before cleanup, counted from when they were created. `FAILED` rows are never removed. | `.retention(...)` |
 | `tandem.relay.cleanup-interval` | `15m` | How often cleanup runs. | `.cleanupInterval(...)` |
-| `tandem.relay.cleanup-batch-size` | `1000` | Rows deleted per cleanup pass. | `.cleanupBatchSize(...)` |
+| `tandem.relay.cleanup-batch-size` | `1000` | Rows deleted per statement. One cleanup pass repeats the statement until no row past retention is left, so it bounds how long each statement holds its locks, not how many rows a pass deletes. | `.cleanupBatchSize(...)` |
 
 ### 3.4 Reporting and checks
 

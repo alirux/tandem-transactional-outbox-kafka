@@ -422,7 +422,7 @@ public final class RelayConfig {
             return this;
         }
 
-        /** Max rows deleted per cleanup pass. Default 1000. */
+        /** Max rows deleted per cleanup statement; one pass repeats it until no row past retention is left. Default 1000. */
         public Builder cleanupBatchSize(int cleanupBatchSize) {
             this.cleanupBatchSize = positive(cleanupBatchSize, "cleanupBatchSize");
             return this;

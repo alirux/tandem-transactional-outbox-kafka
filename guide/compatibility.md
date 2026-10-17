@@ -46,12 +46,16 @@ has them or does not.
 
 Everything else Tandem uses (`jsonb`, `ON CONFLICT`, `RETURNING`, array binds, partial indexes,
 `now() + interval`, `TIMESTAMPTZ`) is ordinary PostgreSQL and comes along with the wire protocol in
-practice. Two optional features need more than that, and both **degrade instead of failing**:
+practice. Two optional features need more than that, and both are **off by default**. Turned on
+against an engine that lacks what they need, the **write side fails**: the function is called inside
+the writing transaction, so its error rolls the transaction back. Check them before you enable them.
 
-- **`Wakeup.PG_NOTIFY`** needs `LISTEN`/`NOTIFY` and PostgreSQL's own JDBC driver. Without it the
-  relay finds the row on its next poll, so the cost is latency, not delivery.
+- **`Wakeup.PG_NOTIFY`** needs `pg_notify()` on the write side, and `LISTEN` plus PostgreSQL's own
+  JDBC driver on the relay. Only the relay's half degrades: if its listener cannot run, the relay
+  finds the row on its next poll, so the cost is latency, not delivery.
 - **`lockedWrite()`** needs `pg_advisory_xact_lock()` and `hashtext()`. `hashtext()` is an internal
-  PostgreSQL function, so it is the first thing to check on a derived engine. Without it you keep
+  PostgreSQL function, so it is the first thing to check on a derived engine. There is no fallback:
+  a message written with `lockedWrite()` fails to insert without them. Leave it off and you keep
   whatever serialization your own write path already provides
   ([§3.2 of the adoption guide](adoption.md#32-where-seq-comes-from-and-whether-you-need-tandems-lock)).
 

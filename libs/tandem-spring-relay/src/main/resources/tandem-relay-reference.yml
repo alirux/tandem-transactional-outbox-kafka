@@ -76,7 +76,8 @@ tandem:
     # tandem.relay.retention — how long DONE rows are kept before cleanup. Default: 14d.
     # retention: 14d
 
-    # tandem.relay.cleanup-batch-size — rows deleted per cleanup pass. Default: 1000.
+    # tandem.relay.cleanup-batch-size — rows deleted per cleanup statement; a pass repeats it until no
+    # row past retention is left. Default: 1000.
     # cleanup-batch-size: 1000
 
     # tandem.relay.reclaim-interval — how often expired row leases are reclaimed. Default: 5s.

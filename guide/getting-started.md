@@ -348,15 +348,16 @@ connection, and the `source` that identifies your application on every event.
     BucketCountGuard.check(dataSource, bucketCount);
 
     OutboxStore store = new JdbcOutboxStore(dataSource, relayConfig.maxAttempts());
-    OutboxDispatcher kafka = new KafkaRelay(
+    KafkaRelay kafka = new KafkaRelay(
         Map.of("bootstrap.servers", "localhost:9092"),
         TopicRouter.kebabWithSuffix("-topic"),
         KafkaRelayConfig.of("/orders/service"));
 
     WorkerPool relay = new WorkerPool(store, kafka, relayConfig);
     relay.start();
-    // on shutdown:
+    // on shutdown: stop the workers first, then close the producer they publish through
     relay.stop();
+    kafka.close();
     ```
 
     `KafkaRelay` and `KafkaRelayConfig` are in `com.codingful.tandem.kafka`; `WorkerPool` and
@@ -424,7 +425,8 @@ LIMIT 10;
 **In Kafka**, read the topic. Each record carries:
 
 - **key**: the aggregate id;
-- **value**: your payload, exactly as inserted;
+- **value**: your payload, the same JSON you inserted, not the same bytes (the `jsonb` column may
+  normalize whitespace, key order and number formatting);
 - **headers**: the CloudEvents attributes as `ce_id`, `ce_type`, `ce_source`, `ce_time`, plus
   `ce_partitionkey` and `content-type`, and any header you added yourself.
 

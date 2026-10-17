@@ -81,7 +81,7 @@ public final class OrderEventEncoder implements MessageEncoder {
         Map<String, byte[]> headers = new LinkedHashMap<>();
         headers.put("event-id", String.valueOf(record.id()).getBytes(UTF_8));
         // type is optional on the row: fall back to the aggregate type, as the default envelope does
-        String type = record.type() != null ? record.type() : record.aggregateType();
+        String type = record.type() != null && !record.type().isBlank() ? record.type() : record.aggregateType();
         headers.put("event-type", type.getBytes(UTF_8));
         // pass the row headers through: traceparent, correlation-id and your own travel here
         record.headers().forEach((name, value) -> headers.putIfAbsent(name, value.getBytes(UTF_8)));
@@ -96,7 +96,7 @@ public final class OrderEventEncoder implements MessageEncoder {
 ```
 
 Two details in it are easy to get wrong. A row may be written without a `type`, so `record.type()` can
-be `null`, and an encoder that dereferences it fails that row for good (§5). And an encoder that does
+be `null` (or blank), and an encoder that dereferences it fails that row for good (§5). And an encoder that does
 not copy `record.headers()` silently drops trace continuation and the correlation id on the consumer
 side. Before deploying, run it against the contract kit (§5, rule 4): it checks both.
 

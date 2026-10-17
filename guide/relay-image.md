@@ -368,8 +368,8 @@ Keeping DDL out of the relay means its database user needs no right to change th
 read and write access to the `tandem_*` rows, plus `INSERT` on `tandem_meta`: on the very first start
 against a database, the relay records the bucket count there.
 
-If the tables are missing, the relay fails to start under `LEASE`, naming them. Under `SINGLE` it
-starts, logs an `ERROR` each cycle and turns not ready after the stall threshold (§4.1).
+If the tables are missing, the relay fails to start, under `SINGLE` as under `LEASE`: its first step
+at startup reads the bucket count from `tandem_meta`.
 
 ### 8.2 A socket timeout on every connection
 

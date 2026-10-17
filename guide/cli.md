@@ -418,12 +418,16 @@ tandem-host-16809-90b7  256           2026-09-20T12:02:14Z
 
 ## 3. In a script
 
-Use `--output json` for the data and the exit code for the outcome.
+Use `--output json` for the data and the exit code for the outcome. A script that pipes the CLI into
+`jq` starts with `set -euo pipefail`: without it, a CLI that fails and prints no JSON hands `jq` an
+empty input, and the script reads that as "nothing failed" or "no more pages" instead of stopping. A
+script that branches on the exit code itself, like the last one below, reads `$?` instead.
 
 **Alert when something failed:**
 
 ```bash
-failed=$(tandem-cli --output json outbox summary | jq '.counts.FAILED')
+set -euo pipefail
+failed=$(tandem-cli --output json outbox summary | jq '.counts.FAILED // 0')
 if [ "$failed" -gt 0 ]; then
   echo "$failed outbox rows have failed" >&2
   exit 1
@@ -433,6 +437,7 @@ fi
 **Read every page of a search:**
 
 ```bash
+set -euo pipefail
 cursor=""
 while :; do
   page=$(tandem-cli --output json outbox search --status FAILED --limit 100 --cursor "$cursor")

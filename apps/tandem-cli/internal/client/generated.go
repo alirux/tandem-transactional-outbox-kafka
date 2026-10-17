@@ -147,7 +147,7 @@ type OutboxEntry_Payload struct {
 type OutboxEntryPage struct {
 	Items []OutboxEntry `json:"items"`
 
-	// NextCursor Pass as cursor to fetch the next page; null when no more
+	// NextCursor Pass as cursor to fetch the next page. Null when the page holds fewer items than limit; a page that is exactly full carries one even when it is the last, and the next request then returns no items and a null cursor.
 	NextCursor *string `json:"nextCursor,omitempty"`
 }
 

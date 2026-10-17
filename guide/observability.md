@@ -449,7 +449,7 @@ The publish span carries identifiers only, never payloads or header values:
 |---|---|
 | `tandem.outbox.row_id` | The outbox row id, the same one the logs and the Admin API use. |
 | `tandem.aggregate.type`, `tandem.aggregate.id` | The aggregate. |
-| `tandem.attempts` | The delivery attempt. Above one means it is a retry. |
+| `tandem.attempts` | The failed attempts before this one: `0` on the first delivery, so above zero means it is a retry. |
 | `tandem.topic` | The destination topic. |
 | `tandem.correlation_id` | The correlation id, when there is one. |
 

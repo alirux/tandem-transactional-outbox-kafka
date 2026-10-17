@@ -206,7 +206,7 @@ schema is applied once, by your own migrations, exactly as for an embedded relay
 
 Rather not write that application? [The Relay Image](relay-image.md) is the same relay prebuilt as a
 container, configured through environment variables. It is built in the repository and released on tags
-of its own; no version has been released yet.
+of its own.
 
 **One image, two roles.** If you prefer to build a single application that can play either role, put
 both modules in it and choose with a property: `tandem.relay.enabled: false` loads the module without
@@ -376,7 +376,7 @@ they are waiting for a person.
 |---|---|---|
 | `tandem.relay.retention` | 14 days | How long finished rows are kept. Judged on when the row was **created**. |
 | `tandem.relay.cleanup-interval` | 15 minutes | How often the cleanup runs. |
-| `tandem.relay.cleanup-batch-size` | 1000 | Rows deleted per pass. |
+| `tandem.relay.cleanup-batch-size` | 1000 | Rows deleted per statement; a pass repeats it until nothing past retention is left. |
 
 Retention is how far back you can **replay and audit**: a `DONE` row that has been cleaned up can no
 longer be replayed. Choose it by how long you want that safety net to reach, not by table size. Under
