@@ -12,6 +12,7 @@ import com.codingful.tandem.core.WorkerView;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 
 class JdbcRelayQueryIT extends AbstractPostgresIT {
@@ -61,6 +62,23 @@ class JdbcRelayQueryIT extends AbstractPostgresIT {
                 "INSERT INTO tandem_meta (key, value, updated_at) VALUES ('coordination', 'SINGLE', now() - interval '1 hour')");
 
         assertThat(query.status().alive()).isFalse();
+    }
+
+    /**
+     * The heartbeat is stamped with the database's clock, so its freshness has to be judged on that
+     * clock too: an Admin API host whose own clock runs a minute ahead of the database's would
+     * otherwise see every heartbeat as a minute old. The skew is produced on the database side, with a
+     * {@code now()} that resolves ahead of {@code pg_catalog}'s on these connections only.
+     */
+    @Test
+    void GIVEN_a_database_clock_a_minute_behind_the_admin_hosts_WHEN_the_relay_heartbeated_just_now_THEN_it_is_alive() {
+        execute("CREATE SCHEMA IF NOT EXISTS clock_behind",
+                "CREATE OR REPLACE FUNCTION clock_behind.now() RETURNS timestamptz LANGUAGE sql"
+                        + " AS 'SELECT pg_catalog.now() - interval ''1 minute'''");
+        DataSource clockBehind = dataSourceWith("currentSchema=clock_behind,pg_catalog,public");
+        new JdbcRelayControlSource(clockBehind, Coordination.SINGLE, Duration.ofSeconds(5)).onStart();
+
+        assertThat(new JdbcRelayQuery(clockBehind).status().alive()).isTrue();
     }
 
     @Test

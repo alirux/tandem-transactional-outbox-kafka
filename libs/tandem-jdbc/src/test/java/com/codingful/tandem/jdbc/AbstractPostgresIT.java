@@ -49,6 +49,13 @@ abstract class AbstractPostgresIT {
                 "TRUNCATE tandem_meta");
     }
 
+    /** Another DataSource on the same database, its connections opened with extra JDBC URL parameters. */
+    static DataSource dataSourceWith(String urlParameters) {
+        String url = POSTGRES.getJdbcUrl();
+        return new SimpleDataSource(url + (url.contains("?") ? "&" : "?") + urlParameters,
+                POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
     static void execute(String... statements) {
         try (Connection conn = DATA_SOURCE.getConnection();
              Statement stmt = conn.createStatement()) {

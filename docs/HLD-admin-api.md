@@ -274,7 +274,8 @@ one shared code path, not "check `tandem_relay_member` under `LEASE`, something 
 `SINGLE`". The relay also publishes its own heartbeat cadence once at startup
 (`relay_heartbeat_interval_seconds`), so the admin computes staleness (missing more than **3×**
 that interval) without guessing a threshold that might not match the deployment's actual
-configuration. `state` reports `DOWN` whenever this staleness check fails — taking priority over
+configuration. It judges that age on the database's clock, the one the heartbeat is stamped with, so a
+skew between the admin's host and the database never reads as a missed heartbeat. `state` reports `DOWN` whenever this staleness check fails — taking priority over
 `PAUSED`, since "is anything running at all" matters more than the desired-state flag once
 nothing is heartbeating.
 

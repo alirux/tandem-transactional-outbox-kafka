@@ -7,7 +7,6 @@ import com.codingful.tandem.core.WorkerView;
 import com.codingful.tandem.core.port.RelayQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -30,8 +29,11 @@ public final class JdbcRelayQuery implements RelayQuery {
             "SELECT key, value FROM tandem_meta"
                     + " WHERE key IN ('bucket_count', 'relay_paused', 'coordination', 'relay_heartbeat_interval_seconds')";
 
-    private static final String COORDINATION_UPDATED_AT_SQL =
-            "SELECT updated_at FROM tandem_meta WHERE key = 'coordination'";
+    // Judged on the database's clock, the one the relay stamps its heartbeat with: comparing the
+    // stamp with this process's clock would read any skew between the two hosts as heartbeat age.
+    private static final String HEARTBEAT_FRESH_SQL =
+            "SELECT updated_at > now() - (? * interval '1 second') AS fresh"
+                    + "  FROM tandem_meta WHERE key = 'coordination'";
 
     // Missed heartbeats tolerated before RelayStatus.state reports DOWN - a couple of slow ticks
     // shouldn't flip it, only a relay that has genuinely stopped touching tandem_meta.
@@ -110,20 +112,21 @@ public final class JdbcRelayQuery implements RelayQuery {
         long heartbeatIntervalSeconds = meta.containsKey("relay_heartbeat_interval_seconds")
                 ? Long.parseLong(meta.get("relay_heartbeat_interval_seconds"))
                 : DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
-        boolean alive = readCoordinationUpdatedAt()
-                .map(updatedAt -> updatedAt.isAfter(Instant.now()
-                        .minus(Duration.ofSeconds(DOWN_THRESHOLD_MISSED_HEARTBEATS * heartbeatIntervalSeconds))))
-                .orElse(false);
+        boolean alive = heartbeatFresh(DOWN_THRESHOLD_MISSED_HEARTBEATS * heartbeatIntervalSeconds);
         if (mode == RelayCoordinationMode.SINGLE) {
             return new RelayStatusView(alive, paused, bucketCount, 0, 0);
         }
         return new RelayStatusView(alive, paused, bucketCount, count(UNCOVERED_COUNT_SQL), count(LIVE_WORKER_COUNT_SQL));
     }
 
-    private Optional<Instant> readCoordinationUpdatedAt() {
+    /** Whether the last heartbeat is younger than {@code maxAgeSeconds}; {@code false} when there is none. */
+    private boolean heartbeatFresh(long maxAgeSeconds) {
         return Jdbc.run(dataSource, "coordination heartbeat query failed", conn ->
-                Jdbc.withStatement(conn, COORDINATION_UPDATED_AT_SQL, ps -> Jdbc.withResultSet(ps, rs ->
-                        rs.next() ? Optional.ofNullable(instantOrNull(rs, "updated_at")) : Optional.empty())));
+                Jdbc.withStatement(conn, HEARTBEAT_FRESH_SQL, ps -> {
+                    ps.setLong(1, maxAgeSeconds);
+                    // A NULL updated_at compares to NULL, which getBoolean reads as false: no heartbeat.
+                    return Jdbc.withResultSet(ps, rs -> rs.next() && rs.getBoolean("fresh"));
+                }));
     }
 
     @Override
