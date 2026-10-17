@@ -28,6 +28,9 @@ public final class WorkerPool {
 
     private static final Logger LOG = System.getLogger(WorkerPool.class.getName());
 
+    /** Width of {@code tandem_outbox.locked_by}, where the worker id is written. */
+    static final int LOCKED_BY_MAX_LENGTH = 64;
+
     private final OutboxStore store;
     private final OutboxDispatcher dispatcher;
     private final RelayConfig cfg;
@@ -173,6 +176,20 @@ public final class WorkerPool {
         }
     }
 
+    /**
+     * The id a worker writes into {@code locked_by}: {@code tandem-relay-<instanceId>-w<index>}, or, when
+     * that exceeds the column, the tail of the instance id (its most specific part) plus the suffix.
+     */
+    static String workerId(String instanceId, int index) {
+        String suffix = "-w" + index;
+        String full = "tandem-relay-" + instanceId + suffix;
+        if (full.length() <= LOCKED_BY_MAX_LENGTH) {
+            return full;
+        }
+        int keep = LOCKED_BY_MAX_LENGTH - suffix.length();
+        return instanceId.substring(instanceId.length() - keep) + suffix;
+    }
+
     private void startThreadsAndJobs() {
         LOG.log(Level.INFO, "Starting relay instanceId:" + instanceId + ", workers:" + workerCount
                 + ", coordination:" + cfg.coordination() + ", bucketCount:" + cfg.bucketCount()
@@ -183,7 +200,7 @@ public final class WorkerPool {
                 + ", maxAttempts:" + cfg.maxAttempts() + ", rowLeaseMs:" + cfg.rowLease().toMillis());
         for (int i = 0; i < workerCount; i++) {
             int index = i;
-            String workerId = "tandem-relay-" + instanceId + "-w" + index;
+            String workerId = workerId(instanceId, index);
             workers[i] = new RelayWorker(store, dispatcher, cfg, backoff, metrics, clock, workerId,
                     () -> sliceFor(index));
             startWorkerThread(index, run);

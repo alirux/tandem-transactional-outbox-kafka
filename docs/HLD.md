@@ -489,7 +489,7 @@ would need a generated-column workaround (§5.4, LLD-jdbc §5).
 | `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` by default (readable/inspectable); `BYTEA` when a binary serializer (Avro/Protobuf) is used. Becomes CloudEvents `data`. |
 | `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers |
 | `status` | State machine: `PENDING → IN_FLIGHT → DONE` / `FAILED`; `FAILED → DISCARDED` (admin only). See §5.3 |
-| `locked_by` | Worker identity (e.g. `worker-0@hostname`); enables lease-based failover |
+| `locked_by` | Worker identity (e.g. `worker-0@hostname`); enables lease-based failover. A long instance id is shortened (its tail is kept) to fit the column |
 | `locked_until` | Lease expiry timestamp; if elapsed, another worker can reclaim the row |
 | `attempts` | Publish attempts in the **current** delivery round; used for backoff and max-retry threshold. Reset by a replay — for the lifetime count of operator replays see `replays` |
 | `replays` | How many times an operator has replayed this row, `0` if never. Survives a replay (unlike `attempts`), giving the audit trail on the row and letting the relay tell a replay from a write-side ordering violation (§8) |

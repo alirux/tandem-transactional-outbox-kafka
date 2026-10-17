@@ -1794,4 +1794,27 @@ class WorkerPoolTest {
             }
         }
     }
+
+    @Test
+    void GIVEN_a_short_instance_id_WHEN_a_worker_is_named_THEN_the_full_relay_form_is_kept() {
+        assertThat(WorkerPool.workerId("pod-a", 3)).isEqualTo("tandem-relay-pod-a-w3");
+    }
+
+    @Test
+    void GIVEN_a_64_character_instance_id_WHEN_a_worker_is_named_THEN_it_fits_the_column_and_keeps_the_id_tail() {
+        String instanceId = "x".repeat(50) + "abcdefghijklmn";
+
+        String workerId = WorkerPool.workerId(instanceId, 12);
+
+        assertThat(workerId).hasSizeLessThanOrEqualTo(WorkerPool.LOCKED_BY_MAX_LENGTH);
+        assertThat(workerId).endsWith("-w12");
+        assertThat(workerId).contains("abcdefghijklmn");
+    }
+
+    @Test
+    void GIVEN_a_long_instance_id_WHEN_two_workers_are_named_THEN_their_ids_stay_distinct() {
+        String instanceId = "y".repeat(64);
+
+        assertThat(WorkerPool.workerId(instanceId, 0)).isNotEqualTo(WorkerPool.workerId(instanceId, 1));
+    }
 }
