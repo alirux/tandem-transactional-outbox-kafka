@@ -305,6 +305,11 @@ the CLI relaxing something the contract requires — would not be.
   after it, on exactly the rows where the color differs from its neighbors — found while adding
   the coloring below. `KeyValue` stays on `tabwriter` safely, since its colored value is always a
   line's last cell, which `tabwriter` never pads.
+- **Server values never drive the terminal.** Both `human` renderers write every control character
+  of a value as its escape (`\x1b`, `\x0d`, `\u009b`), letting through only the color sequences
+  (SGR) the CLI itself emits: a correlation id comes from an inbound request and an error text from
+  a broker, and either could otherwise retitle the window, plant a link or overwrite a line. `json`
+  output stays the server's bytes, unchanged, since it is meant for a parser.
 - **Color, gated by `isTerminal(stdout) && NO_COLOR unset`** (https://no-color.org, same gate
   `--watch`'s dashboard uses, §3.1) — restricted to the field(s) that answer "is this normal or
   worth a second look," never a whole row: labels, counts, and unfilled bar cells always stay

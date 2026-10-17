@@ -327,3 +327,33 @@ func TestColorBar_zeroWidthIsEmptyString(t *testing.T) {
 		t.Errorf("ColorBar(5, 10, 0, Red, false) = %q, want empty string", got)
 	}
 }
+
+// A value the server only relays (a correlation id taken from an inbound request, a broker's error
+// text) must not drive the operator's terminal: an OSC sequence can retitle the window or plant a
+// link, a carriage return can overwrite the line it is on. Each is shown as its escape instead.
+func TestKeyValue_serverValuesCannotSendTerminalControlSequences(t *testing.T) {
+	var buf bytes.Buffer
+	if err := KeyValue(&buf, [][2]string{{"correlationId", "corr\x1b]0;pwned\x07-1\rok"}}); err != nil {
+		t.Fatalf("KeyValue() error = %v", err)
+	}
+	got := buf.String()
+	for _, control := range []string{"\x1b", "\x07", "\r"} {
+		if strings.Contains(got, control) {
+			t.Errorf("KeyValue() = %q, still carries the control character %q", got, control)
+		}
+	}
+	if !strings.Contains(got, `corr\x1b]0;pwned\x07-1\x0dok`) {
+		t.Errorf("KeyValue() = %q, want the control characters shown escaped", got)
+	}
+}
+
+func TestTable_serverValuesCannotSendTerminalControlSequences(t *testing.T) {
+	var buf bytes.Buffer
+	// The second cell uses the single-character (C1) form of the same introducer.
+	if err := Table(&buf, []string{"ID", "TYPE"}, [][]string{{"order\x1b[2Jx", "type\u009b2J"}}); err != nil {
+		t.Fatalf("Table() error = %v", err)
+	}
+	if got := buf.String(); strings.ContainsAny(got, "\x1b\u009b") {
+		t.Errorf("Table() = %q, still carries a screen-clearing sequence", got)
+	}
+}

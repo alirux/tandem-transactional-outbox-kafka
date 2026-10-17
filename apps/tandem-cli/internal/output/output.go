@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"text/tabwriter"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -56,7 +57,7 @@ func Raw(w io.Writer, body []byte) error {
 func KeyValue(w io.Writer, pairs [][2]string) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 1, ' ', 0)
 	for _, p := range pairs {
-		if _, err := fmt.Fprintf(tw, "%s:\t%s\n", p[0], p[1]); err != nil {
+		if _, err := fmt.Fprintf(tw, "%s:\t%s\n", Printable(p[0]), Printable(p[1])); err != nil {
 			return err
 		}
 	}
@@ -75,6 +76,12 @@ func KeyValue(w io.Writer, pairs [][2]string) error {
 // to color relay buckets' COVERED/PAUSED columns - a table is the one rendering shape here
 // where cells sit in the *middle* of a row, not just at the end).
 func Table(w io.Writer, header []string, rows [][]string) error {
+	header = printableCells(header)
+	printable := make([][]string, len(rows))
+	for i, row := range rows {
+		printable[i] = printableCells(row)
+	}
+	rows = printable
 	widths := make([]int, len(header))
 	for i, h := range header {
 		widths[i] = visibleWidth(h)
@@ -119,6 +126,43 @@ func Table(w io.Writer, header []string, rows [][]string) error {
 // ansiEscape matches the SGR sequences Colorize/ColorBar emit (\033[<digits/semicolons>m),
 // so visibleWidth can measure a cell's on-screen width regardless of whether it is colored.
 var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+// Printable returns s with every control character written out as an escape (`\x1b`, `\r`
+// shown as text), so a value the server only relays - a correlation id taken from an inbound
+// request, a broker's error text - cannot retitle the terminal, plant a link, move the cursor
+// or overwrite a line. Color sequences (SGR) pass through: they are what Colorize emits.
+func Printable(s string) string {
+	if strings.IndexFunc(s, unicode.IsControl) < 0 {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if loc := ansiEscape.FindStringIndex(s[i:]); loc != nil && loc[0] == 0 {
+			b.WriteString(s[i : i+loc[1]])
+			i += loc[1]
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case !unicode.IsControl(r):
+			b.WriteString(s[i : i+size])
+		case r < 0x80:
+			fmt.Fprintf(&b, `\x%02x`, r)
+		default:
+			fmt.Fprintf(&b, `\u%04x`, r)
+		}
+		i += size
+	}
+	return b.String()
+}
+
+func printableCells(cells []string) []string {
+	out := make([]string, len(cells))
+	for i, cell := range cells {
+		out[i] = Printable(cell)
+	}
+	return out
+}
 
 func visibleWidth(s string) int {
 	if !strings.ContainsRune(s, '\x1b') {
