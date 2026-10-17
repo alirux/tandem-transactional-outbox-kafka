@@ -36,6 +36,8 @@ class TandemProducerRuntimeTest {
     private static final String AGGREGATE_TYPE = "Order";
     private static final String LINE_ADDED = "com.acme.order.line-added";
     private static final String ORDER_CONFIRMED = "com.acme.order.confirmed";
+    private static final String DOMAIN_TX = "domainTx";
+    private static final String OUTBOX_TX = "ordersTx";
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TandemProducerAutoConfiguration.class))
@@ -90,6 +92,28 @@ class TandemProducerRuntimeTest {
                     .extracting(OutboxRecord::type)
                     .containsExactly(LINE_ADDED, LINE_ADDED);
         });
+    }
+
+    @Test
+    void GIVEN_two_transaction_managers_WHEN_an_annotated_method_names_the_other_one_THEN_that_one_runs_its_transaction() {
+        String aggregateId = "order-qualified";
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TandemProducerAutoConfiguration.class))
+                .withBean(TransactionBindingGuard.class, TransactionBindingGuard::disabled)
+                .withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .withBean(DOMAIN_TX, StubTransactionManager.class, StubTransactionManager::new,
+                        definition -> definition.setPrimary(true))
+                .withBean(OUTBOX_TX, StubTransactionManager.class, StubTransactionManager::new)
+                .withUserConfiguration(QualifiedConfig.class)
+                .run(context -> {
+                    context.getBean(QualifiedOrderService.class).place(aggregateId);
+
+                    assertThat(context.getBean(OUTBOX_TX, StubTransactionManager.class).begun()).isEqualTo(1);
+                    assertThat(context.getBean(DOMAIN_TX, StubTransactionManager.class).begun()).isZero();
+                    assertThat(outboxOf(context.getBean(OutboxRepository.class))).singleElement()
+                            .satisfies(record -> assertThat(record.aggregateId().value()).isEqualTo(aggregateId));
+                });
     }
 
     @Test
@@ -189,6 +213,26 @@ class TandemProducerRuntimeTest {
         @TransactionalOutbox
         public Order place(String id) {
             return new Order(id);
+        }
+    }
+
+    /** An application whose outbox lives on a transaction manager other than its default one. */
+    public static class QualifiedOrderService {
+
+        @TransactionalOutbox(transactionManager = OUTBOX_TX)
+        public Order place(String id) {
+            return new Order(id);
+        }
+    }
+
+    @Configuration
+    @EnableAspectJAutoProxy
+    @EnableTransactionManagement
+    static class QualifiedConfig {
+
+        @Bean
+        QualifiedOrderService qualifiedOrderService() {
+            return new QualifiedOrderService();
         }
     }
 

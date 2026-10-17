@@ -33,6 +33,22 @@ public @interface TransactionalOutbox {
      */
     String aggregateType() default "";
 
+    /** @see Transactional#value() */
+    @AliasFor(annotation = Transactional.class, attribute = "transactionManager")
+    String value() default "";
+
+    /**
+     * The transaction manager to run the method under, as {@link Transactional#transactionManager()}
+     * names it: the one bound to the {@code DataSource} Tandem writes to when the application has
+     * several.
+     */
+    @AliasFor(annotation = Transactional.class, attribute = "transactionManager")
+    String transactionManager() default "";
+
+    /** @see Transactional#label() */
+    @AliasFor(annotation = Transactional.class, attribute = "label")
+    String[] label() default {};
+
     /** @see Transactional#propagation() */
     @AliasFor(annotation = Transactional.class, attribute = "propagation")
     Propagation propagation() default Propagation.REQUIRED;
@@ -45,6 +61,10 @@ public @interface TransactionalOutbox {
     @AliasFor(annotation = Transactional.class, attribute = "timeout")
     int timeout() default -1;
 
+    /** @see Transactional#timeoutString() */
+    @AliasFor(annotation = Transactional.class, attribute = "timeoutString")
+    String timeoutString() default "";
+
     /** @see Transactional#readOnly() */
     @AliasFor(annotation = Transactional.class, attribute = "readOnly")
     boolean readOnly() default false;
@@ -53,7 +73,15 @@ public @interface TransactionalOutbox {
     @AliasFor(annotation = Transactional.class, attribute = "rollbackFor")
     Class<? extends Throwable>[] rollbackFor() default {};
 
+    /** @see Transactional#rollbackForClassName() */
+    @AliasFor(annotation = Transactional.class, attribute = "rollbackForClassName")
+    String[] rollbackForClassName() default {};
+
     /** @see Transactional#noRollbackFor() */
     @AliasFor(annotation = Transactional.class, attribute = "noRollbackFor")
     Class<? extends Throwable>[] noRollbackFor() default {};
+
+    /** @see Transactional#noRollbackForClassName() */
+    @AliasFor(annotation = Transactional.class, attribute = "noRollbackForClassName")
+    String[] noRollbackForClassName() default {};
 }

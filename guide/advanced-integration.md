@@ -179,7 +179,9 @@ class OrderService {
 ```
 
 The annotation is a `@Transactional` with every attribute you would expect (`rollbackFor`,
-`isolation`, `timeout`), so a method never needs both. It also accepts an optional
+`isolation`, `timeout`, `transactionManager`), so a method never needs both. Where the application has
+several transaction managers, name the one bound to the `DataSource` Tandem writes to:
+`@TransactionalOutbox(transactionManager = "ordersTx")`. It also accepts an optional
 `aggregateType = "Order"`, which fails the insert if a message carries a different one. The method may
 return one aggregate or an `Iterable` of aggregates. The annotation needs Spring AOP and AspectJ on the
 classpath, which your Boot version's AOP starter provides.

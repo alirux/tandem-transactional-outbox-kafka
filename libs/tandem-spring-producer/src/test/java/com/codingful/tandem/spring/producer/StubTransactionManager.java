@@ -18,6 +18,13 @@ final class StubTransactionManager extends AbstractPlatformTransactionManager {
 
     private static final ThreadLocal<Boolean> OPEN = ThreadLocal.withInitial(() -> false);
 
+    private int begun;
+
+    /** How many transactions this manager opened: which manager ran a method is what a qualifier decides. */
+    int begun() {
+        return begun;
+    }
+
     @Override
     protected Object doGetTransaction() {
         return new Object();
@@ -30,6 +37,7 @@ final class StubTransactionManager extends AbstractPlatformTransactionManager {
 
     @Override
     protected void doBegin(Object transaction, TransactionDefinition definition) {
+        begun++;
         OPEN.set(true);
     }
 
