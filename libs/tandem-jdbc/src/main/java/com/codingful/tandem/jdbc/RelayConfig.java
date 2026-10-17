@@ -305,6 +305,8 @@ public final class RelayConfig {
          * How concurrent relay instances share buckets. {@code SINGLE} (default) = one instance owns all
          * buckets, no table; {@code LEASE} = lease-partitioned for any number of instances (§3.2). Must be
          * declared statically — running more than one instance under {@code SINGLE} wastes DB work.
+         * {@code LEASE} also needs the pool's bucket source ({@code WorkerPool.Builder#bucketSource}),
+         * without which {@code WorkerPool#start()} refuses to run.
          */
         public Builder coordination(Coordination coordination) {
             this.coordination = Objects.requireNonNull(coordination, "coordination");

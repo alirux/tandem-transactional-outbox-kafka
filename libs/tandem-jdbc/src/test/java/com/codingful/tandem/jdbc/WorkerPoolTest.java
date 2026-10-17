@@ -132,6 +132,37 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_lease_coordination_and_no_bucket_source_WHEN_the_relay_starts_THEN_it_refuses_and_nothing_runs() {
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2)
+                .coordination(Coordination.LEASE).build();
+        WorkerPool pool = new WorkerPool(new InMemoryOutbox(), new RecordingDispatcher(), cfg);
+        try {
+            assertThatThrownBy(pool::start).isInstanceOf(TandemConfigurationException.class)
+                    .hasMessageContaining("bucketSource");
+            assertThat(pool.status().state()).isEqualTo(RelayStatus.State.STOPPED);
+            assertThat(pool.status().workersAlive()).isZero();
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
+    void GIVEN_lease_coordination_and_a_bucket_source_WHEN_the_relay_starts_THEN_it_runs() {
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(2)
+                .coordination(Coordination.LEASE).build();
+        WorkerPool pool = WorkerPool.builder(new InMemoryOutbox(), new RecordingDispatcher(), cfg)
+                .bucketSource(BucketSource.embedded(BUCKETS))
+                .build();
+        try {
+            pool.start();
+
+            assertThat(pool.status().state()).isEqualTo(RelayStatus.State.RUNNING);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_an_unsafe_row_lease_WHEN_the_relay_starts_THEN_it_aborts_startup() {
         RelayConfig cfg = RelayConfig.builder()
                 .bucketCount(BUCKETS).rowLease(Duration.ofSeconds(20)).deliveryTimeoutMs(30_000).build();

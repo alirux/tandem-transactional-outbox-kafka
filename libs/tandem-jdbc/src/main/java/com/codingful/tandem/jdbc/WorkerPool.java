@@ -1,5 +1,6 @@
 package com.codingful.tandem.jdbc;
 
+import com.codingful.tandem.core.exception.TandemConfigurationException;
 import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
@@ -38,6 +39,7 @@ public final class WorkerPool {
     private final Clock clock;
     private final BackoffStrategy backoff;
     private final BucketSource bucketSource;
+    private final boolean bucketSourceGiven;
     private final RelayControlSource controlSource;
     private final WakeupSource wakeupSource;
     private final String instanceId;
@@ -77,7 +79,8 @@ public final class WorkerPool {
     /**
      * Embedded topology with the basic-round defaults: no-op metrics, system clock, full-jitter backoff,
      * every bucket owned by this instance, no Admin-API pause, no wakeup. {@link #builder} overrides any
-     * of them.
+     * of them. Under {@code LEASE} coordination it cannot start: that needs
+     * {@link Builder#bucketSource}.
      *
      * @param store      relay-side persistence (poll/claim/update/cleanup)
      * @param dispatcher the publish port (e.g. {@code KafkaRelay})
@@ -109,6 +112,7 @@ public final class WorkerPool {
         this.clock = builder.clock;
         this.backoff = builder.backoff;
         this.bucketSource = builder.bucketSource;
+        this.bucketSourceGiven = builder.bucketSourceGiven;
         this.controlSource = builder.controlSource;
         this.wakeupSource = builder.wakeupSource;
         // Single instance identity, shared with the LEASE bucket owner (RelayConfig#instanceId), so a
@@ -149,6 +153,7 @@ public final class WorkerPool {
                     + ", configuredDeliveryTimeoutMs:" + cfg.deliveryTimeoutMs());
         }
         cfg.checkRowLeaseSafe(dispatcherTimeout.orElse(cfg.deliveryTimeoutMs()), metrics, LOG);
+        requireLeaseBucketSource();
         // Checked here, before any thread starts: the scheduler rejects a non-positive period only when
         // the job is scheduled, by which time the workers would already be running.
         requirePositive(cfg.reclaimInterval(), "reclaimInterval");
@@ -167,6 +172,19 @@ public final class WorkerPool {
             LOG.log(Level.ERROR, "Relay startup failed; stopping what it started instanceId:" + instanceId, failure);
             stop();
             throw failure;
+        }
+    }
+
+    /**
+     * The pool holds ports only, so under {@code LEASE} it cannot build the lease-backed source itself;
+     * left at the embedded default, every instance would own every bucket and never touch the lease
+     * table, which is not what {@code LEASE} promises (LLD-jdbc §3.2).
+     */
+    private void requireLeaseBucketSource() {
+        if (cfg.coordination() == Coordination.LEASE && !bucketSourceGiven) {
+            throw new TandemConfigurationException("LEASE coordination needs a lease-backed bucket source:"
+                    + " build the pool with WorkerPool.builder(...).bucketSource(BucketSource.forCoordination(cfg,"
+                    + " dataSource)) instanceId:" + instanceId);
         }
     }
 
@@ -662,6 +680,7 @@ public final class WorkerPool {
         private Clock clock = Clock.systemUTC();
         private BackoffStrategy backoff = BackoffStrategy.fullJitter();
         private BucketSource bucketSource;
+        private boolean bucketSourceGiven;
         private RelayControlSource controlSource = RelayControlSource.NOOP;
         private WakeupSource wakeupSource = WakeupSource.NONE;
 
@@ -695,10 +714,12 @@ public final class WorkerPool {
 
         /**
          * Which virtual buckets this instance owns: {@link BucketSource#forCoordination} for several
-         * instances (LLD-jdbc §3.2). Default {@link BucketSource#embedded}, every bucket.
+         * instances (LLD-jdbc §3.2). Default {@link BucketSource#embedded}, every bucket; required under
+         * {@code LEASE} coordination, where {@link WorkerPool#start()} refuses to run without one.
          */
         public Builder bucketSource(BucketSource bucketSource) {
             this.bucketSource = Objects.requireNonNull(bucketSource, "bucketSource");
+            this.bucketSourceGiven = true;
             return this;
         }
 

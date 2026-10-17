@@ -1116,6 +1116,8 @@ WorkerPool        relay      = new WorkerPool(store, dispatcher, cfg);      // �
 
 // LEASE (multiple relay instances — embedded-multi-replica or standalone):
 //   BucketSource.forCoordination picks embedded(B) for SINGLE, a BucketLeaseManager for LEASE.
+//   The source is required under LEASE: the pool holds ports only and cannot build it, so start()
+//   refuses a LEASE config left on the embedded default rather than run it as embedded.
 BucketSource      buckets    = BucketSource.forCoordination(cfg, dataSource);   // §3.2
 WorkerPool        relay      = WorkerPool.builder(store, dispatcher, cfg)
                                    .bucketSource(buckets).build();
