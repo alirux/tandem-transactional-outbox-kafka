@@ -1,5 +1,6 @@
 // Commit subject rules (AGENTS.md "Commit messages", CONTRIBUTING.md): Conventional Commits with a
-// mandatory scope from a closed list, letter case as config-conventional, at most 72 characters.
+// mandatory scope from a closed list, letter case as config-conventional, at most 100 characters
+// (config-conventional's own default, stated here so an upstream change cannot move it).
 // Run by .github/workflows/commitlint.yml; locally:
 //   npx --yes -p @commitlint/cli@21.2.3 -p @commitlint/config-conventional@21.2.3 commitlint --from origin/main
 export default {
@@ -15,7 +16,7 @@ export default {
       // What lives outside a module.
       'schema', 'site', 'guide', 'deps', 'repo',
     ]],
-    'header-max-length': [2, 'always', 72],
+    'header-max-length': [2, 'always', 100],
   },
   // A squash merge adds " (#NN)" to the pull request title, which the workflow has already checked
   // as a title; checking it again here would count the suffix against the length limit. The subjects

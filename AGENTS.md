@@ -370,7 +370,7 @@ to depend on.
     the relay engine is `jdbc`. A change spanning modules takes the scope of the one that carries it; a
     design doc takes the scope of the component it describes (`docs(jdbc): …` for LLD-jdbc).
   - **description**: imperative, no trailing period, the resulting behaviour (the rules below), and the
-    whole subject **at most 72 characters**. **Case follows commitlint's `config-conventional`**:
+    whole subject **at most 100 characters**. **Case follows commitlint's `config-conventional`**:
     `type-case` and `scope-case` lower-case; `subject-case` never sentence-case, start-case, pascal-case
     or upper-case, so the description starts with a lowercase letter while proper nouns inside it keep
     their own case (`fix(admin): answer a body not sent as JSON with 400`).

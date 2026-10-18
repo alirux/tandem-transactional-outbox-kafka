@@ -264,7 +264,7 @@ The subject line follows [Conventional Commits](https://www.conventionalcommits.
 - **description** is imperative, with no trailing period, and states the resulting behaviour rather
   than how it was reached. Letter case follows the rules of commitlint's `config-conventional`: type
   and scope in lower case, and a description that starts with a lowercase letter (names such as Kafka
-  or Admin API keep their own case). The whole subject stays within 72 characters.
+  or Admin API keep their own case). The whole subject stays within 100 characters.
 - A change that breaks a published contract (an API, the `tandem_*` schema, the message format)
   adds `!` before the colon: `feat(jdbc)!: …`.
 
