@@ -17,6 +17,10 @@ already. The issue is then assigned to you, which GitHub allows only once you ha
 other contributors can see it is taken. Starting without that comment risks doing the same work as
 someone else.
 
+Issues labelled `good first issue` are assigned one at a time per contributor, so that newcomers
+always find one free: comment only on the one you want to work on, and take the next once its pull
+request is merged.
+
 ## Prerequisites
 
 - **JDK 17** (the Gradle toolchain plugin auto-provisions it if not already installed).
