@@ -306,6 +306,14 @@ SQL parameters. The rule and its reasoning are the same as for logging
 ([HLD-logging.md](HLD-logging.md)); a span exported to a tracing backend is at least as widely
 readable as a log line, so it gets no exemption.
 
+**A failed publish records its exception, as the log does.** The span ends with status ERROR and the
+exception the relay passes to its own logger: OpenTelemetry records its type, message and stack trace
+as its semantic conventions expect, Micrometer Tracing through `span.error`. Logging always carries
+the `Throwable` ([HLD-logging.md](HLD-logging.md)), so the span exposes nothing the log does not, and
+the same rule bounds both: an exception message is diagnostic text, and an encoder or serializer that
+puts business data in one leaks it to the log and the span alike. What stays out is the stored
+`last_error` of a row: it is never read back into an attribute, on this span or any other.
+
 The `correlation-id` is on that list for the same reason logging already allows it — it is an
 opaque identifier, not business data — and it earns its place by being the **join key between the
 two tools**: an investigation that starts in the tracing backend (a slow or failed publish span)
