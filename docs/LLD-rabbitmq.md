@@ -123,7 +123,7 @@ asserts after an interruption (LLD-benchmark §3.1, §8).
 
 | Failure | Verdict | Why |
 |---|---|---|
-| Encoding throws | **Permanent** | Re-encoding the same row fails the same way. Classified at the encode site and deliberately not routed through the classifier, which defaults the unknown to retriable and would block the aggregate for the whole backoff ladder |
+| Encoding throws, including a route too long for AMQP (§6) | **Permanent** | Re-encoding the same row fails the same way. Classified at the encode site and deliberately not routed through the classifier, which defaults the unknown to retriable and would block the aggregate for the whole backoff ladder |
 | `basic.return` (unroutable) | **Permanent** | No binding matches the routing key. Retrying cannot create one. The row fails, its aggregate stops, and the operator sees the routing key in the log |
 | `basic.nack` | Retriable | The broker accepted responsibility and then could not honour it, typically an internal or resource error. It is not a statement about the message |
 | Channel or connection shutdown | Retriable, whatever reply code the broker closed the channel with | A channel closed over one message's error (a `404` for a missing exchange, say) loses the confirms of every message pending on it and cannot say which one caused it, so none is judged permanent. Includes the recovery case of §1, and a dispatch after `close()`, which fails its future without registering or publishing anything. The rows are still PENDING and come back on the next claim |
@@ -183,6 +183,11 @@ the envelope had to be a separate module in the first place.
 Kafka one so that a reader of both is not surprised: the exchange is the single configured one, and
 the routing key is `kebab-case(aggregateType) + suffix`, sharing `TopicRouter.kebabCase` in the core
 rather than growing a second copy of the transform.
+
+`AmqpRoute` refuses an exchange or a routing key longer than 255 bytes in UTF-8, the bound of an AMQP
+short string. A long `aggregate_type` (or, routing by aggregate id, a long or non-ASCII id) can produce
+one. The client would only throw at publish time, a failure §4 judges retriable whatever it is; built
+inside the encoder, the route's refusal is an encoding failure, so the row fails permanently.
 
 `aggregate_type` is the routing source, not the finer CloudEvents `type`, for the same reason as on
 Kafka (LLD-kafka §5): the routing granularity a consumer binds to is the aggregate, and a per-`type`

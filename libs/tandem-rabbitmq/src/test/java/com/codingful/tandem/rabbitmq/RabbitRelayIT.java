@@ -199,6 +199,26 @@ class RabbitRelayIT {
     }
 
     @Test
+    void GIVEN_a_row_whose_routing_key_is_longer_than_AMQP_allows_WHEN_it_is_published_THEN_it_fails_permanently()
+            throws Exception {
+        // AMQP carries a routing key as a short string, at most 255 bytes: a long aggregate type turns
+        // into a longer key, which no retry can ever publish.
+        OutboxRecord tooLong = OutboxRecord.builder()
+                .id(501)
+                .message(OutboxMessage.builder()
+                        .aggregateId("order-1").aggregateType("Order".repeat(50)).seq(1).payload("{}".getBytes()).build())
+                .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+                .build();
+
+        try (RabbitRelay relay = new RabbitRelay(connectionFactory(), RabbitRelayConfig.of(SOURCE, EXCHANGE))) {
+            assertThatThrownBy(() -> relay.dispatch(tooLong).get(10, TimeUnit.SECONDS))
+                    .cause()
+                    .isInstanceOf(OutboxDispatchException.class)
+                    .satisfies(failure -> assertThat(((OutboxDispatchException) failure).isRetriable()).isFalse());
+        }
+    }
+
+    @Test
     void GIVEN_an_exchange_recreated_while_the_relay_runs_WHEN_the_next_row_is_published_THEN_it_arrives()
             throws Exception {
         String exchange = "tandem-recreated";

@@ -276,6 +276,7 @@ If the events of an aggregate can be applied in any order, you need neither.
 | The broker confirms the message | The row turns `DONE`. |
 | The broker rejects it (`basic.nack`) | Retried, with the relay's usual backoff. |
 | No binding matches the routing key | The row **fails permanently** and its aggregate stops. The log names the routing key; add the binding, then replay the row from the [Admin API](admin-api.md) or the [CLI](cli.md). |
+| The routing key or the exchange is longer than 255 bytes in UTF-8, the AMQP limit | The row **fails permanently** and its aggregate stops. A long aggregate type, or a long aggregate id when routing by id, produces one; shorten the route in the router, then replay the row. |
 | The connection or channel drops | Every unconfirmed row is retried after the client reconnects. |
 | No confirm within `confirmTimeout` | Retried. The message may have arrived, which is why consumers deduplicate. |
 | The exchange is missing, or the broker is unreachable, at startup | The relay does not start (`TandemConfigurationException`). |
