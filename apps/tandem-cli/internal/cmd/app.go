@@ -23,8 +23,8 @@ type IOStreams struct {
 
 	// TTY reports whether Out is an interactive terminal.
 	TTY bool
-	// Color reports whether Out should carry ANSI color: a TTY with NO_COLOR unset
-	// (https://no-color.org), the gate LLD-cli.md §3.1/§6 specifies.
+	// Color reports whether Out should carry ANSI color, the gate LLD-cli.md §3.1/§6
+	// specifies: see colorEnabled.
 	Color bool
 }
 
@@ -43,8 +43,15 @@ func systemIOStreams(cmd *cobra.Command) IOStreams {
 		Out:   out,
 		Err:   cmd.ErrOrStderr(),
 		TTY:   tty,
-		Color: tty && os.Getenv("NO_COLOR") == "",
+		Color: colorEnabled(tty),
 	}
+}
+
+// colorEnabled reports whether a terminal takes color: a real one, with NO_COLOR unset
+// (https://no-color.org) and TERM not "dumb", the value a terminal without escape
+// sequences declares (Emacs' shell, some CI logs).
+func colorEnabled(tty bool) bool {
+	return tty && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 }
 
 // App is the resolved, per-invocation state every subcommand reads: the generated

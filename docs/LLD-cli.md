@@ -310,7 +310,8 @@ the CLI relaxing something the contract requires — would not be.
   (SGR) the CLI itself emits: a correlation id comes from an inbound request and an error text from
   a broker, and either could otherwise retitle the window, plant a link or overwrite a line. `json`
   output stays the server's bytes, unchanged, since it is meant for a parser.
-- **Color, gated by `isTerminal(stdout) && NO_COLOR unset`** (https://no-color.org, same gate
+- **Color, gated by `isTerminal(stdout) && NO_COLOR unset && TERM != dumb`** (https://no-color.org;
+  `dumb` is what a terminal without escape sequences declares, such as Emacs' shell; same gate
   `--watch`'s dashboard uses, §3.1) — restricted to the field(s) that answer "is this normal or
   worth a second look," never a whole row: labels, counts, and unfilled bar cells always stay
   plain.
@@ -477,6 +478,21 @@ just captured to a browsable file instead of a terminal.
   legal text on every single invocation. `--version` prints just the version line
   (`{{.Version}}`, via `SetVersionTemplate`); the notice lives where a human actually reads it,
   the first screen they see.
+- **The root help opens with the Tandem logo as pixel art**: the arrows of the graphic logo
+  (two bars into a pair of chevrons) followed by the name in 8x8 bitmap letters, drawn with
+  half-block characters so each cell holds two square pixels: 4 lines high, 65 columns wide.
+  Only the root command shows it, and it is printed by the help function, never put in
+  `Long`: `Long` also feeds the generated Markdown reference (§8), where the art has no place.
+  The arrows carry the logo's colors (from the 256-color palette, which more terminals render
+  than 24-bit color) and the name keeps the terminal's own foreground, so it reads on a light
+  theme and a dark one alike. The colors pass the same gate as every other colored output
+  (§6): piped, redirected, under `NO_COLOR` or on a `dumb` terminal, the logo prints plain.
+  Behind the same gate, the logo draws itself from left to right in 0.7 s before the rest of
+  the help prints, the name lit by a sweep of the logo's colors as the front crosses it. The
+  duration is fixed, not configurable: short enough not to hold up someone who only wants a
+  flag's name. Each frame only adds pixels and is written over the previous one (cursor up,
+  no clearing), and the cursor stays visible, so an interrupted animation leaves the terminal
+  in its normal state.
 
 ### 9.1 Versioning — independent of the library
 
@@ -564,8 +580,8 @@ for `tandem-admin` any more than it does for `tandem-relay` (backlog item 6 note
   required without a breaking change.
 - **Output: `human` default (tabwriter for `key: value`, a hand-rolled ANSI-aware renderer for
   tables), `--output json` raw passthrough, cursor pagination never auto-followed** — §6.
-- **Color scoped to the field that signals severity, never a whole row, gated on a real terminal
-  and `NO_COLOR`** — `relay status` state and `relay buckets` covered/paused — §6.
+- **Color scoped to the field that signals severity, never a whole row, gated on a real terminal,
+  `NO_COLOR` and `TERM=dumb`** — `relay status` state and `relay buckets` covered/paused — §6.
 - **Exit codes keyed off `ProblemDetail.type` slug, not raw HTTP status** — §7.
 - **Distribution: `goreleaser` + GitHub Release binaries; no Maven Central, no package manager in
   v1** — §9.

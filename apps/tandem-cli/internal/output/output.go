@@ -196,8 +196,8 @@ const (
 )
 
 // Colorize wraps s in color's ANSI code when enabled, otherwise returns s unmodified.
-// enabled is the caller's to decide (LLD-cli.md §3.1: a real terminal and NO_COLOR unset,
-// https://no-color.org) - this function has no opinion of its own on when color belongs,
+// enabled is the caller's to decide (LLD-cli.md §3.1: a real terminal, NO_COLOR unset,
+// https://no-color.org, and TERM not dumb) - this function has no opinion of its own on when color belongs,
 // only on how to apply it, so it stays pure and needs no *os.File/env-var access to test.
 func Colorize(s string, color Color, enabled bool) string {
 	if !enabled || s == "" {

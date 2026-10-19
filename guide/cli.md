@@ -79,7 +79,7 @@ authentication, or one isolated on an internal network, works without any.
 
 `--output human` is the default: tables for lists, `name: value` blocks for a single thing, with
 colour on a terminal for the values worth a second look (a `DOWN` relay, an uncovered bucket).
-`NO_COLOR` turns colour off.
+`NO_COLOR` turns colour off, and so does a terminal that declares `TERM=dumb`.
 
 `--output json` prints the API's response **unchanged**, ready for `jq`:
 

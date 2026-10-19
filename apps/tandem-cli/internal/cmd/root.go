@@ -104,6 +104,9 @@ func NewRootCmd() *cobra.Command {
 	defaultUsageFunc := root.UsageFunc()
 	root.SetHelpFunc(func(c *cobra.Command, args []string) {
 		prepareCompletionCmd(c.Root())
+		if c == c.Root() {
+			writeBanner(c.OutOrStdout(), systemIOStreams(c).Color, time.Sleep)
+		}
 		defaultHelpFunc(c, args)
 	})
 	root.SetUsageFunc(func(c *cobra.Command) error {
