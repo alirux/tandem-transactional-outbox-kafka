@@ -92,7 +92,7 @@ public final class InMemoryRelayControl implements RelayQuery, RelayControl {
 
     @Override
     public RelayStatusView status() {
-        if (coordinationMode == RelayCoordinationMode.SINGLE) {
+        if (coordinationMode != RelayCoordinationMode.LEASE) {
             return new RelayStatusView(alive, wholeRelayPaused, bucketCount, 0, 0);
         }
         int uncovered = 0;

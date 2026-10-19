@@ -126,6 +126,13 @@ class RelayAdminServiceTest {
     }
 
     @Test
+    void GIVEN_a_coordination_mode_this_version_does_not_know_WHEN_buckets_are_listed_THEN_it_is_refused() {
+        control.setCoordinationMode(RelayCoordinationMode.UNKNOWN);
+
+        assertThatThrownBy(() -> service.buckets(false)).isInstanceOf(RelayCoordinationUnsupportedException.class);
+    }
+
+    @Test
     void GIVEN_LEASE_coordination_and_an_uncovered_bucket_with_pending_work_WHEN_status_is_read_THEN_it_is_counted() {
         InMemoryOutbox outbox = new InMemoryOutbox(BUCKETS, 10, Clock.systemUTC());
         InMemoryRelayControl withPending = new InMemoryRelayControl(outbox, BUCKETS);

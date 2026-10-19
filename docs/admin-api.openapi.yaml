@@ -551,7 +551,9 @@ components:
     CoordinationModeUnsupported:
       description: >
         The operation needs per-bucket coordination state, which only LEASE coordination
-        maintains, and the relay this database serves runs under SINGLE. Not a failure and
+        maintains, and the relay this database serves runs under SINGLE, or under a mode
+        this version of the Admin API does not know (UNKNOWN), recorded by a newer relay
+        sharing the database. Not a failure and
         not a transient condition - the operation is inapplicable to this deployment's
         static configuration (tandem.relay.coordination). The detail names the mode that
         was detected.

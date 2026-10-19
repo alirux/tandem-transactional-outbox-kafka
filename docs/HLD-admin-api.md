@@ -261,7 +261,10 @@ relay rendered as a total coverage stall — and a per-bucket `pause` updates a 
 `WorkerPool.start()` — the one entry point every assembly (Spring, plain Java, benchmark) goes
 through — because the admin cannot infer it: coordination is the *relay's* configuration and a
 standalone admin has its own. Absent key — no relay of this version has started here — is treated
-as `SINGLE`, since nothing is known to be maintaining the coordination state.
+as `SINGLE`, since nothing is known to be maintaining the coordination state. A value this version
+has no constant for, written by a newer relay sharing the database (HLD §1.4), is read as `UNKNOWN`
+and treated like `SINGLE` in the table above, for the same reason: `GET /relay/status` answers with
+`0` lease fields, and every per-bucket operation is a `409` whose detail names `UNKNOWN`.
 
 **The same `coordination` row doubles as a heartbeat, so `RelayStatus.state` can say `DOWN`.**
 Before this, liveness only existed under `LEASE` (`tandem_relay_member`'s per-instance

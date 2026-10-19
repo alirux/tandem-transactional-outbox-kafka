@@ -33,6 +33,32 @@ class JdbcRelayQueryIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GIVEN_a_newer_relay_recorded_a_mode_this_version_does_not_know_WHEN_the_coordination_mode_is_read_THEN_it_is_UNKNOWN() {
+        execute("INSERT INTO tandem_meta (key, value) VALUES ('coordination', 'SOME_FUTURE_MODE')");
+
+        assertThat(query.coordinationMode()).isEqualTo(RelayCoordinationMode.UNKNOWN);
+    }
+
+    /**
+     * A relay of a newer Tandem version may record a mode this version has no constant for (HLD §1.4,
+     * split topology): the status still answers, without reading the lease tables a mode it does not
+     * know may not use.
+     */
+    @Test
+    void GIVEN_a_newer_relay_recorded_a_mode_this_version_does_not_know_WHEN_the_status_is_read_THEN_it_still_answers() {
+        execute("INSERT INTO tandem_meta (key, value) VALUES ('coordination', 'SOME_FUTURE_MODE')",
+                "INSERT INTO tandem_meta (key, value) VALUES ('bucket_count', '256')");
+        insertPending("order-1");
+        setBucketOwner(bucketOf("order-1"), null);
+
+        RelayStatusView status = query.status();
+
+        assertThat(status.bucketCount()).isEqualTo(256);
+        assertThat(status.uncoveredBuckets()).isZero();
+        assertThat(status.workers()).isZero();
+    }
+
+    @Test
     void GIVEN_no_state_recorded_WHEN_the_status_is_read_THEN_it_reports_not_paused_and_zero_SINGLE_fields() {
         RelayStatusView status = query.status();
 

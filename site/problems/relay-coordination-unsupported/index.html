@@ -32,6 +32,9 @@
       per-bucket pause — and that state only exists under <code>LEASE</code> coordination. The
       relay serving this database runs <code>SINGLE</code>, where one instance owns every bucket
       and no ownership is recorded because none is needed.</p>
+    <p>The <code>detail</code> may name <code>UNKNOWN</code> instead: a relay of a newer Tandem
+      version recorded a mode this Admin API does not know, so it assumes nothing about the
+      coordination state that mode keeps. Upgrading the Admin API to the relay's version lifts it.</p>
     <p>This is not a failure and not a transient condition: the operation is inapplicable to how
       this deployment is configured. The <code>detail</code> names the mode that was detected.</p>
 

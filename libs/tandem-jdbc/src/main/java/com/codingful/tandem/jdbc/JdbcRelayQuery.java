@@ -97,8 +97,7 @@ public final class JdbcRelayQuery implements RelayQuery {
 
     @Override
     public RelayCoordinationMode coordinationMode() {
-        String value = readMeta().get("coordination");
-        return value == null ? RelayCoordinationMode.SINGLE : RelayCoordinationMode.valueOf(value);
+        return parseMode(readMeta().get("coordination"));
     }
 
     @Override
@@ -106,17 +105,28 @@ public final class JdbcRelayQuery implements RelayQuery {
         Map<String, String> meta = readMeta();
         boolean paused = "true".equals(meta.get("relay_paused"));
         int bucketCount = meta.containsKey("bucket_count") ? Integer.parseInt(meta.get("bucket_count")) : 0;
-        RelayCoordinationMode mode = meta.containsKey("coordination")
-                ? RelayCoordinationMode.valueOf(meta.get("coordination"))
-                : RelayCoordinationMode.SINGLE;
+        RelayCoordinationMode mode = parseMode(meta.get("coordination"));
         long heartbeatIntervalSeconds = meta.containsKey("relay_heartbeat_interval_seconds")
                 ? Long.parseLong(meta.get("relay_heartbeat_interval_seconds"))
                 : DEFAULT_HEARTBEAT_INTERVAL_SECONDS;
         boolean alive = heartbeatFresh(DOWN_THRESHOLD_MISSED_HEARTBEATS * heartbeatIntervalSeconds);
-        if (mode == RelayCoordinationMode.SINGLE) {
+        if (mode != RelayCoordinationMode.LEASE) {
             return new RelayStatusView(alive, paused, bucketCount, 0, 0);
         }
         return new RelayStatusView(alive, paused, bucketCount, count(UNCOVERED_COUNT_SQL), count(LIVE_WORKER_COUNT_SQL));
+    }
+
+    /** A value written by a newer relay is tolerated, never rejected (HLD §1.4). */
+    private static RelayCoordinationMode parseMode(String value) {
+        if (value == null) {
+            return RelayCoordinationMode.SINGLE;
+        }
+        for (RelayCoordinationMode mode : RelayCoordinationMode.values()) {
+            if (mode != RelayCoordinationMode.UNKNOWN && mode.name().equals(value)) {
+                return mode;
+            }
+        }
+        return RelayCoordinationMode.UNKNOWN;
     }
 
     /** Whether the last heartbeat is younger than {@code maxAgeSeconds}; {@code false} when there is none. */

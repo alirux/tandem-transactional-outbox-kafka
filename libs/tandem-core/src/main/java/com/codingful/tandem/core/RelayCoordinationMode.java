@@ -15,5 +15,12 @@ public enum RelayCoordinationMode {
     SINGLE,
 
     /** Bucket ownership is partitioned via {@code tandem_bucket_lease}; per-bucket admin operations work. */
-    LEASE
+    LEASE,
+
+    /**
+     * A relay recorded a mode this Tandem version has no constant for, typically a newer relay sharing the
+     * database (HLD §1.4). Nothing is assumed about the coordination state it maintains, so per-bucket admin
+     * operations are refused as under {@code SINGLE}.
+     */
+    UNKNOWN
 }

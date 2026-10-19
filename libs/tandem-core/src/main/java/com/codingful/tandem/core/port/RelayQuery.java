@@ -13,9 +13,9 @@ import java.util.Optional;
  * {@code JdbcRelayQuery}; kept off {@link OutboxStore} for the same reason {@link OutboxQuery} is — these
  * are admin-only reads, never part of the relay's own claim/mark/cleanup contract.
  *
- * <p>{@link #buckets} and {@link #workers} are meaningful only under {@link RelayCoordinationMode#LEASE}
- * — callers must check {@link #coordinationMode()} first; this port does not itself guard against
- * calling them under {@code SINGLE} (that policy belongs to the use case, not the read).
+ * <p>{@link #buckets} and {@link #workers} are meaningful only under {@link RelayCoordinationMode#LEASE}:
+ * callers must check {@link #coordinationMode()} first; this port does not itself guard against
+ * calling them under any other mode (that policy belongs to the use case, not the read).
  *
  * <p><b>Provided:</b> Tandem implements this interface and the application calls it. A minor version
  * may add abstract methods, so an application implementing it follows Tandem's minor versions
@@ -24,14 +24,16 @@ import java.util.Optional;
 public interface RelayQuery {
 
     /**
-     * @return the coordination mode the relay last recorded at startup, or {@link RelayCoordinationMode#SINGLE}
-     *         if no relay of this version has ever recorded one in this database
+     * @return the coordination mode the relay last recorded at startup, {@link RelayCoordinationMode#SINGLE}
+     *         if no relay has ever recorded one in this database, or {@link RelayCoordinationMode#UNKNOWN}
+     *         if the recorded value names a mode this version does not know
      */
     RelayCoordinationMode coordinationMode();
 
     /**
-     * @return the whole-relay reading: whether it is paused, its configured bucket count, and — under
-     *         {@link RelayCoordinationMode#SINGLE} — {@code 0} for {@code uncoveredBuckets}/{@code workers}
+     * @return the whole-relay reading: whether it is paused, its configured bucket count, and
+     *         {@code 0} for {@code uncoveredBuckets}/{@code workers} under any mode but
+     *         {@link RelayCoordinationMode#LEASE}
      */
     RelayStatusView status();
 
