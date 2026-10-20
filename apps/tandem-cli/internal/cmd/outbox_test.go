@@ -459,6 +459,23 @@ func TestOutboxDiscard_conflictMapsToExitCode6(t *testing.T) {
 	}
 }
 
+func TestOutboxReplayBulk_noSelectorIsAUsageErrorBeforeAnyHTTPCall(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(500)
+	}))
+	defer server.Close()
+
+	_, _, code := execute(t, server.URL, "outbox", "replay-bulk", "--dry-run")
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (UsageError)", code)
+	}
+	if requests != 0 {
+		t.Errorf("server received %d requests, want 0", requests)
+	}
+}
+
 func TestOutboxReplayBulk_dryRunNeedsNoConfirmation(t *testing.T) {
 	requests := 0
 	server := newFixtureServer(t, map[string]route{

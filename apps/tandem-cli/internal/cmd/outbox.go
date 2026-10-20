@@ -312,6 +312,12 @@ func newOutboxReplayBulkCmd() *cobra.Command {
 		Short: "Replay all DONE/FAILED messages matching criteria",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// The API refuses a selector-less replay too (400 replay-no-selector); refusing it here
+			// keeps the exit code a usage error, like discard without --reason (LLD-cli.md §7).
+			if aggregateID == "" && aggregateType == "" && fromID == 0 && toID == 0 && len(statuses) == 0 {
+				return exitcode.New(exitcode.UsageError, "replay-bulk requires at least one selector:"+
+					" --aggregate-id, --aggregate-type, --from-id, --to-id or --status")
+			}
 			app := appFrom(cmd)
 			body := client.ReplayBulkJSONRequestBody{}
 			if aggregateID != "" {

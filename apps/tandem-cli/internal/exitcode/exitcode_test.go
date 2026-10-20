@@ -20,6 +20,7 @@ func TestForProblem_knownSlugsMapToTheirDocumentedCode(t *testing.T) {
 		{http.StatusConflict, "message-not-discardable", Conflict},
 		{http.StatusConflict, "relay-coordination-unsupported", Conflict},
 		{http.StatusBadRequest, "ordering-break-not-acknowledged", ConfirmationRequired},
+		{http.StatusBadRequest, "replay-no-selector", UsageError},
 		{http.StatusInternalServerError, "internal-error", UnexpectedError},
 	}
 	for _, c := range cases {

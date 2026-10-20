@@ -130,6 +130,8 @@ func ForProblem(status int, problemType string) Code {
 		return Conflict
 	case "ordering-break-not-acknowledged":
 		return ConfirmationRequired
+	case "replay-no-selector":
+		return UsageError
 	case "internal-error":
 		return UnexpectedError
 	}

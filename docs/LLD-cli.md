@@ -345,7 +345,7 @@ without parsing prose.
 |---|---|---|
 | `0` | Success | 2xx |
 | `1` | Unexpected error | `internal-error` (500), or any response the client can't otherwise classify |
-| `2` | Usage error | Bad flags/args — cobra's own usage-error path; a missing base URL (§4); `discard` without `--reason` (§5); `--uncovered-only` passed alongside a bucket argument (§3). **Never** a missing credential: none is required (§4) |
+| `2` | Usage error | Bad flags/args — cobra's own usage-error path; a missing base URL (§4); `discard` without `--reason` (§5); `replay-bulk` without any selector, refused before the call and, from a server, `replay-no-selector` (400); `--uncovered-only` passed alongside a bucket argument (§3). **Never** a missing credential: none is required (§4) |
 | `3` | Unauthorized | `unauthorized` (401) |
 | `4` | Not found | `not-found` (404) |
 | `5` | Invalid parameter | `invalid-parameter` (400) |

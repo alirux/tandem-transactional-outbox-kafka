@@ -114,7 +114,7 @@ A script can tell failures apart by the exit code.
 |---|---|
 | `0` | Success. |
 | `1` | Unexpected error, or a failure the CLI does not classify separately. |
-| `2` | Usage error: a bad flag or argument, a missing base URL, `discard` without `--reason`. |
+| `2` | Usage error: a bad flag or argument, a missing base URL, `discard` without `--reason`, `replay-bulk` without any selector. |
 | `3` | Unauthorized (`401`). |
 | `4` | Not found (`404`). |
 | `5` | Invalid parameter (`400`), for example an unknown status. |
