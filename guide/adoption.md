@@ -271,6 +271,25 @@ Don't invent a large number of synthetic ids hoping it "spreads the load better 
 the events under each id genuinely need relative ordering: a fresh random id per unrelated event
 already gets you the full spread with none of the pinning cost.
 
+**The same lever works for an event that does have an aggregate but does not depend on its order**
+(an audit entry about an order, a notification that an order shipped). Tandem orders by `aggregate_id`
+and by nothing else, and has no per-message switch: writing such an event under a fresh random id
+instead of the aggregate's is how you take it out of the aggregate's chain. Know what moves with the id:
+
+- **What you gain.** The event no longer waits behind the aggregate's earlier events, a `FAILED` one
+  does not block it, and it blocks nothing after it. On a busy aggregate it stops queueing behind the
+  others, since the relay publishes one event per aggregate at a time.
+- **The Kafka key changes.** Key, `ce_subject` and `ce_partitionkey` all become the random id, so the
+  event lands on any partition: a consumer that groups by key, or a compacted topic keyed by
+  aggregate, no longer sees it as part of the aggregate. Carry the real id in the payload or in a
+  header you attach to the event, and have the consumer read it from there.
+- **The Admin API finds it under the random id.** Filtering or replaying by `aggregateId` with the
+  aggregate's id does not include it.
+- **The topic does not change**: it comes from the aggregate type, not from the id.
+
+Mixing is fine, because chains are per id: the aggregate's ordered events keep its own id, and only the
+events that do not need the order take a fresh one.
+
 ---
 
 ## 7. What you don't need to change
