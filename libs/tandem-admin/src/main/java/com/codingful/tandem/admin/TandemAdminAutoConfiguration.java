@@ -1,6 +1,7 @@
 package com.codingful.tandem.admin;
 
 import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
+import com.codingful.tandem.admin.internal.TandemAdminServletConfiguration;
 import com.codingful.tandem.admin.internal.outbox.OutboxAdminConfiguration;
 import com.codingful.tandem.admin.internal.relay.RelayAdminConfiguration;
 import com.codingful.tandem.core.port.OutboxQuery;
@@ -48,7 +49,8 @@ import org.springframework.context.annotation.Import;
 // havingValue, not the bare form: that one enables on any value but "false", so "no", "off" or "0" would
 // switch on an unauthenticated surface that changes delivery state. Only "true" turns it on.
 @ConditionalOnProperty(prefix = "tandem.admin", name = "enabled", havingValue = "true")
-@Import({TandemAdminExceptionHandler.class, OutboxAdminConfiguration.class, RelayAdminConfiguration.class})
+@Import({TandemAdminExceptionHandler.class, TandemAdminServletConfiguration.class, OutboxAdminConfiguration.class,
+        RelayAdminConfiguration.class})
 public class TandemAdminAutoConfiguration {
 
     @Bean

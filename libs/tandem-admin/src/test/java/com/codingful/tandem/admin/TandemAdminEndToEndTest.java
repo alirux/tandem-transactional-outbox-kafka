@@ -1,6 +1,9 @@
 package com.codingful.tandem.admin;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,6 +28,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -50,6 +55,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Tag("boot3-only")
 class TandemAdminEndToEndTest {
 
+    private static final String PROBLEMS = "https://tandem.codingful.com/problems/";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -60,6 +67,46 @@ class TandemAdminEndToEndTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/not-found"))
                 .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
+    void GIVEN_a_path_the_API_does_not_have_WHEN_it_is_requested_THEN_the_answer_is_a_not_found_problem()
+            throws Exception {
+        mockMvc.perform(get("/tandem/admin/v1/outbox/nothing-here"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value(PROBLEMS + "not-found"))
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void GIVEN_a_method_the_path_does_not_accept_WHEN_it_is_requested_THEN_the_answer_is_a_problem_naming_the_accepted_ones()
+            throws Exception {
+        mockMvc.perform(get("/tandem/admin/v1/outbox/replay"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string(HttpHeaders.ALLOW, "POST"))
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value(PROBLEMS + "method-not-allowed"))
+                .andExpect(jsonPath("$.status").value(405));
+    }
+
+    @Test
+    void GIVEN_an_Accept_header_no_representation_satisfies_WHEN_an_operation_is_requested_THEN_the_answer_is_a_not_acceptable_problem()
+            throws Exception {
+        mockMvc.perform(get("/tandem/admin/v1/outbox/summary").header(HttpHeaders.ACCEPT, "text/csv"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value(PROBLEMS + "not-acceptable"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    /** The host's own paths are the host's: Tandem renders nothing outside its base path. */
+    @Test
+    void GIVEN_a_missing_path_outside_the_admin_base_path_WHEN_it_is_requested_THEN_Tandem_does_not_answer_it()
+            throws Exception {
+        mockMvc.perform(get("/not-tandem/anything"))
+                .andExpect(status().isNotFound())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).doesNotContain(PROBLEMS));
     }
 
     /**
@@ -83,7 +130,7 @@ class TandemAdminEndToEndTest {
             return new OutboxQuery() {
                 @Override
                 public Map<OutboxStatus, Long> statusCounts() {
-                    throw new UnsupportedOperationException();
+                    return Map.of();
                 }
 
                 @Override

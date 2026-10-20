@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Method not allowed · Tandem problem types</title>
+<meta name="description" content="Tandem Admin API problem type method-not-allowed (405): what it means and what to do about it.">
+<link rel="icon" href="../../assets/logo.png">
+<link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="../../assets/logo.png" alt="">Tandem</a>
+    <nav>
+      <a href="../">All problem types</a>
+      <a href="https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/admin-api.openapi.yaml">OpenAPI</a>
+      <a href="https://github.com/alirux/tandem-transactional-outbox-kafka">GitHub</a>
+    </nav>
+  </div>
+</div>
+
+<div class="problem">
+  <div class="wrap prose">
+    <p class="kicker"><a href="../">Problem types</a></p>
+    <p><span class="status s4">405</span></p>
+    <h1>Method not allowed</h1>
+    <p class="uri">https://tandem.codingful.com/problems/method-not-allowed</p>
+    <h2>What it means</h2>
+    <p>The path exists, but not for this HTTP method: a <code>GET</code> on an action that only
+      accepts <code>POST</code>, for instance. The response carries an <code>Allow</code> header listing
+      the methods the path does accept.</p>
+
+    <h2>What to do</h2>
+    <p>Send the request with one of the methods in <code>Allow</code>. The operations and their
+      methods are listed in the OpenAPI contract; every action that changes state is a
+      <code>POST</code>, every read a <code>GET</code>.</p>
+
+    <h2>Example</h2>
+<pre>{
+  "type": "https://tandem.codingful.com/problems/method-not-allowed",
+  "title": "Method not allowed",
+  "status": 405,
+  "detail": "This path does not accept the request method; the Allow header lists the ones it does"
+}</pre>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="../">All problem types</a>
+      <a href="https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/admin-api.openapi.yaml">OpenAPI contract</a>
+      <a href="https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/HLD-admin-api.md">Admin API design</a>
+      <a href="/privacy/">Privacy</a>
+    </div>
+    <p>Match on the slug, never on the title or detail text.</p>
+  </div>
+</footer>
+
+</body>
+</html>

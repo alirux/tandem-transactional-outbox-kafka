@@ -250,6 +250,9 @@ type InternalServerError = ProblemDetail
 // InvalidParameter RFC 9457 Problem Details. Returned as media type application/problem+json. Extension members beyond the standard fields are permitted.
 type InvalidParameter = ProblemDetail
 
+// NotAcceptable RFC 9457 Problem Details. Returned as media type application/problem+json. Extension members beyond the standard fields are permitted.
+type NotAcceptable = ProblemDetail
+
 // NotFound RFC 9457 Problem Details. Returned as media type application/problem+json. Extension members beyond the standard fields are permitted.
 type NotFound = ProblemDetail
 
@@ -1775,6 +1778,8 @@ type SearchOutboxMessagesResponse struct {
 	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *InternalServerError
 }
@@ -1792,6 +1797,11 @@ func (r SearchOutboxMessagesResponse) GetApplicationproblemJSON400() *InvalidPar
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r SearchOutboxMessagesResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r SearchOutboxMessagesResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -1839,6 +1849,8 @@ type GetOutboxMessageResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *InternalServerError
 }
@@ -1861,6 +1873,11 @@ func (r GetOutboxMessageResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r GetOutboxMessageResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetOutboxMessageResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -1908,6 +1925,8 @@ type DiscardMessageResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *ProblemDetail
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -1932,6 +1951,11 @@ func (r DiscardMessageResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r DiscardMessageResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r DiscardMessageResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -1984,6 +2008,8 @@ type ReplayMessageResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *ProblemDetail
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2008,6 +2034,11 @@ func (r ReplayMessageResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r ReplayMessageResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r ReplayMessageResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2058,6 +2089,8 @@ type ReplayBulkResponse struct {
 	ApplicationproblemJSON400 *ProblemDetail
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *InternalServerError
 }
@@ -2075,6 +2108,11 @@ func (r ReplayBulkResponse) GetApplicationproblemJSON400() *ProblemDetail {
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r ReplayBulkResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r ReplayBulkResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -2118,6 +2156,8 @@ type GetOutboxSummaryResponse struct {
 	JSON200 *OutboxSummary
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *InternalServerError
 }
@@ -2130,6 +2170,11 @@ func (r GetOutboxSummaryResponse) GetJSON200() *OutboxSummary {
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r GetOutboxSummaryResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetOutboxSummaryResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -2175,6 +2220,8 @@ type GetRelayBucketsResponse struct {
 	ApplicationproblemJSON400 *InvalidParameter
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2194,6 +2241,11 @@ func (r GetRelayBucketsResponse) GetApplicationproblemJSON400() *InvalidParamete
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r GetRelayBucketsResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetRelayBucketsResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2246,6 +2298,8 @@ type GetRelayBucketResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2270,6 +2324,11 @@ func (r GetRelayBucketResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r GetRelayBucketResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetRelayBucketResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2322,6 +2381,8 @@ type ReleaseBucketResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2346,6 +2407,11 @@ func (r ReleaseBucketResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r ReleaseBucketResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r ReleaseBucketResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2398,6 +2464,8 @@ type PauseRelayResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2422,6 +2490,11 @@ func (r PauseRelayResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r PauseRelayResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r PauseRelayResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2474,6 +2547,8 @@ type ResumeRelayResponse struct {
 	ApplicationproblemJSON401 *Unauthorized
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *NotFound
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2498,6 +2573,11 @@ func (r ResumeRelayResponse) GetApplicationproblemJSON401() *Unauthorized {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r ResumeRelayResponse) GetApplicationproblemJSON404() *NotFound {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r ResumeRelayResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2546,6 +2626,8 @@ type GetRelayStatusResponse struct {
 	JSON200 *RelayStatus
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *InternalServerError
 }
@@ -2558,6 +2640,11 @@ func (r GetRelayStatusResponse) GetJSON200() *RelayStatus {
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r GetRelayStatusResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetRelayStatusResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -2601,6 +2688,8 @@ type GetRelayWorkersResponse struct {
 	JSON200 *[]WorkerInfo
 	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
 	ApplicationproblemJSON401 *Unauthorized
+	// ApplicationproblemJSON406 the response for an HTTP 406 `application/problem+json` response
+	ApplicationproblemJSON406 *NotAcceptable
 	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
 	ApplicationproblemJSON409 *CoordinationModeUnsupported
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -2615,6 +2704,11 @@ func (r GetRelayWorkersResponse) GetJSON200() *[]WorkerInfo {
 // GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
 func (r GetRelayWorkersResponse) GetApplicationproblemJSON401() *Unauthorized {
 	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON406 returns the response for an HTTP 406 `application/problem+json` response
+func (r GetRelayWorkersResponse) GetApplicationproblemJSON406() *NotAcceptable {
+	return r.ApplicationproblemJSON406
 }
 
 // GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
@@ -2940,6 +3034,13 @@ func ParseSearchOutboxMessagesResponse(rsp *http.Response) (*SearchOutboxMessage
 		}
 		response.ApplicationproblemJSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -2994,6 +3095,13 @@ func ParseGetOutboxMessageResponse(rsp *http.Response) (*GetOutboxMessageRespons
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3047,6 +3155,13 @@ func ParseDiscardMessageResponse(rsp *http.Response) (*DiscardMessageResponse, e
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest ProblemDetail
@@ -3109,6 +3224,13 @@ func ParseReplayMessageResponse(rsp *http.Response) (*ReplayMessageResponse, err
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest ProblemDetail
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3163,6 +3285,13 @@ func ParseReplayBulkResponse(rsp *http.Response) (*ReplayBulkResponse, error) {
 		}
 		response.ApplicationproblemJSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3202,6 +3331,13 @@ func ParseGetOutboxSummaryResponse(rsp *http.Response) (*GetOutboxSummaryRespons
 			return nil, err
 		}
 		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
@@ -3249,6 +3385,13 @@ func ParseGetRelayBucketsResponse(rsp *http.Response) (*GetRelayBucketsResponse,
 			return nil, err
 		}
 		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported
@@ -3311,6 +3454,13 @@ func ParseGetRelayBucketResponse(rsp *http.Response) (*GetRelayBucketResponse, e
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3371,6 +3521,13 @@ func ParseReleaseBucketResponse(rsp *http.Response) (*ReleaseBucketResponse, err
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported
@@ -3433,6 +3590,13 @@ func ParsePauseRelayResponse(rsp *http.Response) (*PauseRelayResponse, error) {
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3494,6 +3658,13 @@ func ParseResumeRelayResponse(rsp *http.Response) (*ResumeRelayResponse, error) 
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3541,6 +3712,13 @@ func ParseGetRelayStatusResponse(rsp *http.Response) (*GetRelayStatusResponse, e
 		}
 		response.ApplicationproblemJSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3580,6 +3758,13 @@ func ParseGetRelayWorkersResponse(rsp *http.Response) (*GetRelayWorkersResponse,
 			return nil, err
 		}
 		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 406:
+		var dest NotAcceptable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON406 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest CoordinationModeUnsupported

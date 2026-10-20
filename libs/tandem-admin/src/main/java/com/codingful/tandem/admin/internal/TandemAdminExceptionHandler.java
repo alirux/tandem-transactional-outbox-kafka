@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -68,6 +69,18 @@ public class TandemAdminExceptionHandler {
     ResponseEntity<ProblemDetail> handleUnreadableBody(Exception e) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, "invalid-parameter", "Invalid request parameter",
                 "The request body is missing, is not valid JSON, or does not match the endpoint's schema");
+    }
+
+    /**
+     * The problem itself is still sent as {@code application/problem+json}: nothing the client accepts
+     * could carry it either. The parameter is a plain {@code Exception} on purpose: this exception extends
+     * {@code ServletException}, and a signature naming it fails introspection of the whole advice where
+     * the Servlet API is absent.
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    ResponseEntity<ProblemDetail> handleNotAcceptable(Exception e) {
+        return ProblemDetails.of(HttpStatus.NOT_ACCEPTABLE, "not-acceptable", "No acceptable representation",
+                "The Accept header admits no representation this operation returns");
     }
 
     @ExceptionHandler(Exception.class)

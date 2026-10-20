@@ -842,7 +842,9 @@ resolves to a page at `https://tandem.codingful.com/problems/{slug}`.
 | `replay-no-selector` | 400 | Bulk replay with no selector. | Add at least one selector. |
 | `ordering-break-not-acknowledged` | 400 | Discard without `acknowledgeOrderingBreak: true`. | Confirm it, or reconsider. |
 | `unauthorized` | 401 | Credentials missing or wrong, as decided by your application's security. | Check the credentials. |
-| `not-found` | 404 | No such message or bucket. | Check the id or bucket number. |
+| `not-found` | 404 | No such message or bucket, or no operation at this path. | Check the id, the bucket number or the path. |
+| `method-not-allowed` | 405 | The path does not accept this HTTP method. | Use a method from the `Allow` header. |
+| `not-acceptable` | 406 | The `Accept` header admits nothing the operation returns. | Accept `application/json`. |
 | `message-not-replayable` | 409 | Replay of a row that is not `DONE` or `FAILED`. | Check its status first. |
 | `message-not-discardable` | 409 | Discard of a row that is not `FAILED`. | Check its status first. |
 | `relay-coordination-unsupported` | 409 | A bucket or worker operation under `SINGLE`. | Not applicable here; do not retry. |

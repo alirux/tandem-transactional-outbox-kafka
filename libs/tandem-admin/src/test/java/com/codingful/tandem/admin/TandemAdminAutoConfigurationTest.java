@@ -3,11 +3,13 @@ package com.codingful.tandem.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codingful.tandem.admin.internal.TandemAdminExceptionHandler;
+import com.codingful.tandem.admin.internal.TandemAdminPathExceptionResolver;
 import com.codingful.tandem.core.port.OutboxQuery;
 import com.codingful.tandem.core.port.OutboxStore;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -61,6 +63,25 @@ class TandemAdminAutoConfigurationTest {
                     assertThat(context).hasSingleBean(OutboxQuery.class);
                     assertThat(context).hasSingleBean(OutboxStore.class);
                     assertThat(context).hasSingleBean(TandemAdminExceptionHandler.class);
+                });
+    }
+
+    @Test
+    void GIVEN_a_servlet_web_stack_WHEN_the_context_starts_THEN_errors_raised_before_a_controller_are_rendered_by_Tandem() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withPropertyValues("tandem.admin.enabled=true")
+                .run(context -> assertThat(context).hasSingleBean(TandemAdminPathExceptionResolver.class));
+    }
+
+    @Test
+    void GIVEN_no_Spring_MVC_on_the_classpath_WHEN_the_context_starts_THEN_it_starts_without_the_path_resolver() {
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withPropertyValues("tandem.admin.enabled=true")
+                .withClassLoader(new FilteredClassLoader("org.springframework.web.servlet."))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean("tandemAdminPathExceptionResolver");
+                    assertThat(context).hasSingleBean(OutboxQuery.class);
                 });
     }
 

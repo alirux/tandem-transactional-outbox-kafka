@@ -9,12 +9,13 @@ dependencies {
 
     // Spring is compile-only so no Spring version is propagated to the consumer — the application
     // brings its own Boot 3.x or 4.x and the JVM binds at runtime (LLD-spring-config §1.1), same
-    // discipline as tandem-spring-relay. spring-web (not spring-webmvc) is enough to compile
-    // @RestController/@RestControllerAdvice classes; the Servlet dispatch machinery comes from the
-    // consuming application's own spring-boot-starter-web.
+    // discipline as tandem-spring-relay. spring-web carries the @RestController/@RestControllerAdvice
+    // classes; spring-webmvc only the resolver for the errors raised before a controller is chosen, a
+    // bean conditional on its presence. Both come from the consuming application's spring-boot-starter-web.
     compileOnly(platform(libs.spring.boot.dependencies))
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.web)
+    compileOnly(libs.spring.webmvc)
     compileOnly(libs.slf4j.api)
     // Spring MVC's request exceptions extend ServletException, which an advice naming one compiles against.
     compileOnly(libs.jakarta.servlet.api)

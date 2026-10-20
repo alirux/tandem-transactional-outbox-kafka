@@ -19,6 +19,11 @@ public final class ProblemDetails {
     private ProblemDetails() {
     }
 
+    /** @return the canonical {@code type} URL of the problem {@code slug} */
+    static URI type(String slug) {
+        return PROBLEM_BASE.resolve(slug);
+    }
+
     /**
      * @param status the HTTP status to respond with
      * @param slug   the stable, kebab-case problem-type identifier (never changes once published)
@@ -30,7 +35,7 @@ public final class ProblemDetails {
      */
     public static ResponseEntity<ProblemDetail> of(HttpStatus status, String slug, String title, String detail) {
         ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
-        body.setType(PROBLEM_BASE.resolve(slug));
+        body.setType(type(slug));
         body.setTitle(title);
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
     }

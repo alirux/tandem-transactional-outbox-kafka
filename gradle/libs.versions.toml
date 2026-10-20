@@ -176,8 +176,9 @@ spring-tx = { module = "org.springframework:spring-tx" }
 spring-aspects = { module = "org.springframework:spring-aspects" }
 spring-jdbc = { module = "org.springframework:spring-jdbc" }
 # spring-web carries the REST annotations (@RestController, @ExceptionHandler, ResponseEntity, ...);
-# spring-webmvc (the Servlet dispatch machinery) is only needed on the test classpath, for MockMvc —
-# a consuming application's own spring-boot-starter-web brings it at runtime (LLD-admin-api).
+# spring-webmvc (the Servlet dispatch machinery) is compile-only in tandem-admin, for one resolver, and on
+# the test classpath for MockMvc; a consuming application's own spring-boot-starter-web brings it at
+# runtime (LLD-admin-api).
 spring-web = { module = "org.springframework:spring-web" }
 spring-webmvc = { module = "org.springframework:spring-webmvc" }
 jakarta-servlet-api = { module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet" }

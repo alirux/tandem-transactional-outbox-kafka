@@ -29,12 +29,15 @@
     <p class="uri">https://tandem.codingful.com/problems/not-found</p>
     <h2>What it means</h2>
     <p>The addressed resource does not exist: an outbox message id that was never written or has
-      already been retired, or a relay bucket outside the configured bucket count.</p>
+      already been retired, or a relay bucket outside the configured bucket count. A path under
+      the API that no operation answers gets the same problem, with a detail saying so.</p>
 
     <h2>What to do</h2>
     <p>Re-read the id from a listing endpoint rather than constructing it. A message id that
       worked before and now returns 404 usually means the row has been retired by housekeeping —
       delivered messages do not stay in the outbox forever.</p>
+    <p>For a path no operation answers, check it against the OpenAPI contract: a typo, or a
+      missing <code>/v1</code> segment after the configured base path, is the usual cause.</p>
 
     <h2>Example</h2>
 <pre>{

@@ -63,7 +63,17 @@
       <tr>
         <td><a href="not-found/"><code>not-found</code></a></td>
         <td><span class="status s4">404</span></td>
-        <td>No such outbox message or relay bucket.</td>
+        <td>No such outbox message or relay bucket, or no operation at this path.</td>
+      </tr>
+      <tr>
+        <td><a href="method-not-allowed/"><code>method-not-allowed</code></a></td>
+        <td><span class="status s4">405</span></td>
+        <td>The path does not accept this HTTP method; <code>Allow</code> lists the ones it does.</td>
+      </tr>
+      <tr>
+        <td><a href="not-acceptable/"><code>not-acceptable</code></a></td>
+        <td><span class="status s4">406</span></td>
+        <td>The <code>Accept</code> header admits nothing the operation returns.</td>
       </tr>
       <tr>
         <td><a href="message-not-replayable/"><code>message-not-replayable</code></a></td>

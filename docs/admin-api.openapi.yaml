@@ -23,6 +23,13 @@ info:
     payload for containing extra properties. Response schemas are intentionally open (no
     `additionalProperties: false`); do NOT configure strict validation that rejects unknown
     fields - it breaks consumers as soon as the provider adds a field.
+
+
+    Errors outside an operation. Every response under {basePath}/v1 is an RFC 9457 problem,
+    including the ones no operation declares because no operation was matched: a path that
+    does not exist answers 404 `not-found`, and a method a path does not define answers 405
+    `method-not-allowed` with an Allow header (the MethodNotAllowed response). An Accept header
+    no operation can satisfy answers 406 `not-acceptable`, declared on every operation.
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -63,6 +70,8 @@ paths:
                 $ref: '#/components/schemas/OutboxSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -135,6 +144,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -162,6 +173,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -192,6 +205,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -249,6 +264,8 @@ paths:
                 status: 400
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -298,6 +315,8 @@ paths:
                 status: 400
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -316,6 +335,8 @@ paths:
                 $ref: '#/components/schemas/RelayStatus'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -351,6 +372,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -386,6 +409,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -425,6 +450,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '409':
@@ -456,6 +483,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -490,6 +519,8 @@ paths:
           $ref: '#/components/responses/InvalidParameter'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '404':
@@ -520,6 +551,8 @@ paths:
                   $ref: '#/components/schemas/WorkerInfo'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '409':
@@ -586,6 +619,39 @@ components:
             type: https://tandem.codingful.com/problems/not-found
             title: Resource not found
             status: 404
+    NotAcceptable:
+      description: >
+        The request's Accept header admits no representation this operation returns
+        (application/json, application/problem+json for an error). The problem is still sent as
+        application/problem+json, since nothing else could carry it.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            type: https://tandem.codingful.com/problems/not-acceptable
+            title: No acceptable representation
+            status: 406
+            detail: 'The Accept header admits no representation this operation returns'
+    MethodNotAllowed:
+      description: >
+        The path exists but does not accept this HTTP method. The Allow header lists the methods
+        it accepts. Never attached to an operation (it answers the methods a path does not
+        define), so it is listed here for reference; see the API description.
+      headers:
+        Allow:
+          description: The methods the path accepts
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            type: https://tandem.codingful.com/problems/method-not-allowed
+            title: Method not allowed
+            status: 405
+            detail: 'This path does not accept the request method; the Allow header lists the ones it does'
     InternalServerError:
       description: Unexpected internal error
       content:

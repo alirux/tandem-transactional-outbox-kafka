@@ -124,7 +124,16 @@ contract rather than published unimplemented — [HLD-attempt-archive.md](HLD-at
   type ships together with its page (the reason for a URL over `about:blank` or a URN: the
   identifier and its documentation are the same string). Current slugs: `unauthorized`,
   `not-found`, `internal-error`, `invalid-parameter`, `message-not-replayable`, `ordering-break-not-acknowledged`,
-  `replay-no-selector`, `message-not-discardable`, `relay-coordination-unsupported`.
+  `replay-no-selector`, `message-not-discardable`, `relay-coordination-unsupported`,
+  `method-not-allowed`, `not-acceptable`.
+
+  **Every response under `{base-path}/v1` is a problem, including the ones no controller sees.** Spring
+  rejects an unknown path (404) and a method the path does not define (405) before choosing a handler,
+  so the advices, scoped to Tandem's packages to leave the host's controllers alone, never apply to
+  them. A resolver scoped by **path** instead renders both (`not-found`, and `method-not-allowed`
+  with `Allow`), on the Servlet stack, and leaves every other path to the host. An `Accept` header no
+  operation can satisfy (406, `not-acceptable`) does reach a controller and is handled by the generic
+  advice like any other error.
 
 ---
 
