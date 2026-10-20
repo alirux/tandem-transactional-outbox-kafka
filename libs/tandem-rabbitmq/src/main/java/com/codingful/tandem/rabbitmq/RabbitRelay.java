@@ -7,6 +7,7 @@ import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.ShutdownSignalException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -187,7 +188,9 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
                 LOG.error("Publishing outbox row failed rowId:{}, exchange:{}, routingKey:{}", record.id(),
                         route.exchange(), route.routingKey(), publishFailure);
                 span.end(publishFailure);
-                ack.completeExceptionally(classifier.classify(publishFailure));
+                ack.completeExceptionally(isShutdown(publishFailure)
+                        ? shutdownRetriable(publishFailure)
+                        : classifier.classify(publishFailure));
             }
         }
         return ack;
@@ -341,6 +344,29 @@ public final class RabbitRelay implements OutboxDispatcher, AutoCloseable {
             LOG.warn("Closing the AMQP publish channel failed", closeFailure);
         }
         failPendingUpTo(Long.MAX_VALUE, () -> classifier.classify(channelClosed()));
+    }
+
+    /**
+     * A publish is asynchronous, so a channel or connection found already closed was closed over an earlier
+     * message: its reply code says nothing about this one, which is retried whatever the code (§4). Never
+     * handed to the classifier, which would read that code as this message's.
+     */
+    private static boolean isShutdown(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof ShutdownSignalException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static OutboxDispatchException shutdownRetriable(Throwable failure) {
+        String detail = failure.getMessage() == null ? "" : " - " + failure.getMessage();
+        return new OutboxDispatchException("AMQP publish failed on a closed channel (retriable): "
+                + failure.getClass().getSimpleName() + detail, true, failure);
     }
 
     private static IOException channelClosed() {

@@ -24,11 +24,16 @@ final class RecordingPublishChannel implements PublishChannel {
     private ShutdownHandler shutdownHandler;
 
     private long nextTag = 1;
-    private IOException publishFailure;
+    private Exception publishFailure;
     private IOException closeFailure;
     private boolean closed;
 
     void failNextPublishWith(IOException failure) {
+        this.publishFailure = failure;
+    }
+
+    /** The real client throws an unchecked {@code AlreadyClosedException} on a channel already closed. */
+    void failNextPublishWith(RuntimeException failure) {
         this.publishFailure = failure;
     }
 
@@ -82,9 +87,13 @@ final class RecordingPublishChannel implements PublishChannel {
     @Override
     public void publish(AmqpRoute route, AMQP.BasicProperties properties, byte[] body) throws IOException {
         if (publishFailure != null) {
-            IOException failure = publishFailure;
+            Exception failure = publishFailure;
             publishFailure = null;
-            throw failure;   // the tag stays unconsumed, exactly as the real client leaves it
+            // the tag stays unconsumed, exactly as the real client leaves it
+            if (failure instanceof IOException io) {
+                throw io;
+            }
+            throw (RuntimeException) failure;
         }
         published.add(new Published(nextTag++, route, properties, body));
     }

@@ -108,8 +108,8 @@ final class AmqpPublishChannel implements PublishChannel {
             channel = replacement;
             tagOffset = issued;
         } catch (IOException | RuntimeException reopenFailure) {
-            // The closed channel stays in place: the publish fails on it, retriably or not as the
-            // broker's reason says, and the next publish tries again.
+            // The closed channel stays in place: the publish fails on it, retriably whatever reason the
+            // broker closed it with (LLD-rabbitmq §4), and the next publish tries again.
             closeQuietly(replacement);
             LOG.warn("Reopening the AMQP publish channel failed host:{}, port:{}", connection.getAddress(),
                     connection.getPort(), reopenFailure);

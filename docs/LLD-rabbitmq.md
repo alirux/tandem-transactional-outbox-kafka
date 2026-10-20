@@ -126,15 +126,18 @@ asserts after an interruption (LLD-benchmark §3.1, §8).
 | Encoding throws, including a route too long for AMQP (§6) | **Permanent** | Re-encoding the same row fails the same way. Classified at the encode site and deliberately not routed through the classifier, which defaults the unknown to retriable and would block the aggregate for the whole backoff ladder |
 | `basic.return` (unroutable) | **Permanent** | No binding matches the routing key. Retrying cannot create one. The row fails, its aggregate stops, and the operator sees the routing key in the log |
 | `basic.nack` | Retriable | The broker accepted responsibility and then could not honour it, typically an internal or resource error. It is not a statement about the message |
-| Channel or connection shutdown | Retriable, whatever reply code the broker closed the channel with | A channel closed over one message's error (a `404` for a missing exchange, say) loses the confirms of every message pending on it and cannot say which one caused it, so none is judged permanent. Includes the recovery case of §1, and a dispatch after `close()`, which fails its future without registering or publishing anything. The rows are still PENDING and come back on the next claim |
+| Channel or connection shutdown | Retriable, whatever reply code the broker closed the channel with | A channel closed over one message's error (a `404` for a missing exchange, say) loses the confirms of every message pending on it and cannot say which one caused it, so none is judged permanent. Includes a publish the client refuses because the channel is already closed (the close happened over an earlier message, since a publish is asynchronous), the recovery case of §1, and a dispatch after `close()`, which fails its future without registering or publishing anything. The rows are still PENDING and come back on the next claim |
 | Confirm timeout (§3) | Retriable | The message may well have been delivered; the row is redelivered and consumers deduplicate on `ce_id`, as they already must |
 | Anything else | Retriable | Same default as the Kafka classifier: an unrecognised failure is assumed transient, because failing a row permanently is the unrecoverable direction |
 
 Only the last row goes through `RabbitErrorClassifier`, which mirrors `ErrorClassifier` in
-`tandem-kafka` and is pluggable; it judges a publish that itself fails (the client throws). The
-others do not: an encode failure, a return, a nack, a shutdown and a confirm timeout are protocol facts
-rather than thrown exceptions, and their verdict is part of the adapter's contract
-rather than a mapping an implementation may reinterpret.
+`tandem-kafka` and is pluggable; it judges a publish that itself fails (the client throws), unless the
+throw comes from a channel or connection already closed, which is the shutdown row. The default judges
+every such failure retriable: a refusal of this very message by the broker can only arrive as a later
+channel close, so no throw is evidence of a permanent fault, and an application that knows one plugs its
+own classifier. The others do not: an encode failure, a return, a nack, a shutdown and a confirm
+timeout are protocol facts rather than thrown exceptions, and their verdict is part of the adapter's
+contract rather than a mapping an implementation may reinterpret.
 
 ---
 

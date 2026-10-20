@@ -8,6 +8,7 @@ import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.exception.OutboxDispatchException;
 import com.codingful.tandem.core.port.TandemSpanRecorder;
 import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.ShutdownSignalException;
 import java.io.IOException;
 import java.time.Instant;
@@ -207,6 +208,30 @@ class RabbitRelayTest {
         CompletableFuture<Void> next = relay.dispatch(record(2, "order-2"));
         channel.confirm(channel.last().deliveryTag());
         assertThat(next).isCompletedWithValue(null);
+    }
+
+    /**
+     * A publish is asynchronous, so a channel the broker closed with {@code 404} closed it over an earlier
+     * message; the row that finds the channel already closed says nothing about its own route (§4).
+     */
+    @Test
+    void GIVEN_a_channel_the_broker_closed_over_an_earlier_message_WHEN_the_next_row_is_published_on_it_THEN_that_row_is_retried() {
+        RabbitRelay relay = relay();
+        AMQP.Channel.Close reason = new AMQP.Channel.Close.Builder()
+                .replyCode(404).replyText("NOT_FOUND - no exchange 'audit-events'").classId(60).methodId(40).build();
+        channel.failNextPublishWith(new AlreadyClosedException(new ShutdownSignalException(false, false, reason, "channel")));
+
+        assertThat(failureOf(relay.dispatch(record(1, "order-1"))).isRetriable()).isTrue();
+    }
+
+    @Test
+    void GIVEN_a_closed_channel_reported_inside_an_IO_failure_WHEN_the_next_row_is_published_on_it_THEN_that_row_is_retried() {
+        RabbitRelay relay = relay();
+        AMQP.Channel.Close reason = new AMQP.Channel.Close.Builder()
+                .replyCode(403).replyText("ACCESS_REFUSED").classId(60).methodId(40).build();
+        channel.failNextPublishWith(new IOException(new ShutdownSignalException(false, false, reason, "channel")));
+
+        assertThat(failureOf(relay.dispatch(record(1, "order-1"))).isRetriable()).isTrue();
     }
 
     @Test
