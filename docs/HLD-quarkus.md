@@ -1,37 +1,42 @@
 # Tandem: Quarkus Extension
 
-**Version:** 0.1  
+**Version:** 0.2  
 **Status:** Accepted. Designed, not implemented.  
-**Companion to:** [HLD.md](HLD.md) §1.1, §1.3, §1.4, §3.1, §3.2, §4.2;
+**Companion to:** [HLD.md](HLD.md) §1.1, §1.3, §1.4, §3.2, §4.2;
 [LLD-spring-producer.md](LLD-spring-producer.md); [LLD-spring-config.md](LLD-spring-config.md) §2, §3;
 [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [LLD-rabbitmq.md](LLD-rabbitmq.md) §9;
-[LLD-relay.md](LLD-relay.md); [HLD-managed-seq.md](HLD-managed-seq.md)
+[LLD-relay.md](LLD-relay.md); [HLD-managed-seq.md](HLD-managed-seq.md); [HLD-tracing.md](HLD-tracing.md)
 
-This note decides how a Quarkus application writes to the Tandem outbox: what the extension contains,
-how each write-side tier of the Spring modules translates to CDI and JTA, where the extension lives
-and how it is versioned, which Quarkus lines it supports, and what is left to later phases.
+This note decides how a Quarkus application writes to the Tandem outbox: what the extension contains
+and in which order its parts ship, what it guarantees and under which conditions, how each write-side
+tier of the Spring modules translates to CDI and JTA, where the extension lives, how it is versioned,
+and which Quarkus lines it supports.
 
 ---
 
 ## 1. Summary
 
 - Quarkus applications get a **Quarkus extension** (a runtime module plus a deployment module), the
-  form Quarkus users discover through code.quarkus.io and its extension catalog. A plain library would
-  work at runtime, but it would not appear there and could not do the build-time work of §5.4.
-- **The first release is write-side only** (`quarkus-tandem-producer`). The relay and the Admin API
-  already run outside the application as the `tandem-relay` image (HLD §3.2), against the same
-  database: a Quarkus service writes in process and deploys the image beside it. No new runtime
-  component is needed for a Quarkus service to use Tandem end to end.
-- The four write-side tiers of the Spring modules carry over: plain repository, template, an
-  annotation, and domain events. They map onto **Agroal** (the connection pool), **Narayana** (the JTA
-  transaction manager) and **ArC** (the CDI container). The event tier gains a guarantee the Spring
-  one cannot give: mapper conflicts fail the **build** (§5.4).
-- The extension lives on **Quarkiverse**, the Quarkus community hub, as `io.quarkiverse.tandem`, built
-  with Maven, **versioned independently** of the library and depending on it through a declared
-  **floor** (§7).
-- **`main` targets Quarkus 4.** A branch for the 3.40 LTS line opens only on demand (§8).
-- Later phases: an embedded relay (§9.1), then the Admin API on Quarkus REST (§9.2). Out of scope: the
-  reactive stack, which does not use JDBC (§10).
+  form Quarkus users look for, with the build-time checks and native-mode support only an extension
+  can provide (§5.2, §5.6).
+- **The extension is write-side only** (`quarkus-tandem-producer`). The relay and the Admin API run
+  outside the application as the `tandem-relay` image (HLD §3.2), against the same database. A
+  Quarkus service writes in process and deploys the image beside it; no new runtime component is
+  needed to use Tandem end to end.
+- **Its first release ships the plain and template tiers**, which cover the common case. The
+  annotation and domain-event tiers follow, each once a prototype has proven its transactional
+  behaviour (§5.5, §5.6).
+- **The guarantee has a stated scope:** business change and outbox row on the **same** Agroal
+  datasource, with JTA transactions enabled (§5.1). One repository adapter enforces it on every
+  insert path (§5.3).
+- **Startup is ordered:** migrations, then the bucket-count check outside any transaction, then
+  writes; a write before that point is refused (§5.2).
+- The extension lives on **Quarkiverse** as `io.quarkiverse.tandem`, built with Maven, **versioned
+  independently** of the library, with a **floor of Tandem 1.0.0** verified in CI (§7).
+- **`main` targets Quarkus 3.40 LTS**; a `quarkus-4` branch follows Quarkus 4 and becomes `main` at
+  its general availability (§8).
+- Out of scope: the reactive stack, which does not use JDBC (§10). An embedded relay and a Quarkus
+  Admin API are possible later, on demand (§9).
 
 ---
 
@@ -39,23 +44,26 @@ and how it is versioned, which Quarkus lines it supports, and what is left to la
 
 **Goals.**
 
-- A Quarkus service gets the same guarantees as a Spring one: the event commits or rolls back with
-  the business change, events of one aggregate are published in write order, and the row it writes is
-  indistinguishable to the relay from a row written by any other Tandem writer.
+- Within the scope of §5.1, a Quarkus service gets the guarantees a Spring one gets: the event commits
+  or rolls back with the business change, and the row it writes is indistinguishable to the relay from
+  a row written by any other Tandem writer. Publication follows write order under the preconditions of
+  HLD §4.2, restated in §5.8.
 - **Idiomatic for Quarkus.** Configuration through `application.properties`, beans through CDI,
   transactions through `@Transactional`, works in native mode, works with Dev Services.
 - **One configuration contract.** The keys are the `tandem.*` keys the Spring modules and the relay
-  image already read (LLD-spring-config §2), with the same meaning and defaults.
-- The client footprint rule of HLD §1.3 holds: the write-side extension never brings the Kafka client,
-  the CloudEvents SDK, or a JSON binding the application did not already choose.
+  image already read (LLD-spring-config §2), with the same meaning and defaults (§6).
+- The client footprint rule of HLD §1.3 holds: the extension never brings the Kafka client, the
+  CloudEvents SDK, or a JSON binding the application did not already choose.
 
 **Non-goals.**
 
 - Any change to the schema, the relay, the published message or the library's public API. The
   extension is built on the published `tandem-core` and `tandem-jdbc` artifacts as they are.
-- A write side on the reactive stack (Hibernate Reactive, the Vert.x SQL clients). §10 says why.
+- Atomicity across several datasources or other transactional resources (§5.1).
+- A write side on the reactive stack (§10).
 - MySQL, until the library's engine port exists (HLD §10, DB compatibility): the extension supports
   exactly the databases `tandem-jdbc` supports.
+- Applying the schema. The application owns its migrations, in production and in dev mode alike (§6.3).
 
 ---
 
@@ -76,7 +84,7 @@ flowchart LR
     end
     broker["Kafka / RabbitMQ"]
 
-    tx -->|"INSERT, same JTA transaction"| outbox
+    tx -->|"INSERT, same transaction, same datasource"| outbox
     meta -.->|"bucket_count, checked at startup"| tx
     outbox -->|"claim, mark DONE"| workers
     workers -->|publish| broker
@@ -92,16 +100,16 @@ standalone relay. The extension never talks to the relay, the broker or the Admi
 
 | Artifact | Contents | Depends on |
 |---|---|---|
-| `quarkus-tandem-producer` | Runtime: the beans, the interceptor, the configuration mapping | `tandem-jdbc`, `quarkus-agroal`, `quarkus-narayana-jta`, `quarkus-arc` |
-| `quarkus-tandem-producer-deployment` | Build steps: bean registration, the event observers, native registration, startup wiring | the runtime module, the matching Quarkus deployment modules |
-| `quarkus-tandem-relay` (+ `-deployment`) | Phase 2 (§9.1) | `tandem-kafka`, `quarkus-kafka-client` |
+| `quarkus-tandem-producer` | Runtime: the repository adapter, the template, the configuration | `tandem-jdbc`, `quarkus-agroal`, `quarkus-narayana-jta`, `quarkus-arc` |
+| `quarkus-tandem-producer-deployment` | Build steps: bean registration, startup ordering, configuration checks, later the event observers | the runtime module, the matching Quarkus deployment modules |
 
-**Split by role, as the Spring modules are** (LLD-spring-config §1): a service that only writes
-cannot acquire the Kafka client transitively, because the producer extension does not depend on it.
-The invariant is structural, not a matter of a conditional staying correct.
+**Write-side only, so the footprint rule is structural.** A service using the extension cannot
+acquire the Kafka client transitively, because nothing in the extension depends on it. A relay
+extension, if one is ever built (§9), is a separate artifact for the same reason the Spring modules
+are split by role (LLD-spring-config §1).
 
 **Optional integrations are detected, never forced.** OpenTelemetry tracing and the Jackson payload
-serializer (§5.5, §5.6) activate when the application already has the matching Quarkus extension. The
+serializer (§5.7, §6) activate when the application already has the matching Quarkus extension. The
 deployment module checks the application's capabilities at build time and registers the extra beans
 only then; the runtime module declares those libraries as optional dependencies.
 
@@ -109,44 +117,96 @@ only then; the runtime module declares those libraries as optional dependencies.
 
 ## 5. The write side
 
-### 5.1 How the transaction is joined
+### 5.1 The transactional guarantee and its scope
 
-In Quarkus, `@Transactional` is a CDI interceptor that Narayana provides, and every Agroal datasource
-takes part in JTA transactions by default (`quarkus.datasource.jdbc.transactions=enabled`). Inside an
-active transaction, Agroal hands out the connection already associated with it, so Hibernate ORM and
-the outbox insert run on the same connection and commit together.
+In Quarkus, `@Transactional` is a CDI interceptor provided by Narayana, and an Agroal datasource takes
+part in JTA transactions unless configured otherwise (`quarkus.datasource.jdbc.transactions`, default
+`enabled`). Inside an active transaction, Agroal hands out the connection already associated with that
+transaction **for that datasource**. When Hibernate ORM and Tandem use the same datasource, the
+business change and the outbox insert therefore run on one connection and commit or roll back
+together.
 
-The extension therefore wires `JdbcOutboxRepository` straight onto the application's Agroal
-`DataSource`. Nothing plays the role that `TransactionAwareDataSourceProxy` plays in Spring
-(LLD-spring-config §4.3), because joining the transaction is the pool's own behaviour here.
+**The guarantee is stated for exactly that case:** the business change and the outbox row on the same
+Agroal datasource, with transactions enabled. That datasource is the default one, or the named one
+selected by `tandem.outbox.datasource` (§6).
 
-**The guard is simpler than Spring's, and it runs on every insert path.** Before each insert, every
-tier checks that `TransactionManager.getStatus()` is `STATUS_ACTIVE` and fails with
-`OutboxInsertException` otherwise. The Spring `TransactionBindingGuard` (LLD-spring-producer §8) also
-checks that the transaction is bound to Tandem's own `DataSource`. That second check has no Quarkus
-equivalent to perform: a JTA transaction covers every datasource used inside it. Two non-XA
-datasources in one transaction are refused by Narayana at enlistment, which is loud. At startup the
-extension also refuses a Tandem datasource configured with `transactions=disabled`: there the insert
-would autocommit, which is the silent failure the guard exists to prevent.
+**Other arrangements are outside it.** A business change on another datasource, or on any other
+resource, makes the transaction span several resources. With non-XA datasources Narayana refuses the
+second one by default, but Quarkus can be configured to accept it
+(`quarkus.transaction-manager.unsafe-multiple-last-resources`), and then the commit is no longer
+atomic. With XA datasources atomicity depends on the XA setup. Tandem promises neither; the guide
+states that the business tables and the outbox belong on one datasource.
 
-**Which datasource.** The default datasource, or a named one selected by
-`tandem.outbox.datasource`. That key is specific to this extension, because a Quarkus application
-names its datasources in configuration rather than through bean qualifiers.
+**What the extension checks.**
 
-### 5.2 Startup
+- At startup, it refuses a Tandem datasource configured with `transactions=disabled`: there every
+  insert would autocommit.
+- On every insert, the repository adapter (§5.3) checks that a JTA transaction is active
+  (`STATUS_ACTIVE`). That check proves that the insert is not autocommitted; it does not prove that
+  every resource in the transaction commits atomically, which is why the scope above is a stated
+  contract and not something a runtime check could establish.
 
-On `StartupEvent` the extension runs `BucketCountGuard.check` against the datasource before any bean
-can insert, exactly as the Spring producer does before exposing its repository (LLD-spring-config
-§3). A mismatch stops the application, loudly.
+Nothing plays the role that `TransactionAwareDataSourceProxy` plays in Spring (LLD-spring-config
+§4.3): joining the transaction is the pool's own behaviour here, and no proxy is added on top of it.
 
-### 5.3 The four tiers
+### 5.2 Startup ordering
 
-| Tier | Spring module | Quarkus extension |
-|---|---|---|
-| Plain | inject `OutboxRepository`, call `insert` in `@Transactional` | the same: `OutboxRepository` is a CDI bean |
-| Template | `TransactionalOutboxTemplate` on Spring's `TransactionTemplate` | the same interfaces (`TransactionalOutboxTemplate`, `OutboxCollector`), on `QuarkusTransaction.joiningExisting()` |
-| Annotation | `@TransactionalOutbox`, composed with `@Transactional`, AOP aspect | `@TransactionalOutbox`, an interceptor binding that carries `@Transactional`, CDI interceptor |
-| Events | `ApplicationEventPublisher` + synchronous listener | `Event<T>.fire()` + synchronous observers generated at build time (§5.4) |
+Writes are allowed only after three steps, in this order:
+
+1. **The schema is ready.** When the application uses `quarkus-flyway` or `quarkus-liquibase` with
+   migration at start, the extension's startup step runs after their migrations: it consumes the
+   build item those extensions produce once the datasource's schema is ready.
+2. **The bucket count is checked**, by `BucketCountGuard.check` (LLD-bucket-count-guard), at runtime
+   initialisation, with **no transaction active**. The guard seeds `tandem_meta` in a transaction of
+   its own and commits it, so it must never run inside an application transaction, which it would
+   commit too. A mismatch stops the application.
+3. **The repository adapter is opened for writes.**
+
+**The adapter refuses an insert that arrives before step 3**, with an exception naming the reason.
+Ordering the startup step before application code is what normally prevents that; the refusal is what
+keeps a mistake in the ordering (an application `@Startup` bean, an observer of `StartupEvent`
+running first) from becoming a write into an unchecked outbox. Deferring the check to the first
+insert is rejected (§13): the guard commits, and the first insert runs inside a business transaction.
+
+### 5.3 One repository adapter on every insert path
+
+The `OutboxRepository` bean the extension exposes is a Quarkus adapter wrapping `JdbcOutboxRepository`.
+Every insert path goes through it: an application injecting the repository directly, the template,
+and later the annotation and event tiers. On `insert` and on `insertAll`, before delegating, it
+checks that startup has completed (§5.2) and that a JTA transaction is active (§5.1). The checks live
+in one place so that no tier can miss them.
+
+**A failure is reported; the adapter does not mark the transaction rollback-only.** A mapping,
+serialization or insert failure surfaces as an exception thrown to the caller (`OutboxInsertException`,
+or the library's own exception for the case). The tiers keep their own transactional rules, and what a
+caller can still commit depends on where the failure is caught:
+
+- **Inside the transactional work**, before the exception reaches any transaction boundary (a plain
+  insert in the application's own `@Transactional` method, or a `catch` inside the template's
+  callback). A failure raised before any SQL runs (serialization, mapping, a refused write) leaves the
+  transaction committable; committing it then is the application's explicit choice to go on without
+  that event, as with the Spring modules.
+- **Outside the template.** An exception leaving `execute(work)` has crossed the template's
+  transaction boundary: the template has rolled back the transaction it started, or marked the joined
+  one rollback-only. A `catch` around `execute` does not bring the commit back. This is also the
+  behaviour of Spring's `TransactionTemplate`, on which the Spring tier is built.
+- **After an SQL failure**, wherever it is caught: PostgreSQL has already aborted the transaction,
+  which can then only roll back.
+
+The guide states the three cases next to the template.
+
+### 5.4 Tiers and their order
+
+| Tier | Spring module | Quarkus extension | Release |
+|---|---|---|---|
+| Plain | inject `OutboxRepository`, call `insert` in `@Transactional` | the same: the adapter of §5.3 is a CDI bean | first |
+| Template | `TransactionalOutboxTemplate` on Spring's `TransactionTemplate` | the same interfaces (`TransactionalOutboxTemplate`, `OutboxCollector`), on `QuarkusTransaction.joiningExisting()` | first |
+| Annotation | `@TransactionalOutbox`, composed with `@Transactional`, AOP aspect | a CDI interceptor binding (§5.5) | after its prototype |
+| Events | `ApplicationEventPublisher` + synchronous listener | `Event<T>.fire()` + synchronous observers generated at build time (§5.6) | after its prototype |
+
+The plain and template tiers cover the common case and carry no unproven mechanism. The other two
+add convenience, and public surface: each ships only when a prototype has shown the behaviour its
+section requires.
 
 The extension defines its own types in `io.quarkiverse.tandem.producer`, mirroring the Spring
 module's signatures (LLD-spring-producer §3, §4, §5). It does not depend on `tandem-spring-producer`,
@@ -154,23 +214,42 @@ which is built against Spring. The core types they rely on (`OutboxMessage`, `Ta
 `PayloadSerializer`) come from `tandem-core` unchanged.
 
 **Template.** `execute(work)` joins the caller's transaction or starts one, which is the meaning of
-Spring's `REQUIRED`. It runs the work, inserts what was collected, in collection order, in that same
-transaction, and lets it commit. A failure in the work or in the insert rolls everything back.
+Spring's `REQUIRED`. It runs the work, inserts what was collected, in collection order, through the
+adapter, in that same transaction, and lets it commit. A failure in the work or in the insert that
+leaves the callback rolls everything back, or marks the joined transaction rollback-only; catching it
+around `execute` does not change that (§5.3). The template never starts
+a new transaction for the insert alone: a `REQUIRES_NEW` would commit the outbox row apart from the
+business change.
 
-**Annotation.** CDI has no equivalent of Spring's `@AliasFor`, so `@TransactionalOutbox` cannot
-expose `@Transactional`'s attributes. It carries `@Transactional` with its defaults, so a transaction
-is always present and the user never writes both annotations. A method that needs another
-transaction type or rollback rule uses the template inside its own `@Transactional`. The interceptor
-must run **inside** Narayana's: Narayana's transaction interceptors have priority
-`PLATFORM_BEFORE + 200`, and Tandem's has a higher value, so it runs closer to the method. It then
-extracts and inserts exactly as the Spring aspect does: a returned `TandemAggregate` or an `Iterable`
-of them, nothing for any other result, each message instance written once per transaction, and the
-`aggregateType` guard. The active-transaction check of §5.1 is the backstop that makes a wrong
-priority loud.
+### 5.5 Annotation tier (after its prototype)
 
-### 5.4 The event tier: observers generated at build time
+CDI has no equivalent of Spring's `@AliasFor`, so `@TransactionalOutbox` cannot expose
+`@Transactional`'s attributes. The intended design is an interceptor binding that carries
+`@Transactional` with its defaults, so a transaction is always present and the user never writes both
+annotations; a method that needs another transaction type or rollback rule uses the template inside
+its own `@Transactional`. The Tandem interceptor must run **inside** Narayana's: Narayana's
+transaction interceptors have priority `PLATFORM_BEFORE + 200`, and Tandem's a higher value, which
+places it closer to the method.
 
-The application fires ordinary CDI events inside its own transaction:
+**Why a prototype comes first.** Whether a transitive `@Transactional` binds Narayana's interceptor,
+and in which order the two run, decides the tier's atomicity. If Tandem's interceptor ran outside the
+transaction, its active-transaction check would fail **after** the business change had committed: the
+error would be visible, and the atomicity already lost. The prototype must show, against a real
+PostgreSQL:
+
+- that the composed annotation is intercepted by both interceptors, in the stated order;
+- that a failing insert prevents the business commit;
+- that nested annotated calls write each message once;
+- that deduplication is bound to the JTA transaction (a resource of the transaction, suspended and
+  resumed with it, so an inner `REQUIRES_NEW` keeps a record of its own), never to a thread.
+
+Extraction otherwise follows the Spring aspect (LLD-spring-producer §4): a returned `TandemAggregate`
+or an `Iterable` of them, nothing for any other result, and the `aggregateType` guard.
+
+### 5.6 Event tier (after its prototype)
+
+The application fires ordinary CDI events inside its own transaction and registers an
+`OutboxEventMapper<T>` bean per event type, as in LLD-spring-producer §5:
 
 ```java
 @Inject Event<OrderPlaced> orderPlaced;
@@ -183,154 +262,196 @@ public void place(OrderId id) {
 }
 ```
 
-and registers an `OutboxEventMapper<OrderPlaced>` bean that turns the event into outbox messages, as
-in LLD-spring-producer §5.
+**The build does the wiring.** The deployment module finds the mapper beans in ArC's bean metadata
+once discovery has applied alternatives and vetoes, not by scanning the class index. It marks them
+**unremovable**: a mapper that nothing but Tandem uses, with no injection point in the application, is
+the normal case, and ArC would otherwise remove it as an unused bean before any observer could reach
+it. It then resolves each mapper's `T` and, in the phase ArC provides for registering observers,
+registers one **synthetic observer** per mapped type, plus one for `OutboxMessage` fired directly.
+Each observer is synchronous and runs in the firing thread during the transaction
+(`TransactionPhase.IN_PROGRESS`, the CDI default).
 
-**Registering a mapper is the opt-in, and the build does the wiring.** The deployment module reads
-the application's index at build time, finds every bean implementing `OutboxEventMapper<T>`, resolves
-`T`, and registers one **synthetic observer** per mapped type, plus one for `OutboxMessage` fired
-directly. Each observer is synchronous and runs in the firing thread during the transaction
-(`TransactionPhase.IN_PROGRESS`, the CDI default), so the insert is atomic with the business change.
+**Supported mapper shapes are few, and the rest are refused at build time.** The first version
+supports a class bean implementing `OutboxEventMapper<T>` with `T` a concrete type, resolved through
+the class hierarchy. A producer method returning a mapper, a `T` that is a type variable or a
+wildcard, or a mapper with a custom qualifier (beyond the implicit `@Default` and `@Any`) fails the build with a message naming the bean and the supported
+shape. Widening the set is additive.
 
-This gives two things the Spring tier cannot:
+**Selection is the Spring tier's algorithm, implemented without Spring.** The Spring registry is
+package-private and resolves generics with Spring's `ResolvableType`; the extension carries its own
+implementation of the same rules, in a few dozen lines, rather than extracting a shared module for
+them. Two mappers for the same `T` are a conflict; the most specific registered supertype of the
+event's runtime class wins; two equally specific candidates are ambiguous and fail on that event.
+Because CDI notifies an observer of type `A` for any event assignable to `A`, an event can reach
+several generated observers; each acts only when its own type is the one the selection picks, so one
+event produces one mapping.
 
-- **Conflicts fail the build.** Two mappers for the same `T` stop the build with an error naming both
-  beans, before anything is deployed. Spring can only detect them at startup.
-- **No catch-all observer.** Only the mapped types are observed. Other events, framework events
-  included, never reach Tandem, without a runtime filter deciding it on every event.
+**What the build adds over the Spring tier.** The Spring listener already observes only mapped types
+(LLD-spring-producer §5). The extension moves the wiring, and the conflict between two mappers for
+one type, from application startup to the build: the error appears before anything is deployed.
 
-**Most specific mapper wins, and only once.** CDI notifies an observer of type `A` for any event
-assignable to `A`, so an event of a subtype of two mapped types reaches two observers. Each observer
-therefore delegates to the same mapper registry used by the Spring tier (most specific registered
-supertype; equally specific candidates are ambiguous and fail on that event), and acts only when its
-own type is the one the registry selects. One event produces one mapping.
+**What is not captured.** Events fired with `fireAsync()` reach only asynchronous observers, which run
+outside the caller's transaction; the tier has none, by construction. The same reasoning excludes
+`AFTER_SUCCESS` observers, as the Spring tier excludes `AFTER_COMMIT` listeners (LLD-spring-producer
+§1): an insert outside the business transaction is not atomic.
 
-**What is not captured.** Events fired with `fireAsync()` run outside the caller's transaction, so no
-synchronous observer receives them and the tier ignores them by construction. That matches the Spring
-tier's refusal of `AFTER_COMMIT` listeners (LLD-spring-producer §1): an insert outside the business
-transaction is not atomic.
+**The prototype must show** a mapped event inserted in the firing transaction and rolled back with
+it, a mapper with no injection point in the application still wired, a build failure for each refused
+shape and for a conflict, and the subtype case producing one row.
 
-### 5.5 Payload serialization
+### 5.7 Payload serialization and native mode
 
 The rule of LLD-spring-producer §2 holds: object payloads need a `PayloadSerializer`, `byte[]` and a
 pre-built `OutboxMessage` always work, and a missing serializer fails at the call site, never by
 guessing. When the application has `quarkus-jackson`, the extension registers a `PayloadSerializer`
-on the application's own `ObjectMapper`, so the application's Jackson configuration applies to outbox
-payloads too. An application bean of type `PayloadSerializer` replaces it.
-
+on the application's own `ObjectMapper`; an application bean of type `PayloadSerializer` replaces it.
 Each branch of the extension targets one Quarkus line (§8), so it targets one Jackson generation: the
-branch on Quarkus 4 uses Jackson 3. The dual-generation constraint the Spring modules carry
-(LLD-spring-config §1.3) does not arise here.
+3.40 branch Jackson 2, the Quarkus 4 branch Jackson 3. The dual-generation constraint of the Spring
+modules (LLD-spring-config §1.3) does not arise.
 
-### 5.6 Tracing
+**In native mode, the application registers its payload types.** A JSON binding serializes a POJO
+through reflection, and a type that appears only as an outbox payload is not registered for it by
+anything else: the native executable builds, and the serialization fails at runtime, or produces an
+empty object. The extension cannot know which classes an application passes as payloads, so it does
+not guess. The guide states the rule and its two ways out: annotate the payload types for reflection
+(`@RegisterForReflection`), or supply a `PayloadSerializer` that needs no reflection.
 
-With `tandem.tracing.enabled=true` and `quarkus-opentelemetry` present, the producer's
-`TracePropagator` is `OtelTracePropagator` from `tandem-tracing-otel`, which captures the active span's
-`traceparent` at insert time (HLD-tracing). As in Spring, the flag is explicit: a tracing extension
-being on the classpath does not turn it on by itself.
+### 5.8 Ordering: the preconditions restated
 
-### 5.7 The `seq` invariant
+The extension changes nothing in how order is established, so HLD §4.2 and HLD-managed-seq apply as
+written. Two hazards are worth repeating because Quarkus applications run on Hibernate ORM:
 
-Unchanged, and the same hazard applies: Hibernate ORM advances `@Version` at flush, so a version read
-before the flush is the previous one (LLD-spring-producer §7, HLD-managed-seq §3.2). Quarkus uses
-Hibernate ORM, so the measurements and the two remedies (flush before building the message, or a
-`seq` mode that does not depend on the version) apply as written, and the extension's guide repeats
-them.
+- **Concurrent writers to one aggregate.** Tandem publishes an aggregate's rows in the order they were
+  written, which is only the business order if writers to that aggregate are serialized. Two
+  transactions that both insert, the first committing second, publish in the wrong order whatever
+  `seq` mode they use, a database-assigned number included (HLD-managed-seq §3.1, §3.3). Serializing them is
+  the application's precondition: a lock on the aggregate row taken before the outbox insert, or
+  `lockedWrite()` on the message, which takes a transaction-scoped lock on the aggregate id itself.
+- **`@Version` before the flush.** Hibernate advances the version at flush, so a version read before
+  it is the previous one (LLD-spring-producer §7, HLD-managed-seq §3.2). The remedies are the
+  application's: flush before building the message, or use a `seq` mode that does not depend on the
+  version. The extension never flushes on the application's behalf: that would change when the
+  application's own statements run.
 
 ---
 
 ## 6. Configuration
 
-The extension reads the same keys as the Spring modules, with the same meaning and defaults
-(LLD-spring-config §2): `tandem.outbox.bucket-count`, `tandem.outbox.wakeup`, `tandem.tracing.*`, and
-in phase 2 `tandem.relay.*` and `tandem.kafka.*`. Keys are bound through a SmallRye `@ConfigMapping`
-at runtime, so a container can change them without a rebuild.
+### 6.1 The keys
 
-**Why `tandem.*` and not `quarkus.tandem.*`.** Quarkus extensions usually prefix their keys with
-`quarkus.`. Here the keys are a contract shared by every process that touches the outbox: a value
-such as `bucket-count` must be identical in the writing service and in the relay image (HLD §1.4), and
-the same name in both places is what makes a divergence easy to spot. Quarkus itself reads keys
-outside its own prefix where a key belongs to a wider contract (`kafka.*`, `mp.messaging.*`).
+The extension reads the keys of the library's contract with their meaning and defaults
+(LLD-spring-config §2), plus one of its own:
 
-**The keys are part of the extension's contract.** A key added to the library's contract is added to
-the extension in its next release; a key never changes meaning between the two.
+| Key | Default | Read at | Without the optional integration |
+|---|---|---|---|
+| `tandem.outbox.datasource` | the default datasource | build time | n/a |
+| `tandem.outbox.bucket-count` | `256` | runtime | n/a |
+| `tandem.outbox.wakeup` | `none` | runtime | n/a |
+| `tandem.tracing.enabled` | `false` | runtime | `true` without `quarkus-opentelemetry` captures the correlation id only |
+| `tandem.tracing.correlation-id-mdc-key` | `correlationId` | runtime | n/a |
 
-**Schema.** As with Spring, the application owns its migrations. `tandem-jdbc` ships the Liquibase
-changelog on the classpath (`tandem/schema/postgres/changelog/`), which `quarkus-liquibase` can include
-directly; the guide shows it, and the Flyway equivalent.
+`tandem.outbox.datasource` is specific to this extension and **read at build time**, because Quarkus
+fixes its datasources and their injection points at build time; changing it means rebuilding. The
+others are runtime keys: a container can change them without a rebuild.
 
-**Dev Services.** In `quarkus dev` and in tests, Quarkus starts PostgreSQL on its own. With the
-migration included, a new application runs end to end with no database to install.
+**Tracing.** With the flag on and `quarkus-opentelemetry` present, trace capture uses
+`OtelTracePropagator` from `tandem-tracing-otel`. That propagator writes the trace context through
+the propagator the application configured in OpenTelemetry, so the header names are whatever the
+application propagates elsewhere (`traceparent` with Quarkus's W3C default); it carries no
+correlation id. The correlation id comes from an independent source, combined with the trace capture
+as the Spring module does (`TracePropagator.composite`): the explicit `TandemContext` API, or the
+logging MDC under `correlation-id-mdc-key`. Quarkus logs through JBoss Logging, and its MDC is the one
+the extension reads, under the same key the Spring module reads from SLF4J's.
+
+**Keys of other roles are ignored.** The same `application.properties` may carry `tandem.relay.*` or
+`tandem.kafka.*` for a process that runs the relay; the write side does not read them and does not
+warn about them. A `tandem.*` key added to the library's contract is added to the extension in its
+next release, and a key never changes meaning between the two.
+
+### 6.2 Why `tandem.*` and not `quarkus.tandem.*`
+
+Quarkus extensions usually prefix their keys with `quarkus.`. Here the keys are a contract shared by
+every process that touches the outbox: `bucket-count` must be identical in the writing service and in
+the relay image (HLD §1.4), and one name in both places is what makes a divergence easy to spot.
+Quarkus itself reads keys outside its own prefix where they belong to a wider contract (`kafka.*`,
+`mp.messaging.*`). The keys are declared as configuration roots with an explicit phase (build time for
+the datasource, runtime for the rest), so they are documented and validated like any extension's.
+
+### 6.3 Schema and Dev Services
+
+The application owns its migrations, in production and in dev mode alike: the extension never applies
+the schema. `tandem-jdbc` ships the Liquibase changelog on the classpath
+(`tandem/schema/postgres/changelog/`), which `quarkus-liquibase` can include directly; the guide shows
+that and the Flyway equivalent. With the migration included, `quarkus dev` and the tests start
+PostgreSQL through Dev Services and run end to end with no database to install.
 
 ---
 
 ## 7. Where it lives, and versioning
 
-**Quarkiverse.** The extension is a repository of its own in the Quarkiverse GitHub organization, as
-the hub's rules require: Maven build with `quarkiverse-parent`, group `io.quarkiverse.tandem`,
-documentation on docs.quarkiverse.io, releases through the hub's pipeline. That is the visibility the
-extension exists for: listing on code.quarkus.io and in the extension catalog, and the Quarkus
-ecosystem CI, which builds every hub extension against Quarkus snapshots and reports a regression
-before a Quarkus release ships it.
+**Quarkiverse.** The extension is a repository of its own in the Quarkiverse GitHub organization:
+Maven build with `quarkiverse-parent`, group `io.quarkiverse.tandem`, documentation on
+docs.quarkiverse.io, releases through the hub's pipeline. An extension hosted elsewhere can also be
+listed in the extension catalog and join the ecosystem CI, so these are not the reason. The reasons
+are the infrastructure and conventions the hub provides ready-made (release automation,
+documentation site, the ecosystem CI that builds every hub extension against Quarkus snapshots) and
+the visibility of sitting among the community extensions. The cost is a second repository with its
+own Maven build, release and documentation to maintain.
 
 **Versioned independently, with a floor**, on the model of `tandem-rabbitmq` (LLD-rabbitmq §9). The
 extension's compatibility contract is the published library API it builds on, not the library's
-version, and its own changes (a Quarkus upgrade, a fix in an interceptor) need no library release. It
+version, and its own changes (a Quarkus upgrade, a fix in the adapter) need no library release. It
 depends on `tandem-core` and `tandem-jdbc` by published coordinate, with a **floor of 1.0.0**: it
 needs nothing the 1.0.0 API does not already have, so it can ship as soon as 1.0.0 is on Maven
-Central, on its own schedule. Raising the floor is a minor version of the extension, never a patch,
-and its release notes state the floor. It is not in `tandem-bom`.
+Central, on its own schedule. Its CI builds and tests against the floor resolved from Maven Central,
+so the floor is a verified claim. Raising it is a minor version of the extension, never a patch, and
+its release notes state it. It is not in `tandem-bom`.
 
-**What its semver governs:** its public types (§5.3), the configuration keys it reads (§6), the
-floor, and the Quarkus lines it supports. The Quarkus version within a supported line, the build
-steps, and the generated observers are not part of it.
-
-**In this repository** stay the design (this document, and an LLD when the first phase starts), the
-user guide page that points to the extension, and the library it depends on.
+**What its semver governs:** its public types (§5.4), the configuration keys it reads (§6.1), the
+Tandem floor, and the Quarkus lines it supports (§8). The build steps and the generated observers are
+not part of it.
 
 ---
 
 ## 8. Quarkus lines
 
-| Line | Status | Java | Extension |
+| Branch | Quarkus | Java | Role |
 |---|---|---|---|
-| 4.x | GA expected at the end of 2026 | 21+ | `main` |
-| 3.40 LTS | Supported for 12 months from its release | 17+ | a `3.x` branch, opened only on demand |
+| `main` | 3.40 LTS, minimum 3.40.0 | 17+ | First releases |
+| `quarkus-4` | 4.x | 21+ | Follows Quarkus 4 until its general availability, then becomes `main` |
+
+**`main` starts on 3.40 LTS** because it is the line Quarkus recommends for production, maintained
+until 2027-09-30, and it shares Tandem's Java 17 baseline. Quarkus 4 is announced for the end of 2026;
+the `quarkus-4` branch absorbs its migration (Java 21, Jackson 3, CDI 5) while it is in beta, so the
+switch is a merge. When Quarkus 4 is generally available, `quarkus-4` becomes `main`, and 3.40 moves
+to a maintenance branch that receives fixes for as long as its LTS is maintained.
+
+**The minimum version is precise.** A deployment module depends on Quarkus's build-step API, which
+changes between versions, so the extension states the exact minimum it is tested against for each
+line, never a range such as "3.x". Raising it is a minor version of the extension.
 
 **Why one line per branch, unlike the Spring modules.** The Spring modules ship one jar for two Boot
 generations because both expose the same runtime API (LLD-spring-config §1.1). A Quarkus extension
-also has a deployment module, built on Quarkus's build-step API, which a major version changes. Hub
-extensions follow Quarkus with `main` on the current line and a maintenance branch per older line.
-
-**Why Quarkus 4 first.** The extension ships after Tandem 1.0.0, when Quarkus 4 is the current line,
-and a new adopter starts there. Quarkus 4 requires Java 21; Tandem's Java 17 bytecode runs on it
-unchanged. The 3.40 LTS branch costs a second build and a second CI line, so it waits for a user who
-needs it.
+also has a deployment module, built on an API a major version changes, so each line is a build of its
+own.
 
 ---
 
-## 9. Later phases
+## 9. Later, on demand
 
-### 9.1 Phase 2: an embedded relay
+Neither of these is planned: each is built if users ask for it.
 
-`quarkus-tandem-relay` runs the relay inside the application, for services that prefer one deployable
-to an extra container. The engine has no framework dependency, so the extension only wires it:
+**An embedded relay** (`quarkus-tandem-relay`), for services that prefer one deployable to an extra
+container. The engine has no framework dependency, so the work is wiring: lifecycle on `StartupEvent`
+and `ShutdownEvent` (the equivalent of LLD-spring-config §4.5), Kafka through `quarkus-kafka-client`
+with the `tandem.kafka.*` keys, SmallRye Health, metrics through `quarkus-micrometer` and
+`tandem-micrometer`, publish spans through `tandem-tracing-otel`. Open question for that design: the
+PostgreSQL wakeup listener unwraps a `PGConnection` and holds a connection for long periods, which
+Agroal's leak detection may report.
 
-- **Lifecycle** on `StartupEvent` and `ShutdownEvent`, the equivalent of the Spring module's
-  `SmartLifecycle` (LLD-spring-config §4.5), with draining inside Quarkus's graceful shutdown.
-- **Threads.** The relay's workers are platform threads of its own (`WorkerPool`), outside the Vert.x
-  event loops, so they never block an I/O thread.
-- **Kafka** through `quarkus-kafka-client`, which makes the Kafka client work in native mode, with
-  the `tandem.kafka.*` keys and the hardening of LLD-spring-config §2.3.
-- **Health** checks on SmallRye Health, **metrics** through `quarkus-micrometer` and
-  `tandem-micrometer`, **publish spans** through `quarkus-opentelemetry` and `tandem-tracing-otel`.
-
-### 9.2 Phase 3: the Admin API
-
-`tandem-admin` is built on Spring MVC. A Quarkus implementation serves the same OpenAPI contract
-([admin-api.openapi.yaml](admin-api.openapi.yaml)) on Quarkus REST, with the same RFC 9457 problem
-types, and is verified against the contract the same way (HLD-admin-api §5). Until then the Admin API
-runs in the relay image, which serves it against the same database.
+**The Admin API on Quarkus REST**, serving the same OpenAPI contract
+([admin-api.openapi.yaml](admin-api.openapi.yaml)) and verified against it the same way
+(HLD-admin-api §5). Until then the Admin API runs in the relay image.
 
 ---
 
@@ -338,66 +459,112 @@ runs in the relay image, which serves it against the same database.
 
 Hibernate Reactive and the Vert.x SQL clients do not use JDBC: their transaction is a Vert.x
 connection, not a JTA transaction on a JDBC connection, and `tandem-jdbc` cannot join it. A reactive
-write side would be a new adapter of the `OutboxStore` port, which the architecture allows (HLD §1.2),
-on a stack a minority of Tandem's target users run (HLD §1.1). It is out of scope, and the guide says
-so plainly so that nobody discovers it in production.
+write side would be a new adapter of the `OutboxRepository` port, which the architecture allows (HLD
+§1.2); that port is synchronous, so a genuinely asynchronous API would need a design of its own. It
+would serve a stack a minority of Tandem's target users run (HLD §1.1), so it is out of scope, and the
+guide says so plainly so that nobody discovers it in production.
 
 ---
 
 ## 11. Native mode
 
-Native compilation is a first-class requirement, because it is a common reason to choose Quarkus.
-The modules the producer extension brings (`tandem-core`, `tandem-jdbc`) use no reflection, no
-`ServiceLoader` and no dynamic class loading, and the PostgreSQL driver is covered by
-`quarkus-jdbc-postgresql`. Every insert path is tested in native mode in the extension's CI from the
-first release, not added later: a test that has never run native proves nothing about it.
+Native compilation is a first-class requirement. The modules the extension brings (`tandem-core`,
+`tandem-jdbc`) use no reflection, no `ServiceLoader` and no dynamic class loading, and the PostgreSQL
+driver is covered by `quarkus-jdbc-postgresql`. A native executable that builds proves only that it
+builds: the extension's CI runs the runtime behaviours of §12 against the native executable from the
+first release, including the serialization of a payload type that nothing but the outbox uses (§5.7).
 
 ---
 
 ## 12. Testing
 
-The project's rules apply (AGENTS.md §Testing): behaviour, not coverage, and no mocks.
+The project's rules apply (AGENTS.md §Testing): behaviour, not coverage, and no mocks. Every runtime
+test runs against a real PostgreSQL started by Dev Services.
 
-- **Build-time behaviour** (two mappers for one type fail the build; a datasource without
-  transactions is refused) is tested with Quarkus's unit-test harness for extensions, which builds an
-  application and asserts on the build outcome.
-- **Atomicity**: against a real PostgreSQL from Dev Services, for each tier, a business rollback also
-  removes the outbox rows, and a call without a transaction fails instead of inserting.
-- **Ordering and identity with the relay**: an integration test runs the published `tandem-relay`
-  image against the database the extension wrote to, and checks the events arrive on the broker in
-  write order.
-- **Native**: the same suite runs against the native executable.
+**Runtime behaviours**, each run on the JVM and against the native executable:
+
+- a business rollback also removes the outbox rows, for each released tier;
+- a failing outbox insert prevents the business commit when the exception reaches the transaction
+  boundary;
+- a serialization failure in the template's callback, caught by the caller around `execute`, still
+  prevents the business commit (§5.3). The failure is raised before any SQL, so that it is the
+  template's transaction handling under test, not PostgreSQL aborting the transaction;
+- an insert without a transaction fails instead of autocommitting;
+- an insert before startup completes is refused (§5.2), and the bucket-count check runs after the
+  application's migrations;
+- a named datasource selected by `tandem.outbox.datasource` is the one written to;
+- a template call inside a `REQUIRES_NEW` writes in the new transaction, not the outer one;
+- a custom `PayloadSerializer` replaces the default;
+- a payload type used only by the outbox serializes in native mode (§5.7);
+- **ordering under concurrency**, as two scenarios, since a single transaction writing an ordered
+  list proves nothing about it:
+  - *not serialized:* two transactions insert for one aggregate and the first to insert commits
+    second, with the relay claiming between the two commits; the test documents the reorder §5.8
+    warns about;
+  - *serialized* with `lockedWrite()`: the second writer blocks on the lock until the first commits,
+    then inserts and commits; the test checks that wait and that the rows are published in the order
+    the lock imposed.
+
+**Build-time behaviours** (a datasource without transactions, and later the refused mapper shapes and
+conflicts of §5.6) are tested with Quarkus's unit-test harness for extensions, which builds an
+application and asserts on the build outcome. They do not run in native mode: they fail before an
+executable exists.
+
+**End to end:** one integration test runs the published `tandem-relay` image against the database the
+extension wrote to, and checks the events arrive on the broker.
 
 ---
 
 ## 13. Rejected alternatives
 
-- **A plain library instead of an extension.** It would run in JVM mode, but it could not generate
-  the event observers or check mappers at build time, it would need manual registration for native
-  mode, and it would be absent from the extension catalog, which is the reason to build this at all.
-- **One extension with both roles.** It would bring the Kafka client to every service that only
+- **A plain library instead of an extension.** It would run in JVM mode, but it could not order its
+  startup after migrations, check its configuration at build time, generate the event observers, or
+  register anything for native mode, and Quarkus users look for an extension.
+- **The relay in the same extension.** It would bring the Kafka client to every service that only
   writes, which HLD §1.3 forbids.
-- **A module in this repository, with this repository's build.** It keeps the conventions and gates of
-  the library, but loses the hub's catalog listing, documentation site and ecosystem CI.
+- **Checking the bucket count at the first insert.** The guard commits its own transaction and must
+  run outside the application's; the first insert runs inside a business transaction.
+- **A Spring-style transactional proxy over Agroal.** Agroal already hands out the transaction's
+  connection; a proxy would add a layer with nothing to do.
+- **Marking the transaction rollback-only in the repository adapter.** The tiers already keep their
+  own transactional rules (§5.3), and an SQL failure aborts the transaction anyway. What it would
+  change is the one case left: a failure raised before any SQL and caught inside the application's
+  own transaction, where it would override the application's explicit decision to commit without the
+  event, and make the extension stricter than the Spring modules for the same API.
+- **Registering payload types for reflection automatically.** The extension cannot see which classes
+  are passed as payloads; a partial guess would make some payloads work and others fail in native
+  mode, with no rule a user could predict.
+- **Flushing Hibernate before building a message.** It would fix stale versions by changing when the
+  application's own statements run.
+- **Applying the schema, even only in dev mode.** The application owns its migrations; a schema that
+  appears by itself in dev and not in production is a surprise at the worst moment.
+- **A module in this repository, with this repository's build.** It keeps the library's conventions
+  and gates, without the hub's ready-made release pipeline, documentation site and ecosystem CI.
 - **Configuration under `quarkus.tandem.*`.** Idiomatic, but it would give the same contract two names
-  depending on which process reads it (§6).
-- **One catch-all observer for every event.** It would receive every CDI event of the application,
-  framework events included, and decide at runtime what to ignore; the generated observers make that
-  decision once, at build time.
-- **Reusing `tandem-spring-producer`'s types.** That module is compiled against Spring; depending on
-  it would put Spring on a Quarkus application's classpath.
+  depending on which process reads it (§6.2).
+- **Quarkus 4 first.** It would make the first release wait for Quarkus 4's general availability and
+  leave out applications on the line Quarkus recommends for production today.
+- **One catch-all observer for every event.** It would receive every CDI event of the application and
+  decide at runtime what to ignore; the generated observers decide once, at build time.
+- **Reusing `tandem-spring-producer`'s types, or extracting a shared mapper registry.** The first would
+  put Spring on a Quarkus application's classpath; the second would add a published module to share a
+  few dozen lines.
 
 ---
 
 ## 14. Open points
 
-- **When to file the Quarkiverse extension proposal.** A public step; the design above is what it
-  would describe.
-- **A transitive `@Transactional` on `@TransactionalOutbox`.** CDI allows an interceptor binding to
-  carry another; to be confirmed against Narayana's interceptors, which bind on the transaction type.
-- **The PostgreSQL wakeup listener behind Agroal** (phase 2): it unwraps a `PGConnection` and holds a
-  connection open for long periods, which the pool's leak detection may report.
-- **Correlation id from the logging context.** The Spring module reads it from the SLF4J MDC; Quarkus
-  logs through JBoss Logging, whose MDC is a different class.
-- **A dev-mode migration convenience**: whether `quarkus dev` should apply the Tandem changelog by
-  itself when the application has no migration tool configured.
+- **When to file the Quarkiverse extension proposal.** A public step; this document is what it would
+  describe.
+- **Configuration roots outside `quarkus.`** (§6.2): Quarkus reads such keys for its own wider
+  contracts; that an extension's configuration root may use one is to be confirmed in the prototype,
+  before the key contract of §6.1 is confirmed. Any fallback keeps the same keys and the same phases:
+  `tandem.outbox.datasource` read at build time by the deployment module, the other keys through a
+  runtime configuration mapping.
+- **The build item that signals a ready schema** (§5.2): to be confirmed for both migration
+  extensions, including an application that runs its migrations outside Quarkus, where the extension
+  can only rely on the refusal of early writes and on the guard's own failure if the schema is absent.
+- **The JBoss Logging MDC** (§6.1): that a value put in SLF4J's MDC by application code is visible
+  there, so both logging APIs feed the same key, is to be verified.
+- **Where the design lives once the extension's repository exists**: this document here, and the LLD
+  next to the implementation, or both there with a link from here.
