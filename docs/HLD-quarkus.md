@@ -1,7 +1,8 @@
 # Tandem: Quarkus Extension
 
-**Version:** 0.3  
+**Version:** 0.4  
 **Status:** Accepted. Designed and prototyped on Quarkus 3.40, not implemented.  
+**Detailed in:** [LLD-quarkus.md](LLD-quarkus.md)  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.3, §1.4, §3.2, §4.2;
 [LLD-spring-producer.md](LLD-spring-producer.md); [LLD-spring-config.md](LLD-spring-config.md) §2, §3;
 [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [LLD-rabbitmq.md](LLD-rabbitmq.md) §9;
@@ -455,6 +456,10 @@ Central, on its own schedule. Its CI builds and tests against the floor resolved
 so the floor is a verified claim. Raising it is a minor version of the extension, never a patch, and
 its release notes state it. It is not in `tandem-bom`.
 
+**The design lives in this repository**, next to the library's: this document and
+[LLD-quarkus.md](LLD-quarkus.md). The extension's repository holds the code and the user guide, and its
+documentation links here. A design change lands here first, then in the extension.
+
 **What its semver governs:** its public types (§5.4), the configuration keys it reads (§6.1), the
 Tandem floor, and the Quarkus lines it supports (§8). The build steps and the generated observers are
 not part of it.
@@ -635,5 +640,3 @@ extension wrote to, and checks the events arrive on the broker.
 
 - **When to file the Quarkiverse extension proposal.** A public step; this document is what it would
   describe.
-- **Where the design lives once the extension's repository exists**: this document here, and the LLD
-  next to the implementation, or both there with a link from here.
