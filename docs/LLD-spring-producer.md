@@ -1,6 +1,6 @@
 # Tandem — LLD: Spring write-side ergonomics (`tandem-spring-producer`)
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Implemented and released — all three tiers built and tested (Boot 3.x and 4.x)
 **Companion to:** [HLD.md](HLD.md) §3.1; [LLD-spring-config.md](LLD-spring-config.md) (module + autoconfig foundation); [LLD-core.md](LLD-core.md) §2 (ports)
 
@@ -44,11 +44,12 @@ That convenience rests on the `PayloadSerializer` core port (Object → bytes + 
 must not violate the minimal-client-footprint invariant (HLD §1.3): **no JSON library is forced onto
 the classpath.**
 
-- **A Jackson `PayloadSerializer` is auto-configured only when Jackson is present** —
-  `@ConditionalOnClass(ObjectMapper)` `@ConditionalOnMissingBean(PayloadSerializer)`. It reuses the
-  application's `ObjectMapper` bean when one exists, else constructs a plain one; its `contentType()`
-  is `application/json`. An application on a different format supplies its own `PayloadSerializer` bean
-  and the conditional backs off.
+- **A Jackson `PayloadSerializer` is auto-configured only when Jackson is present**, of either
+  generation (Jackson 2's `ObjectMapper` or Jackson 3's `JsonMapper`), and only
+  `@ConditionalOnMissingBean(PayloadSerializer)`. It runs on the application's own mapper when there is
+  one, chosen by the rule of §2.1, else on a plain one; its `contentType()` is `application/json`. An
+  application on a different format supplies its own `PayloadSerializer` bean and the conditional backs
+  off.
 - **Object payloads require a serializer; the absence is loud, not silent.** When a tier is handed an
   object payload and **no** `PayloadSerializer` bean exists, it fails fast at the call site with a
   `PayloadSerializationException` naming the three ways out — add a JSON library, supply a
@@ -61,6 +62,35 @@ Serialization always produces a `byte[]` that is stored in `OutboxMessage.payloa
 `contentType()` is written to `headers["content-type"]` (the same slot the relay reads, HLD §6). The core
 `OutboxMessage` model is unchanged — it stays bytes-carrying; object payloads are serialized *before* the
 message is built, never stored as objects.
+
+### 2.1 Which Jackson generation the default serializer runs on
+
+Spring Boot 3 carries Jackson 2. A stock Spring Boot 4 application carries Jackson 3 and no Jackson 2
+databind, and may opt back into Jackson 2 (`spring-boot-jackson2`), which puts both generations on its
+classpath; Jackson 2 can also arrive alone, brought by another library, with no mapper bean of its own
+(LLD-spring-config §1.3). The default serializer follows one principle: **the payload is written with the
+mapper the application renders its HTTP responses with.** The first rule that applies wins:
+
+| | The application has | The serializer runs on |
+|---|---|---|
+| 1 | a mapper bean of the generation Spring Boot prefers: Jackson 3's `JsonMapper`, unless `spring.http.converters.preferred-json-mapper=jackson2` makes it Jackson 2's `ObjectMapper` | that bean |
+| 2 | a mapper bean of the other generation | that bean |
+| 3 | no mapper bean, Jackson 2 present | a plain Jackson 2 `ObjectMapper` |
+| 4 | no mapper bean, Jackson 3 only | a plain Jackson 3 `JsonMapper` |
+
+Rule 1 is the one Spring Boot 4 applies to its own HTTP message converters, so an application that opted
+back into Jackson 2 for its web layer, by that property, gets Jackson 2 here too. Rule 2 puts a configured
+mapper before a default one. Rules 3 and 4 keep Spring Boot 3, where there is no `JsonMapper` bean, exactly
+as it was. The choice is made when the bean is created, by looking the mappers up, never by bean
+conditions, so it does not depend on the order in which the Jackson autoconfigurations run
+(LLD-spring-config §4.4).
+
+Each generation's code lives in a class of its own (`JacksonPayloadSerializer`, `Jackson3PayloadSerializer`),
+loaded only once its library is known to be present, and no Jackson type appears in a bean method's
+signature: an application has one generation in the common case, and the one it lacks must not be resolved
+(LLD-spring-config §1.1). The `jacksonThreeTest` and `jacksonBothTest` tasks test the rule on a stock Boot 4
+classpath and on one carrying both generations, with Spring Boot's real Jackson autoconfigurations
+(LLD-spring-config §1.3).
 
 ---
 
@@ -285,7 +315,7 @@ so a `PlatformTransactionManager` is available. Every contributed bean is `@Cond
 
 | Bean | Condition | Needs |
 |---|---|---|
-| `PayloadSerializer` (Jackson) | `@ConditionalOnClass(ObjectMapper)` | the app's `ObjectMapper` if present |
+| `PayloadSerializer` (Jackson) | either Jackson generation present | the app's `JsonMapper` or `ObjectMapper` if present (§2.1) |
 | `TransactionalOutboxTemplate` | `@ConditionalOnSingleCandidate(PlatformTransactionManager)`: with several and none primary it backs off instead of failing the application's start | `OutboxRepository`, `PlatformTransactionManager`, optional `PayloadSerializer` |
 | `@TransactionalOutbox` advisor + aspect | `@ConditionalOnClass` AOP present | `OutboxRepository` |
 | Spring-events listener + mapper registry | always (registry may be empty) | `OutboxRepository`, the `OutboxEventMapper` beans, optional `PayloadSerializer` |

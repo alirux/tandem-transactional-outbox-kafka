@@ -66,6 +66,10 @@ tomcat = "10.1.60"
 log4j = "2.25.5"
 # Jackson 2: the whole BOM rather than the flagged artifact alone, so the family stays aligned.
 jackson = "2.21.4"
+# Jackson 3, compile-only in tandem-spring-producer: the lowest Jackson 3 a supported Boot line manages (Boot
+# 4.0.0), the same "compile against the floor" rule as the Spring baseline above. The application binds its own
+# Jackson 3 at runtime, and nothing of it reaches a published POM.
+jackson3 = "3.0.2"
 rhino = "1.7.14.1"
 commons-lang3 = "3.18.0"
 # Benchmark-only (leaf app, not part of any published library footprint).
@@ -159,6 +163,10 @@ spring-boot-dependencies-relay-app = { module = "org.springframework.boot:spring
 spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
 spring-boot-test = { module = "org.springframework.boot:spring-boot-test" }
+# Boot 4's Jackson autoconfigurations, for tandem-spring-producer's Jackson 3 gate only (test-only, versioned by
+# the Boot 4 BOM): Jackson 3's, which every stock Boot 4 application has, and the opt-in Jackson 2 one.
+spring-boot-jackson = { module = "org.springframework.boot:spring-boot-jackson" }
+spring-boot-jackson2 = { module = "org.springframework.boot:spring-boot-jackson2" }
 # @AutoConfigureMockMvc lives here — a real WebApplicationContext-backed MockMvc, unlike
 # MockMvcBuilders.standaloneSetup's bare one (the two differ in how they resolve @ExceptionHandler
 # advice precedence across multiple beans; see TandemAdminEndToEndTest).
@@ -195,8 +203,8 @@ jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-dat
 # carries Jackson 3 plus this, and nothing of Jackson 2's databind, so naming a databind type in an
 # admin bean signature stops the context from starting there (LLD-spring-config §1.3).
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }
-# Jackson 3, for the jacksonThreeTest source set only: it represents a stock Boot 4 classpath, which
-# the Jackson-2-flavoured bootFourTest deliberately does not.
+# Jackson 3: the jacksonThreeTest source sets, which represent a stock Boot 4 classpath that the
+# Jackson-2-flavoured bootFourTest deliberately does not, and tandem-spring-producer's compile-only serializer.
 jackson3-databind = { module = "tools.jackson.core:jackson-databind" }
 
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
@@ -215,6 +223,7 @@ log4j-to-slf4j = { module = "org.apache.logging.log4j:log4j-to-slf4j", version.r
 # Imported as a platform, not declared as a dependency: it raises the managed Jackson 2 version above
 # what the Boot 3.3.x baseline BOM pins, and contributes no jar of its own.
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
+jackson3-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson3" }
 rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
 # The relay image's floors (see tomcat-relay-app above): the three Tomcat jars move in lockstep, and the
 # Jackson 3 BOM keeps its family aligned.

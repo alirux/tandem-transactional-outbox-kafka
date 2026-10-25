@@ -5,11 +5,11 @@ import com.codingful.tandem.core.port.PayloadSerializer;
 import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.jdbc.BucketCountGuard;
 import com.codingful.tandem.jdbc.JdbcOutboxRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -18,6 +18,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -60,7 +62,6 @@ public class TandemProducerAutoConfiguration {
     private static final String JTA_TRANSACTION_MANAGER = "org.springframework.transaction.jta.JtaTransactionManager";
     private static final String TRACER = "io.micrometer.tracing.Tracer";
     private static final String PROPAGATOR = "io.micrometer.tracing.propagation.Propagator";
-    private static final String OBJECT_MAPPER = "com.fasterxml.jackson.databind.ObjectMapper";
     private static final String PROCEEDING_JOIN_POINT = "org.aspectj.lang.ProceedingJoinPoint";
 
     /**
@@ -205,20 +206,21 @@ public class TandemProducerAutoConfiguration {
 
     /**
      * The optional Jackson {@link PayloadSerializer} (LLD-spring-producer §2), contributed only when
-     * Jackson is on the classpath and never forced. Reuses the application's {@code ObjectMapper} bean
-     * when one exists, otherwise a plain default.
+     * either Jackson generation is on the classpath and never forced. It runs on the application's own
+     * mapper, of the generation Spring Boot renders HTTP with, and on a plain one only when the application
+     * has none ({@link JacksonPayloadSerializers}).
      *
      * <p>The class condition sits on the bean method rather than on a nested {@code @Configuration}: a
      * nested member configuration is <b>not</b> processed inside an {@code @AutoConfiguration} under Spring
      * Boot 4, so grouping optional beans that way would silently drop them there (LLD-spring-config §1.1).
-     * Spring evaluates the condition from ASM metadata before it resolves this method's signature, so the
-     * {@code ObjectMapper} reference is safe even when Jackson is absent.
+     * No Jackson type appears in this method's signature, of either generation: an application has at most
+     * one of them in the common case, and Spring resolves the signature of every method of this class.
      */
     @Bean
-    @ConditionalOnClass(name = OBJECT_MAPPER)
+    @Conditional(OnJacksonCondition.class)
     @ConditionalOnMissingBean(PayloadSerializer.class)
-    PayloadSerializer tandemPayloadSerializer(ObjectProvider<ObjectMapper> objectMapper) {
-        return new JacksonPayloadSerializer(objectMapper.getIfAvailable(ObjectMapper::new));
+    PayloadSerializer tandemPayloadSerializer(ConfigurableListableBeanFactory beanFactory, Environment environment) {
+        return JacksonPayloadSerializers.forApplication(beanFactory, environment);
     }
 
     /**

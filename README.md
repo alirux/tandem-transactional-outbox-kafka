@@ -361,7 +361,9 @@ pins), not every intermediate release.
 the default JSON binding to **Jackson 3** starting at **4.0.0**, so the module compiles against
 Jackson's *annotations* only and works on either binding. Verified with Jackson 3 on 4.1.x (automated)
 and 4.0.x (checked by hand), and with Jackson 2 on 4.x for applications that opt back into it via
-`spring-boot-jackson2`.
+`spring-boot-jackson2`. `tandem-spring-producer`'s default payload serializer runs on either binding
+too, with the mapper the application renders HTTP with; it is tested on a stock Boot 4.1.x classpath and
+on one carrying both generations.
 
 ## Usage
 

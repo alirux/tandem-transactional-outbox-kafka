@@ -22,6 +22,11 @@ dependencies {
     // and Jackson stays compile-only, so neither the compile baseline nor the published footprint
     // changes. The application still binds its own Jackson at runtime.
     compileOnly(platform(libs.jackson.bom))
+    // Jackson 3, the binding a stock Boot 4 application carries (LLD-spring-config §1.3), for the same optional
+    // serializer: compile-only against the lowest Jackson 3 a supported Boot line manages, named only by a class
+    // that is loaded once Jackson 3 is known to be present.
+    compileOnly(libs.jackson3.databind)
+    compileOnly(platform(libs.jackson3.bom))
     // Optional distributed-trace-context bridge — auto-configured only when the application already runs
     // Micrometer Tracing (HLD-tracing.md §5); never forced, hence compile-only.
     compileOnly(libs.micrometer.tracing)
@@ -147,4 +152,71 @@ val bootFourTest = tasks.register<Test>("bootFourTest") {
 
 tasks.named("check") {
     dependsOn(bootLatestThreeTest, bootFourTest)
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Jackson 3 gate (LLD-spring-config §1.3): the classpaths the matrix above cannot reach.
+//
+// Every task above runs with Jackson 2 alone, because the shared test sources are written against it. A
+// stock Boot 4 application carries Jackson 3 and no Jackson 2 databind, and a Boot 4 application that opts
+// back into Jackson 2 carries both, so the default serializer's choice of generation (LLD-spring-producer
+// §2.1) is tested here on a minimal source set of its own, compiled with Jackson 2's databind excluded so
+// that no test in it can name a Jackson 2 type. The same classes run twice:
+//   jacksonThreeTest   Jackson 2's databind excluded at runtime too: the stock Boot 4 classpath, asserted
+//   jacksonBothTest    plus spring-boot-jackson2 and the Jackson 2 databind it brings: both generations
+// Each test class is tagged with the classpath it needs. The latest 4.x line only, as in tandem-admin: the
+// choice depends on which generation is present, not on which Jackson 3 minor.
+// ---------------------------------------------------------------------------------------------------
+val jacksonThree = sourceSets.create("jacksonThreeTest") {
+    compileClasspath += mainOutput
+    runtimeClasspath += mainOutput
+}
+
+configurations["jacksonThreeTestCompileClasspath"].exclude(
+        group = "com.fasterxml.jackson.core", module = "jackson-databind")
+configurations["jacksonThreeTestRuntimeClasspath"].exclude(
+        group = "com.fasterxml.jackson.core", module = "jackson-databind")
+
+val jacksonBothTestRuntimeClasspath: Configuration by configurations.creating
+
+dependencies {
+    "jacksonThreeTestImplementation"(platform(libs.spring.boot.dependencies.v4))
+    "jacksonThreeTestImplementation"(project(":tandem-jdbc"))
+    "jacksonThreeTestImplementation"(project(":tandem-test"))
+    "jacksonThreeTestImplementation"(libs.spring.boot.autoconfigure)
+    "jacksonThreeTestImplementation"(libs.spring.boot.jackson)
+    "jacksonThreeTestImplementation"(libs.spring.boot.test)
+    "jacksonThreeTestImplementation"(libs.spring.tx)
+    "jacksonThreeTestImplementation"(libs.spring.jdbc)
+    "jacksonThreeTestImplementation"(libs.jackson3.databind)
+    "jacksonThreeTestImplementation"(libs.slf4j.api)
+    "jacksonThreeTestImplementation"(platform(libs.junit.bom))
+    "jacksonThreeTestImplementation"(libs.junit.jupiter)
+    "jacksonThreeTestImplementation"(libs.assertj.core)
+    "jacksonThreeTestRuntimeOnly"(libs.junit.platform.launcher)
+
+    jacksonBothTestRuntimeClasspath(platform(libs.spring.boot.dependencies.v4))
+    jacksonBothTestRuntimeClasspath(libs.spring.boot.jackson2)
+}
+
+val jacksonThreeTest = tasks.register<Test>("jacksonThreeTest") {
+    description = "Runs the default serializer's tests on a stock Spring Boot 4 classpath (Jackson 3 only)."
+    group = "verification"
+    testClassesDirs = jacksonThree.output.classesDirs
+    classpath = jacksonThree.runtimeClasspath
+    useJUnitPlatform { includeTags("jackson3-only") }
+    shouldRunAfter(tasks.named("test"))
+}
+
+val jacksonBothTest = tasks.register<Test>("jacksonBothTest") {
+    description = "Runs the default serializer's tests on a Spring Boot 4 classpath carrying both Jackson generations."
+    group = "verification"
+    testClassesDirs = jacksonThree.output.classesDirs
+    classpath = files(jacksonThree.runtimeClasspath, jacksonBothTestRuntimeClasspath)
+    useJUnitPlatform { includeTags("both-jackson-generations") }
+    shouldRunAfter(tasks.named("test"))
+}
+
+tasks.named("check") {
+    dependsOn(jacksonThreeTest, jacksonBothTest)
 }

@@ -310,7 +310,11 @@ gates you must keep passing: `JacksonFootprintTest` (reads the compiled classes,
 reference — the original defect lived in a `@Bean` *signature*, where a source read does not see it) and
 the **`jacksonThreeTest` source set**, run on both 4.x lines with Jackson 2 excluded. Note that
 `bootFourTest` deliberately keeps Jackson 2 on its classpath — it covers the opt-in cell, not a stock Boot
-4 application. Full detail and the measurements: LLD-spring-config §1.3.
+4 application. Full detail and the measurements: LLD-spring-config §1.3. **The exception is a module
+whose job is to call the application's mapper**: `tandem-spring-producer`'s default `PayloadSerializer`
+names both generations' databind, each in a class of its own loaded only once that generation is present,
+never in a bean signature, and has gates of the same shape (`jacksonThreeTest` on the stock classpath,
+`jacksonBothTest` with both generations; LLD-spring-producer §2.1).
 
 ## Adding a module — the registration checklist
 

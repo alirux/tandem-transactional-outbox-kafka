@@ -8,9 +8,12 @@ import com.codingful.tandem.core.port.PayloadSerializer;
 import com.codingful.tandem.core.port.TracePropagator;
 import com.codingful.tandem.test.InMemoryOutbox;
 import com.codingful.tandem.test.spring.OptionalLibraryConditions;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,9 @@ import org.springframework.transaction.PlatformTransactionManager;
  */
 class TandemProducerAutoConfigurationTest {
 
+    private record OrderPlaced(String orderId) {
+    }
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TandemProducerAutoConfiguration.class));
 
@@ -41,7 +47,8 @@ class TandemProducerAutoConfigurationTest {
     @Test
     void GIVEN_an_application_without_tracing_jackson_or_aspectj_WHEN_the_write_sides_bean_conditions_are_read_THEN_every_one_is_readable() {
         assertThat(OptionalLibraryConditions.unreadableWithout(TandemProducerAutoConfiguration.class,
-                "io.micrometer.tracing.", "com.fasterxml.jackson.databind.", "org.aspectj.")).isEmpty();
+                "io.micrometer.tracing.", "com.fasterxml.jackson.databind.", "tools.jackson.", "org.aspectj."))
+                .isEmpty();
     }
 
     @Test
@@ -80,6 +87,25 @@ class TandemProducerAutoConfigurationTest {
                 .withBean(OutboxRepository.class, InMemoryOutbox::new)
                 .run(context -> assertThat(context.getBean(PayloadSerializer.class))
                         .isInstanceOf(JacksonPayloadSerializer.class));
+    }
+
+    @Test
+    void GIVEN_the_applications_own_object_mapper_WHEN_an_object_payload_is_serialized_THEN_that_mapper_writes_it() {
+        ObjectMapper applicationMapper = new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        runner.withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .withBean(ObjectMapper.class, () -> applicationMapper)
+                .run(context -> assertThat(new String(context.getBean(PayloadSerializer.class)
+                        .serialize(new OrderPlaced("order-42")), StandardCharsets.UTF_8))
+                        .isEqualTo("{\"order_id\":\"order-42\"}"));
+    }
+
+    @Test
+    void GIVEN_no_jackson_of_either_generation_WHEN_the_context_starts_THEN_no_serializer_is_contributed() {
+        runner.withClassLoader(new FilteredClassLoader("com.fasterxml.jackson.databind.", "tools.jackson.databind."))
+                .withBean(DataSource.class, NoopDataSource::new)
+                .withBean(OutboxRepository.class, InMemoryOutbox::new)
+                .run(context -> assertThat(context).doesNotHaveBean(PayloadSerializer.class));
     }
 
     @Test

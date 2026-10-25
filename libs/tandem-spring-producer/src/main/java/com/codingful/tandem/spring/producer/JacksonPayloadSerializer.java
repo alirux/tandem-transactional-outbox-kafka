@@ -5,12 +5,14 @@ import com.codingful.tandem.core.port.PayloadSerializer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Objects;
+import org.springframework.beans.factory.BeanFactory;
 
 /**
- * Jackson-backed {@link PayloadSerializer} — the optional object-payload path for the write-side tiers
- * (LLD-spring-producer §2). It is auto-configured only when Jackson is on the consumer's classpath and
- * is never forced, so the {@code byte[]} path stays dependency-free; it reuses the application's own
- * {@code ObjectMapper} when one exists.
+ * Jackson 2 ({@code com.fasterxml.jackson}) {@link PayloadSerializer}, the optional object-payload path for
+ * the write-side tiers on the generation Spring Boot 3 carries (LLD-spring-producer §2). It is
+ * auto-configured only when Jackson is on the consumer's classpath and is never forced, so the
+ * {@code byte[]} path stays dependency-free; {@link JacksonPayloadSerializers} decides between it and
+ * {@link Jackson3PayloadSerializer}.
  */
 final class JacksonPayloadSerializer implements PayloadSerializer {
 
@@ -24,6 +26,16 @@ final class JacksonPayloadSerializer implements PayloadSerializer {
      */
     JacksonPayloadSerializer(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+    }
+
+    /** The serializer on the application's {@code ObjectMapper} bean, or {@code null} when it has none. */
+    static PayloadSerializer onApplicationMapper(BeanFactory beanFactory) {
+        ObjectMapper mapper = beanFactory.getBeanProvider(ObjectMapper.class).getIfAvailable();
+        return mapper == null ? null : new JacksonPayloadSerializer(mapper);
+    }
+
+    static PayloadSerializer onDefaultMapper() {
+        return new JacksonPayloadSerializer(new ObjectMapper());
     }
 
     @Override

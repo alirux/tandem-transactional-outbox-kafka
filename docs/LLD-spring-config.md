@@ -1,6 +1,6 @@
 # Tandem — LLD: Spring modules & configuration contract (`tandem-spring-producer`, `tandem-spring-relay`)
 
-**Version:** 1.6
+**Version:** 1.7
 **Status:** Implemented and released — both modules built and tested against Boot 3.3.13, **3.5.16**, **and** 4.1.1
 **Companion to:** [HLD.md](HLD.md) §3.1, §3.2, §10.1; [LLD-jdbc.md](LLD-jdbc.md); [LLD-kafka.md](LLD-kafka.md); [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md)
 
@@ -276,6 +276,16 @@ verified to behave identically on Jackson 2.17.3 and Jackson 3.1.4, producing by
 table above, which is a real deployment — not a stock one. Reading it as "Boot 4 is covered" is
 exactly the mistake that let a defect ship: `tandem-admin` 0.6.0 could not start on *any* 4.x line,
 and every task on the build was green.
+
+**A module whose job is to call the application's mapper names both databinds instead.**
+`tandem-spring-producer`'s default `PayloadSerializer` exists to serialize with the mapper the application
+configured, so it cannot stay on the annotations. It names each generation's databind in a class of its
+own, loaded only once that generation is present, keeps every Jackson type out of its bean signatures, and
+chooses the generation by the rule of [LLD-spring-producer.md](LLD-spring-producer.md) §2.1. It compiles
+against the lowest Jackson 3 a supported Boot line manages (3.0.2, from Boot 4.0.0), and has a gate of the
+same shape: a `jacksonThreeTest` source set compiled without Jackson 2's databind, run twice, by
+`jacksonThreeTest` on the stock classpath (asserted) and by `jacksonBothTest` with `spring-boot-jackson2`
+added, both with Spring Boot's real Jackson autoconfigurations.
 
 ---
 

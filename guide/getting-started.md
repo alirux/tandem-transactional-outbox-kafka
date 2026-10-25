@@ -264,8 +264,8 @@ which is always present. The two alternatives, `seq(long)` and `managedSeq()`, a
     }
     ```
 
-    The object is serialized with your application's Jackson `ObjectMapper`, so Jackson 2 must be
-    on the classpath; if it is not, or you use another JSON library, register your own
+    The object is serialized with your application's Jackson mapper (Jackson 3 on Spring Boot 4,
+    Jackson 2 on Spring Boot 3); if you use another JSON library, register your own
     `PayloadSerializer` bean. Two more ways to write exist (`@TransactionalOutbox` and Spring
     application events); the
     [Adoption Guide](adoption.md#31-which-write-side-tier) helps you pick between all four.

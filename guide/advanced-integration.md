@@ -241,17 +241,23 @@ public interface PayloadSerializer {
 }
 ```
 
-Tandem contributes a Jackson serializer, but only when Jackson 2's `ObjectMapper` is on the classpath,
-and it reuses your application's `ObjectMapper` bean when there is one. That matters on **Spring Boot
-4**: a stock Boot 4 application brings Jackson 3, which is a different library, so unless you add
-Jackson 2 back (`spring-boot-jackson2`) there is no default serializer. Then either build the message
-yourself and pass the bytes, or supply your own serializer as a bean:
+Tandem contributes a Jackson serializer whenever Jackson is on the classpath, Jackson 2 or Jackson 3,
+and it serializes with **the mapper your application renders its HTTP responses with**, so the payload
+follows the JSON settings you already have (`spring.jackson.*`, your own mapper bean):
+
+- On **Spring Boot 4** that is Jackson 3's `JsonMapper`. If you opted back into Jackson 2
+  (`spring-boot-jackson2`) and set `spring.http.converters.preferred-json-mapper=jackson2`, it is
+  Jackson 2's `ObjectMapper` instead, as for Spring's own converters.
+- On **Spring Boot 3** it is your `ObjectMapper`.
+- With no mapper bean at all, Tandem uses a plain mapper of the generation on the classpath.
+
+To serialize some other way, supply your own serializer as a bean:
 
 ```java
 @Bean
-PayloadSerializer payloadSerializer(tools.jackson.databind.json.JsonMapper mapper) {
+PayloadSerializer payloadSerializer(MyCodec codec) {
     return new PayloadSerializer() {
-        public byte[] serialize(Object payload) { return mapper.writeValueAsBytes(payload); }
+        public byte[] serialize(Object payload) { return codec.toJson(payload); }
         public String contentType() { return "application/json"; }
     };
 }
