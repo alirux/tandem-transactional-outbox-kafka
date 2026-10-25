@@ -38,10 +38,12 @@ Everything else in this guide is additive, opt-in, or has a documented workaroun
 
 **Check your existing write path against these four shapes**, most common first:
 
-1. **You already take a pessimistic lock or an optimistic version check on the aggregate root for
-   every mutating transaction.** Your existing locking already serializes writers, so Tandem's
-   ordering guarantee holds for free the moment you insert the outbox row inside the same
-   transaction.
+1. **Every mutating transaction already locks the aggregate root before the outbox insert.** A
+   pessimistic lock (`SELECT … FOR UPDATE`, JPA's `PESSIMISTIC_WRITE`) does, and so does an
+   optimistic version check, but only once its `UPDATE` has reached the database. Your existing
+   locking already serializes writers, so Tandem's ordering guarantee holds for free the moment you
+   insert the outbox row inside the same transaction. A JPA `@Version` checked only when the
+   transaction flushes at commit is not this case: it is case 2.
 2. **You use a JPA `@Version` (or equivalent ORM optimistic lock) on the aggregate root.** Check
    *when* your write-side code reads the version relative to the flush. Hibernate (and most JPA
    providers) advance `@Version` at **flush**, not at the point you call the mutator method, so
@@ -70,6 +72,12 @@ Everything else in this guide is additive, opt-in, or has a documented workaroun
     two concurrent transactions on the same aggregate, assert they publish in the order they were
     meant to. A passing functional suite proves nothing here: `UNIQUE(aggregate_id, seq)` and the
     head-of-chain check both stay silent on a reorder that happened only in commit timing.
+
+    On Spring Boot and JPA, the
+    [JPA sample](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/examples/tandem-sample-jpa/README.md)
+    has that test written out (`WriteOrderingIT`): root locks taken in a stable order, the
+    `@Version` read after a flush, and cases 2 and 3 as failing counterexamples, against a real
+    PostgreSQL.
 
 ---
 
