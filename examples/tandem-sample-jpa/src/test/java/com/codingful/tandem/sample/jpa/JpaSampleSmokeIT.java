@@ -55,7 +55,7 @@ class JpaSampleSmokeIT {
         var seen = new HashSet<String>();
         try (var consumer = infrastructure.newConsumer("jpa-smoke-" + UUID.randomUUID(), DemoContainerInitializer.TOPIC)) {
             long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
-            while (seen.size() < 10 && System.nanoTime() < deadline) {
+            while (seen.size() < 12 && System.nanoTime() < deadline) {
                 for (var record : consumer.poll(Duration.ofMillis(200))) {
                     String id = new String(record.headers().lastHeader(CloudEventsHeaders.CE_ID).value(),
                             StandardCharsets.UTF_8);
@@ -67,12 +67,13 @@ class JpaSampleSmokeIT {
             }
         }
         assertThat(delivered).containsOnlyKeys(SampleRunner.SINGLE, SampleRunner.LEFT, SampleRunner.RIGHT,
-                SampleRunner.VERSIONED, SampleRunner.ROLLBACK);
+                SampleRunner.VERSIONED, SampleRunner.ROLLBACK, SampleRunner.CHILDREN);
         assertThat(delivered.get(SampleRunner.SINGLE)).containsExactly(1L, 2L, 3L, 4L);
         assertThat(delivered.get(SampleRunner.LEFT)).containsExactly(1L, 2L);
         assertThat(delivered.get(SampleRunner.RIGHT)).containsExactly(1L, 2L);
         assertThat(delivered.get(SampleRunner.VERSIONED)).containsExactly(1L);
         assertThat(delivered.get(SampleRunner.ROLLBACK)).containsExactly(1L);
+        assertThat(delivered.get(SampleRunner.CHILDREN)).hasSize(2).isSorted().doesNotHaveDuplicates();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sample_order_note WHERE order_id = ?",
                 Long.class, SampleRunner.ROLLBACK)).isEqualTo(1L);
         assertThat(jdbc.queryForObject("SELECT event_sequence FROM sample_order WHERE id = ?",

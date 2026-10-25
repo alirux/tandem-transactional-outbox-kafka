@@ -76,8 +76,8 @@ Everything else in this guide is additive, opt-in, or has a documented workaroun
     On Spring Boot and JPA, the
     [JPA sample](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/examples/tandem-sample-jpa/README.md)
     has that test written out (`WriteOrderingIT`): root locks taken in a stable order, the
-    `@Version` read after a flush, and cases 2 and 3 as failing counterexamples, against a real
-    PostgreSQL.
+    `@Version` read after a flush, case 3 fixed with `lockedWrite()`, and cases 2 and 3 as failing
+    counterexamples, against a real PostgreSQL.
 
 ---
 

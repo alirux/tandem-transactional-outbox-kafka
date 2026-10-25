@@ -53,7 +53,7 @@ class WriteOrderingIT {
     @Test
     void GIVEN_one_aggregate_WHEN_writers_overlap_THEN_the_second_insert_waits_for_the_first_commit() throws Exception {
         String id = create();
-        concurrent(List.of(id), List.of(id));
+        concurrent(List.of(id), () -> orders.append(List.of(id)), () -> orders.append(List.of(id)));
         assertThat(sequences(id)).containsExactly(1L, 2L);
     }
 
@@ -61,31 +61,32 @@ class WriteOrderingIT {
     void GIVEN_two_aggregates_WHEN_commands_reverse_their_order_THEN_both_streams_keep_their_sequence() throws Exception {
         String a = create();
         String b = create();
-        concurrent(List.of(a, b), List.of(b, a));
+        concurrent(List.of(a, b), () -> orders.append(List.of(a, b)), () -> orders.append(List.of(b, a)));
         assertThat(sequences(a)).containsExactly(1L, 2L);
         assertThat(sequences(b)).containsExactly(1L, 2L);
     }
 
-    private void concurrent(List<String> first, List<String> second) throws Exception {
+    /** Holds the first writer open and checks inside PostgreSQL that the second waits for it. */
+    private void concurrent(List<String> writtenByFirst, Runnable first, Runnable second) throws Exception {
         var inserted = new CountDownLatch(1);
         var commit = new CountDownLatch(1);
         var secondPid = new CompletableFuture<Integer>();
         var workers = Executors.newFixedThreadPool(2);
         try {
             var one = workers.submit(() -> transactions.executeWithoutResult(status -> {
-                orders.append(first);
+                first.run();
                 inserted.countDown();
                 await(commit);
             }));
             assertThat(inserted.await(15, TimeUnit.SECONDS)).isTrue();
             var two = workers.submit(() -> transactions.executeWithoutResult(status -> {
                 secondPid.complete(PostgresLocks.backendPid(jdbc));
-                orders.append(second);
+                second.run();
             }));
             int pid = secondPid.get(15, TimeUnit.SECONDS);
             assertThat(PostgresLocks.awaitBlocked(jdbc, pid, Duration.ofSeconds(15))).isTrue();
             assertThat(two.isDone()).isFalse();
-            for (String id : first) assertThat(sequences(id)).isEmpty();
+            for (String id : writtenByFirst) assertThat(sequences(id)).isEmpty();
             commit.countDown();
             one.get(15, TimeUnit.SECONDS);
             two.get(15, TimeUnit.SECONDS);
@@ -156,6 +157,13 @@ class WriteOrderingIT {
         assertThat(sequences(id)).containsExactly(jdbc.queryForObject(
                 "SELECT version FROM sample_order WHERE id = ?", Long.class, id));
         assertThat(sequences(id)).containsExactly(1L);
+    }
+
+    @Test
+    void GIVEN_child_only_writers_with_tandems_aggregate_lock_WHEN_they_overlap_THEN_the_second_waits_and_numbers_follow_commit_order() throws Exception {
+        String id = create();
+        concurrent(List.of(id), () -> orders.appendChildOnly(id), () -> orders.appendChildOnly(id));
+        assertThat(sequences(id)).hasSize(2).isSorted().doesNotHaveDuplicates();
     }
 
     @Test

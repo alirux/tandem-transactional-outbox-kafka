@@ -35,6 +35,7 @@ class SampleRunner implements CommandLineRunner {
     static final String RIGHT = "order:right";
     static final String VERSIONED = "order:versioned";
     static final String ROLLBACK = "order:rollback";
+    static final String CHILDREN = "order:children";
 
     private final OrderService orders;
     private final JdbcTemplate jdbc;
@@ -61,13 +62,18 @@ class SampleRunner implements CommandLineRunner {
         System.out.println("  @Version is persistence metadata; it is not a counter for every event.");
 
         System.out.println("\n► Concurrent transactions on one aggregate");
-        concurrent(List.of(SINGLE), List.of(SINGLE));
+        concurrent(() -> orders.append(List.of(SINGLE)), () -> orders.append(List.of(SINGLE)));
         System.out.println("  The next two revisions are 3 and 4, in the order of the serialized writes.");
 
         System.out.println("\n► Concurrent transactions mentioning two aggregates in opposite order");
-        concurrent(List.of(LEFT, RIGHT), List.of(RIGHT, LEFT));
+        concurrent(() -> orders.append(List.of(LEFT, RIGHT)), () -> orders.append(List.of(RIGHT, LEFT)));
         System.out.println("  Both commands lock the complete root set in sorted ID order before writing.");
         System.out.println("  Each stream has revisions 1 and 2; independent streams have no global order.");
+
+        System.out.println("\n► Concurrent writers that only add children, with Tandem's aggregate lock");
+        concurrent(() -> orders.appendChildOnly(CHILDREN), () -> orders.appendChildOnly(CHILDREN));
+        System.out.println("  No root row is locked: lockedWrite() locks the aggregate id instead.");
+        System.out.println("  managedSeq() numbers each event after that lock, so seq follows commit order.");
 
         System.out.println("\n► A separate stream using the flushed JPA version");
         orders.confirmWithVersion(VERSIONED);
@@ -88,32 +94,32 @@ class SampleRunner implements CommandLineRunner {
         printOutboxRows();
         consumeAndVerify();
         System.out.println("\nDone. The integration tests also demonstrate stale-version collisions and");
-        System.out.println("child-only writes that reorder when the shared root lock is missing.");
+        System.out.println("child-only writes that reorder when no lock serializes them.");
         printAdminApiHints(manufactureAFailedRow());
     }
 
     /** Hold the first transaction open and observe the second waiting inside PostgreSQL. */
-    private void concurrent(List<String> first, List<String> second) throws Exception {
+    private void concurrent(Runnable first, Runnable second) throws Exception {
         var inserted = new CountDownLatch(1);
         var commit = new CountDownLatch(1);
         var secondPid = new CompletableFuture<Integer>();
         var workers = Executors.newFixedThreadPool(2);
         try {
             var one = workers.submit(() -> transactions.executeWithoutResult(status -> {
-                orders.append(first);
+                first.run();
                 inserted.countDown();
                 await(commit);
             }));
             require(inserted.await(15, TimeUnit.SECONDS), "First writer did not reach its outbox insert");
             var two = workers.submit(() -> transactions.executeWithoutResult(status -> {
                 secondPid.complete(PostgresLocks.backendPid(jdbc));
-                orders.append(second);
+                second.run();
             }));
             int pid = secondPid.get(15, TimeUnit.SECONDS);
             require(PostgresLocks.awaitBlocked(jdbc, pid, Duration.ofSeconds(15)),
                     "Second writer did not wait for the first transaction's lock");
             System.out.println("  PostgreSQL confirms: T2 is blocked on T1's lock before its outbox insert.");
-            System.out.println("  Committing T1 now releases T2; only commit or rollback releases a row lock.");
+            System.out.println("  Committing T1 now releases T2; only commit or rollback releases the lock.");
             commit.countDown();
             one.get(15, TimeUnit.SECONDS);
             two.get(15, TimeUnit.SECONDS);
@@ -142,10 +148,11 @@ class SampleRunner implements CommandLineRunner {
         var seen = new HashSet<String>();
         try (var consumer = infrastructure.newConsumer("jpa-demo-" + UUID.randomUUID(), DemoContainerInitializer.TOPIC)) {
             long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
-            int expectedCount = expected.values().stream().mapToInt(List::size).sum();
+            int expectedCount = expected.values().stream().mapToInt(List::size).sum() + 2;
             while (seen.size() < expectedCount && System.nanoTime() < deadline) {
                 for (var record : consumer.poll(Duration.ofMillis(200))) {
-                    require(expected.containsKey(record.key()), "Unexpected aggregate in demo topic");
+                    require(expected.containsKey(record.key()) || CHILDREN.equals(record.key()),
+                            "Unexpected aggregate in demo topic");
                     String eventId = new String(record.headers().lastHeader(CloudEventsHeaders.CE_ID).value(),
                             StandardCharsets.UTF_8);
                     // Delivery is at least once. Deduplicate by event id, never by seq.
@@ -157,10 +164,14 @@ class SampleRunner implements CommandLineRunner {
                 }
             }
         }
-        require(expected.equals(delivered), "Kafka delivery did not match expected per-aggregate revisions: " + delivered);
         System.out.println("\n  Observed sequence per aggregate (without sorting):");
         delivered.forEach((id, seqs) -> System.out.printf("    %-20s → ce_seq %s%n", id, seqs));
-        System.out.println("\n  ✓ All 10 committed events arrived in per-aggregate sequence order.");
+        // Tandem's sequence is shared by every managed stream: increasing per aggregate, not dense.
+        List<Long> children = delivered.remove(CHILDREN);
+        require(children != null && children.size() == 2 && children.get(0) < children.get(1),
+                "Child-only events did not arrive in managed sequence order: " + children);
+        require(expected.equals(delivered), "Kafka delivery did not match expected per-aggregate revisions: " + delivered);
+        System.out.println("\n  ✓ All 12 committed events arrived in per-aggregate sequence order.");
         System.out.println("  Rolled-back events were absent. Duplicate deliveries are deduplicated by event ID.");
     }
 

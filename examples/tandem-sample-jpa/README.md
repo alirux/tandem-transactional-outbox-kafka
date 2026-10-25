@@ -19,20 +19,22 @@ real Kafka consumer what the autoconfigured relay delivered:
    second is waiting for the first root lock before the runner releases the first.
 3. Two overlapping commands mentioning two aggregates in opposite order, showing
    why the complete lock set is acquired in stable order.
-4. A separate stream using the JPA version after flush, followed by a no-op.
-5. A rollback after outbox inserts, followed by a successful command reusing revision 1.
-6. Outbox rows in insertion order, with their current delivery status.
-7. All ten committed events consumed from Kafka in their actual delivery order,
+4. Two overlapping transactions that only add children and lock no root row:
+   Tandem's per-aggregate lock makes the second wait instead.
+5. A separate stream using the JPA version after flush, followed by a no-op.
+6. A rollback after outbox inserts, followed by a successful command reusing revision 1.
+7. Outbox rows in insertion order, with their current delivery status.
+8. All twelve committed events consumed from Kafka in their actual delivery order,
    checking each aggregate's expected revisions. Duplicate deliveries are removed by
    event ID, consistent with Tandem's at-least-once contract.
-8. A clearly labelled simulated delivery failure and ready-to-run Admin API commands
+9. A clearly labelled simulated delivery failure and ready-to-run Admin API commands
    for inspecting messages, replaying or discarding the failed row and controlling the relay.
 
 A lock timeout, missing delivery or wrong sequence fails the run. Afterwards the
 application keeps running as a web server and prints Admin API commands on port 8080
 (`SERVER_PORT=8081` runs it beside `tandem-sample-spring`); Ctrl+C stops it. The
 `order:rollback` row it marks FAILED is a simulated delivery failure, unrelated to the
-JPA rollback of step 5.
+JPA rollback of step 6.
 
 `check` runs the Docker-bound tests on real PostgreSQL and Kafka: `WriteOrderingIT`
 holds the concurrency and rollback scenarios, unsafe counterexamples included, with
@@ -133,6 +135,26 @@ before flushing and expect a later flush to update that event. Two events from o
 flush still share one JPA version. If each event needs a sequence, use a dedicated
 revision as above, or choose a different sequence mode explicitly.
 
+## When writers never touch the root
+
+Some writers only add children (an order line, a note) and never update or lock the
+root. They have no shared row to serialize on, and flushing does not help. The test
+counterexample below shows the result: a later event commits while an earlier one is
+still invisible. `appendChildOnly` shows the fix that needs no domain row at all:
+
+1. `lockedWrite()` makes Tandem take a transaction-scoped PostgreSQL advisory lock on
+   the aggregate ID right before the outbox insert, held until commit. A concurrent
+   writer to the same aggregate waits there, so commit order equals insert order.
+2. `managedSeq()` lets the database number the event at that insert, after the lock.
+   An application-assigned `seq` computed before the call would be read too early.
+   Tandem's sequence is shared by every managed stream, so the numbers increase per
+   aggregate but are not dense: consumers must not expect `1, 2, 3`.
+
+It is opt-in per message, because it turns concurrent writers to one aggregate into
+waiters. Every writer of that aggregate must use it: one path without it is not
+serialized. Keep it on its own stream, as here: a stream takes one sequence contract.
+`unsequenced()` also combines with `lockedWrite()` when consumers need no `ce_seq`.
+
 ## Warnings made observable
 
 | Scenario in `WriteOrderingIT` | Observable result |
@@ -145,6 +167,7 @@ revision as above, or choose a different sequence mode explicitly.
 | State change followed by a no-op | One row carries the flushed JPA version. |
 | **Unsafe:** two events read an unflushed version | `DuplicateSeqException`; business state and outbox roll back. |
 | **Unsafe:** only children are flushed, no root lock | The second writer commits `seq=2` while `seq=1` is invisible. A polling relay cannot wait for an invisible predecessor. |
+| Children only, with `lockedWrite()` and `managedSeq()` | PostgreSQL reports the second session blocked on the advisory lock; nothing is visible before the first commits; both numbers increase in insertion order. |
 
 The negative examples live only in the test. The concurrency checks wait for
 `pg_blocking_pids`, with bounded deadlines, instead of assuming a sleep proves a
@@ -159,13 +182,11 @@ conflict requires retry; it does not make failed commands succeed automatically.
 Flushing only children locks their rows, not a shared aggregate root.
 
 `managedSeq()` and `unsequenced()` change the number contract, not write
-serialization. `managedSeq()` is not a dense per-aggregate counter;
-`unsequenced()` publishes no `ce_seq`. `lockedWrite()` can serialize outbox writers
-without a shared root, provided **all** writers opt into the same protocol. It
-cannot refresh stale business state or fix application-assigned numbers calculated
-before its lock. Do not mix root-first and advisory-first lock acquisition across
-paths; for multi-aggregate work acquire the complete lock set consistently. This
-example uses root locks throughout and does not need `lockedWrite()`.
+serialization. `lockedWrite()` serializes outbox writers, but it cannot refresh
+business state read before its lock or fix numbers calculated before it. Do not mix
+root-first and advisory-first lock acquisition across paths; for multi-aggregate work
+acquire the complete lock set consistently. Root locks remain the default here;
+`lockedWrite()` is for the writers that have no root to lock.
 
 ## Further reading
 

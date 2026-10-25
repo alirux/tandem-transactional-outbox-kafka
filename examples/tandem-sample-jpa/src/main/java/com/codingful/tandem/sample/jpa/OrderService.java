@@ -53,6 +53,19 @@ public class OrderService {
         }
     }
 
+    /**
+     * Separate stream for writers that only add children and never lock the root: Tandem's
+     * per-aggregate lock serialises them instead, and the number is assigned after that lock.
+     */
+    @Transactional
+    public void appendChildOnly(String id) {
+        entities.persist(new OrderNote(id));
+        // The lock is taken inside the insert, so an application-assigned seq would be read too early.
+        outbox.insert(OutboxMessage.builder().aggregateType("Order").aggregateId(id)
+                .type("OrderNoteAdded").managedSeq().lockedWrite()
+                .payload("{}".getBytes(StandardCharsets.UTF_8)).build());
+    }
+
     private PurchaseOrder lock(String id) {
         PurchaseOrder order = entities.find(PurchaseOrder.class, id, LockModeType.PESSIMISTIC_WRITE);
         if (order == null) {

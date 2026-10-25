@@ -386,7 +386,8 @@ method surface for a mechanism most callers, per §3.3 below, do not need.
 
 [`examples/tandem-sample-jpa`](../examples/tandem-sample-jpa/README.md) runs these rules on Spring Boot 4
 and Hibernate against a real PostgreSQL: root locks taken in sorted order, a domain event revision per
-event, the post-flush JPA version alternative, and the unsafe variants as failing counterexamples.
+event, the post-flush JPA version alternative, `lockedWrite()` for writers that only add children, and
+the unsafe variants as failing counterexamples.
 
 ---
 
