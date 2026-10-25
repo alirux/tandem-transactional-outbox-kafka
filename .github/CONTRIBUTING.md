@@ -186,6 +186,7 @@ directory.
 | `tandem-relay` | The standalone relay application: a Spring Boot application that hosts the relay and, optionally, the Admin API, shipped as a container image and an executable jar. Not published to Maven Central, and versioned independently of the library (`relay-v*`). |
 | `tandem-sample` | Example application (plain Java), not published. |
 | `tandem-sample-spring` | Example Spring Boot application, not published. Also hosts the end-to-end Spring smoke test. |
+| `tandem-sample-jpa` | Spring Boot 4 JPA tutorial with concurrent writers and end-to-end Kafka verification, not published. |
 | `tandem-benchmark` | Load-testing harness, not published. |
 | `tandem-coverage` | Aggregates JaCoCo coverage across modules for CI. |
 | [`site`](../site/) | **Not a Gradle module** — the source of [tandem.codingful.com](https://tandem.codingful.com): the landing page and the dereferenceable RFC 9457 problem-type pages the Admin API's error `type` URLs resolve to. Plain HTML/CSS, assembled by `site/build.sh` and deployed by `.github/workflows/pages.yml`; see [site/README.md](../site/README.md). |

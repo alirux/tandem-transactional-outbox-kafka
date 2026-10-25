@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: tandem-sample-jpa
+  main:
+    banner-mode: "off"
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Demo entity tables only. Real applications use reviewed migrations.
+      ddl-auto: create-drop
+
+logging:
+  level:
+    root: WARN
+    com.codingful.tandem: INFO
+
+tandem:
+  admin:
+    enabled: true
+  outbox:
+    bucket-count: 256

@@ -56,7 +56,7 @@ exist to carry. A change that weakens one is breaking, whatever the gates of §5
 
 **Not frozen:** the text of log messages and exception messages, `toString` output, health details,
 timings and throughput, anything in an `internal` package, and the unpublished modules
-(`tandem-sample`, `tandem-sample-spring`, `tandem-benchmark`, `tandem-coverage`). The separately
+(`tandem-sample`, `tandem-sample-spring`, `tandem-sample-jpa`, `tandem-benchmark`, `tandem-coverage`). The separately
 versioned artifacts keep contracts of their own: `tandem-rabbitmq` (LLD-rabbitmq §9), the
 `tandem-relay` image (LLD-relay §7.3) and `tandem-cli` (LLD-cli §9.1).
 

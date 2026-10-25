@@ -495,6 +495,12 @@ leaves one row `FAILED` on purpose, so once its narration ends you can practise 
 and discarding it with `curl` or [`tandem-cli`](cli.md#4-a-worked-case-recovering-a-failed-event)
 against a real outbox. It prints the exact commands, with that row's id.
 
+Writing with JPA/Hibernate on Spring Boot 4? `./examples/tandem-sample-jpa/run.sh` shows how
+concurrent writers to one aggregate keep their events in order: root locks taken in a stable
+order, a sequence per event, and rollback. Its
+[README](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/examples/tandem-sample-jpa/README.md)
+explains each rule.
+
 ---
 
 ## 11. Before you go to production

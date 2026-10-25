@@ -197,7 +197,7 @@ container-dominated, so it runs a **single** time against the baseline. Duplicat
 would double its container startup for little added signal: the binary-compat question it re-answers is
 already covered, far more cheaply, by the context-runner matrix above.
 
-It lives in **`tandem-sample-spring`** — the only module that depends on both Spring modules, so neither
+It lives in **`tandem-sample-spring`** — a module that already depends on both Spring modules, so neither
 published module needs a test dependency on the other, and no module exists solely to host one test. It
 boots the *documented sample application itself*, which makes CI the thing that keeps the published tutorial
 from rotting. Because that module is unpublished it sits outside the shared build convention, so it declares
@@ -212,6 +212,12 @@ transactional resource and a broker, so they are exercised on the baseline only.
 starting the pool is likewise baseline-only, and the `afterName` ordering of §1.1 is *declared* for 4.x
 with nothing asserting it takes effect there. Closing these means running the container-backed tests on
 both lines, which the trade-off above deliberately declines.
+
+`tandem-sample-jpa` narrows them without changing that trade-off: it is a stock Boot 4 application on the
+latest 4.x line, and its integration tests deliver end to end through the autoconfigured relay and roll back
+outbox rows under a `JpaTransactionManager`. They cover the bare `OutboxRepository` tier only, and they are
+that example's own tests, not a cell of the matrix: the Template, annotation and events tiers, and the 4.x
+lines between the baseline and the latest, stay as described above.
 
 ### 1.3 The JSON binding is a second axis — Jackson 2 vs Jackson 3
 

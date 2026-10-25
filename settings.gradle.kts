@@ -30,7 +30,7 @@ val modulesByDirectory = mapOf(
         "tandem-admin",
     ),
     "apps" to listOf("tandem-relay"),
-    "examples" to listOf("tandem-sample", "tandem-sample-spring"),
+    "examples" to listOf("tandem-sample", "tandem-sample-spring", "tandem-sample-jpa"),
     "tools" to listOf("tandem-benchmark", "tandem-coverage"),
 )
 

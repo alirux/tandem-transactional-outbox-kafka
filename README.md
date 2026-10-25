@@ -135,6 +135,14 @@ against an actually-owned bucket:
 ./examples/tandem-sample-spring/run-lease.sh
 ```
 
+Writing with **JPA/Hibernate**? The [JPA sample](examples/tandem-sample-jpa/README.md) runs on Spring
+Boot 4 and shows how concurrent writers to one aggregate stay in order: root locks, lock ordering
+across several aggregates, a sequence per event and rollback, each pinned by a concurrency test.
+
+```bash
+./examples/tandem-sample-jpa/run.sh
+```
+
 Prefer a CLI over hand-built `curl` calls? [`tandem-cli`](apps/tandem-cli/) wraps the same Admin API
 endpoints in discoverable verbs and typed flags. Build it from source and point it at the sample
 (`--base-url` takes the same `.../tandem/admin/v1` prefix the `curl` commands above use):

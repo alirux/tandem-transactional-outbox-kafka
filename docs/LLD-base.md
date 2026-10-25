@@ -52,6 +52,7 @@ library modules, `apps/` for `tandem-relay` (beside the Go `tandem-cli`, which i
 | `tandem-benchmark` | *(not published)* | Internal — load/performance harness (see HLD-load-testing.md) |
 | `tandem-sample` | *(not published)* | Runnable end-to-end tutorial (plain Java, no Spring) |
 | `tandem-sample-spring` | *(not published)* | Runnable Spring Boot tutorial — the write-side tiers plus the autoconfigured relay |
+| `tandem-sample-jpa` | *(not published)* | Spring Boot 4 JPA locking and event sequence tutorial |
 | `tandem-coverage` | *(not published)* | Build-only — the project-wide aggregated JaCoCo report |
 
 ### Dependency graph and vulnerability alerts
@@ -129,6 +130,7 @@ com.codingful.tandem.<module>[.<sub-package>]
 | tandem-benchmark | `com.codingful.tandem.benchmark` |
 | tandem-sample | `com.codingful.tandem.sample` |
 | tandem-sample-spring | `com.codingful.tandem.sample.spring` |
+| tandem-sample-jpa | `com.codingful.tandem.sample.jpa` |
 
 Each published library jar declares its root package as its `Automatic-Module-Name`, the stable name
 an application on the module path requires it by (HLD-api-stability §2). The build derives it from the

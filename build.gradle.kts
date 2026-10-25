@@ -27,7 +27,7 @@ val junitLauncher = libs.junit.platform.launcher
 // only produces the aggregated JaCoCo report (no Java sources, no artifact to publish); tandem-relay is
 // the standalone relay application, distributed as a container image and an executable jar, never as a
 // Maven artifact, and it runs on its own JDK and Spring Boot line (LLD-relay §3).
-val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-benchmark", "tandem-coverage",
+val unpublishedModules = setOf("tandem-sample", "tandem-sample-spring", "tandem-sample-jpa", "tandem-benchmark", "tandem-coverage",
         "tandem-relay")
 
 // Modules that ARE libraries in every other respect — java-library convention, tests, coverage

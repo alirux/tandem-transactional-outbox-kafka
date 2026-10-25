@@ -1,0 +1,3 @@
+# Demo-only infrastructure, discovered by Spring Boot before context refresh.
+org.springframework.context.ApplicationContextInitializer=\
+com.codingful.tandem.sample.jpa.DemoContainerInitializer

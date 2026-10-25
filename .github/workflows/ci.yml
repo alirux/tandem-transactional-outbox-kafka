@@ -68,7 +68,7 @@ jobs:
           # classpath is shipped to operators inside the container image, so an alert on it is about
           # something that is redistributed (LLD-relay §10).
           dependency-graph-include-configurations: ^runtimeClasspath$
-          dependency-graph-exclude-projects: ^:?tandem-(sample|sample-spring|benchmark|coverage)$
+          dependency-graph-exclude-projects: ^:?tandem-(sample|sample-spring|sample-jpa|benchmark|coverage)$
 
       # The integration tests run the relay's jar; this runs its image (LLD-relay §8.3), so a broken
       # Dockerfile or compose example fails here rather than at release time. It packages the pinned jar

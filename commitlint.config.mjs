@@ -12,7 +12,7 @@ export default {
       // Modules, without their tandem- prefix.
       'core', 'jdbc', 'kafka', 'cloudevents', 'admin', 'micrometer', 'tracing-otel', 'rabbitmq',
       'spring-producer', 'spring-relay', 'test', 'bom', 'cli', 'relay', 'sample', 'sample-spring',
-      'benchmark', 'coverage',
+      'sample-jpa', 'benchmark', 'coverage',
       // What lives outside a module.
       'schema', 'site', 'guide', 'deps', 'repo',
     ]],
