@@ -83,12 +83,22 @@ starting at `append`:
 2. Find every root with `PESSIMISTIC_WRITE`, in sorted ID order, before reading the
    revision or modifying children. The roots must already exist: locking a missing
    row is not a portable creation lock. Creation races require a uniqueness policy
-   and retry of the complete creation transaction.
+   and retry of the complete creation transaction. Each lock waits at most
+   `LOCK_TIMEOUT_MS` (the `jakarta.persistence.lock.timeout` hint, which Hibernate
+   applies on PostgreSQL as `SET LOCAL lock_timeout`). Without a timeout PostgreSQL
+   waits forever, and one stuck transaction can hold a pool connection for every
+   writer queued behind it. On timeout PostgreSQL aborts the transaction and the
+   service throws `jakarta.persistence.PessimisticLockException`: Spring translates
+   it to `PessimisticLockingFailureException` only for a `@Repository` bean. With
+   Spring Data the same lock is `@Lock(PESSIMISTIC_WRITE)` plus a `@QueryHints`
+   entry for the timeout.
 3. Append a child note and advance the root's **domain event revision**
    (`eventSequence`) once for each emitted event. Hibernate's `@Version` is separate
    optimistic concurrency metadata. This also supports two events in one command
    and an event that changes no business field on the root. Advancing this revision
-   intentionally dirties the root even for a child-only business operation.
+   intentionally dirties the root even for a child-only business operation. The
+   note maps its order as a lazy `@ManyToOne` backed by a foreign key; the root has
+   no `@OneToMany`, so appending never loads the existing notes.
 4. Insert the outbox row with the revision just allocated. No `flush()` is needed:
    the lock is already held, the revision is read from memory, and domain and
    outbox rows become visible together at commit, whatever order Hibernate sends
@@ -140,7 +150,10 @@ revision as above, or choose a different sequence mode explicitly.
 Some writers only add children (an order line, a note) and never update or lock the
 root. They have no shared row to serialize on, and flushing does not help. The test
 counterexample below shows the result: a later event commits while an earlier one is
-still invisible. `appendChildOnly` shows the fix that needs no domain row at all:
+still invisible. A foreign key does not change that: its check takes only a shared
+key lock on the root, which concurrent child inserts all hold at once.
+`appendChildOnly` shows the fix that needs no domain row lock at all; it attaches the
+note through `getReference`, so the root is neither read nor locked:
 
 1. `lockedWrite()` makes Tandem take a transaction-scoped PostgreSQL advisory lock on
    the aggregate ID right before the outbox insert, held until commit. A concurrent
@@ -161,6 +174,7 @@ serialized. Keep it on its own stream, as here: a stream takes one sequence cont
 | --- | --- |
 | Concurrent writers on one root | PostgreSQL reports the second session blocked; no event is visible before the first commits; insertion order is `[1, 2]`. |
 | Commands mention two roots in opposite order | The second waits; both streams retain `[1, 2]`. |
+| A writer waits longer than the lock timeout | Its command fails with `PessimisticLockException`; its note and outbox row roll back, the first writer's commit is unaffected. |
 | Disjoint roots | B commits while A's row is still invisible. |
 | Repeated child notes, including two in one command | Every event gets a distinct revision: `[1, 2, 3]`. |
 | Failure after outbox inserts | Children, root counter and outbox roll back together; retry starts at `1`. |

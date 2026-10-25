@@ -56,7 +56,7 @@ class SampleRunner implements CommandLineRunner {
     public void run(String... args) throws Exception {
         banner();
         System.out.println("► JPA writes: lock the root, allocate each event revision, insert, commit.");
-        for (String id : List.of(SINGLE, LEFT, RIGHT, VERSIONED, ROLLBACK)) orders.create(id);
+        for (String id : List.of(SINGLE, LEFT, RIGHT, VERSIONED, ROLLBACK, CHILDREN)) orders.create(id);
         orders.append(List.of(SINGLE, SINGLE));
         System.out.println("  Two child notes in one transaction: separate event revisions 1 and 2.");
         System.out.println("  @Version is persistence metadata; it is not a counter for every event.");

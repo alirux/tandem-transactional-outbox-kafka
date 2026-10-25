@@ -8,11 +8,18 @@ import jakarta.persistence.PersistenceContext;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
+    /**
+     * How long a writer waits for an aggregate's lock before its transaction fails. Without it,
+     * PostgreSQL waits forever and one stuck transaction can exhaust the connection pool.
+     */
+    static final int LOCK_TIMEOUT_MS = 2_000;
+
     @PersistenceContext
     private EntityManager entities;
     private final OutboxRepository outbox;
@@ -32,7 +39,7 @@ public class OrderService {
         // the same ordering, even when commands mention the aggregates in reverse order.
         ids.stream().distinct().sorted().forEach(id -> orders.put(id, lock(id)));
         for (String id : ids) {
-            entities.persist(new OrderNote(id));
+            entities.persist(new OrderNote(orders.get(id)));
             // No flush: the lock is already held, and the revision is read from memory, not from
             // anything Hibernate computes at flush. Everything becomes visible together at commit.
             outbox.insert(message(id, orders.get(id).nextEventSequence(), "OrderNoteAdded"));
@@ -59,7 +66,9 @@ public class OrderService {
      */
     @Transactional
     public void appendChildOnly(String id) {
-        entities.persist(new OrderNote(id));
+        // A reference, not a find: the root is neither read nor locked. The foreign key check
+        // takes only a shared key lock on it, which serialises nothing.
+        entities.persist(new OrderNote(entities.getReference(PurchaseOrder.class, id)));
         // The lock is taken inside the insert, so an application-assigned seq would be read too early.
         outbox.insert(OutboxMessage.builder().aggregateType("Order").aggregateId(id)
                 .type("OrderNoteAdded").managedSeq().lockedWrite()
@@ -67,7 +76,9 @@ public class OrderService {
     }
 
     private PurchaseOrder lock(String id) {
-        PurchaseOrder order = entities.find(PurchaseOrder.class, id, LockModeType.PESSIMISTIC_WRITE);
+        // On timeout the transaction fails; retry the whole command in a new one.
+        PurchaseOrder order = entities.find(PurchaseOrder.class, id, LockModeType.PESSIMISTIC_WRITE,
+                Map.of("jakarta.persistence.lock.timeout", LOCK_TIMEOUT_MS));
         if (order == null) {
             throw new IllegalArgumentException("Unknown aggregate id:" + id);
         }

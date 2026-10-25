@@ -1,7 +1,10 @@
 package com.codingful.tandem.sample.jpa;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.UUID;
 
@@ -10,12 +13,15 @@ import java.util.UUID;
 public class OrderNote {
     @Id
     private String id;
-    private String orderId;
+    // No @OneToMany back from the root: appending a note never loads the order's notes.
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id")
+    private PurchaseOrder order;
 
     protected OrderNote() {}
 
-    OrderNote(String orderId) {
+    OrderNote(PurchaseOrder order) {
         this.id = UUID.randomUUID().toString();
-        this.orderId = orderId;
+        this.order = order;
     }
 }

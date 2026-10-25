@@ -8,6 +8,7 @@ import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.port.OutboxRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.PessimisticLockException;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -90,6 +91,35 @@ class WriteOrderingIT {
             commit.countDown();
             one.get(15, TimeUnit.SECONDS);
             two.get(15, TimeUnit.SECONDS);
+        } finally {
+            commit.countDown();
+            workers.shutdownNow();
+            assertThat(workers.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void GIVEN_a_writer_holding_the_lock_WHEN_another_waits_past_the_lock_timeout_THEN_its_command_fails_and_writes_nothing() throws Exception {
+        String id = create();
+        var inserted = new CountDownLatch(1);
+        var commit = new CountDownLatch(1);
+        var workers = Executors.newFixedThreadPool(2);
+        try {
+            var first = workers.submit(() -> transactions.executeWithoutResult(status -> {
+                orders.append(List.of(id));
+                inserted.countDown();
+                await(commit);
+            }));
+            assertThat(inserted.await(15, TimeUnit.SECONDS)).isTrue();
+            var second = workers.submit(() -> orders.append(List.of(id)));
+            // A @Service calling the EntityManager gets JPA's exception; only a @Repository's is translated.
+            assertThatThrownBy(() -> second.get(15, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(PessimisticLockException.class);
+            commit.countDown();
+            first.get(15, TimeUnit.SECONDS);
+            assertThat(sequences(id)).containsExactly(1L);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM sample_order_note WHERE order_id = ?",
+                    Long.class, id)).isEqualTo(1);
         } finally {
             commit.countDown();
             workers.shutdownNow();
@@ -213,7 +243,7 @@ class WriteOrderingIT {
     // Deliberately unsafe counterexample, never used by the application service.
     private void unsafeChildWrite(String id, long seq) {
         var entities = entities();
-        entities.persist(new OrderNote(id));
+        entities.persist(new OrderNote(entities.getReference(PurchaseOrder.class, id)));
         entities.flush();
         context.getBean(OutboxRepository.class).insert(message(id, seq));
     }
