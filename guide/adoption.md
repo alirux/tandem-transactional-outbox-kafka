@@ -316,10 +316,12 @@ flowchart TD
   workers.** It's fixed for the life of the deployment
   ([Known issues](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/README.md#known-issues--limitations)),
   so pick it once deliberately, but the default serves almost every adopter.
-- **`SINGLE` coordination (one relay instance) is the right starting point**, even if your
-  application itself runs many replicas: only the relay's coordination mode matters here, and
-  `LEASE` (multi-instance) is a config flip away later with no schema change beyond the two extra
-  tables from §4.
+- **Count relay instances, not application replicas.** With the relay embedded (the default),
+  every replica of your application hosts one, so an application running several replicas needs
+  `LEASE`. With the relay split into a process of its own, your application can run any number of
+  replicas and only the relay processes count. `SINGLE` is the right starting point while exactly
+  one relay runs, and `LEASE` is a config flip away later with no schema change beyond the two
+  extra tables from §4.
 - **You don't need `tandem-kafka` at all on the write side.** `tandem-jdbc` alone (the write-side
   insert) has no broker dependency; only wherever the relay runs needs a transport adapter,
   `tandem-kafka` or, for RabbitMQ, `tandem-rabbitmq`

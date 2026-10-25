@@ -275,6 +275,12 @@ Two facts make `LEASE` safe to turn on:
     [Observability](observability.md#33-alerts-worth-having)) goes largely blind, with nothing to tell
     you. If more than one relay runs, use `LEASE`.
 
+**Count the relays your deployment actually runs.** With the relay embedded, every replica of your
+application is a relay instance, so scaling the application past one replica means `LEASE`. A rolling
+update counts too: it starts the new pod before stopping the old one, which is two relays for a
+moment. With a single replica under `SINGLE`, deploy it with `strategy: Recreate` on Kubernetes, or
+turn on `LEASE`, which is built for instances coming and going.
+
 The mode is **declared, not detected**, because an instance cannot know whether it is one of several
 without the very table `LEASE` provides. The relay records the mode it runs in, so the
 [Admin API](admin-api.md#16-two-coordination-modes) knows which per-bucket operations apply.

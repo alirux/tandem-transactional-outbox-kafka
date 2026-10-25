@@ -388,7 +388,10 @@ default.
 
 !!! note "Run one relay at a time"
     The default coordination, `SINGLE`, assumes one active relay. Starting a second one against the
-    same database only duplicates work. Running several relays is a separate topic.
+    same database duplicates work and blinds the out-of-order detector. If the relay runs inside
+    your application, every replica of the application is a relay: before you scale it past one
+    replica, or deploy it with a rolling update, read
+    [Reliability](reliability.md#33-single-and-lease).
 
 ### 6.2 Topics
 
