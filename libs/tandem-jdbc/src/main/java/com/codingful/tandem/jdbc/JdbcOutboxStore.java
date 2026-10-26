@@ -3,6 +3,7 @@ package com.codingful.tandem.jdbc;
 import com.codingful.tandem.core.LagSnapshot;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.port.OutboxStore;
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Types;
 import java.time.Duration;
@@ -94,8 +95,14 @@ public final class JdbcOutboxStore implements OutboxStore {
 
     // Backlog = PENDING only: an IN_FLIGHT row is work in progress, and if its relay dies the lease
     // reclaim returns it to PENDING, so it re-enters this reading on its own (HLD §7, §3.5).
+    //
+    // The age is measured on the database's clock, the one that stamped created_at: measured on this
+    // host's, any skew between the two would read as backlog age (§3.2). clock_timestamp(), not now():
+    // now() is fixed when the transaction starts, so a read held up by a busy database would report the
+    // backlog as young as it was when the read began.
     private static final String LAG_SQL =
-            "SELECT count(*) AS pending, min(created_at) AS oldest FROM tandem_outbox WHERE status = 0";
+            "SELECT count(*) AS pending, EXTRACT(EPOCH FROM clock_timestamp() - min(created_at)) AS oldest_age_seconds"
+                    + "  FROM tandem_outbox WHERE status = 0";
 
     // Live, not accumulated: a FAILED row can later move to DISCARDED (admin-only), and the next
     // reading must reflect that — a running total of failure events would never go back down.
@@ -255,6 +262,10 @@ public final class JdbcOutboxStore implements OutboxStore {
     /**
      * Both gauges in one statement, so the count and the oldest row always describe the same instant
      * (§4). Named columns, never {@code SELECT *} (§1.4).
+     *
+     * <p>{@code oldestSince} is placed on this host's clock: the age the database measured, taken back
+     * from this host's now. A caller measuring {@link LagSnapshot#ageSecondsAt} against its own clock
+     * then reads the database's age, whatever the skew between the two hosts.
      */
     @Override
     public Optional<LagSnapshot> lag() {
@@ -262,9 +273,10 @@ public final class JdbcOutboxStore implements OutboxStore {
                 Jdbc.withStatement(conn, LAG_SQL, ps -> Jdbc.withResultSet(ps, rs -> {
                     rs.next();   // an aggregate without GROUP BY always returns exactly one row
                     long pending = rs.getLong(1);
-                    OffsetDateTime oldest = rs.getObject(2, OffsetDateTime.class);   // NULL when nothing is pending
-                    return Optional.of(new LagSnapshot(pending,
-                            Optional.ofNullable(oldest).map(OffsetDateTime::toInstant)));
+                    BigDecimal ageSeconds = rs.getBigDecimal(2);   // NULL when nothing is pending
+                    Optional<Instant> oldestSince = Optional.ofNullable(ageSeconds).map(age -> Instant.now()
+                            .minusNanos(age.movePointRight(9).longValue()));
+                    return Optional.of(new LagSnapshot(pending, oldestSince));
                 })));
     }
 

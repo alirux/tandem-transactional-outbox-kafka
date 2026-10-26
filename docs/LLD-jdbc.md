@@ -421,8 +421,16 @@ interface BucketSource {
   > expiry on the relay-local clock — all lease deadlines and comparisons must go through the DB `now()`.**
   > This holds for `next_attempt_at` too: the relay computes only the *relative* backoff and the store
   > anchors it (`markForRetry(claimed, error, retryDelay)` → `now() + retryDelay`), mirroring how `claimBatch`
-  > passes `rowLease`. `RelayWorker` deliberately holds **no `Clock`**, so a locally-anchored deadline
-  > cannot be reintroduced by accident.
+  > passes `rowLease`. `RelayWorker` holds a `Clock` for one thing only, timestamping an ack for
+  > `publish.latency`, and never computes a deadline from it.
+  >
+  > *Ages are measured on the DB clock too.* `created_at` is stamped by the DB, so the backlog's age
+  > (`lag()` for `lag.age_seconds` and the Admin summary, the per-bucket age of `JdbcRelayQuery`) is
+  > computed in SQL as `clock_timestamp() - min(created_at)`: `now()` is fixed at the start of the
+  > transaction, so a read held up by a busy DB would leave out the time it waited. `lag()` returns `oldestSince` placed that far back
+  > from the host's now, so `LagSnapshot.ageSecondsAt` against the host's clock reads the DB's age.
+  > *Known limitation:* `publish.latency` subtracts the DB's `created_at` from the host's ack instant,
+  > so a skew between the two hosts offsets every sample by the same amount (HLD §7).
   >
   > *Documented exception:* cleanup's retention cutoff (§3.7) **is** computed on the relay
   > (`clock.instant() - retention`, passed as an absolute `doneBefore`). It is deliberate and benign —

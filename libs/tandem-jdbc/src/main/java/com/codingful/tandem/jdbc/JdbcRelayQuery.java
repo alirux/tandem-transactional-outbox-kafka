@@ -7,6 +7,7 @@ import com.codingful.tandem.core.WorkerView;
 import com.codingful.tandem.core.port.RelayQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -56,7 +57,10 @@ public final class JdbcRelayQuery implements RelayQuery {
     private static final String BUCKET_COLUMNS =
             "bl.bucket, bl.owner, bl.lease_until, bl.paused,"
                     + " (bl.owner IS NOT NULL AND bl.lease_until > now()) AS covered,"
-                    + " COALESCE(o.pending_count, 0) AS pending_count, o.oldest_pending_at";
+                    + " COALESCE(o.pending_count, 0) AS pending_count,"
+                    // On the database's clock, the one that stamped created_at, like the heartbeat above;
+                    // clock_timestamp() so that a listing held up by a busy database still counts the wait.
+                    + " EXTRACT(EPOCH FROM clock_timestamp() - o.oldest_pending_at) AS lag_age_seconds";
 
     private static final String BUCKETS_SQL =
             "SELECT " + BUCKET_COLUMNS
@@ -193,10 +197,8 @@ public final class JdbcRelayQuery implements RelayQuery {
     }
 
     private static BucketStatusView mapBucket(ResultSet rs) throws SQLException {
-        Instant oldestPending = instantOrNull(rs, "oldest_pending_at");
-        Double lagAgeSeconds = oldestPending == null
-                ? null
-                : Math.max(0, (Instant.now().toEpochMilli() - oldestPending.toEpochMilli()) / 1000d);
+        BigDecimal age = rs.getBigDecimal("lag_age_seconds");   // NULL when the bucket has nothing pending
+        Double lagAgeSeconds = age == null ? null : Math.max(0, age.doubleValue());
         return new BucketStatusView(
                 rs.getInt("bucket"),
                 rs.getString("owner"),

@@ -10,6 +10,7 @@ import com.codingful.tandem.core.RelayCoordinationMode;
 import com.codingful.tandem.core.RelayStatusView;
 import com.codingful.tandem.core.WorkerView;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import javax.sql.DataSource;
@@ -166,6 +167,34 @@ class JdbcRelayQueryIT extends AbstractPostgresIT {
         BucketStatusView view = uncovered.stream().filter(b -> b.bucket() == bucket).findFirst().orElseThrow();
         assertThat(view.pendingCount()).isEqualTo(1);
         assertThat(view.lagAgeSeconds()).isNotNull();
+    }
+
+    @Test
+    void GIVEN_a_database_clock_an_hour_behind_the_admin_hosts_WHEN_buckets_are_listed_THEN_a_bucket_backlog_age_is_the_one_the_database_measures() {
+        // created_at is stamped by the database, so the age is measured on its clock, as the
+        // heartbeat's freshness is: an Admin API host an hour ahead would otherwise read it an hour old.
+        DataSource clockBehind = dataSourceWithClockAnHourBehind();
+        int bucket = bucketOf("order-1");
+        insertPending("order-1");
+        execute("UPDATE tandem_outbox SET created_at = clock_an_hour_behind.now() - interval '30 seconds'");
+
+        BucketStatusView view = new JdbcRelayQuery(clockBehind).buckets(false).stream()
+                .filter(b -> b.bucket() == bucket).findFirst().orElseThrow();
+
+        assertThat(view.lagAgeSeconds()).isBetween(30d, 40d);
+    }
+
+    @Test
+    void GIVEN_a_bucket_listing_held_up_by_a_busy_database_WHEN_it_returns_THEN_each_age_includes_the_time_it_waited() {
+        int bucket = bucketOf("order-1");
+        insertPending("order-1");
+        execute("UPDATE tandem_outbox SET created_at = now() - interval '10 seconds'");
+
+        List<BucketStatusView> buckets = readHeldUpOnTheOutboxFor(Duration.ofMillis(1500), () -> query.buckets(false));
+
+        double expected = Duration.between(oldestCreatedAt(), Instant.now()).toMillis() / 1000d;
+        BucketStatusView view = buckets.stream().filter(b -> b.bucket() == bucket).findFirst().orElseThrow();
+        assertThat(view.lagAgeSeconds()).isBetween(expected - 0.5, expected + 0.5);
     }
 
     @Test

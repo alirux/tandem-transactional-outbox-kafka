@@ -227,6 +227,11 @@ suffixes, shown in the second column.
 The publish latency histogram has a ceiling of 5 minutes by default; a longer wait is still counted
 but cannot be placed precisely. Change it with `tandem.metrics.max-publish-latency` if you need to.
 
+Publish latency is read from two clocks: a row's creation time comes from the database, its
+acknowledgement from the relay host. A skew between the two hosts shifts every sample by the same
+amount, so keep both on NTP when you alert on it. The backlog ages (`lag.age_seconds`, and
+`lagAgeSeconds` in the Admin API) are measured on the database's clock alone and carry no such offset.
+
 ### 3.3 Alerts worth having
 
 Read the metrics together, because a single value is ambiguous. In particular, a `FAILED` row blocks

@@ -12,8 +12,14 @@ import java.util.Optional;
  * not work waiting; if its relay dies, the lease reclaim puts it back to {@code PENDING} and it
  * re-enters this reading on its own (LLD-jdbc §3.5).
  *
+ * <p><b>{@code oldestSince} is on the reading host's clock.</b> An adapter whose rows are stamped by
+ * another clock (the database's {@code now()}) measures the age on that clock and places
+ * {@code oldestSince} that far back from the host's now, so {@link #ageSecondsAt} against the host's
+ * clock reads the true age whatever the skew between the two (LLD-jdbc §3.2).
+ *
  * @param pending      rows currently waiting to be published
- * @param oldestSince  when the oldest waiting row was created, empty when nothing is waiting
+ * @param oldestSince  when the oldest waiting row was created, on the reading host's clock; empty when
+ *                     nothing is waiting
  */
 public record LagSnapshot(long pending, Optional<Instant> oldestSince) {
 

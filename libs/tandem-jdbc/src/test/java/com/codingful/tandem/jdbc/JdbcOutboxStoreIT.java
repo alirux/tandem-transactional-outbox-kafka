@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 
 class JdbcOutboxStoreIT extends AbstractPostgresIT {
@@ -203,6 +204,36 @@ class JdbcOutboxStoreIT extends AbstractPostgresIT {
         assertThat(lag.pending()).isEqualTo(2);
         assertThat(lag.oldestSince()).isPresent();
         assertThat(lag.ageSecondsAt(lag.oldestSince().orElseThrow().plusSeconds(45))).isEqualTo(45);
+    }
+
+    /**
+     * {@code created_at} is stamped by the database, so the backlog's age has to be measured on the
+     * database's clock too: a relay host whose clock runs an hour ahead would otherwise report every
+     * waiting row an hour older than it is, and fire any age alert at once.
+     */
+    @Test
+    void GIVEN_a_database_clock_an_hour_behind_the_relay_hosts_WHEN_the_backlog_is_read_THEN_its_age_is_the_one_the_database_measures() {
+        DataSource clockBehind = dataSourceWithClockAnHourBehind();
+        insert("order-1", 1);
+        execute("UPDATE tandem_outbox SET created_at = clock_an_hour_behind.now() - interval '30 seconds'");
+
+        LagSnapshot lag = new JdbcOutboxStore(clockBehind, 10).lag().orElseThrow();
+
+        assertThat(lag.ageSecondsAt(Instant.now())).isBetween(30d, 40d);
+    }
+
+    @Test
+    void GIVEN_a_backlog_read_held_up_by_a_busy_database_WHEN_it_returns_THEN_the_age_includes_the_time_it_waited() {
+        // The backlog keeps ageing while the read waits; an age fixed when the read began would hide
+        // exactly the seconds an alert on a struggling database needs.
+        insert("order-1", 1);
+        execute("UPDATE tandem_outbox SET created_at = now() - interval '10 seconds'");
+
+        LagSnapshot lag = readHeldUpOnTheOutboxFor(Duration.ofMillis(1500), () -> store.lag().orElseThrow());
+
+        Instant now = Instant.now();
+        double expected = Duration.between(oldestCreatedAt(), now).toMillis() / 1000d;
+        assertThat(lag.ageSecondsAt(now)).isBetween(expected - 0.5, expected + 0.5);
     }
 
     @Test
