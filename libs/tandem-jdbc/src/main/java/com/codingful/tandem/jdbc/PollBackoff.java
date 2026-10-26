@@ -2,12 +2,15 @@ package com.codingful.tandem.jdbc;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.LongSupplier;
 
 /**
  * Every wait the relay's poll loop can take (LLD-jdbc §3.1), and the whole decision of which one
  * applies. A worker reports the outcome of each cycle and is told how long to wait, so the loop
- * itself holds no timing policy: {@link #waitAfterCycle(int, int)} for a cycle that completed and
- * {@link #waitAfterFailedCycle()} for one that threw, exactly one call per iteration.
+ * itself holds no timing policy: {@link #waitAfterCycle(boolean, int, int, int)} for a cycle that
+ * completed and {@link #waitAfterFailedCycle()} for one that threw, exactly one call per iteration.
+ * It also decides whether a cycle claims at all ({@link #claimDue()}), which only the draining case
+ * ever answers with no.
  *
  * <p>A completed cycle has three outcomes, deliberately kept apart because they answer different
  * questions:
@@ -18,7 +21,12 @@ import java.util.concurrent.ThreadLocalRandom;
  *       row is likely near.</li>
  *   <li><b>Draining</b>: the claim returned nothing but publishes are still in flight. A brief fixed
  *       pause, long enough for async completions to land before the loop re-flushes, and it leaves
- *       the idle backoff where it is: outstanding work is not idleness.</li>
+ *       the idle backoff where it is: outstanding work is not idleness. The pause paces the flush,
+ *       not the claim: a claim that found nothing while nothing settled is repeated only on a ramp of
+ *       its own, from {@code pollIntervalFloor} up to {@code pollInterval} like the idle one, so a
+ *       send held for {@code delivery.timeout.ms} by a slow broker does not have its worker query the
+ *       database every few milliseconds for the whole outage. Any outcome written in the meantime
+ *       makes the claim due again at once, since an ack is what frees its aggregate's next row.</li>
  *   <li><b>Idle</b>: the claim returned nothing and nothing is in flight. Starts at
  *       {@code pollIntervalFloor} after the last productive claim and grows by
  *       {@code pollBackoffFactor} on each consecutive empty claim, up to {@code pollInterval}, each
@@ -28,7 +36,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * </ul>
  *
  * <p>A configured {@link WakeupSource} cuts across the idle case: a signal ends a worker's wait early,
- * so the ramp it had climbed does not price the first row arriving out of that silence. The ramp is
+ * so the ramp it had climbed does not price the first row arriving out of that silence, and it makes a
+ * draining worker's claim due as well ({@link #signalled()}). The ramp is
  * <b>not</b> reset by the signal itself, only by the claim that follows if it finds something: a wake
  * that claims nothing must leave the worker where it was rather than pin it at the floor.
  *
@@ -42,7 +51,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * grow strictly monotonically, and a wait can never collapse towards zero and turn the loop into a
  * spin. It is applied around the ceiling rather than clamped to it, so the idle worst case is what
  * it always was, {@code pollInterval} + 20%. Not thread-safe: each worker thread owns its own
- * instance, which is what makes both counters per-worker rather than shared and contended.
+ * instance, which is what makes its counters per-worker rather than shared and contended.
  */
 final class PollBackoff {
 
@@ -64,8 +73,12 @@ final class PollBackoff {
     private final double growthFactor;
     private final long errorCapMillis;
 
+    private final LongSupplier monotonicMillis;
+
     private int consecutiveIdle;
     private int consecutiveFailures;
+    private int consecutiveDrainingClaims;
+    private long nextClaimAtMillis = Long.MIN_VALUE;   // due: every case but draining claims at once
 
     /**
      * @param pollIntervalFloor where the idle backoff restarts after a productive claim; a value above
@@ -77,29 +90,59 @@ final class PollBackoff {
      *                          smaller, so the failure delay is never shorter than the idle one
      */
     PollBackoff(Duration pollIntervalFloor, Duration pollInterval, double growthFactor, Duration errorCap) {
+        this(pollIntervalFloor, pollInterval, growthFactor, errorCap, () -> System.nanoTime() / 1_000_000);
+    }
+
+    /** As above, reading time from {@code monotonicMillis}, which only the draining ramp consults. */
+    PollBackoff(Duration pollIntervalFloor, Duration pollInterval, double growthFactor, Duration errorCap,
+                LongSupplier monotonicMillis) {
+        this.monotonicMillis = monotonicMillis;
         this.idleCeilingMillis = Math.max(1, pollInterval.toMillis());
         this.idleFloorMillis = Math.max(1, pollIntervalFloor.toMillis());
         this.growthFactor = growthFactor;
         this.errorCapMillis = Math.max(this.idleCeilingMillis, errorCap.toMillis());
     }
 
+    /** Whether the next cycle claims, or only flushes the outcomes of the publishes it is draining. */
+    boolean claimDue() {
+        return monotonicMillis.getAsLong() >= nextClaimAtMillis;
+    }
+
+    /** A wakeup ended the wait: whatever the case, the next cycle claims. */
+    void signalled() {
+        nextClaimAtMillis = Long.MIN_VALUE;
+    }
+
     /**
      * How long to wait after a cycle that completed without throwing, and the only place the three
      * outcomes are told apart. Also marks the progress that resets the failure backoff.
      *
+     * @param claimRan whether this cycle claimed, as {@link #claimDue()} told it
      * @param claimed  rows this cycle claimed
+     * @param settled  outcomes this cycle wrote, acks and failures alike
      * @param inFlight publishes still outstanding for this worker
      * @return milliseconds to wait, or {@code 0} to claim again immediately
      */
-    long waitAfterCycle(int claimed, int inFlight) {
+    long waitAfterCycle(boolean claimRan, int claimed, int settled, int inFlight) {
         consecutiveFailures = 0;
         if (claimed > 0) {
             consecutiveIdle = 0;
+            claimNow();
             return 0;
         }
         if (inFlight > 0) {
+            if (settled > 0) {
+                claimNow();
+            } else if (claimRan) {
+                long delay = idleDelay(consecutiveDrainingClaims);
+                if (delay < idleCeilingMillis) {
+                    consecutiveDrainingClaims++;
+                }
+                nextClaimAtMillis = monotonicMillis.getAsLong() + jitter(delay);
+            }
             return DRAINING_MILLIS;
         }
+        claimNow();
         long delay = idleDelay(consecutiveIdle);
         if (delay < idleCeilingMillis) {
             consecutiveIdle++;   // stops once the ceiling is reached: counting further changes nothing
@@ -109,6 +152,7 @@ final class PollBackoff {
 
     /** How long to wait after a cycle that threw; grows on each successive call until the cap. */
     long waitAfterFailedCycle() {
+        claimNow();
         long delay = jitter(boundedExponential(consecutiveFailures));
         if (consecutiveFailures < SATURATED) {
             consecutiveFailures++;   // stops there: counting further would only overflow the shift
@@ -116,6 +160,11 @@ final class PollBackoff {
         // Jitter is applied before the clamp so the cap is a hard ceiling: an operator reading
         // "capped at reclaimInterval" must not find waits 20% past it.
         return Math.min(delay, errorCapMillis);
+    }
+
+    private void claimNow() {
+        nextClaimAtMillis = Long.MIN_VALUE;
+        consecutiveDrainingClaims = 0;
     }
 
     /** {@code min(ceiling, floor * factor^steps)}, computed in floating point so the factor need not be integral. */

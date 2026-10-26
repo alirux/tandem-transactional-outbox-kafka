@@ -309,9 +309,11 @@ public final class WorkerPool {
                 cfg.pollBackoffFactor(), cfg.reclaimInterval());
         while (isCurrent(workerRun)) {
             try {
-                int claimed = worker.claimAndDispatch();
-                worker.flushDone();
-                worker.flushFailures();
+                // Only a draining worker ever skips the claim, and then only until its ramp says the
+                // next one is due: its flush keeps the short pause either way (§3.1).
+                boolean claimRan = backoff.claimDue();
+                int claimed = claimRan ? worker.claimAndDispatch() : 0;
+                int settled = worker.flushDone() + worker.flushFailures();
                 // Progress, deliberately marked only on a cycle that completed without throwing: a
                 // worker whose every iteration fails is not making progress, and status() must say so
                 // (§3.8). Claiming nothing is still progress — an idle relay is a working relay.
@@ -324,7 +326,7 @@ public final class WorkerPool {
                 }
                 // The loop reports what the cycle did and is told how long to wait; which of the three
                 // waits that is, and how the idle one grows, belongs to PollBackoff (§3.1).
-                long wait = backoff.waitAfterCycle(claimed, worker.inFlight());
+                long wait = backoff.waitAfterCycle(claimRan, claimed, settled, worker.inFlight());
                 if (wait > 0) {
                     // A signal ends this wait early; it does not reset the ramp. The claim that follows
                     // does, but only if it finds something (waitAfterCycle above), which is the whole
@@ -332,7 +334,9 @@ public final class WorkerPool {
                     // pinning it at the floor, so a burst of signals for rows this worker has already
                     // taken cannot turn its backoff off. With no WakeupSource wired nothing ever
                     // signals, and this is the plain sleep it has always been.
-                    awaitWakeup(index, wait);
+                    if (awaitWakeup(index, wait)) {
+                        backoff.signalled();
+                    }
                 }
             } catch (Exception perIteration) {
                 LOG.log(Level.ERROR, "Relay worker iteration failed workerIndex:" + index
@@ -654,12 +658,15 @@ public final class WorkerPool {
     /**
      * This worker's idle wait, ended early by a wakeup for one of its buckets. An interrupt ends it
      * too, which a shutdown does and which the loop's own {@code running} check handles next.
+     *
+     * @return whether a signal ended the wait
      */
-    private void awaitWakeup(int index, long millis) {
+    private boolean awaitWakeup(int index, long millis) {
         try {
-            wakeups.await(index, millis);
+            return wakeups.await(index, millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 

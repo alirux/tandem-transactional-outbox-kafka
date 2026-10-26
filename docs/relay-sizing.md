@@ -20,7 +20,8 @@ smaller share of the outbox stranded behind any one wedged worker.
 
 **The idle backoff is a range, not a value, and it adapts to the traffic.** A worker claims
 back-to-back for as long as work remains, and waits only after a claim that returned nothing *and*
-left nothing in flight (an empty claim with publishes still outstanding waits 5 ms instead). That
+left nothing in flight (an empty claim with publishes still outstanding pauses 5 ms to flush, and
+repeats the claim on the same floor-to-`pollInterval` ramp until an outcome settles). That
 wait starts at **`pollIntervalFloor`** (10 ms) after every claim that found rows and grows by
 **`pollBackoffFactor`** (2.0) on each consecutive empty claim, up to **`pollInterval`** (100 ms).
 

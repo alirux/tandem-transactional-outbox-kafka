@@ -55,7 +55,7 @@ the two v1 described:
 | State | Wait | `T_discover` for a row arriving into it |
 |---|---|---|
 | **Busy**: the claim returned rows | none | ≈ 0, the loop is already spinning |
-| **Draining**: the claim returned nothing but publishes are still in flight | 5 ms | uniform in `[0, 5 ms]` |
+| **Draining**: the claim returned nothing but publishes are still in flight | 5 ms between flushes; the claim repeats at once after an outcome settles, otherwise on the floor-to-`pollInterval` ramp | ≤ 5 ms after the next outcome settles, at most the ramp's current step, never above `pollInterval` |
 | **Quiet**: the claim returned nothing and nothing is in flight | `pollInterval` ±20% jitter | uniform in `[0, pollInterval]`, mean `pollInterval / 2` |
 
 **The quiet state is not the exception.** Below its throughput ceiling the relay is by definition
@@ -186,7 +186,8 @@ exactly, the **ceiling on discovery latency**, and the worst case is unchanged.
 Concretely, in `PollBackoff`: a floor (10 ms is the natural default, since the service term is 2 to
 10 ms and polling faster than the work itself buys nothing), doubling, the existing ±20% jitter
 applied at every step, and a reset on a productive claim. The 5 ms draining wait is a different
-question and stays as it is. All three are configurable (`pollIntervalFloor`, `pollBackoffFactor`,
+question: it paces the flush of the worker's own outcomes, while a draining worker's empty claim
+repeats on a ramp of the same shape (LLD-jdbc §3.1). All three are configurable (`pollIntervalFloor`, `pollBackoffFactor`,
 and `pollInterval` as the ceiling); a floor equal to the ceiling reproduces the fixed interval
 exactly, which is also how the two are compared.
 

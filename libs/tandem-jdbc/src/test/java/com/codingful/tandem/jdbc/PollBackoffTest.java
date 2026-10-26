@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 class PollBackoffTest {
@@ -35,9 +36,9 @@ class PollBackoffTest {
     void GIVEN_a_bucket_under_a_live_stream_WHEN_a_worker_waits_after_delivering_rows_THEN_it_waits_the_floor() {
         PollBackoff backoff = backoff();
         for (int i = 0; i < SAMPLES; i++) {
-            backoff.waitAfterCycle(20, 0);
+            backoff.waitAfterCycle(true, 20, 0, 0);
 
-            assertThat(backoff.waitAfterCycle(0, 0)).isBetween(8L, 12L);
+            assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isBetween(8L, 12L);
         }
     }
 
@@ -49,7 +50,7 @@ class PollBackoffTest {
 
         List<Long> climbing = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
-            climbing.add(backoff.waitAfterCycle(0, 0));   // 10, 20, 40, 80, all below the ceiling
+            climbing.add(backoff.waitAfterCycle(true, 0, 0, 0));   // 10, 20, 40, 80, all below the ceiling
         }
 
         // ±20% jitter stays under the doubling factor, so the climb is strictly monotonic.
@@ -57,7 +58,7 @@ class PollBackoffTest {
         assertThat(climbing.get(0)).isBetween(8L, 12L);
         List<Long> settled = new ArrayList<>();
         for (int i = 0; i < SAMPLES; i++) {
-            settled.add(backoff.waitAfterCycle(0, 0));
+            settled.add(backoff.waitAfterCycle(true, 0, 0, 0));
         }
         assertThat(settled).allSatisfy(wait -> assertThat(wait).isBetween(80L, 120L));
     }
@@ -66,12 +67,12 @@ class PollBackoffTest {
     void GIVEN_a_worker_that_had_gone_quiet_WHEN_a_claim_finally_returns_rows_THEN_the_next_wait_is_the_floor_again() {
         PollBackoff backoff = backoff();
         for (int i = 0; i < 20; i++) {
-            backoff.waitAfterCycle(0, 0);   // climb to the ceiling and stay there
+            backoff.waitAfterCycle(true, 0, 0, 0);   // climb to the ceiling and stay there
         }
 
-        backoff.waitAfterCycle(20, 0);
+        backoff.waitAfterCycle(true, 20, 0, 0);
 
-        assertThat(backoff.waitAfterCycle(0, 0)).isBetween(8L, 12L);
+        assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isBetween(8L, 12L);
     }
 
     @Test
@@ -79,10 +80,10 @@ class PollBackoffTest {
         // The ceiling is what an operator sizes the idle load against, so it wins over a floor set
         // carelessly above it rather than silently multiplying that load.
         PollBackoff backoff = new PollBackoff(Duration.ofMillis(500), POLL, FACTOR, CAP);
-        backoff.waitAfterCycle(20, 0);
+        backoff.waitAfterCycle(true, 20, 0, 0);
 
         for (int i = 0; i < SAMPLES; i++) {
-            assertThat(backoff.waitAfterCycle(0, 0)).isBetween(80L, 120L);
+            assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isBetween(80L, 120L);
         }
     }
 
@@ -92,7 +93,7 @@ class PollBackoffTest {
         PollBackoff backoff = new PollBackoff(POLL, POLL, FACTOR, CAP);
 
         for (int i = 0; i < SAMPLES; i++) {
-            assertThat(backoff.waitAfterCycle(0, 0)).isBetween(80L, 120L);
+            assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isBetween(80L, 120L);
         }
     }
 
@@ -102,7 +103,7 @@ class PollBackoffTest {
 
         long third = 0;
         for (int i = 0; i < 3; i++) {
-            third = backoff.waitAfterCycle(0, 0);   // 10, 15, 23
+            third = backoff.waitAfterCycle(true, 0, 0, 0);   // 10, 15, 23
         }
 
         // Deliberately no monotonicity assertion here: at 1.5 the jitter windows of consecutive steps
@@ -116,7 +117,7 @@ class PollBackoffTest {
         // per-cycle sleep here would cap a worker at batchSize/wait rows per second.
         PollBackoff backoff = backoff();
 
-        assertThat(backoff.waitAfterCycle(20, 0)).isZero();
+        assertThat(backoff.waitAfterCycle(true, 20, 0, 0)).isZero();
     }
 
     @Test
@@ -127,10 +128,120 @@ class PollBackoffTest {
         PollBackoff backoff = backoff();
 
         for (int i = 0; i < SAMPLES; i++) {
-            assertThat(backoff.waitAfterCycle(0, 3)).isEqualTo(5L);
+            assertThat(backoff.waitAfterCycle(true, 0, 0, 3)).isEqualTo(5L);
         }
 
-        assertThat(backoff.waitAfterCycle(0, 0)).isBetween(8L, 12L);
+        assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isBetween(8L, 12L);
+    }
+
+    private static PollBackoff backoff(AtomicLong nowMillis) {
+        return new PollBackoff(FLOOR, POLL, FACTOR, CAP, nowMillis::get);
+    }
+
+    /** Advances the clock a millisecond at a time until the next claim is due; returns how far it went. */
+    private static long millisUntilClaimDue(PollBackoff backoff, AtomicLong nowMillis) {
+        long waited = 0;
+        while (!backoff.claimDue()) {
+            nowMillis.incrementAndGet();
+            waited++;
+        }
+        return waited;
+    }
+
+    @Test
+    void GIVEN_a_publish_the_broker_never_answers_WHEN_claim_after_claim_finds_nothing_THEN_the_claims_space_out_up_to_the_interval() {
+        // The flush keeps its 5 ms pause, but repeating a claim that found nothing at that pace is a
+        // query every 5 ms for as long as the broker holds the send: the claim climbs the floor-to-
+        // interval ramp instead, and the cycles in between only flush.
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+
+        List<Long> gaps = new ArrayList<>();
+        for (int claim = 0; claim < 6; claim++) {
+            assertThat(backoff.claimDue()).isTrue();
+            assertThat(backoff.waitAfterCycle(true, 0, 0, 1)).isEqualTo(5L);
+            gaps.add(millisUntilClaimDue(backoff, nowMillis));
+        }
+
+        assertThat(gaps.get(0)).isBetween(8L, 12L);
+        assertThat(gaps.get(1)).isBetween(16L, 24L);
+        assertThat(gaps.get(2)).isBetween(32L, 48L);
+        assertThat(gaps.get(3)).isBetween(64L, 96L);
+        assertThat(gaps.subList(4, 6)).allSatisfy(gap -> assertThat(gap).isBetween(80L, 120L));
+    }
+
+    @Test
+    void GIVEN_a_draining_worker_waiting_for_its_next_claim_WHEN_its_cycles_only_flush_THEN_the_claim_comes_when_it_was_due() {
+        // A cycle that skipped the claim learned nothing about the backlog, so it must neither push
+        // the claim further out nor bring it forward.
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+        backoff.waitAfterCycle(true, 0, 0, 1);
+        long due = millisUntilClaimDue(backoff, nowMillis);
+        nowMillis.addAndGet(-due);   // back to the instant of that empty claim
+
+        for (long elapsed = 0; elapsed + 5 < due; elapsed += 5) {
+            nowMillis.addAndGet(5);
+            assertThat(backoff.claimDue()).isFalse();
+            backoff.waitAfterCycle(false, 0, 0, 1);
+        }
+
+        assertThat(millisUntilClaimDue(backoff, nowMillis)).isBetween(1L, 5L);
+    }
+
+    @Test
+    void GIVEN_a_draining_worker_waiting_for_its_next_claim_WHEN_one_of_its_publishes_settles_THEN_it_claims_on_the_next_cycle() {
+        // An ack is what makes its aggregate's next row claimable, so the worker must not sit on it
+        // until the ramp comes round; and having found the pipe moving, the ramp starts over.
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+        for (int claim = 0; claim < 4; claim++) {
+            backoff.waitAfterCycle(true, 0, 0, 2);
+            millisUntilClaimDue(backoff, nowMillis);
+        }
+        backoff.waitAfterCycle(true, 0, 0, 2);
+        assertThat(backoff.claimDue()).isFalse();
+
+        assertThat(backoff.waitAfterCycle(false, 0, 1, 1)).isEqualTo(5L);
+
+        assertThat(backoff.claimDue()).isTrue();
+        backoff.waitAfterCycle(true, 0, 0, 1);
+        assertThat(millisUntilClaimDue(backoff, nowMillis)).isBetween(8L, 12L);
+    }
+
+    @Test
+    void GIVEN_a_draining_worker_waiting_for_its_next_claim_WHEN_its_last_publish_settles_THEN_it_claims_after_the_idle_wait() {
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+        backoff.waitAfterCycle(true, 0, 0, 1);
+
+        assertThat(backoff.waitAfterCycle(false, 0, 1, 0)).isBetween(8L, 12L);
+
+        assertThat(backoff.claimDue()).isTrue();
+    }
+
+    @Test
+    void GIVEN_a_draining_worker_waiting_for_its_next_claim_WHEN_a_wakeup_arrives_THEN_it_claims_on_the_next_cycle() {
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+        backoff.waitAfterCycle(true, 0, 0, 1);
+        assertThat(backoff.claimDue()).isFalse();
+
+        backoff.signalled();
+
+        assertThat(backoff.claimDue()).isTrue();
+    }
+
+    @Test
+    void GIVEN_a_draining_worker_waiting_for_its_next_claim_WHEN_a_cycle_fails_THEN_the_cycle_after_the_failure_wait_claims() {
+        AtomicLong nowMillis = new AtomicLong();
+        PollBackoff backoff = backoff(nowMillis);
+        backoff.waitAfterCycle(true, 0, 0, 1);
+        assertThat(backoff.claimDue()).isFalse();
+
+        backoff.waitAfterFailedCycle();
+
+        assertThat(backoff.claimDue()).isTrue();
     }
 
     @Test
@@ -141,7 +252,7 @@ class PollBackoffTest {
 
         Set<Long> distinctWaits = new HashSet<>();
         for (int i = 0; i < SAMPLES; i++) {
-            distinctWaits.add(backoff.waitAfterCycle(0, 0));
+            distinctWaits.add(backoff.waitAfterCycle(true, 0, 0, 0));
         }
 
         assertThat(distinctWaits).hasSizeGreaterThan(1);
@@ -188,7 +299,7 @@ class PollBackoffTest {
             backoff.waitAfterFailedCycle();
         }
 
-        backoff.waitAfterCycle(0, 0);   // one cycle completes, however little it found
+        backoff.waitAfterCycle(true, 0, 0, 0);   // one cycle completes, however little it found
 
         assertThat(backoff.waitAfterFailedCycle()).isBetween(80L, 120L);
     }
@@ -208,7 +319,7 @@ class PollBackoffTest {
     void GIVEN_a_sub_millisecond_poll_interval_WHEN_a_worker_waits_THEN_it_still_yields_rather_than_spinning() {
         PollBackoff backoff = new PollBackoff(Duration.ZERO, Duration.ZERO, FACTOR, Duration.ZERO);
 
-        assertThat(backoff.waitAfterCycle(0, 0)).isEqualTo(1);
+        assertThat(backoff.waitAfterCycle(true, 0, 0, 0)).isEqualTo(1);
         assertThat(backoff.waitAfterFailedCycle()).isEqualTo(1);
     }
 }

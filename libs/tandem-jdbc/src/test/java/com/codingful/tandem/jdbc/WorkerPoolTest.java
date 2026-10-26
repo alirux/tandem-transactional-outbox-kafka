@@ -1469,6 +1469,76 @@ class WorkerPoolTest {
     }
 
     @Test
+    void GIVEN_a_publish_the_broker_never_answers_WHEN_the_worker_waits_for_it_THEN_it_claims_no_more_often_than_an_idle_one()
+            throws InterruptedException {
+        // A slow or unreachable broker keeps a send in flight for up to delivery.timeout.ms. Waiting for
+        // it is the draining case, and it must not re-query the database every few milliseconds for the
+        // whole outage: the claim load stays bounded by the idle ramp, floor to pollInterval (§3.1).
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        CountingStore store = new CountingStore(outbox);
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId("order-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build());
+        OutboxDispatcher stalls = record -> new CompletableFuture<>();
+        RelayConfig cfg = RelayConfig.builder()
+                .bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofMillis(10)).pollInterval(Duration.ofMillis(100))
+                .build();
+        WorkerPool pool = new WorkerPool(store, stalls, cfg);
+
+        pool.start();
+        int claimsDuringTheWait;
+        try {
+            awaitUpTo(Duration.ofSeconds(20), () -> "the row in flight",
+                    () -> outbox.byStatus(OutboxStatus.IN_FLIGHT).size() == 1);
+            int before = store.claims();
+            Thread.sleep(1000);
+            claimsDuringTheWait = store.claims() - before;
+        } finally {
+            pool.stop();
+        }
+
+        // Climbing 10, 20, 40, 80 ms and then 100 ms (+20% jitter) is about 13 claims in a second; a
+        // claim every 5 ms is about 200.
+        assertThat(claimsDuringTheWait).isBetween(1, 20);
+    }
+
+    @Test
+    void GIVEN_a_worker_waiting_on_a_publish_the_broker_never_answers_WHEN_a_wakeup_arrives_THEN_it_claims_the_new_row_at_once()
+            throws InterruptedException {
+        // Spacing out a draining worker's claims must not cost the wakeup its point: a signal says a row
+        // was just written, and the worker claims on its next cycle instead of when its ramp comes round.
+        InMemoryOutbox outbox = new InMemoryOutbox();
+        String stalled = "order-1";
+        String fresh = "order-2";
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId(stalled).aggregateType("Order").seq(1).payload("{}".getBytes()).build());
+        OutboxDispatcher stallsOne = record -> stalled.equals(record.aggregateId().value())
+                ? new CompletableFuture<>()
+                : CompletableFuture.completedFuture(null);
+        RelayConfig cfg = RelayConfig.builder().bucketCount(BUCKETS).workersPerInstance(1)
+                .pollIntervalFloor(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(30)).build();
+        RecordingWakeupSource wakeup = new RecordingWakeupSource();
+        WorkerPool pool = WorkerPool.builder(outbox, stallsOne, cfg).wakeupSource(wakeup).build();
+
+        pool.start();
+        try {
+            awaitUpTo(Duration.ofSeconds(20), () -> "the stalled row in flight",
+                    () -> outbox.byStatus(OutboxStatus.IN_FLIGHT).size() == 1);
+            Thread.sleep(300);   // the empty claim after it has run: the next one is 30 seconds away
+            outbox.insert(OutboxMessage.builder()
+                    .aggregateId(fresh).aggregateType("Order").seq(1).payload("{}".getBytes()).build());
+
+            wakeup.signalAll();
+
+            awaitUpTo(Duration.ofSeconds(10),
+                    () -> "the new row delivered, got " + outbox.statusCounts(),
+                    () -> outbox.byStatus(OutboxStatus.DONE).size() == 1);
+        } finally {
+            pool.stop();
+        }
+    }
+
+    @Test
     void GIVEN_a_relay_that_polls_at_most_once_a_second_WHEN_events_keep_arriving_THEN_none_of_them_waits_that_long() {
         // The whole point of the adaptive idle backoff: the configured interval bounds what the first
         // row after a quiet stretch waits, not what every row of a live stream waits. With a 3s

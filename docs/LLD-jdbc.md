@@ -222,6 +222,14 @@ operator copies in full from the inbound request still finds its rows.
   claimed, publishes still in flight, or an exception) and is told how long to wait, so no timing
   policy sits in the worker loop itself. The four are: nothing at all while work remains, 5 ms while
   the worker's own publishes drain, the idle backoff below, and the failure backoff further down.
+- **While draining, the 5 ms pause paces the flush, not the claim.** A claim that found nothing while
+  nothing settled is repeated on a ramp of its own, from `pollIntervalFloor` to `pollInterval` like the
+  idle backoff below, and the cycles in between only flush, which costs no query when no outcome is
+  waiting. A send held by a slow or unreachable broker (up to `delivery.timeout.ms`) therefore leaves
+  its worker querying no more often than an idle one, instead of every 5 ms for the whole outage. Any
+  outcome written, a claim that returns rows, a wakeup or a failed cycle makes the next cycle claim:
+  an ack is what makes its aggregate's next row claimable. The ramp is separate from the idle one, so
+  a drain still does not count as idleness.
 - **The idle backoff is adaptive**: it starts at `pollIntervalFloor` (default 10 ms)
   after any claim that returned rows, and grows by `pollBackoffFactor` (default 2.0) on each
   consecutive empty claim up to `pollInterval` (default 100 ms). So a bucket under a live stream is
