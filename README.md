@@ -632,11 +632,6 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   judged on `id`. See [Usage](#usage), [HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time)
   and [HLD-managed-seq §6](docs/HLD-managed-seq.md#6-detection-what-it-sees-and-what-it-reads-to-see-it).
 
-- **A reclaimed row has a brief double-ownership window.** A late write from a previous owner can
-  still land on a row another instance now owns after a lease reclaim — bounded to a duplicate
-  publish, never a reorder (tracked as hardening,
-  [IMPLEMENTATION-PLAN-embedded-lease.md](docs/IMPLEMENTATION-PLAN-embedded-lease.md) §6).
-
 - **Discovery latency is a poll by default.** A row is found by the next claim of the worker owning
   its bucket. That wait adapts to the traffic: it restarts at `pollIntervalFloor` (10 ms) after every
   claim that found work and climbs to `pollInterval` (100 ms) while a bucket stays quiet, so a row
