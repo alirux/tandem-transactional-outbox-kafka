@@ -5,7 +5,8 @@ import java.util.Objects;
 /**
  * Typed value object for an aggregate identifier (LLD-core §1.1) — prevents accidentally mixing the
  * several string fields (`aggregateId`, `aggregateType`, `type`). The length bound mirrors the
- * {@code VARCHAR(255)} column.
+ * {@code VARCHAR(255)} column, so it counts code points, the unit the column counts
+ * (HLD-write-side-sdks §4.1).
  */
 public record AggregateId(String value) {
 
@@ -14,7 +15,7 @@ public record AggregateId(String value) {
         if (value.isBlank()) {
             throw new IllegalArgumentException("aggregateId must not be blank");
         }
-        if (value.length() > 255) {
+        if (value.codePointCount(0, value.length()) > 255) {
             throw new IllegalArgumentException("aggregateId exceeds 255 chars");
         }
     }

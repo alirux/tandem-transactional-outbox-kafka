@@ -215,11 +215,11 @@ public final class OutboxMessage {
     }
 
     /**
-     * The bound of the {@code VARCHAR(255)} column, counted in {@code char}s like {@link AggregateId}:
+     * The bound of the {@code VARCHAR(255)} column, counted in code points like {@link AggregateId}:
      * checked here so that a value an in-memory outbox accepts is one the database accepts too.
      */
     private static String requireWithinColumn(String value, String field) {
-        if (value.length() > MAX_COLUMN_LENGTH) {
+        if (value.codePointCount(0, value.length()) > MAX_COLUMN_LENGTH) {
             throw new IllegalArgumentException(field + " exceeds " + MAX_COLUMN_LENGTH + " chars");
         }
         return value;
@@ -363,7 +363,7 @@ public final class OutboxMessage {
          * @throws NullPointerException     if a required field ({@code aggregateId}, {@code aggregateType},
          *                                  {@code payload}) is unset
          * @throws IllegalArgumentException if {@code aggregateType} is blank, or {@code aggregateType} or
-         *                                  {@code type} is longer than 255 chars
+         *                                  {@code type} is longer than 255 code points
          * @throws IllegalStateException    if none of {@link #seq(long)}, {@link #managedSeq()} and
          *                                  {@link #unsequenced()} was stated, or if more than one was
          */

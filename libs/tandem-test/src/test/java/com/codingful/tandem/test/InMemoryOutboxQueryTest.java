@@ -153,6 +153,18 @@ class InMemoryOutboxQueryTest {
     }
 
     @Test
+    void GIVEN_a_correlation_id_of_characters_outside_the_basic_plane_WHEN_it_is_longer_than_the_column_THEN_it_keeps_whole_characters_as_the_database_would() {
+        // The column bounds characters, so it keeps 255 of these, not 255 UTF-16 units: those would end
+        // halfway through the 128th one.
+        String outsideTheBmp = Character.toString(0x1F600);
+        String longCorrelationId = outsideTheBmp.repeat(300);
+        insertWithCorrelationId("order-1", longCorrelationId);
+
+        assertThat(outbox.search(OutboxSearchCriteria.builder().correlationId(longCorrelationId).build()))
+                .extracting(OutboxRowView::correlationId).containsExactly(outsideTheBmp.repeat(255));
+    }
+
+    @Test
     void GIVEN_a_row_written_without_a_correlation_id_WHEN_searched_THEN_its_view_carries_none() {
         outbox.insert(OutboxMessage.builder()
                 .aggregateId("order-no-corr").aggregateType("Order").seq(1).payload("{}".getBytes()).build());

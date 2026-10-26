@@ -21,7 +21,8 @@ public record AggregateId(String value) {
     public AggregateId {
         Objects.requireNonNull(value, "aggregateId");
         if (value.isBlank()) throw new IllegalArgumentException("aggregateId must not be blank");
-        if (value.length() > 255) throw new IllegalArgumentException("aggregateId exceeds 255 chars");
+        // code points, the unit VARCHAR(255) counts (HLD-write-side-sdks §4.1)
+        if (value.codePointCount(0, value.length()) > 255) throw new IllegalArgumentException("aggregateId exceeds 255 chars");
     }
     public static AggregateId of(String value) { return new AggregateId(value); }
     @Override public String toString() { return value; }

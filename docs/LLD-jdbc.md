@@ -195,8 +195,8 @@ repository passes a real propagator to the 3-arg constructor; real adapters ship
 
 **The `correlation_id` column is filled from the headers just computed**, never from a separate
 source — so the indexed copy and the header that reaches Kafka can never disagree (HLD-tracing §4.1).
-The value is **truncated** to `MAX_CORRELATION_ID_LENGTH` (255, the column width) rather than
-rejected: it normally originates outside the application (an inbound HTTP header, a consumed
+The value is **truncated** to `MAX_CORRELATION_ID_LENGTH` (255 code points, the column width, so the
+cut never falls inside a character; HLD-write-side-sdks §4.1) rather than rejected: it normally originates outside the application (an inbound HTTP header, a consumed
 message), so it is untrusted input, and an over-long value must not fail the caller's *business*
 transaction — the insert shares it. The `headers` copy keeps the full value; it is not indexed. The
 column stays `NULL` when no correlation id is present, which is every row when tracing is off. A

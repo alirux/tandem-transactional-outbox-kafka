@@ -76,6 +76,24 @@ class OutboxMessageTest {
     }
 
     @Test
+    void GIVEN_characters_outside_the_basic_plane_WHEN_built_THEN_both_type_bounds_count_characters_as_the_columns_do() {
+        // VARCHAR(255) bounds characters, not the two UTF-16 units Java spends on each of these.
+        String outsideTheBmp = Character.toString(0x1F600);
+        String widest = outsideTheBmp.repeat(255);
+
+        OutboxMessage message = validBuilder().aggregateType(widest).type(widest).build();
+
+        assertThat(message.aggregateType()).isEqualTo(widest);
+        assertThat(message.type()).isEqualTo(widest);
+        assertThatThrownBy(() -> validBuilder().aggregateType(widest + outsideTheBmp).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("aggregateType");
+        assertThatThrownBy(() -> validBuilder().type(widest + outsideTheBmp).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("type");
+    }
+
+    @Test
     void GIVEN_a_missing_payload_WHEN_built_THEN_it_is_rejected() {
         assertThatThrownBy(() -> OutboxMessage.builder()
                 .aggregateId("order-1")

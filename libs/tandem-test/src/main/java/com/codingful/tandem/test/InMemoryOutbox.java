@@ -645,7 +645,9 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     private static String boundedCorrelationId(String correlationId) {
         int max = JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH;
-        return correlationId == null || correlationId.length() <= max ? correlationId : correlationId.substring(0, max);
+        return correlationId == null || correlationId.codePointCount(0, correlationId.length()) <= max
+                ? correlationId
+                : correlationId.substring(0, correlationId.offsetByCodePoints(0, max));
     }
 
     private static OutboxRowDetail toRowDetail(Entry e) {

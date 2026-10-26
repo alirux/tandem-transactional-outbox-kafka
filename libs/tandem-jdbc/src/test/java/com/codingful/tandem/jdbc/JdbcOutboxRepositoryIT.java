@@ -174,6 +174,20 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
         assertThat(headerOf("order-corr-4", TandemHeaders.CORRELATION_ID)).isEqualTo(oversized);
     }
 
+    @Test
+    void GIVEN_an_oversized_correlation_id_of_characters_outside_the_basic_plane_WHEN_inserted_THEN_the_column_keeps_whole_characters() {
+        // The column bounds characters, so the copy keeps 255 of these; cut at 255 UTF-16 units it would
+        // end halfway through one, which the driver cannot encode.
+        String outsideTheBmp = Character.toString(0x1F600);
+        String oversized = outsideTheBmp.repeat(JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH + 45);
+        repository.insert(OutboxMessage.builder()
+                .aggregateId("order-corr-5").aggregateType("Order").seq(1).payload("{}".getBytes())
+                .header(TandemHeaders.CORRELATION_ID, oversized).build());
+
+        assertThat(correlationIdColumnOf("order-corr-5"))
+                .isEqualTo(outsideTheBmp.repeat(JdbcOutboxRepository.MAX_CORRELATION_ID_LENGTH));
+    }
+
     private static String correlationIdColumnOf(String aggregateId) {
         try (Connection conn = DATA_SOURCE.getConnection();
              PreparedStatement ps = conn.prepareStatement(

@@ -121,10 +121,10 @@ the database defaults and to the relay. A writer never sets them.
 `utf8mb4`) bounds a `VARCHAR(255)`; every "characters" in this contract means code points. Counting
 UTF-8 bytes or UTF-16 code units instead would refuse values the column accepts, and two SDKs
 counting differently would disagree on the same message. The Java writer bounds a length itself in
-two places, and both follow this rule: `AggregateId` limits the identifier to 255 code points, and
-the `correlation_id` copy keeps the first 255 code points (§4.4). Counting UTF-16 code units there
-would refuse identifiers the column accepts and could cut a character in half at the truncation
-point. The rule only ever accepts more than UTF-16 counting does, so it rejects no message a Java
+three places, and all follow this rule: `AggregateId` limits the identifier to 255 code points,
+`OutboxMessage` limits `aggregate_type` and `type` the same way, and the `correlation_id` copy keeps
+the first 255 code points (§4.4). Counting UTF-16 code units there would refuse identifiers the
+column accepts and could cut a character in half at the truncation point. The rule only ever accepts more than UTF-16 counting does, so it rejects no message a Java
 caller can write today.
 
 ### 4.2 The bucket

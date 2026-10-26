@@ -119,7 +119,8 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private static final String LOCK_AGGREGATE_SQL = "SELECT pg_advisory_xact_lock(hashtext(?))";
 
     /**
-     * Width of the {@code correlation_id} column, which the value is truncated to at insert (LLD-jdbc §2).
+     * Width of the {@code correlation_id} column in characters (code points), which the value is truncated
+     * to at insert (LLD-jdbc §2).
      * The correlation id normally originates <b>outside</b> this application — an inbound HTTP header, a
      * consumed message — so it is untrusted input; an unbounded value would otherwise fail the insert (and
      * with it the caller's business transaction) or bloat the index it exists to serve. The header copy in
@@ -377,12 +378,13 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     /**
      * Bounds an untrusted, externally-originated correlation id to the column width; {@code null} stays
      * null. Also applied to a searched value ({@link JdbcOutboxQuery}), which an operator copies in full
-     * from the inbound request and must match the truncated one stored.
+     * from the inbound request and must match the truncated one stored. Counted in code points, the unit
+     * the column counts (HLD-write-side-sdks §4.1), so the cut never falls inside a character.
      */
     static String truncate(String correlationId) {
-        return correlationId == null || correlationId.length() <= MAX_CORRELATION_ID_LENGTH
+        return correlationId == null || correlationId.codePointCount(0, correlationId.length()) <= MAX_CORRELATION_ID_LENGTH
                 ? correlationId
-                : correlationId.substring(0, MAX_CORRELATION_ID_LENGTH);
+                : correlationId.substring(0, correlationId.offsetByCodePoints(0, MAX_CORRELATION_ID_LENGTH));
     }
 
     /**
