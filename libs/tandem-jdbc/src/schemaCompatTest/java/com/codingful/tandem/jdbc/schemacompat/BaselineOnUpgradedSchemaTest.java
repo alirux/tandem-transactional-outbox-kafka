@@ -150,7 +150,7 @@ class BaselineOnUpgradedSchemaTest {
     private JdbcOutboxRepository repository;
     private JdbcOutboxStore store;
     private final Map<String, Long> firstSeqBefore = new HashMap<>();
-    private final List<Long> inFlightAtUpgrade = new ArrayList<>();
+    private final List<OutboxRecord> inFlightAtUpgrade = new ArrayList<>();
     private boolean upgraded;
 
     /** An aggregate written in one {@code seq} mode, with or without the write-side lock. */
@@ -188,9 +188,9 @@ class BaselineOnUpgradedSchemaTest {
         claimed.forEach(record -> firstSeqBefore.put(record.aggregateId().value(), record.hasSeq() ? record.seq() : 0));
         for (int i = 0; i < claimed.size(); i++) {
             if (i % 2 == 0) {
-                store.markDone(claimed.get(i).id());
+                store.markDone(claimed.get(i));
             } else {
-                inFlightAtUpgrade.add(claimed.get(i).id());
+                inFlightAtUpgrade.add(claimed.get(i));
             }
         }
     }
@@ -222,11 +222,11 @@ class BaselineOnUpgradedSchemaTest {
         requireUpgrade();
 
         inFlightAtUpgrade.forEach(store::markDone);
-        assertThat(inFlightAtUpgrade).allSatisfy(id -> assertThat(row(id).status()).isEqualTo(OutboxStatus.DONE));
+        assertThat(inFlightAtUpgrade).allSatisfy(record -> assertThat(row(record.id()).status()).isEqualTo(OutboxStatus.DONE));
 
         List<OutboxRecord> behind = store.claimBatch(bucketsOf(writtenBefore), WORKER, LEASE, BATCH);
         assertSecondRows(behind, writtenBefore, firstSeqBefore);
-        store.markDoneBatch(behind.stream().map(OutboxRecord::id).toList());
+        store.markDoneBatch(behind);
         assertThat(countWhere("aggregate_id = ANY(?) AND status <> ?",
                 aggregatesOf(writtenBefore).toArray(String[]::new), OutboxStatus.DONE.code())).isZero();
     }
@@ -252,7 +252,7 @@ class BaselineOnUpgradedSchemaTest {
             assertWrittenAs(head, written, 1);
             firstSeq.put(written.aggregate(), head.hasSeq() ? head.seq() : 0);
         }
-        store.markDoneBatch(heads.stream().map(OutboxRecord::id).toList());
+        store.markDoneBatch(heads);
         assertSecondRows(store.claimBatch(bucketsOf(writtenAfter), WORKER, LEASE, BATCH), writtenAfter, firstSeq);
 
         Case application = writtenAfter.stream().filter(written -> written.mode() == SeqSource.APPLICATION)
@@ -267,13 +267,13 @@ class BaselineOnUpgradedSchemaTest {
         repository.insert(message(retried, 1));
         OutboxRecord claimed = claimOne(retried, LEASE);
 
-        store.markForRetry(claimed.id(), DELIVERY_ERROR, null);
+        store.markForRetry(claimed, DELIVERY_ERROR, null);
         OutboxRecord again = claimOne(retried, LEASE);
         assertThat(again.id()).isEqualTo(claimed.id());
         assertThat(again.attempts()).isEqualTo(1);
         assertThat(again.lastError()).isEqualTo(DELIVERY_ERROR);
 
-        store.markForRetry(again.id(), DELIVERY_ERROR, Duration.ofHours(1));
+        store.markForRetry(again, DELIVERY_ERROR, Duration.ofHours(1));
         assertThat(claim(retried, LEASE)).isEmpty();
         Row row = row(again.id());
         assertThat(row.status()).isEqualTo(OutboxStatus.PENDING);
@@ -293,7 +293,7 @@ class BaselineOnUpgradedSchemaTest {
         }
         OutboxRecord head = claimOne(quarantined, LEASE);
 
-        store.markFailed(head.id(), POISON);
+        store.markFailed(head, POISON);
 
         Row row = row(head.id());
         assertThat(row.status()).isEqualTo(OutboxStatus.FAILED);
@@ -638,15 +638,15 @@ class BaselineOnUpgradedSchemaTest {
                     .type(EVENT_TYPE).seq(seq).payload(PAYLOAD).contentType(CONTENT_TYPE).header(HEADER, HEADER_VALUE)
                     .header(TandemHeaders.CORRELATION_ID, CORRELATION_ID).build());
         }
-        long done = claimOne(aggregate, LEASE).id();
+        OutboxRecord done = claimOne(aggregate, LEASE);
         store.markDone(done);
-        long failed = claimOne(aggregate, LEASE).id();
+        OutboxRecord failed = claimOne(aggregate, LEASE);
         store.markFailed(failed, POISON);
         long pending = query("SELECT max(id) FROM tandem_outbox WHERE aggregate_id = ?", List.of(aggregate), rs -> {
             rs.next();
             return rs.getLong(1);
         });
-        return List.of(done, failed, pending);
+        return List.of(done.id(), failed.id(), pending);
     }
 
     private OutboxMessage message(Case written, long seq) {
