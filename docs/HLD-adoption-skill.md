@@ -96,7 +96,7 @@ The skill takes the decisions of the [Adoption Guide](../guide/adoption.md) §1 
 1. **Ordering precondition** (brownfield, and greenfield when concurrent writers to one aggregate
    exist). The skill classifies each aggregate into one of the guide's four shapes from the code it
    read. Shape 1 proceeds. Shape 2 (`@Version`) proceeds only with the flush handled or with
-   `managedSeq()`, and the skill says which it chose. Shapes 3 and 4 **stop the skill for that
+   `unsequenced()`, and the skill says which it chose. Shapes 3 and 4 **stop the skill for that
    aggregate**: it reports the shape and the guide's options, and does not pick one, because the fix
    is a domain decision.
 2. **Write-side tier**, from the guide's decision tree: application events when the application
@@ -177,7 +177,7 @@ before each skill release on two fixtures kept beside the skill:
   aggregate with `@Version`, and one aggregate that only ever writes a child row (shape 3).
 
 A run passes when the fixture builds, its tests pass, the brownfield producer is still there, the
-`@Version` aggregate uses the flushed version or `managedSeq()`, and the shape 3 aggregate was
+`@Version` aggregate uses the flushed version or `unsequenced()`, and the shape 3 aggregate was
 reported and left untouched. The deterministic part (references up to date, links resolving) is in
 CI through §5.
 

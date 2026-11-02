@@ -526,7 +526,9 @@ whoever migrates an existing database, and `tandem-baseline.sql`, the same schem
 one script, for a fresh one. Applying either is the job of whoever owns the database, and the
 image bundles neither Liquibase nor the scripts. The `docker-compose` example mounts
 `tandem-baseline.sql` into PostgreSQL's `docker-entrypoint-initdb.d`, so the database container
-applies it, not the relay. Two reasons to keep it that way: applying DDL requires privileges a
+applies it, not the relay. It mounts the schema of the pinned release, which `pinnedBaseline` writes
+from that release's changelog (§7.3), not the working tree's: a later schema can drop what the image's
+release reads. Two reasons to keep it that way: applying DDL requires privileges a
 relay should not hold, and the relay is not the only writer to that schema (the client's write-side
 is), so a relay that migrates on startup would be one participant unilaterally changing a contract
 the other depends on.
@@ -672,7 +674,11 @@ Two gates, both in `check`, both running the integration test of §8.2:
 
 - `integrationTest`, on the jar built from the working tree. It is what tells the library's next
   release apart from one that would break the application.
-- `pinnedTest`, on the pinned jar. It is what ships, tested as it ships.
+- `pinnedTest`, on the pinned jar. It is what ships, tested as it ships, so it runs against what that
+  release defines: the database gets the pinned release's schema, rebuilt from the changelog inside
+  its `tandem-jdbc` jar, and the test writes its rows with the pinned `tandem-core` and `tandem-jdbc`,
+  put ahead of the working tree's on the test's classpath. Run against the working tree's schema, a
+  library release that changes the schema would fail the image it does not ship in.
 
 A change to this module that needs a library change waits for the library release that carries it,
 and then moves the pin. **The first pin is the first library release in which every relay
@@ -891,7 +897,7 @@ Per AGENTS.md, each omission below fails silently:
 | `settings.gradle.kts` | Add `tandem-relay` |
 | `unpublishedModules` (root `build.gradle.kts`) | Add: **not** published to Central, and it needs its own Java 25 toolchain and its own test tasks |
 | `tandem-bom` | **No** — not a Maven artifact |
-| The root build's substitution exemption | The pinned classpath joins the connector's floor classpath as a configuration the working tree must **not** be substituted into (§7.3). Forgetting it leaves `pinnedTest` green while testing the working tree |
+| The root build's substitution exemption | The pinned classpath, and the pinned write side `pinnedTest` writes with, join the connector's floor classpath as configurations the working tree must **not** be substituted into (§7.3). Forgetting it leaves `pinnedTest` green while testing the working tree |
 | `.github/workflows/relay-release.yml` | New, on `relay-v*` (§7.3). `release.yml` needs no exclusion: an unpublished module has no publishing task |
 | `tandem-coverage`'s `coveredProjects` | **No** — published, tested modules only |
 | `dependency-graph-exclude-projects` (`.github/workflows/ci.yml`) | **No, and this is the one unpublished module left out of that regex on purpose.** The exclusion keeps demo and benchmark dependencies out of the Dependabot alerts because nobody inherits them; this module's runtime classpath is shipped to operators inside the image, so an alert on it is a real one. Record the reason as a comment beside the regex |

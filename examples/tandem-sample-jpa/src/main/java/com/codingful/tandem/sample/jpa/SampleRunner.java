@@ -73,7 +73,7 @@ class SampleRunner implements CommandLineRunner {
         System.out.println("\n► Concurrent writers that only add children, with Tandem's aggregate lock");
         concurrent(() -> orders.appendChildOnly(CHILDREN), () -> orders.appendChildOnly(CHILDREN));
         System.out.println("  No root row is locked: lockedWrite() locks the aggregate id instead.");
-        System.out.println("  managedSeq() numbers each event after that lock, so seq follows commit order.");
+        System.out.println("  The events carry no seq (unsequenced()); they are published in commit order.");
 
         System.out.println("\n► A separate stream using the flushed JPA version");
         orders.confirmWithVersion(VERSIONED);
@@ -134,8 +134,10 @@ class SampleRunner implements CommandLineRunner {
         System.out.println("\n► Outbox rows in insertion order (the relay is already running)");
         System.out.printf("    %-5s %-20s %-5s %-18s %s%n", "ID", "AGGREGATE", "SEQ", "EVENT", "STATUS");
         jdbc.query("SELECT id, aggregate_id, seq, type, status FROM tandem_outbox ORDER BY id", rs -> {
-            System.out.printf("    %-5d %-20s %-5d %-18s %s%n",
-                    rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4), OutboxStatus.fromCode(rs.getInt(5)));
+            String seq = rs.getString(3);
+            System.out.printf("    %-5d %-20s %-5s %-18s %s%n",
+                    rs.getLong(1), rs.getString(2), seq == null ? "none" : seq, rs.getString(4),
+                    OutboxStatus.fromCode(rs.getInt(5)));
         });
     }
 
@@ -145,6 +147,7 @@ class SampleRunner implements CommandLineRunner {
                 SINGLE, List.of(1L, 2L, 3L, 4L), LEFT, List.of(1L, 2L), RIGHT, List.of(1L, 2L),
                 VERSIONED, List.of(1L), ROLLBACK, List.of(1L));
         Map<String, List<Long>> delivered = new LinkedHashMap<>();
+        Map<String, Integer> unnumbered = new LinkedHashMap<>();
         var seen = new HashSet<String>();
         try (var consumer = infrastructure.newConsumer("jpa-demo-" + UUID.randomUUID(), DemoContainerInitializer.TOPIC)) {
             long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
@@ -157,8 +160,13 @@ class SampleRunner implements CommandLineRunner {
                             StandardCharsets.UTF_8);
                     // Delivery is at least once. Deduplicate by event id, never by seq.
                     if (!seen.add(eventId)) continue;
-                    long seq = Long.parseLong(new String(
-                            record.headers().lastHeader(CloudEventsHeaders.CE_SEQ).value(), StandardCharsets.UTF_8));
+                    var seqHeader = record.headers().lastHeader(CloudEventsHeaders.CE_SEQ);
+                    if (seqHeader == null) {
+                        unnumbered.merge(record.key(), 1, Integer::sum);
+                        System.out.printf("  partition:%d, aggregateId:%s, seq:none%n", record.partition(), record.key());
+                        continue;
+                    }
+                    long seq = Long.parseLong(new String(seqHeader.value(), StandardCharsets.UTF_8));
                     delivered.computeIfAbsent(record.key(), ignored -> new ArrayList<>()).add(seq);
                     System.out.printf("  partition:%d, aggregateId:%s, seq:%d%n", record.partition(), record.key(), seq);
                 }
@@ -166,12 +174,9 @@ class SampleRunner implements CommandLineRunner {
         }
         System.out.println("\n  Observed sequence per aggregate (without sorting):");
         delivered.forEach((id, seqs) -> System.out.printf("    %-20s → ce_seq %s%n", id, seqs));
-        // Tandem's sequence is shared by every managed stream: increasing per aggregate, not dense.
-        List<Long> children = delivered.remove(CHILDREN);
-        require(children != null && children.size() == 2 && children.get(0) < children.get(1),
-                "Child-only events did not arrive in managed sequence order: " + children);
+        require(Map.of(CHILDREN, 2).equals(unnumbered), "Child-only events did not arrive unnumbered: " + unnumbered);
         require(expected.equals(delivered), "Kafka delivery did not match expected per-aggregate revisions: " + delivered);
-        System.out.println("\n  ✓ All 12 committed events arrived in per-aggregate sequence order.");
+        System.out.println("\n  ✓ All 12 committed events arrived, each numbered stream in sequence order.");
         System.out.println("  Rolled-back events were absent. Duplicate deliveries are deduplicated by event ID.");
     }
 

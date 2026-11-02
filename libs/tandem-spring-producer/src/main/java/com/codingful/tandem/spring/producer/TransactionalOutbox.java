@@ -18,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>After the method returns, an aspect reads the {@code TandemAggregate} it returned (a single one or an
  * {@link Iterable} of them), takes its {@code pendingOutboxMessages()}, and inserts them within the same
- * transaction. The {@code seq} of each message must come from the aggregate's {@code version} (HLD §4.2);
- * Tandem never invents it.
+ * transaction. Each message carries the number the aggregate gave that event, or none
+ * ({@code unsequenced()}); Tandem never invents it (HLD §4.2, HLD-seq §4.4).
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

@@ -2,7 +2,6 @@ package com.codingful.tandem.jdbc;
 
 import com.codingful.tandem.core.AggregateId;
 import com.codingful.tandem.core.OutboxRecord;
-import com.codingful.tandem.core.SeqSource;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -16,11 +15,10 @@ import java.util.Map;
  * violation, because by then there is nothing wrong with the data; only the relay, as it publishes,
  * witnesses the sequence that actually went out.
  *
- * <p><b>Which value it holds depends on the row</b> (HLD-managed-seq §6.1). An application-assigned
- * {@code seq} is an ordering the application <i>declared</i>, independent of the order rows were
- * inserted, so it is the stronger thing to check a published order against. Every other row — one
- * Tandem numbered, one with no number, one whose provenance this build predates — is checked on
- * {@code id}, which is the only ordering such a row has. A {@link Key} change for an aggregate resets
+ * <p><b>Which value it holds depends on the row</b> (HLD-seq §6.1). A {@code seq} is an ordering
+ * the application <i>declared</i>, independent of the order rows were inserted, so it is the stronger
+ * thing to check a published order against. A row with no number is checked on {@code id}, which is
+ * the only ordering it has. A {@link Key} change for an aggregate resets
  * its entry rather than comparing a {@code seq} against an {@code id}, so the row on which an
  * aggregate switches modes is not judged at all.
  *
@@ -81,13 +79,9 @@ final class PublishOrderWatermarks {
         };
     }
 
-    /**
-     * The ordering this row is judged on. Only an {@link SeqSource#APPLICATION} row carries a number
-     * the application chose; a managed one is its insert order restated, and reading it would import
-     * the sequence's own hazards as violations that never happened (HLD-managed-seq §6.1).
-     */
+    /** The ordering this row is judged on: its {@code seq} when it has one, its {@code id} otherwise. */
     static Key keyFor(OutboxRecord record) {
-        return record.seqSource() == SeqSource.APPLICATION ? Key.SEQ : Key.ID;
+        return record.hasSeq() ? Key.SEQ : Key.ID;
     }
 
     /** The value of {@link #keyFor(OutboxRecord)} for this row. */

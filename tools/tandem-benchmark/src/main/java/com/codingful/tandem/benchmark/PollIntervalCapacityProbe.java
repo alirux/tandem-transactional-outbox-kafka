@@ -9,9 +9,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * What a short poll interval <b>costs</b> the work the relay is actually doing (LLD-benchmark §6.7).
+ * What a short poll interval <b>costs</b> the work the relay is actually doing (LLD-benchmark §6.6).
  *
- * <p>{@code IdlePollCostProbe} (§6.6) priced the claims a drained relay makes against a database doing
+ * <p>{@code IdlePollCostProbe} (§6.5) priced the claims a drained relay makes against a database doing
  * nothing else, and found them cheap on an empty or drained outbox and roughly three times as expensive
  * on a <b>blocked</b> one — rows in {@code status = 0} that no claim can take, which every poll scans
  * and runs the head-of-chain {@code NOT EXISTS} against. Absolute cost is not contention, though: it

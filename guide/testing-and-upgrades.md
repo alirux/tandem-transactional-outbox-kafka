@@ -207,9 +207,16 @@ first time Tandem adds one.
    exception is `tandem-rabbitmq`, which is outside the BOM with a version of its own: update it
    separately, and check that its release notes (tags `rabbitmq-v<version>`) accept the Tandem
    version you are moving to ([Publishing to RabbitMQ](rabbitmq.md#9-upgrading-the-connector)).
-3. **Apply the schema first.** Migrations only add, so the schema of the new version is safe for the
-   old code that is still running. The reverse is not true: new code may read a column that an old
-   schema lacks. So the database goes first, then the components, in any order.
+3. **Apply the schema first.** Within a major version migrations only add, so the schema of the new
+   version is safe for the old code that is still running. The reverse is not true: new code may read
+   a column that an old schema lacks. So the database goes first, then the components, in any order.
+
+    !!! warning "Upgrading to 1.0 from an earlier release"
+        Schema v6 is not additive: it removes the `seq_source` column and the `tandem_seq` sequence,
+        which every earlier release reads or writes. Stop every writer, relay and Admin API of the
+        earlier release, apply the schema, then start the new ones. An event written with the
+        removed `managedSeq()` keeps no number, so its `ce_seq` disappears from that stream (one
+        written before schema v4 keeps its number).
 
     - With **Liquibase**, `update` applies the changesets you do not have yet. Each release only
       appends a new one; a changeset that has shipped is never edited.
@@ -218,7 +225,7 @@ first time Tandem adds one.
       migrations.
 
 4. **Roll out the components** (write side, relay, Admin API) one at a time, in any order. During the
-   rollout, old and new versions work side by side.
+   rollout, old and new versions of one major version work side by side.
 5. **Check the relay is healthy**: it starts, `lag.age_seconds` stays low and `failed.count` stays at
    zero (see [Observability](observability.md#33-alerts-worth-having)).
 

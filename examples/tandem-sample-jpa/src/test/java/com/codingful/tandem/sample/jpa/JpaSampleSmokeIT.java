@@ -60,8 +60,8 @@ class JpaSampleSmokeIT {
                     String id = new String(record.headers().lastHeader(CloudEventsHeaders.CE_ID).value(),
                             StandardCharsets.UTF_8);
                     if (!seen.add(id)) continue;
-                    long seq = Long.parseLong(new String(record.headers().lastHeader(CloudEventsHeaders.CE_SEQ).value(),
-                            StandardCharsets.UTF_8));
+                    var seqHeader = record.headers().lastHeader(CloudEventsHeaders.CE_SEQ);
+                    Long seq = seqHeader == null ? null : Long.parseLong(new String(seqHeader.value(), StandardCharsets.UTF_8));
                     delivered.computeIfAbsent(record.key(), ignored -> new ArrayList<>()).add(seq);
                 }
             }
@@ -73,7 +73,7 @@ class JpaSampleSmokeIT {
         assertThat(delivered.get(SampleRunner.RIGHT)).containsExactly(1L, 2L);
         assertThat(delivered.get(SampleRunner.VERSIONED)).containsExactly(1L);
         assertThat(delivered.get(SampleRunner.ROLLBACK)).containsExactly(1L);
-        assertThat(delivered.get(SampleRunner.CHILDREN)).hasSize(2).isSorted().doesNotHaveDuplicates();
+        assertThat(delivered.get(SampleRunner.CHILDREN)).containsExactly(null, null);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sample_order_note WHERE order_id = ?",
                 Long.class, SampleRunner.ROLLBACK)).isEqualTo(1L);
         assertThat(jdbc.queryForObject("SELECT event_sequence FROM sample_order WHERE id = ?",

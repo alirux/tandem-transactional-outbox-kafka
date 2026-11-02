@@ -3,7 +3,7 @@
 **Version:** 0.1  
 **Status:** Accepted. Designed, not implemented.  
 **Companion to:** [HLD.md](HLD.md) §1.3, §1.4, §3.2, §4.2, §4.3, §5;
-[HLD-managed-seq.md](HLD-managed-seq.md); [LLD-jdbc.md](LLD-jdbc.md) §2;
+[HLD-seq.md](HLD-seq.md); [LLD-jdbc.md](LLD-jdbc.md) §2;
 [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [../guide/relay-image.md](../guide/relay-image.md)
 
 This note decides how a service written in a language other than Java writes to the Tandem outbox:
@@ -18,7 +18,7 @@ and what stays Java-only.
   image (`ghcr.io/alirux/tandem-relay`), the Admin API is HTTP, the CLI is a native binary. The write
   side is the INSERT into `tandem_outbox` that runs inside the application's own transaction, and it
   must run in the application's process and language.
-- That INSERT is small and fully determined by data: a 64-bit FNV-1a hash, nine columns, three
+- That INSERT is small and fully determined by data: a 64-bit FNV-1a hash, eight columns, two
   `seq` modes, a header map, and two optional statements (an advisory lock and a wakeup signal).
 - Decided: the write side becomes a **published contract** of its own (§4), checked by
   **conformance vectors** that the Java implementation verifies in its own build (§6), and
@@ -107,8 +107,7 @@ A writer names its columns explicitly, never relies on column position, and sets
 | `aggregate_type` | always | Non-blank, at most 255 characters. |
 | `type` | optional | The CloudEvents `type`; at most 255 characters. `NULL` makes the relay fall back to `aggregate_type`. |
 | `bucket` | always | Computed by the writer (§4.2). |
-| `seq` | depends on mode | See §4.3: bound to a value, bound to `NULL`, or **omitted**. |
-| `seq_source` | always | `0` APPLICATION, `1` MANAGED, `2` NONE (§4.3). |
+| `seq` | always | See §4.3: bound to the caller's value, or to `NULL`. |
 | `payload` | always | UTF-8 JSON text, cast to `jsonb` (§4.4). |
 | `headers` | always | A JSON object of string to string, `{}` when empty (§4.4). |
 | `correlation_id` | when present | Copy of `headers["correlation-id"]`, truncated (§4.4); `NULL` otherwise. |
@@ -153,23 +152,19 @@ A misrouted row is not lost, but it lands in a bucket owned by the wrong worker,
 per-aggregate exclusivity the relay's ordering rests on (HLD §4.3) whenever a Java writer and the
 port write the same aggregate.
 
-### 4.3 The three `seq` modes
+### 4.3 The two `seq` modes
 
-A message states exactly one mode; there is no default (HLD-managed-seq §4.6). The mode decides what
-the writer does with two columns:
+A message states exactly one mode; there is no default (HLD-seq §4.4). The mode decides what the
+writer binds to `seq`:
 
-| Mode | `seq` | `seq_source` | Meaning |
-|---|---|---|---|
-| APPLICATION | bound to the caller's value | `0` | The aggregate's own number, usually its version. |
-| MANAGED | **omitted from the column list** | `1` | The column default (`nextval('tandem_seq')`) assigns it. |
-| NONE | bound to SQL `NULL` | `2` | No number; consumers deduplicate on the event id. |
+| Mode | `seq` | Meaning |
+|---|---|---|
+| sequenced (`seq(n)`) | bound to the caller's value | The number the aggregate gave the event, increasing within the aggregate. |
+| unsequenced | bound to SQL `NULL` | No number; consumers deduplicate on the event id. |
 
-Omitting and binding `NULL` are different instructions, and the difference is the whole mechanism:
-omitting fires the default, binding `NULL` stores none. The table's check constraint
-(`(seq IS NULL) = (seq_source = 2)`) rejects a MANAGED row bound to `NULL` and a NONE row that drew a
-number. It cannot catch one mistake: an APPLICATION row with `seq` omitted draws a managed number and
-still claims APPLICATION. An SDK must therefore build the statement from the mode, never from
-whether a value happens to be present.
+The column has no default, and Tandem never assigns a number (HLD-seq §4.5). The writer always binds
+`seq`, so the statement states the mode it means; a mode is never inferred from whether a value
+happens to be present.
 
 ### 4.4 Payload and headers
 
@@ -196,30 +191,21 @@ whether a value happens to be present.
 
 ### 4.5 The statements
 
-A row in APPLICATION or NONE mode:
+Every row, in either mode:
 
 ```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_source,
-                           payload, headers, correlation_id)
-VALUES ($1, $2, $3, $4, $5, $6, CAST($7 AS jsonb), CAST($8 AS jsonb), $9)
-```
-
-A row in MANAGED mode, the same statement without `seq`:
-
-```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source,
+INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq,
                            payload, headers, correlation_id)
 VALUES ($1, $2, $3, $4, $5, CAST($6 AS jsonb), CAST($7 AS jsonb), $8)
 ```
 
-A batch may mix modes; it then runs one statement shape per run of consecutive rows sharing a shape,
-in the order given, so insert order, and with it commit order within one transaction, is the order the
-caller supplied.
+A batch may mix modes and runs the rows in the order given, so insert order, and with it commit order
+within one transaction, is the order the caller supplied.
 
 ### 4.6 Serialising writers: `lockedWrite`
 
 A message may ask for concurrent writers to the same aggregate to be serialised
-(HLD-managed-seq §4.2). The writer then runs, on the same connection and inside the caller's
+(HLD-seq §4.2). The writer then runs, on the same connection and inside the caller's
 transaction, before the insert:
 
 ```sql
@@ -294,9 +280,9 @@ notify fails the transaction.
 | Configured bucket count differs from the stored one | construction (§4.7) | a configuration error |
 | Any other database error | the driver | an insert error wrapping the driver's |
 
-Every error carries `aggregate_type`, `aggregate_id` and the `seq` value or mode, and never the
-payload or a header value (the logging rules apply to error text as they do to `toString()`). A MANAGED
-message has no number until its insert succeeds, so its error names the mode, not a number.
+Every error carries `aggregate_type`, `aggregate_id` and the `seq` value, or `none` for an unsequenced
+message, and never the payload or a header value (the logging rules apply to error text as they do to
+`toString()`).
 
 ---
 
@@ -334,8 +320,8 @@ waits for the optional `pgx` package, which follows when there is demand for it.
 
 An SDK exposes the message the way `OutboxMessage` does, in the language's idiom: required
 `aggregate_id`, `aggregate_type` and payload; optional `type`, `content-type`, `dataschema` and
-headers; exactly one of the three `seq` modes, with no default and an error naming all three when
-none is stated; an optional `lockedWrite`. Two SDKs presenting the same concepts under the same names
+headers; exactly one of the two `seq` modes, with no default and an error naming both when neither is
+stated; an optional `lockedWrite`. Two SDKs presenting the same concepts under the same names
 let documentation, examples and support answers carry over between languages.
 
 ### 5.4 No logging
@@ -360,7 +346,7 @@ published artifact.
   four-byte UTF-8 characters, a 255-character identifier, hashes with the top bit set, and bucket
   counts that are not powers of two (1, 7, 100, 1000, 32767) as well as the default 256;
 - **row vectors:** a message, a bucket count and the expected stored row: `bucket`, `seq`,
-  `seq_source`, `type`, `headers` compared as a JSON object, and `correlation_id`, including every
+  `type`, `headers` compared as a JSON object, and `correlation_id`, including every
   `seq` mode, a truncated correlation id, and one whose 255th code point lies above U+FFFF;
 - **rejection vectors:** messages an SDK must refuse before any statement, and rows the database
   must refuse (a duplicate `seq`, a non-JSON payload). The length unit of §4.1 is pinned from both
@@ -442,11 +428,11 @@ Every SDK is versioned independently of the library, with semantic versioning, l
 - **its own API** in its language;
 - **its schema floor:** the oldest Tandem schema it can write to, stated as a changeset and the
   library release that first shipped it. For an SDK written against today's contract the floor is
-  `v4-optional-seq` (first released in library v0.8.0), because `seq_source` exists and is required
-  from that changeset on.
+  `v6-drop-managed-seq` (first released in library 1.0.0): before it, `seq_source` is required and the
+  `seq` default draws a number for an INSERT that leaves it out.
 
 Raising the floor is a minor version of the SDK, never a patch, and the release notes state the floor
-of every release. A newer schema never breaks an SDK, by the additive rule of HLD §1.4.
+of every release. Within a major version a newer schema never breaks an SDK, by the additive rule of HLD §1.4.
 
 ---
 
@@ -473,7 +459,7 @@ of every release. A newer schema never breaks an SDK, by the additive rule of HL
 ## 10. Rejected alternatives
 
 - **Publish the contract, ship no SDKs.** Rejected because the contract has sharp edges that fail
-  silently: an APPLICATION row with `seq` omitted (§4.3), an unsigned bucket reduction (§4.2), a
+  silently: a mode inferred from whether a value is present (§4.3), an unsigned bucket reduction (§4.2), a
   bucket count used without being reconciled with the stored one (§4.7). Every adopter would meet them
   alone. The contract is still published, for languages that have no SDK yet, and the SDK is the
   recommended path wherever one exists.

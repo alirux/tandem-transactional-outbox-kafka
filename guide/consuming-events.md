@@ -61,7 +61,7 @@ correlation-id=req-42
 | `ce_subject` | The aggregate id. |
 | `ce_time` | When the row was created, in UTC. It is the time of the insert, not of the commit or of the publish. |
 | `ce_partitionkey` | The Kafka key again, so a consumer can see it without knowing Kafka's key concept. |
-| `ce_seq` | The aggregate's sequence number. **Present only** when the event was written with one (`seq` or `managedSeq`); absent for `unsequenced`. |
+| `ce_seq` | The aggregate's sequence number. **Present only** when the event was written with one (`seq`); absent for `unsequenced`. |
 | `content-type` | The payload's content type, `application/json` by default. |
 | `ce_dataschema` | Only when a data schema was configured. |
 | `traceparent`, `tracestate`, `correlation-id` | Only when [tracing](observability.md#4-distributed-traces) is enabled on the write side. |
@@ -244,7 +244,7 @@ event unrecorded, or the reverse. Keep the identity as `(source, id)`, not `id` 
 
 ### 4.3 Use the sequence number, when there is one
 
-If the write side sends `ce_seq`, the aggregate's own version, you can keep the highest one applied per
+If the write side sends `ce_seq`, the number the aggregate gave the event, you can keep the highest one applied per
 aggregate and **ignore any event that is not higher**. This also drops a stale event that arrives late,
 which the table above would not.
 

@@ -71,7 +71,6 @@ tools/tandem-benchmark/
     MetricsExporter.java                // §6.3 — one relay instance's Prometheus /metrics endpoint
     ObservabilityStack.java             // §6.3 — Prometheus + Grafana containers, provisioned
     MetricsDashboardDemo.java           // §6.3 — the scripted run behind metricsDashboardDemo
-    ManagedSeqCostProbe.java            // §6.5 — prices managedSeq() against the other two seq modes
     RampController.java                 // §7   — adaptive lag-feedback rate controller (S1)
     BenchmarkEnvironment.java           // §3   — containers + Hikari + relay wiring
     RelayInstance.java                  // §3   — one simulated relay instance (pool + BucketSource + dispatcher), S8
@@ -739,38 +738,7 @@ pairing is interchangeable with the plausible-looking alternative (discovery 14 
 annotation mechanics (§6.3's hard-won `dashboardUID` lesson) apply here: a trace list has no timeline to
 paint a vertical line on.
 
-### 6.5 `ManagedSeqCostProbe` — what managed `seq` costs the caller's transaction
-
-Neither a scenario nor a demo: a measurement of one mechanism, written to answer whether
-`OutboxMessage.Builder.managedSeq()` costs the write path anything (HLD-managed-seq §3.4, §4.1 — the
-results live there). It starts **PostgreSQL alone** — nothing measured here leaves the write side, and
-an idle broker on the same host is only noise — and drives the real `JdbcOutboxRepository` through
-`TransactionalUnitOfWork` (§4.1), in one arrangement per phase: per-mode saturation over a sweep of
-writer counts, the same durable, one offered rate below saturation, batches of N rows per transaction
-(the `insertAll` path the Spring collector flushes through), and `nextval` alone, driven server-side
-over `generate_series` so no client round trip is in the way.
-
-**The arrangement that carries the result is the interleaved one:** every writer rotates through
-`seq(long)`/`managedSeq()`/`unsequenced()` operation by operation, into one histogram per mode. Two
-consecutive 15s windows on a developer machine drift further apart than the effect being looked for —
-the per-mode runs here span ±20% between rounds while the modes themselves sit within 1% of each
-other — so an interleaved, paired comparison is the only arrangement in which a per-insert cost of
-this size could show up at all. Rate is equal by construction there; the latency columns are the
-measurement.
-
-**It owns the durability knob rather than inheriting it.** Testcontainers starts PostgreSQL with
-`-c fsync=off` on the command line, and a command-line setting outranks `postgresql.auto.conf`, so
-`ALTER SYSTEM SET fsync` could never take effect. The container is therefore started with no setting
-of its own and the probe switches `fsync` per phase (a `sighup` reload, no restart), verifying the
-new value took before it measures anything.
-
-Each run also prints what was actually written, grouped by `seq_source`, and a `pg_stat_activity`
-wait-event sample taken through every measurement window — the first proves each mode did what its
-builder call claims, the second is the direct evidence for or against sequence-page contention.
-
----
-
-### 6.6 `IdlePollCostProbe` — what idle polling costs the database
+### 6.5 `IdlePollCostProbe` — what idle polling costs the database
 
 The counterpart to the poll-interval latency figures: every scenario drives load, so all of them
 measure what a shorter interval *buys* and none measures what it *costs*. The probe holds the outbox
@@ -794,12 +762,12 @@ that makes the archived `containers.csv` hard to attribute (§8). And each state
 would use, and vacuuming here keeps that work out of the windows — left to autovacuum it lands in the
 no-relay baseline and is subtracted from every cell of that state as background noise.
 
-Like the demos and `ManagedSeqCostProbe`: out of `test`/`check` and out of `loadTest`. Measures;
+Like the demos: out of `test`/`check` and out of `loadTest`. Measures;
 gates nothing.
 
-### 6.7 `PollIntervalCapacityProbe` — whether that cost takes capacity from real work
+### 6.6 `PollIntervalCapacityProbe` — whether that cost takes capacity from real work
 
-§6.6 prices the queries an idle relay makes; it cannot say whether they compete with delivery. This
+§6.5 prices the queries an idle relay makes; it cannot say whether they compete with delivery. This
 probe answers that directly: it measures the **sustainable ceiling** at two poll intervals in two
 outbox states, with a `RampController` search per cell, and compares. Results and the sizing guidance
 drawn from them: [relay-sizing.md](relay-sizing.md) §2.
@@ -818,7 +786,7 @@ happened to hold before the budget ran out — a lower bound set by the seed rat
 schedule, identical on every host — and two such numbers compared against each other measure the
 arithmetic, not the system (the same trap §7 describes for S1).
 
-It reuses `OutboxStateSeeder` (shared with §6.6, so the two probes cannot drift in what "blocked"
+It reuses `OutboxStateSeeder` (shared with §6.5, so the two probes cannot drift in what "blocked"
 means) and runs **no correlation consumer**: this measures capacity, and the harness's own Kafka
 consumer would take some of the host it is trying to measure. Correctness is S1's job. One detail
 that would otherwise invalidate the blocked cells: the seeded unclaimable rows are a permanent floor
@@ -1248,13 +1216,8 @@ and the fix belongs in the assertion.
   (§6.4). Same status — out of `test`/`check` and out of `loadTest`. ~40s of live traffic, then holds
   the Grafana traces view open until Enter; `--args="--hold=<seconds>"` for a non-interactive run.
   Needs Docker for three containers beyond the usual Postgres/Kafka pair (Prometheus + Grafana + Tempo).
-- **Managed-`seq` cost probe:** `./gradlew :tandem-benchmark:managedSeqCostProbe` →
-  `ManagedSeqCostProbe.main` (§6.5). Same status as the demos — out of `test`/`check` and out of
-  `loadTest`. ~25 minutes for every phase at the defaults, one Postgres container and no Kafka;
-  `--args="--phases=4"` runs just the sequence-ceiling sweep (~4 minutes), `--phases=5,6,7` just the
-  interleaved comparisons. Results: HLD-managed-seq.md §3.4.
 - **Idle poll cost probe:** `./gradlew :tandem-benchmark:idlePollCostProbe` → `IdlePollCostProbe.main`
-  (§6.6). Same status as the demos — out of `test`/`check` and out of `loadTest`. ~20 minutes at the
+  (§6.5). Same status as the demos — out of `test`/`check` and out of `loadTest`. ~20 minutes at the
   defaults (three outbox states × five relay sizings × a 60 s window); `--args="--seconds=30"` halves
   it, `--done-rows=`/`--blocked-rows=` size the seeded states. One PostgreSQL container and Kafka.
 - **`--workers=<n>`, `--poll-interval=<millis>` and `--poll-floor=<millis>`** override the relay's

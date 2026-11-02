@@ -287,3 +287,33 @@ CREATE INDEX idx_tandem_outbox_pending_id
     ON tandem_outbox (id)
     WHERE status = 0;
 
+-- Changeset v6-drop-managed-seq.sql::v6-drop-tandem-outbox-seq-source-check::tandem
+-- The agreement rule ties `seq_source` to whether `seq` is NULL. It goes first, because the next step
+-- clears the number of the rows Tandem numbered, which that rule would refuse.
+ALTER TABLE tandem_outbox
+    DROP CONSTRAINT tandem_outbox_seq_source_agrees;
+
+-- Changeset v6-drop-managed-seq.sql::v6-unsequence-managed-rows::tandem
+-- A row Tandem numbered (seq_source = 1) becomes a row with no number. Kept, its number would be read
+-- as one the application declared, and the relay's ordering detector would judge it on a counter that
+-- concurrent inserts can draw out of `id` order, reporting violations that never happened. A consumer
+-- of such an aggregate stops receiving `ce_seq` from here on. A row Tandem numbered before v4 is not
+-- among them: v4 recorded every existing row as the application's, so it keeps its number, as v4
+-- already accepted.
+UPDATE tandem_outbox
+    SET seq = NULL
+    WHERE seq_source = 1;
+
+-- Changeset v6-drop-managed-seq.sql::v6-drop-tandem-outbox-seq-source::tandem
+-- With one source of numbers left, whether a row has a number is exactly whether `seq` is NULL.
+ALTER TABLE tandem_outbox
+    DROP COLUMN seq_source;
+
+-- Changeset v6-drop-managed-seq.sql::v6-drop-tandem-outbox-seq-default::tandem
+-- Without a default, an INSERT that leaves out `seq` stores NULL, a row with no number, instead of
+-- silently drawing one.
+ALTER TABLE tandem_outbox
+    ALTER COLUMN seq DROP DEFAULT;
+
+DROP SEQUENCE tandem_seq;
+

@@ -228,7 +228,7 @@ final class RelayWorker {
      * unserialised writers are otherwise byte-identical, and only {@code replays} tells them apart
      * (HLD §8). Unknown counts as replayed — an unreportable case is better than a false incident.
      *
-     * <p><b>The two reports differ in what they are entitled to conclude</b> (HLD-managed-seq §6.1).
+     * <p><b>The two reports differ in what they are entitled to conclude</b> (HLD-seq §6.1).
      * On the {@code id} key the head-of-chain gate leaves the commit-order race of §3.1 as the only
      * way the order can invert, so unserialised writers follow by construction. On the {@code seq} key
      * the same observation also admits an application numbering its events inconsistently with its own

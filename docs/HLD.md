@@ -242,7 +242,7 @@ All four tiers are optional conveniences on top of the core library. Users choos
 The annotation tier requires a domain-side convention for event extraction and `seq` assignment:
 
 - **Event extraction:** the aggregate returned by the method must implement `TandemAggregate` (a `tandem-core` interface, analogous to Spring Data's `@DomainEvents`), exposing pending `OutboxMessage` instances. The AOP aspect collects them after the method returns, still within the open transaction.
-- **`seq` source:** the `seq` per-aggregate sequence number must originate from the aggregate's `version` field. The annotation cannot invent it — the aggregate is responsible for assigning `seq` before returning.
+- **`seq` source:** each message carries the number the aggregate gave the event, or none (`unsequenced()`, [HLD-seq.md](HLD-seq.md) §4.4). The annotation cannot invent it: the aggregate assigns it before returning.
 
 #### Spring-events tier — constraints and conventions
 
@@ -251,7 +251,7 @@ The domain publishes ordinary Spring application events (`ApplicationEventPublis
 - **The listener must run *inside* the transaction.** Tandem registers a **synchronous** `@EventListener` (which runs inline, in the publisher's thread and transaction) — **not** `@TransactionalEventListener(phase = AFTER_COMMIT)`, whose default phase runs *after* commit and would insert into the outbox in a separate transaction, breaking atomicity. This is the single most important constraint of this tier.
 - **Fail-fast if no transaction.** A synchronous listener fires even with no active transaction, which would insert under autocommit and lose atomicity. The listener therefore asserts an active transaction (`TransactionSynchronizationManager.isActualTransactionActive()`) and throws if absent — never a silent insert, and never a silent drop.
 - **Event → `OutboxMessage` mapping.** A published object that already is an `OutboxMessage` is inserted directly; otherwise Tandem looks up a registered `OutboxEventMapper<T>` (an SPI) to convert it. The listener is **scoped to exactly those handleable types** (`OutboxMessage` plus every type with a registered mapper), so framework and unrelated events are never intercepted — registering a mapper *is* how an event opts into the outbox. A published event with no mapper is simply ignored, following Spring's own "no listener, no-op" event-bus semantics; this does not weaken delivery guarantees, which apply once a row is in the outbox (LLD-spring-producer §5).
-- **`seq` source:** unchanged — the event must carry the `seq` taken from the aggregate's `version`. Tandem never invents it.
+- **`seq` source:** unchanged: the event carries the number the aggregate gave it, or none. Tandem never invents it.
 
 ### 3.2 Deployment topology & coordination mode — write-side in the client, relay embeddable or standalone, single or lease-coordinated
 
@@ -321,13 +321,13 @@ Ordering and all delivery guarantees are **identical regardless of topology** �
 
 **Rationale:** The relay cannot reconstruct an order that was never imposed at the source. The only correct place to serialize per-aggregate writes is where the aggregate mutation happens.
 
-**`seq` is a per-aggregate sequence number, and it is optional.** Where present it is monotonically increasing within a single aggregate and has no defined relationship across aggregates. It is **not** the relay's ordering key — the claim orders by `id` (§6) — and the `UNIQUE(aggregate_id, seq)` constraint is a safety net against a write-side bug, not the source of ordering.
+**`seq` is the application's number for an event, and it is optional.** Where present it increases with each event of a single aggregate and has no defined relationship across aggregates. It numbers events, not states: it equals the aggregate's version only while every version produces exactly one event ([HLD-seq.md](HLD-seq.md) §2). Tandem never assigns it ([HLD-seq.md](HLD-seq.md) §4.5). It is **not** the relay's ordering key — the claim orders by `id` (§6) — and the `UNIQUE(aggregate_id, seq)` constraint is a safety net against a write-side bug, not the source of ordering.
 
-**A message states which of three modes it uses, and there is no default** ([HLD-managed-seq.md](HLD-managed-seq.md) §4.5, §4.6). `seq(long)` supplies the aggregate's own number, usually its version. `managedSeq()` leaves it to a database sequence: the column is omitted and its default supplies the value, adding no statement and no lock to the caller's transaction. `unsequenced()` gives the row no number at all, publishes no `ce_seq`, and leaves consumers to deduplicate on the event id, which is unique by construction. Building a message that states none of the three fails.
+**A message states which of two modes it uses, and there is no default** ([HLD-seq.md](HLD-seq.md) §4.1, §4.4). `seq(long)` supplies the aggregate's number for the event. `unsequenced()` gives the row no number at all, publishes no `ce_seq`, and leaves consumers to deduplicate on the event id, which is unique by construction. Building a message that states neither fails.
 
-**Supplying the number is what buys the strongest ordering detection, and that is the honest reason to.** Only an application-assigned `seq` is an ordering the application *declared*, independent of the order rows were physically inserted, so it is the only one the relay can check a published order against; every other row is checked on its `id` (§8, [HLD-managed-seq.md](HLD-managed-seq.md) §6.1). It also carries the hazards of keeping a version in step with an ORM's flush (the note below). When nothing downstream reads the aggregate's version, `unsequenced()` is the usual answer.
+**Supplying the number is what buys the strongest ordering detection, and that is the honest reason to.** A `seq` is an ordering the application *declared*, independent of the order rows were physically inserted, so the relay can check a published order against it; a row without one is checked on its `id` (§8, [HLD-seq.md](HLD-seq.md) §6.1). It also carries the hazards of keeping a number in step with an ORM's flush (the note below). When nothing downstream reads a number per event, `unsequenced()` is the usual answer.
 
-**Opt-in, per message, independent of the above: Tandem can also serialize the writers instead of relying on the domain's own lock.** A message built with `lockedWrite()` makes the write-side adapter take a transaction-scoped `pg_advisory_xact_lock` on the aggregate before its insert ([HLD-managed-seq.md](HLD-managed-seq.md) §4.2): a concurrent writer to the same aggregate blocks until the first commits, turning the precondition below from something the application must satisfy unverified into something Tandem enforces. It costs one statement on the write and makes concurrent writers to one aggregate wait — a real behavioral change, opted into explicitly. Neither `seq` form requires it and neither excludes it.
+**Opt-in, per message, independent of the above: Tandem can also serialize the writers instead of relying on the domain's own lock.** A message built with `lockedWrite()` makes the write-side adapter take a transaction-scoped `pg_advisory_xact_lock` on the aggregate before its insert ([HLD-seq.md](HLD-seq.md) §4.2): a concurrent writer to the same aggregate blocks until the first commits, turning the precondition below from something the application must satisfy unverified into something Tandem enforces. It costs one statement on the write and makes concurrent writers to one aggregate wait — a real behavioral change, opted into explicitly. Neither `seq` mode requires it and neither excludes it.
 
 **Mechanism:**
 ```sql
@@ -338,7 +338,7 @@ INSERT INTO tandem_outbox (aggregate_id, seq = version + 1, ...)
 -- UNIQUE(aggregate_id, seq) constraint is the safety net
 ```
 
-> **With an ORM, the `version` must be the *flushed* one.** `seq = version + 1` is correct only if the version has actually advanced by the time the outbox row is built. Hibernate increments `@Version` at **flush**, and a Tandem write-side tier runs inside the caller's transaction — which is the whole point — so by default it observes the *pre-increment* value. Two mutations in one transaction then produce the **same** `seq` and the business transaction aborts on `UNIQUE(aggregate_id, seq)`; a mutation that dirties no persistent field advances no version at all, so the *next* transaction reuses the `seq`. This is a property of the ORM's flush timing, not of any one tier — it holds identically for the annotation, Template, application-events and plain-repository paths, so no choice of tier avoids it. Either build the outbox row after an explicit flush, or take `seq` from a source that advances per *event* — which is what `managedSeq()` does: [HLD-managed-seq.md](HLD-managed-seq.md) §3.2 has the measurements, §4.1 the mechanism.
+> **With an ORM, the `version` must be the *flushed* one.** `seq = version + 1` is correct only if the version has actually advanced by the time the outbox row is built. Hibernate increments `@Version` at **flush**, and a Tandem write-side tier runs inside the caller's transaction — which is the whole point — so by default it observes the *pre-increment* value. Two mutations in one transaction then produce the **same** `seq` and the business transaction aborts on `UNIQUE(aggregate_id, seq)`; a mutation that dirties no persistent field advances no version at all, so the *next* transaction reuses the `seq`. This is a property of the ORM's flush timing, not of any one tier — it holds identically for the annotation, Template, application-events and plain-repository paths, so no choice of tier avoids it. Either build the outbox row after an explicit flush, take `seq` from a counter the aggregate advances per *event*, or write the event `unsequenced()`: [HLD-seq.md](HLD-seq.md) §3.2 has the measurements, §4.4 the choice.
 
 > **Hard precondition (not optional).** The per-aggregate write lock above must serialize writes so that, within an aggregate, **commit order = `seq` order = `id` order**. Without it, a lower-`seq` row can become *durable* after a higher-`seq` one (the relay polls committed rows, so it would publish them out of order — and no relay model can repair an ordering defect baked into the data). See [q8-worker-model-decision.md](q8-worker-model-decision.md) (E1).
 
@@ -443,17 +443,15 @@ CREATE TABLE tandem_outbox (
     aggregate_id    VARCHAR(255) NOT NULL,   -- Kafka message key; the ordering scope
     aggregate_type  VARCHAR(255) NOT NULL,   -- routes to the Kafka topic (§5.2)
     bucket          SMALLINT     NOT NULL,   -- Math.floorMod(fnv1a64(aggregate_id), B), computed in Java; §4.3
-    seq             BIGINT,                  -- per-aggregate causal sequence; NULL when the row declares none (§4.2)
-    seq_source      SMALLINT     NOT NULL,   -- 0 = APPLICATION, 1 = MANAGED, 2 = NONE — which mode wrote the row
+    seq             BIGINT,                  -- the application's number for the event; NULL when the row declares none (§4.2)
     payload         JSONB        NOT NULL,   -- JSON only (§5.2)
     status          SMALLINT     NOT NULL DEFAULT 0,
     -- 0 = PENDING, 1 = IN_FLIGHT, 2 = DONE, 3 = FAILED, 4 = DISCARDED
     -- … plus type, headers, the delivery-state columns (locked_by, locked_until, attempts,
     -- replays, last_error, next_attempt_at, created_at) and the operator-facing
     -- discard_reason / correlation_id — all of them described in §5.2
-    UNIQUE (aggregate_id, seq),              -- the per-aggregate ordering safety net (§4.2); inert for a
+    UNIQUE (aggregate_id, seq)               -- the per-aggregate ordering safety net (§4.2); inert for a
                                              -- row with no seq, since PostgreSQL treats NULLs as distinct
-    CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))
 );
 ```
 
@@ -484,8 +482,7 @@ would need a generated-column workaround (§5.4, LLD-jdbc §5).
 | `aggregate_type` | Routes to Kafka topic — `kebab-case(aggregate_type)` + suffix `-topic` by default (e.g. `Order` → `order-topic`); see LLD-kafka §5 |
 | `type` | CloudEvents `type` — the event type (e.g. `com.acme.order.placed`); captured at produce time, mapped to the CloudEvent at publish (§4.8) |
 | `bucket` | Virtual bucket `Math.floorMod(fnv1a64(aggregate_id), B)`, computed **in Java** by `tandem-jdbc` at insert (engine-independent; §4.3); the unit of worker ownership. All events of an aggregate share a bucket |
-| `seq` | Per-aggregate causal sequence number, or `NULL` where the row declares none (§4.2); enforced by `UNIQUE(aggregate_id, seq)`, which a `NULL` sits outside |
-| `seq_source` | Which of the three modes wrote the row — `0` APPLICATION, `1` MANAGED, `2` NONE. A stored number cannot otherwise say where it came from, and only an application-assigned one is an ordering the relay can check a published order against (§8). Deliberately not range-constrained: a `CHECK` would make a fourth source a breaking change, so readers tolerate an unknown value and fall back to `id` |
+| `seq` | The application's number for the event, or `NULL` where the row declares none (§4.2); enforced by `UNIQUE(aggregate_id, seq)`, which a `NULL` sits outside. No default: an INSERT that leaves it out stores `NULL` |
 | `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` (readable/inspectable), so it must be valid JSON: a binary format (Avro/Protobuf) is encoded into JSON by the application, for instance as a base64 string. A `BYTEA` column is not supported, since the bundled adapters bind and read the column as JSON; the `BYTEA` mention in the comment of the `v1` changeset is immutable with that changeset and does not describe a supported option. Becomes CloudEvents `data`. |
 | `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers |
 | `status` | State machine: `PENDING → IN_FLIGHT → DONE` / `FAILED`; `FAILED → DISCARDED` (admin only). See §5.3 |
@@ -704,7 +701,7 @@ the client write-side never inherits Micrometer (§1.3). The measurements below 
 >    of which committed first, so nothing ever reaches a claim result to flag. The identical write-side
 >    race is *visible* only when a claim happens to run inside the window between the two commits —
 >    narrower than one `pollInterval` (default 100 ms). Faster transactions are therefore *more* likely
->    to hide the defect, not less. [HLD-managed-seq.md](HLD-managed-seq.md) §3.3 works the example.
+>    to hide the defect, not less. [HLD-seq.md](HLD-seq.md) §3.3 works the example.
 > 2. **A relay restart** loses every watermark, since they live only in memory.
 > 3. **LRU eviction** past the 4096 most-recently-published aggregates of a worker loses that
 >    aggregate's watermark.
@@ -719,7 +716,7 @@ the client write-side never inherits Micrometer (§1.3). The measurements below 
 >
 > A worker thread dying and being restarted does **not** lose its watermarks, nor does anything move
 > an aggregate between workers of one instance — the bucket-to-worker split is fixed at pool
-> construction. [HLD-managed-seq.md](HLD-managed-seq.md) §6 has the full table.
+> construction. [HLD-seq.md](HLD-seq.md) §6 has the full table.
 >
 > So the counter **under-reports and never over-reports**: a non-zero reading is always a real
 > violation, worth an incident; a zero reading proves nothing. **There is no runtime signal that

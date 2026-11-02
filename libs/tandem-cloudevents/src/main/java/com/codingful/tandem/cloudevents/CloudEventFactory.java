@@ -67,7 +67,7 @@ public final class CloudEventFactory {
         }
 
         // ce_seq only for a row that has a number: omitted for one written unsequenced
-        // (HLD-managed-seq §4.5). Consumers deduplicate on ce_id, unique by construction, so the
+        // (HLD-seq §4.1). Consumers deduplicate on ce_id, unique by construction, so the
         // extension's absence costs them nothing, while emitting a 0 in its place would be a
         // sequence number that belongs to no event.
         if (record.hasSeq()) {

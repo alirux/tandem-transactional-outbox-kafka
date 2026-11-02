@@ -62,16 +62,16 @@ public class OrderService {
 
     /**
      * Separate stream for writers that only add children and never lock the root: Tandem's
-     * per-aggregate lock serialises them instead, and the number is assigned after that lock.
+     * per-aggregate lock serialises them instead. The events carry no number: there is no root row
+     * to count them on, and consumers deduplicate on the event id.
      */
     @Transactional
     public void appendChildOnly(String id) {
         // A reference, not a find: the root is neither read nor locked. The foreign key check
         // takes only a shared key lock on it, which serialises nothing.
         entities.persist(new OrderNote(entities.getReference(PurchaseOrder.class, id)));
-        // The lock is taken inside the insert, so an application-assigned seq would be read too early.
         outbox.insert(OutboxMessage.builder().aggregateType("Order").aggregateId(id)
-                .type("OrderNoteAdded").managedSeq().lockedWrite()
+                .type("OrderNoteAdded").unsequenced().lockedWrite()
                 .payload("{}".getBytes(StandardCharsets.UTF_8)).build());
     }
 

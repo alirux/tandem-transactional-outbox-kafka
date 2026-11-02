@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.OutboxMessage;
-import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.exception.OutboxInsertException;
@@ -232,16 +231,6 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
         }
     }
     @Test
-    void GIVEN_an_aggregate_with_no_version_WHEN_its_events_are_inserted_THEN_tandem_numbers_them_in_write_order() {
-        repository.insert(OutboxMessage.builder()
-                .aggregateId("order-managed-1").aggregateType("Order").managedSeq().payload("{}".getBytes()).build());
-        repository.insert(OutboxMessage.builder()
-                .aggregateId("order-managed-1").aggregateType("Order").managedSeq().payload("{}".getBytes()).build());
-
-        assertThat(seqsOf("order-managed-1")).hasSize(2).isSorted().doesNotHaveDuplicates();
-    }
-
-    @Test
     void GIVEN_several_events_of_an_aggregate_that_publishes_no_sequence_number_WHEN_inserted_THEN_none_collides_with_another() {
         // The uniqueness constraint is on (aggregate_id, seq); these rows have no seq, so PostgreSQL's
         // NULLS DISTINCT leaves them outside it entirely. A second row proves it is genuinely inert.
@@ -250,49 +239,41 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
         repository.insert(OutboxMessage.builder()
                 .aggregateId("order-none-1").aggregateType("Order").unsequenced().payload("{}".getBytes()).build());
 
-        assertThat(storedSeqSourcesOf("order-none-1"))
-                .containsExactly(SeqSource.NONE.code(), SeqSource.NONE.code());
         assertThat(rawSeqsOf("order-none-1")).containsExactly(null, null);
     }
 
     @Test
-    void GIVEN_the_three_ways_of_sourcing_a_sequence_number_WHEN_inserted_together_THEN_each_row_records_which_one_it_used() {
+    void GIVEN_a_batch_of_numbered_and_unnumbered_events_WHEN_inserted_together_THEN_each_row_stores_its_own_number_or_none() {
         repository.insertAll(List.of(
                 OutboxMessage.builder().aggregateId("order-src-1").aggregateType("Order").seq(7).payload("{}".getBytes()).build(),
-                OutboxMessage.builder().aggregateId("order-src-2").aggregateType("Order").managedSeq().payload("{}".getBytes()).build(),
-                OutboxMessage.builder().aggregateId("order-src-3").aggregateType("Order").unsequenced().payload("{}".getBytes()).build()));
+                OutboxMessage.builder().aggregateId("order-src-2").aggregateType("Order").unsequenced().payload("{}".getBytes()).build()));
 
-        assertThat(storedSeqSourcesOf("order-src-1")).containsExactly(SeqSource.APPLICATION.code());
-        assertThat(storedSeqSourcesOf("order-src-2")).containsExactly(SeqSource.MANAGED.code());
-        assertThat(storedSeqSourcesOf("order-src-3")).containsExactly(SeqSource.NONE.code());
         assertThat(rawSeqsOf("order-src-1")).containsExactly(7L);
-        assertThat(rawSeqsOf("order-src-2")).doesNotContainNull();
-        assertThat(rawSeqsOf("order-src-3")).containsExactly((Long) null);
+        assertThat(rawSeqsOf("order-src-2")).containsExactly((Long) null);
     }
 
     @Test
-    void GIVEN_a_batch_mixing_numbered_and_tandem_numbered_events_WHEN_inserted_THEN_the_rows_keep_the_collection_order() {
+    void GIVEN_a_batch_mixing_numbered_and_unnumbered_events_WHEN_inserted_THEN_the_rows_keep_the_collection_order() {
         repository.insertAll(List.of(
                 OutboxMessage.builder().aggregateId("order-mixed-1").aggregateType("Order").seq(1).payload("{}".getBytes()).build(),
-                OutboxMessage.builder().aggregateId("order-mixed-2").aggregateType("Order").managedSeq().payload("{}".getBytes()).build(),
+                OutboxMessage.builder().aggregateId("order-mixed-2").aggregateType("Order").unsequenced().payload("{}".getBytes()).build(),
                 OutboxMessage.builder().aggregateId("order-mixed-3").aggregateType("Order").seq(1).payload("{}".getBytes()).build(),
-                OutboxMessage.builder().aggregateId("order-mixed-4").aggregateType("Order").managedSeq().payload("{}".getBytes()).build(),
-                OutboxMessage.builder().aggregateId("order-mixed-5").aggregateType("Order").managedSeq().payload("{}".getBytes()).build()));
+                OutboxMessage.builder().aggregateId("order-mixed-4").aggregateType("Order").unsequenced().payload("{}".getBytes()).build(),
+                OutboxMessage.builder().aggregateId("order-mixed-5").aggregateType("Order").unsequenced().payload("{}".getBytes()).build()));
 
         assertThat(aggregateIdsInRowOrder())
                 .containsExactly("order-mixed-1", "order-mixed-2", "order-mixed-3", "order-mixed-4", "order-mixed-5");
     }
 
     @Test
-    void GIVEN_an_event_tandem_would_number_WHEN_the_insert_fails_THEN_the_failure_reports_no_number_rather_than_a_made_up_one() {
+    void GIVEN_an_event_with_no_number_WHEN_the_insert_fails_THEN_the_failure_says_so_rather_than_showing_zero() {
         OutboxMessage notJson = OutboxMessage.builder()
-                .aggregateId("order-managed-2").aggregateType("Order").managedSeq()
+                .aggregateId("order-none-2").aggregateType("Order").unsequenced()
                 .payload("not json".getBytes()).build();
 
         assertThatThrownBy(() -> repository.insert(notJson))
                 .isInstanceOf(OutboxInsertException.class)
-                .hasMessageContaining("order-managed-2")
-                .hasMessageContaining("managed");
+                .hasMessageContaining("(order-none-2, none)");
     }
 
     @Test
@@ -376,12 +357,11 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
     }
 
     @Test
-    void GIVEN_a_batch_whose_last_event_repeats_a_number_already_used_WHEN_inserted_THEN_the_failure_names_that_event() {
+    void GIVEN_a_batch_of_one_event_repeating_a_number_already_used_WHEN_inserted_THEN_the_failure_names_that_event() {
         repository.insert(OutboxMessage.builder()
                 .aggregateId("order-batch-fail").aggregateType("Order").seq(1).payload("{}".getBytes()).build());
 
         assertThatThrownBy(() -> repository.insertAll(List.of(
-                OutboxMessage.builder().aggregateId("order-batch-ok").aggregateType("Order").managedSeq().payload("{}".getBytes()).build(),
                 OutboxMessage.builder().aggregateId("order-batch-fail").aggregateType("Order").seq(1).payload("{}".getBytes()).build())))
                 .isInstanceOf(DuplicateSeqException.class)
                 .hasMessageContaining("order-batch-fail");
@@ -393,10 +373,6 @@ class JdbcOutboxRepositoryIT extends AbstractPostgresIT {
             long value = rs.getLong(1);
             return rs.wasNull() ? null : value;
         });
-    }
-
-    private static List<Integer> storedSeqSourcesOf(String aggregateId) {
-        return columnOf(aggregateId, "seq_source", rs -> rs.getInt(1));
     }
 
     private interface ColumnReader<T> {

@@ -109,7 +109,7 @@ Step 4 adds this asymmetry to the guide.
 
 **Not coupled to CloudEvents:** the Admin API contract and the CLI (they mention CloudEvents only in
 the description of the generic `type` column), `tandem-micrometer`, `tandem-tracing-otel`,
-`tandem-admin`, `SeqSource` and `OutboxRowMapper` (which name `ce_seq` only in comments), and the
+`tandem-admin` and `OutboxRowMapper` (which names `ce_seq` only in comments), and the
 write side.
 
 ---

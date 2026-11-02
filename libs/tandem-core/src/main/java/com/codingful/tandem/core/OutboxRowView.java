@@ -17,7 +17,7 @@ import java.util.Objects;
  * only the delivery budget of the current round and a replay resets it (HLD §8).
  *
  * <p>{@code seq} is a boxed {@link Long} and is {@code null} for a row written without a sequence
- * number ({@code unsequenced()}, HLD-managed-seq §4.5). A primitive would render that row as
+ * number ({@code unsequenced()}, HLD-seq §4.1). A primitive would render that row as
  * {@code 0} — a number that looks authoritative and belongs to no one — which is the same reason
  * {@link OutboxMessage#seq()} throws rather than returning a default.
  */

@@ -144,7 +144,7 @@ Tandem record with a record pattern is outside the promise: a new component chan
 
 A public enum may gain constants in a minor version, since the readers of every contract tolerate
 values they do not know (HLD §1.4). Code that switches over a Tandem enum keeps a `default` branch,
-and the enum's javadoc says so. The public enums are `OutboxStatus`, `SeqSource` and
+and the enum's javadoc says so. The public enums are `OutboxStatus` and
 `RelayCoordinationMode` (core), `Coordination` and `Wakeup` (jdbc).
 
 ### 4.3 Construction

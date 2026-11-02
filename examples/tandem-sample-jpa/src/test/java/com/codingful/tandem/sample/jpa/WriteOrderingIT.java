@@ -190,10 +190,10 @@ class WriteOrderingIT {
     }
 
     @Test
-    void GIVEN_child_only_writers_with_tandems_aggregate_lock_WHEN_they_overlap_THEN_the_second_waits_and_numbers_follow_commit_order() throws Exception {
+    void GIVEN_child_only_writers_with_tandems_aggregate_lock_WHEN_they_overlap_THEN_the_second_waits_and_both_events_carry_no_number() throws Exception {
         String id = create();
         concurrent(List.of(id), () -> orders.appendChildOnly(id), () -> orders.appendChildOnly(id));
-        assertThat(sequences(id)).hasSize(2).isSorted().doesNotHaveDuplicates();
+        assertThat(sequences(id)).containsExactly(null, null);
     }
 
     @Test

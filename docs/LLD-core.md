@@ -56,9 +56,9 @@ public final class OutboxMessage {
     private final AggregateId aggregateId;
     private final String aggregateType;
     private final String type;            // CloudEvents `type` (nullable; see Q20)
-    private final long   seq;             // meaningful only when seqSource == APPLICATION (HLD §4.2)
-    private final SeqSource seqSource;    // APPLICATION | MANAGED | NONE — which of the three modes the caller stated
-    private final boolean lockedWrite;    // opted in via lockedWrite(): an advisory lock serialises writers (HLD-managed-seq §4.2)
+    private final long   seq;             // meaningful only when hasSeq (HLD §4.2)
+    private final boolean hasSeq;         // false = unsequenced(): the row carries no number (HLD-seq §4.1)
+    private final boolean lockedWrite;    // opted in via lockedWrite(): an advisory lock serialises writers (HLD-seq §4.2)
     private final byte[] payload;         // already serialized (Q3)
     private final String contentType;     // e.g. "application/json"; persisted into headers["content-type"] (LLD-jdbc §2)
     private final Map<String,String> headers;     // immutable copy; may be empty
@@ -71,28 +71,22 @@ public final class OutboxMessage {
 - **Payload is `byte[]`** (Q3): the core never serializes, so it forces no JSON library on the
   client (§1.3). Higher tiers may offer an `Object`-accepting overload backed by a
   `PayloadSerializer` (below); the plain tier passes bytes/`String`.
-- **`seq` has three modes and no default** ([HLD-managed-seq](HLD-managed-seq.md) §4.5, §4.6): the
-  core never generates a number. `seq(long)` supplies the aggregate's own, `managedSeq()` leaves it to
-  the `tandem_seq` column default (the write-side adapter omits the column), and `unsequenced()` gives
-  the row none at all. They are mutually exclusive and `build()` rejects a message stating more than
-  one — structurally, not by convention, so a malformed `entity.getVersion()` can never opt an
-  aggregate in silently. It also rejects a message stating **none**, and that failure names all three
-  and what each is for: the choice fixes the row's wire contract and how strongly its published order
-  can be checked, so it is made deliberately rather than inherited.
-  `seq()` **throws** `IllegalStateException` rather than returning `0` on any message that carries no
-  number of its own — a plausible-looking zero would reach `ce_seq` and the logs as if it were real.
-  Guard with **`hasSeq()`**; branch on **`seqSource()`** where the mode itself matters. `OutboxRecord`
-  refuses a message still awaiting a managed number, since it describes a *persisted* row, and carries
-  its own `seqSource` read from the column — a resolved managed number is indistinguishable from an
-  application-assigned one once stored, so for a persisted row the record's accessor is the authority,
-  not the wrapped message's.
+- **`seq` has two modes and no default** ([HLD-seq](HLD-seq.md) §4.1, §4.4): the core never
+  generates a number. `seq(long)` supplies the aggregate's number for the event, and `unsequenced()`
+  gives the row none at all. They are mutually exclusive, and `build()` rejects a message stating both.
+  It also rejects a message stating **neither**, and that failure names both and what each is for: the
+  choice fixes the row's wire contract and how strongly its published order can be checked, so it is
+  made deliberately rather than inherited.
+  `seq()` **throws** `IllegalStateException` rather than returning `0` on a message that carries no
+  number: a plausible-looking zero would reach `ce_seq` and the logs as if it were real. Guard with
+  **`hasSeq()`**, on `OutboxMessage` and on `OutboxRecord` alike.
 - **`aggregateType` and `type` are bounded like `AggregateId`**: `build()` rejects either one longer
   than 255 `char`s, the width of their `VARCHAR(255)` columns, so a message the in-memory outbox
   accepts is one the database accepts too.
 - **`lockedWrite`** asks the write-side adapter to serialise concurrent writers to the aggregate with
-  a transaction-scoped advisory lock ([HLD-managed-seq](HLD-managed-seq.md) §4.2) — independent of
-  `seqSource()`, combines with any of the three modes. Unlike them it changes no readable value on
-  the message; it is consumed only by the adapter at insert.
+  a transaction-scoped advisory lock ([HLD-seq](HLD-seq.md) §4.2), independent of the `seq` mode
+  and combined freely with either. Unlike the mode it changes no readable value on the message; it is
+  consumed only by the adapter at insert.
 - **`contentType`** is the only typed convenience field that maps onto a header: the write-side
   serializes it into `headers["content-type"]` at insert (LLD-jdbc §2), the key the relay reads for
   the CloudEvents `datacontenttype` (LLD-kafka §3.2). No dedicated column — reuse `headers` (Pareto).

@@ -14,17 +14,15 @@ import java.util.Objects;
  *   <li><b>Payload is {@code byte[]}</b>: the core never serializes, so it forces no JSON library on
  *       the client (§1.3). Higher tiers may offer an {@code Object}-accepting overload backed by a
  *       {@link com.codingful.tandem.core.port.PayloadSerializer}.</li>
- *   <li><b>{@code seq} has three modes and no default</b> (HLD-managed-seq §4.6). Exactly one of
- *       {@link Builder#seq(long)} (the application's own number, usually the aggregate's version),
- *       {@link Builder#managedSeq()} (Tandem draws it from a sequence at insert) or
+ *   <li><b>{@code seq} has two modes and no default</b> (HLD-seq §4.4). Exactly one of
+ *       {@link Builder#seq(long)} (the application's own number for the event) or
  *       {@link Builder#unsequenced()} (the row has none, and no {@code ce_seq} is published) must be
  *       stated; building without one fails. Supplying the number buys the strongest ordering
- *       detection and costs the hazards of keeping a version in step (HLD-managed-seq §3.2); when
+ *       detection and costs the hazards of keeping it in step with the domain (HLD-seq §3.2); when
  *       undecided, {@link Builder#unsequenced()} is the usual answer.</li>
  *   <li><b>{@code lockedWrite}</b> asks the write-side adapter to serialise concurrent writers to the
- *       same aggregate with a transaction-scoped advisory lock, orthogonal to {@code seq}/
- *       {@code managedSeq} (HLD-managed-seq §4.2): app-assigned and Tandem-assigned {@code seq} can
- *       each be combined with or without it.</li>
+ *       same aggregate with a transaction-scoped advisory lock, orthogonal to {@code seq}
+ *       (HLD-seq §4.2): either mode can be combined with or without it.</li>
  *   <li>{@code contentType} is the only typed convenience field that maps onto a header: the
  *       write-side serializes it into {@code headers["content-type"]} at insert (LLD-jdbc §2), the
  *       key the relay reads for the CloudEvents {@code datacontenttype} (LLD-kafka §3.2). There is no
@@ -42,9 +40,9 @@ public final class OutboxMessage {
     private final AggregateId aggregateId;
     private final String aggregateType;
     private final String type;            // CloudEvents `type`; nullable (Q20)
-    private final long seq;               // meaningful only when seqSource == APPLICATION
-    private final SeqSource seqSource;    // which of the three modes the caller stated (HLD-managed-seq §4.6)
-    private final boolean lockedWrite;    // true = serialise concurrent writers via advisory lock (HLD-managed-seq §4.2)
+    private final long seq;               // meaningful only when hasSeq
+    private final boolean hasSeq;         // false = unsequenced() (HLD-seq §4.1)
+    private final boolean lockedWrite;    // true = serialise concurrent writers via advisory lock (HLD-seq §4.2)
     private final byte[] payload;         // already serialized (Q3)
     private final String contentType;     // nullable; persisted into headers["content-type"]
     private final Map<String, String> headers;  // immutable copy; may be empty
@@ -53,7 +51,7 @@ public final class OutboxMessage {
         this.aggregateId = Objects.requireNonNull(b.aggregateId, "aggregateId");
         this.aggregateType = requireWithinColumn(requireNonBlank(b.aggregateType, "aggregateType"), "aggregateType");
         this.type = b.type == null ? null : requireWithinColumn(b.type, "type");
-        this.seqSource = resolveSeqSource(b);
+        this.hasSeq = resolveHasSeq(b);
         this.seq = b.seq;
         this.lockedWrite = b.lockedWrite;
         this.payload = Objects.requireNonNull(b.payload, "payload").clone();
@@ -77,38 +75,25 @@ public final class OutboxMessage {
     /**
      * The app-assigned sequence number.
      *
-     * @throws IllegalStateException if this message carries no number of its own — either because
-     *                               Tandem assigns it at insert ({@link Builder#managedSeq()}, where
-     *                               none exists until the row is written) or because the message is
-     *                               {@link Builder#unsequenced()}. Any value returned in those cases
-     *                               would be a fiction; guard with {@link #hasSeq()}.
+     * @throws IllegalStateException if the message is {@link Builder#unsequenced()}: any value
+     *                               returned would be a fiction; guard with {@link #hasSeq()}
      */
     public long seq() {
-        if (seqSource != SeqSource.APPLICATION) {
-            throw new IllegalStateException(
-                    "this message carries no seq of its own, seqSource:" + seqSource
-                            + " — guard with hasSeq()");
+        if (!hasSeq) {
+            throw new IllegalStateException("this message carries no seq, guard with hasSeq()");
         }
         return seq;
     }
 
     /** Whether {@link #seq()} returns a value rather than throwing. */
     public boolean hasSeq() {
-        return seqSource == SeqSource.APPLICATION;
-    }
-
-    /**
-     * Which of the three {@code seq} modes this message states (HLD-managed-seq §4.6). Never
-     * {@link SeqSource#UNKNOWN}, which only ever describes a value read back from a row.
-     */
-    public SeqSource seqSource() {
-        return seqSource;
+        return hasSeq;
     }
 
     /**
      * Whether the write-side adapter serialises concurrent writers to this aggregate with a
-     * transaction-scoped advisory lock (HLD-managed-seq §4.2). Independent of {@link #seqSource()}:
-     * any of the three modes can ask for the lock or not.
+     * transaction-scoped advisory lock (HLD-seq §4.2). Independent of {@link #hasSeq()}: either
+     * mode can ask for the lock or not.
      */
     public boolean lockedWrite() {
         return lockedWrite;
@@ -142,7 +127,7 @@ public final class OutboxMessage {
             return false;
         }
         return seq == other.seq
-                && seqSource == other.seqSource
+                && hasSeq == other.hasSeq
                 && lockedWrite == other.lockedWrite
                 && aggregateId.equals(other.aggregateId)
                 && aggregateType.equals(other.aggregateType)
@@ -154,7 +139,7 @@ public final class OutboxMessage {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(aggregateId, aggregateType, type, seq, seqSource, lockedWrite, contentType, headers);
+        int result = Objects.hash(aggregateId, aggregateType, type, seq, hasSeq, lockedWrite, contentType, headers);
         result = 31 * result + Arrays.hashCode(payload);
         return result;
     }
@@ -171,39 +156,28 @@ public final class OutboxMessage {
                 + ", headerNames=" + headers.keySet() + '}';
     }
 
-    /** {@code toString} rendering shared with {@link OutboxRecord}: the number, or why there is none. */
+    /** {@code toString} rendering shared with {@link OutboxRecord}: the number, or {@code none}. */
     String renderSeq() {
-        return switch (seqSource) {
-            case APPLICATION -> Long.toString(seq);
-            case MANAGED -> "managed";
-            default -> "none";
-        };
+        return hasSeq ? Long.toString(seq) : "none";
     }
 
     /**
-     * Exactly one of the three modes must be stated. The failure names all three and what each is
-     * for: this is the moment the decision is actually being made, and a message that only refuses
-     * would send the caller looking for documentation they are already standing in
-     * (HLD-managed-seq §4.6).
+     * Exactly one of the two modes must be stated. The failure names both and what each is for:
+     * this is the moment the decision is actually being made, and a message that only refuses would
+     * send the caller looking for documentation they are already standing in (HLD-seq §4.4).
      */
-    private static SeqSource resolveSeqSource(Builder b) {
-        int stated = (b.seqAssigned ? 1 : 0) + (b.managedSeq ? 1 : 0) + (b.unsequenced ? 1 : 0);
-        if (stated > 1) {
+    private static boolean resolveHasSeq(Builder b) {
+        if (b.seqAssigned && b.unsequenced) {
             throw new IllegalStateException(
-                    "seq(long), managedSeq() and unsequenced() are mutually exclusive — a message has "
-                            + "one sequence number, from one source");
+                    "seq(long) and unsequenced() are mutually exclusive: a message has a sequence number or none");
         }
-        if (stated == 0) {
+        if (!b.seqAssigned && !b.unsequenced) {
             throw new IllegalStateException(
-                    "no seq mode stated: call seq(long) if consumers read the aggregate's own version,"
-                            + " managedSeq() if they need a sequence number with no domain meaning, or"
-                            + " unsequenced() if they deduplicate on the event id — unsequenced() is the"
-                            + " usual answer");
+                    "no seq mode stated: call seq(long) if consumers read a number the aggregate assigns"
+                            + " to each event, or unsequenced() if they deduplicate on the event id;"
+                            + " unsequenced() is the usual answer");
         }
-        if (b.managedSeq) {
-            return SeqSource.MANAGED;
-        }
-        return b.seqAssigned ? SeqSource.APPLICATION : SeqSource.NONE;
+        return b.seqAssigned;
     }
 
     private static String requireNonBlank(String value, String field) {
@@ -231,7 +205,6 @@ public final class OutboxMessage {
         private String type;
         private long seq;
         private boolean seqAssigned;
-        private boolean managedSeq;
         private boolean unsequenced;
         private boolean lockedWrite;
         private byte[] payload;
@@ -263,11 +236,12 @@ public final class OutboxMessage {
         }
 
         /**
-         * The app-assigned, per-aggregate monotonically increasing sequence number (HLD §4.2). The
-         * only mode whose number the relay can check a published order against, and the only one
-         * carrying the hazards of keeping a version in step (HLD-managed-seq §3.2, §4.6).
+         * The app-assigned sequence number of this event, increasing within its aggregate (HLD §4.2).
+         * It is a number per event, not per state: it equals the aggregate's version only while
+         * every version produces exactly one event. It is what the relay can check a published order
+         * against, at the cost of keeping it in step with the domain (HLD-seq §3.2, §4.4).
          *
-         * <p>Mutually exclusive with {@link #managedSeq()} and {@link #unsequenced()}.
+         * <p>Mutually exclusive with {@link #unsequenced()}.
          */
         public Builder seq(long seq) {
             this.seq = seq;
@@ -276,29 +250,11 @@ public final class OutboxMessage {
         }
 
         /**
-         * Leaves the sequence number to Tandem, for an aggregate with no version to take it from
-         * (HLD-managed-seq §4.1): the write-side adapter omits the column and the database assigns
-         * the value, at no cost on the caller's transaction.
-         *
-         * <p>Opting in is per message, so one aggregate type can be managed while another stays
-         * app-assigned. It changes what a consumer reads in the {@code seq} CloudEvents extension —
-         * Tandem's own counter, large and not dense per aggregate, rather than the aggregate's
-         * version — so it is a contract change for an existing stream (HLD-managed-seq §5).
-         *
-         * <p>Mutually exclusive with {@link #seq(long)} and {@link #unsequenced()}: setting more than
-         * one fails in {@link #build()}.
-         */
-        public Builder managedSeq() {
-            this.managedSeq = true;
-            return this;
-        }
-
-        /**
          * Gives the row no sequence number at all: the write side stores {@code NULL} and the relay
          * publishes no {@code ce_seq}, leaving consumers to deduplicate on the event id, which is
-         * unique by construction (HLD-managed-seq §4.5).
+         * unique by construction (HLD-seq §4.1).
          *
-         * <p>The usual answer when undecided (§4.6). It asks nothing of the domain, and it is the one
+         * <p>The usual answer when undecided (§4.4). It asks nothing of the domain, and it is the one
          * starting point that stays open: adding a number later is additive for consumers, while
          * taking one away is not. What it gives up is the stronger ordering detection an
          * application-assigned number buys — an unsequenced row is still checked, against its insert
@@ -307,7 +263,7 @@ public final class OutboxMessage {
          * <p>Such a row falls outside {@code UNIQUE (aggregate_id, seq)}, and loses nothing by it:
          * that constraint catches a duplicate number, which cannot arise where no number is supplied.
          *
-         * <p>Mutually exclusive with {@link #seq(long)} and {@link #managedSeq()}.
+         * <p>Mutually exclusive with {@link #seq(long)}.
          */
         public Builder unsequenced() {
             this.unsequenced = true;
@@ -317,12 +273,12 @@ public final class OutboxMessage {
         /**
          * Serialises concurrent writers to this aggregate with a transaction-scoped advisory lock,
          * taken by the write-side adapter on the same connection right before its insert
-         * (HLD-managed-seq §4.2): a concurrent transaction writing the same aggregate blocks until
-         * this one commits, making commit order match insert order. Independent of {@code seq}/
-         * {@link #seqSource()} — combine freely with any of the three modes.
+         * (HLD-seq §4.2): a concurrent transaction writing the same aggregate blocks until this one
+         * commits, making commit order match insert order. Independent of {@code seq}: combine
+         * freely with either mode.
          *
          * <p>Costs one statement on the caller's hot path and turns concurrent writers to one
-         * aggregate into waiters; not the default (HLD-managed-seq §5).
+         * aggregate into waiters; not the default (HLD-seq §5).
          */
         public Builder lockedWrite() {
             this.lockedWrite = true;
@@ -364,8 +320,8 @@ public final class OutboxMessage {
          *                                  {@code payload}) is unset
          * @throws IllegalArgumentException if {@code aggregateType} is blank, or {@code aggregateType} or
          *                                  {@code type} is longer than 255 code points
-         * @throws IllegalStateException    if none of {@link #seq(long)}, {@link #managedSeq()} and
-         *                                  {@link #unsequenced()} was stated, or if more than one was
+         * @throws IllegalStateException    if neither {@link #seq(long)} nor {@link #unsequenced()} was
+         *                                  stated, or if both were
          */
         public OutboxMessage build() {
             return new OutboxMessage(this);

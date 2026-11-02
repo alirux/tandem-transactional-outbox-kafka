@@ -29,8 +29,8 @@ public interface OutboxCollector {
      *
      * @param aggregateType the aggregate type (topic routing, CloudEvents {@code type} fallback)
      * @param aggregateId   the aggregate the row belongs to
-     * @param seq           the per-aggregate sequence number — must be the aggregate's {@code version}
-     *                      (HLD §4.2); Tandem never invents it
+     * @param seq           the event's sequence number, increasing within the aggregate (HLD §4.2);
+     *                      the aggregate's {@code version} only while each version produces one event
      * @param payload       the payload object to serialize
      * @throws com.codingful.tandem.core.exception.PayloadSerializationException if no
      *                      {@code PayloadSerializer} is configured, or serialization fails
@@ -42,21 +42,15 @@ public interface OutboxCollector {
      *
      * @param aggregateType the aggregate type
      * @param aggregateId   the aggregate id
-     * @param seq           the per-aggregate sequence number (the aggregate's {@code version})
+     * @param seq           the event's sequence number, increasing within the aggregate
      * @param payload       the payload object to serialize
      */
     void record(String aggregateType, String aggregateId, long seq, Object payload);
 
     /**
-     * Record a row with <b>no sequence number</b> ({@code unsequenced()}, HLD-managed-seq §4.5): no
+     * Record a row with <b>no sequence number</b> ({@code unsequenced()}, HLD-seq §4.1): no
      * {@code ce_seq} reaches consumers, who deduplicate on the event id instead. The usual choice
-     * when nothing downstream reads the aggregate's version (§4.6).
-     *
-     * <p>The third mode — letting Tandem draw the number from its own sequence ({@code managedSeq()})
-     * — has no overload here and is reached by building the message and passing it to
-     * {@link #add(OutboxMessage)}, as {@code lockedWrite()} already is. A third pair of overloads
-     * would double this method's surface again for a mode most callers never reach for (Pareto,
-     * HLD §1.1).
+     * when nothing downstream reads a number the aggregate assigns to its events (§4.4).
      *
      * @param aggregateType the aggregate type (topic routing, CloudEvents {@code type} fallback)
      * @param aggregateId   the aggregate the row belongs to

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
-import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.exception.PayloadSerializationException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -75,7 +74,6 @@ class CollectingOutboxCollectorTest {
         collector.record("Order", "order-5", payload);
 
         assertThat(collector.collected()).singleElement().satisfies(message -> {
-            assertThat(message.seqSource()).isEqualTo(SeqSource.NONE);
             assertThat(message.hasSeq()).isFalse();
             assertThat(message.aggregateId().value()).isEqualTo("order-5");
             assertThat(message.contentType()).isEqualTo(serializer.contentType());

@@ -48,7 +48,7 @@ A documentation step, plus one javadoc correction.
   of HLD.md §4.8 names the wire names (`seq` / `logicalclock` / `causationid`, not the design term
   `lamport`) and marks the last two reserved.
 - **`CloudEventsHeaders.EXT_SEQ`**: the javadoc "(always present)" becomes "present only when the row
-  carries a number; a row written unsequenced publishes none (HLD-managed-seq §4.5)".
+  carries a number; a row written unsequenced publishes none (HLD-seq §4.1)".
 
 ---
 

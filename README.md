@@ -385,7 +385,7 @@ public Order placeOrder(Order order) {
         .aggregateId(order.id())
         .aggregateType("Order")
         .type("com.acme.order.placed")
-        .unsequenced()                 // one of three modes, and one is required — this one
+        .unsequenced()                 // one of two modes, and one is required: this one
                                        // asks nothing of your domain; see below
         .payload(serialize(order))     // plain write-side takes bytes; the Spring producer tiers accept an object
         .contentType("application/json")
@@ -394,18 +394,17 @@ public Order placeOrder(Order order) {
 }
 ```
 
-**That line is a choice, and one of the three is required.** `unsequenced()` above stores no sequence
+**That line is a choice, and one of the two is required.** `unsequenced()` above stores no sequence
 number: consumers deduplicate on the event id, which is unique by construction and always present.
-It is the fastest mode to adopt — it asks nothing of your domain — and the one that keeps its options
-open, since adding a number later is additive for consumers while taking one away is not.
+It is the fastest mode to adopt, since it asks nothing of your domain, and the one that keeps its
+options open: adding a number later is additive for consumers, while taking one away is not.
 
-The alternatives, when you want a number on the event. `managedSeq()` has a database sequence assign
-one, for consumers that want *a* monotonic counter with no domain meaning. `seq(...)` supplies your
-aggregate's own version, and is the only mode that buys the **strongest ordering detection**: a number
-*you* assigned is an order independent of the one rows were inserted in, so the relay can check the
-published order against it. A message stating none of the three fails to build, because the choice
-fixes what consumers read and cannot be changed later without breaking them:
-[HLD-managed-seq §4.6](docs/HLD-managed-seq.md#46-choosing-a-mode).
+The alternative, when consumers want a number on the event: `seq(...)` supplies the number your
+aggregate assigns to each event, increasing within it. It is also what buys the **strongest ordering
+detection**: a number *you* assigned is an order independent of the one rows were inserted in, so the
+relay can check the published order against it. A message stating neither fails to build, because the
+choice fixes what consumers read and cannot be changed later without breaking them:
+[HLD-seq §4.4](docs/HLD-seq.md#44-choosing-a-mode).
 
 **Whichever mode you pick, concurrent writers to one aggregate must be serialized.** Tandem preserves
 the order your write side established; it does not create one. With an ORM this turns on flush timing:
@@ -414,7 +413,7 @@ insert happens earlier, so by default the lock is taken too late to order anythi
 row after an explicit flush, and it does its job. That still doesn't cover writers that only touch
 *children* of the aggregate, where there is no shared row to lock; `lockedWrite()` asks Tandem to take
 its own advisory lock on the aggregate id instead. Details and measurements:
-[HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time), [HLD-managed-seq.md](docs/HLD-managed-seq.md).
+[HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time), [HLD-seq.md](docs/HLD-seq.md).
 
 **If you pick `seq(...)`, that same flush timing is a second trap.** A JPA `@Version` only advances at
 flush, so a write-side tier running inside the caller's transaction reads the pre-increment value —
@@ -627,10 +626,9 @@ trade-off or a tracked gap — none is a bug report. (For what is *not yet* ship
   `lockedWrite()`. The relay reports the violations it sees (`tandem.outbox.order_violation.count`),
   but the check is in-memory, per-worker and bounded: it is lost on a restart, on a `LEASE` rebalance,
   and past 4096 aggregates per worker, so a non-zero reading is always real while zero is never proof
-  of absence. Its reach also depends on the mode — `seq(...)` is the only one that additionally catches
-  a numbering that disagrees with insert order, since `unsequenced()` and `managedSeq()` rows are
-  judged on `id`. See [Usage](#usage), [HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time)
-  and [HLD-managed-seq §6](docs/HLD-managed-seq.md#6-detection-what-it-sees-and-what-it-reads-to-see-it).
+  of absence. Its reach also depends on the mode: `seq(...)` additionally catches a numbering
+  that disagrees with insert order, since an `unsequenced()` row is judged on `id`. See [Usage](#usage), [HLD §4.2](docs/HLD.md#42-ordering-established-at-write-time)
+  and [HLD-seq §6](docs/HLD-seq.md#6-detection-what-it-sees-and-what-it-reads-to-see-it).
 
 - **Discovery latency is a poll by default.** A row is found by the next claim of the worker owning
   its bucket. That wait adapts to the traffic: it restarts at `pollIntervalFloor` (10 ms) after every

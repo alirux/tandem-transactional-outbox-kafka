@@ -147,7 +147,7 @@ class CommitOrderReorderIT extends AbstractPostgresIT {
      * The same race on an aggregate that publishes no sequence number at all. There is no declared
      * ordering to compare against here, so the detector falls back to the order the rows were written
      * — and that is enough, because this defect *is* a divergence between write order and commit order
-     * (HLD-managed-seq §6.1).
+     * (HLD-seq §6.1).
      */
     @Test
     void GIVEN_two_concurrent_writes_with_no_sequence_numbers_WHEN_the_later_one_commits_first_THEN_the_violation_is_still_reported()
