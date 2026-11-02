@@ -222,7 +222,7 @@ decision, D14 included.
 
 | # | Decision | Options | Decision and reason |
 |---|---|---|---|
-| D1 | Name and kind of the Go design document | `docs/LLD-go-sdk.md` (backlog says "LLD Go"; HLD-write-side-sdks is the HLD) · `docs/HLD-go-sdk.md` | **LLD**: the architecture is decided; what is left is module layout, API, tests, CI and release, which is what an LLD holds here (LLD-cli for the Go CLI) |
+| D1 | Name and kind of the Go design document | `docs/write-side-sdks/LLD-go-sdk.md` (backlog says "LLD Go"; HLD-write-side-sdks is the HLD) · `docs/write-side-sdks/HLD-go-sdk.md` | **LLD**: the architecture is decided; what is left is module layout, API, tests, CI and release, which is what an LLD holds here (LLD-cli for the Go CLI) |
 | D2 | How to close the contract gaps G1 to G8 | Amend HLD-write-side-sdks (v0.2) in the same branch, before the LLD · state them in the LLD only | **Amend the HLD**: they are contract, shared by every future SDK, not Go detail |
 | D3 | Package path | `package tandem` at the module root (`.../sdks/go`) · `.../sdks/go/tandem` | **`sdks/go/tandem`** for path/name agreement; open to the shorter path if the import length bothers |
 | D4 | Message shape | struct literal with a no-zero `Seq` type · builder mirroring Java | **struct literal** |

@@ -55,7 +55,7 @@ Tandem into an application, whether the application is new (greenfield) or alrea
   may cover it later (§9).
 - Writing the consumers. The skill states the idempotency requirement and points to
   [Consuming events](../guide/consuming-events.md); the consumer usually lives in another service.
-- Non-Java writers, until the SDKs of [HLD-write-side-sdks.md](HLD-write-side-sdks.md) exist; MySQL,
+- Non-Java writers, until the SDKs of [HLD-write-side-sdks.md](write-side-sdks/HLD-write-side-sdks.md) exist; MySQL,
   until the engine port exists.
 - Migrating from another outbox tool. That path is not in the guide yet; the skill follows the guide.
 
