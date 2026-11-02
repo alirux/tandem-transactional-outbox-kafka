@@ -10,8 +10,8 @@ own" per language (§7), plus the gaps found by reading the Java writer against 
 
 ## 1. What is already decided (not reopened here)
 
-- Contract: nine columns, FNV-1a 64 with signed floor modulus, three `seq` modes with omit vs bind
-  `NULL`, `lockedWrite` via `pg_advisory_xact_lock(hashtext($1))`, optional wakeup, bucket count
+- Contract: eight columns, FNV-1a 64 with signed floor modulus, two `seq` modes, both binding the
+  column (a value or `NULL`), `lockedWrite` via `pg_advisory_xact_lock(hashtext($1))`, optional wakeup, bucket count
   reconciled at construction (HLD §4).
 - Join the caller's transaction, never own one; Go takes `*sql.Tx` (HLD §5.1).
 - Footprint: `database/sql`, `encoding/json`, `hash/fnv`, nothing else; `pgx` native is a later
@@ -20,7 +20,7 @@ own" per language (§7), plus the gaps found by reading the Java writer against 
 - Vectors in `schema/write-side/`, verified by `tandem-core` and `tandem-jdbc`; three test layers per
   SDK (HLD §6).
 - Module path `github.com/alirux/tandem-transactional-outbox-kafka/sdks/go`, tags `sdks/go/vX.Y.Z`,
-  independent semver, schema floor `v4-optional-seq` (HLD §8).
+  independent semver, schema floor `v6-drop-managed-seq` (HLD §8).
 
 ---
 
@@ -167,7 +167,7 @@ msg := tandem.Message{
     AggregateID:   order.ID,
     AggregateType: "Order",
     Type:          "OrderPlaced",               // optional
-    Seq:           tandem.Unsequenced(),         // or tandem.SeqOf(order.Version), tandem.ManagedSeq()
+    Seq:           tandem.Unsequenced(),         // or tandem.SeqOf(n): the number the aggregate gave the event
     Payload:       payload,                      // []byte, already JSON
     ContentType:   "application/json",           // optional, overrides headers["content-type"]
     Headers:       map[string]string{"correlation-id": cid},
@@ -177,7 +177,7 @@ msg := tandem.Message{
 
 A struct literal is the Go idiom for a value with optional fields; a builder would be a Java accent.
 `Seq` is an opaque type whose **zero value means "no mode stated"**, which `Insert` refuses with the
-same message Java gives (all three modes named, `Unsequenced()` as the usual answer). This keeps HLD
+same message Java gives (both modes named, `Unsequenced()` as the usual answer). This keeps HLD
 §4.3's "no default" without a builder: forgetting the field is caught, and stating two modes is
 impossible by construction, so Java's "mutually exclusive" error has no Go counterpart.
 
@@ -261,6 +261,12 @@ the real `BucketHash`, `OutboxMessage` and `JdbcOutboxRepository` on shared inpu
 and records what they do (`java-facts.json`), and Go tests that compare the two against
 PostgreSQL 16 with the schema of `schema/postgres/tandem-baseline.sql`, through both `pgx/v5/stdlib`
 (v5.11.0) and `lib/pq` (v1.12.3). Not a test suite to keep: it answers the questions below.
+
+The proof of concept ran against schema v5, when a message had a third mode in which Tandem drew the
+number (`managedSeq()`) and the row recorded its source in `seq_source`. Schema v6 removed both
+(HLD-seq §4.5), so the PoC no longer runs against the current schema, and the rows below that
+concern the third mode or `seq_source` describe that schema, not today's contract. Every other result
+stands.
 
 To rerun: start `postgres:16-alpine` on port 55432 (user, password and database `poc`) with the baseline
 schema as an init script, build `tandem-core` and `tandem-jdbc` jars, run the harness from `poc/go-sdk`

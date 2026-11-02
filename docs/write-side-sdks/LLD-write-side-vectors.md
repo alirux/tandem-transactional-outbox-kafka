@@ -98,7 +98,7 @@ The files that take a message as input write it the same way:
 |---|---|---|
 | `aggregate_id`, `aggregate_type` | always | as in HLD-write-side-sdks §4.1 |
 | `type` | optional | absent means no event type |
-| `seq` | always | `{"mode": "application", "value": n}`, `{"mode": "managed"}` or `{"mode": "none"}`. Only a rejection case writes `null` (no mode stated) or an array of modes (more than one stated) |
+| `seq` | always | `{"mode": "application", "value": n}` or `{"mode": "none"}` (HLD-write-side-sdks §4.3). Only a rejection case writes `null` (no mode stated) or an array of modes (more than one stated) |
 | `locked_write` | always | `true` when the message asks for the advisory lock (HLD-write-side-sdks §4.6) |
 | `content_type` | optional | the typed setter; it overrides a `content-type` entry of `headers` |
 | `headers` | always | an object of string to string, `{}` when empty; names in insertion order |
@@ -189,9 +189,9 @@ An SDK checks `grammar` only; `java` is there for the reader.
 
 ### 4.6 `rows.json`
 
-Case: `bucket_count`, `message`, `row`, the row read back: `bucket`, `seq` (a number, `null`, or
-`"assigned"` for a MANAGED row, whose value the sequence decides), `seq_source`, `type`, `headers`,
-`correlation_id`, `payload` (the `jsonb` value as PostgreSQL returns it, compared as JSON).
+Case: `bucket_count`, `message`, `row`, the row read back: `bucket`, `seq` (a number, or `null`),
+`type`, `headers`, `correlation_id`, `payload` (the `jsonb` value as PostgreSQL returns it, compared
+as JSON).
 
 Java inserts each message with `JdbcOutboxRepository` into the schema of
 `schema/postgres/tandem-baseline.sql`, in a transaction it rolls back, and reads the row by named
