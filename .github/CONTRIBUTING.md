@@ -65,6 +65,19 @@ To also produce the aggregated coverage report CI publishes to Codecov:
 ./gradlew check :tandem-coverage:aggregatedCoverageReport
 ```
 
+Mutation testing with [PIT](https://pitest.org/) is an occasional audit, not part of `check` or CI.
+Run it when you write or rework pure logic in `tandem-core`, `tandem-jdbc` (the relay engine) or
+`tandem-test`; the init script that applies it lives outside the build:
+
+```bash
+./gradlew --init-script tools/pitest.init.gradle.kts :tandem-core:pitest
+```
+
+The report lands in `build/reports/pitest/` of the module. A surviving mutant is a question, not a
+verdict: many are equivalent (no input can tell them apart), so read the code and the tests covering
+it before adding a test, and add one only for a behaviour worth pinning. PIT runs the module's own
+unit tests only, so code that integration tests or other modules exercise shows as having no coverage.
+
 The Testcontainers suites start `postgres:16-alpine` by default. To run them against another
 PostgreSQL major (which is what the `postgres-majors` workflow does, and how the supported-version
 claim stays verified rather than asserted):
