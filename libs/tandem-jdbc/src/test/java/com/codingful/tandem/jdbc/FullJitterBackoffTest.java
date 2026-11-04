@@ -61,6 +61,33 @@ class FullJitterBackoffTest {
     }
 
     @Test
+    void GIVEN_a_negative_base_WHEN_constructed_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> new FullJitterBackoff(Duration.ofMillis(-1), Duration.ofSeconds(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("base must be positive");
+    }
+
+    @Test
+    void GIVEN_a_cap_equal_to_the_base_WHEN_delays_are_drawn_THEN_every_attempt_stays_within_that_single_window() {
+        BackoffStrategy flat = new FullJitterBackoff(Duration.ofSeconds(1), Duration.ofSeconds(1));
+
+        for (int attempts = 0; attempts <= 70; attempts++) {
+            assertThat(flat.delayFor(attempts)).isGreaterThan(Duration.ZERO).isLessThanOrEqualTo(Duration.ofSeconds(1));
+        }
+    }
+
+    @Test
+    void GIVEN_an_attempt_count_past_the_width_of_a_long_WHEN_a_delay_is_drawn_THEN_the_window_is_still_the_cap() {
+        // A shift distance is taken modulo 64, so without its own guard attempt 64 would shift by 0 and
+        // fall back to the base window instead of the cap.
+        boolean sawAboveBase = false;
+        for (int i = 0; i < 1_000 && !sawAboveBase; i++) {
+            sawAboveBase = backoff.delayFor(64).compareTo(Duration.ofSeconds(1)) > 0;
+        }
+        assertThat(sawAboveBase).as("attempt 64 should draw from the 5 min cap window, not the 1s base").isTrue();
+    }
+
+    @Test
     void GIVEN_a_negative_attempt_count_WHEN_a_delay_is_requested_THEN_it_is_rejected() {
         assertThatThrownBy(() -> backoff.delayFor(-1))
                 .isInstanceOf(IllegalArgumentException.class)

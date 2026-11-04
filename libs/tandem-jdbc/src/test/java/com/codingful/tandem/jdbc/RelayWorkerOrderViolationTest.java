@@ -74,6 +74,20 @@ class RelayWorkerOrderViolationTest {
         assertThat(metrics.orderViolations()).isEqualTo(1);
     }
 
+    @Test
+    void GIVEN_a_violation_already_reported_WHEN_later_events_of_the_aggregate_go_out_in_order_THEN_it_is_not_reported_again() {
+        insert(ORDER_1, 2);
+        insert(ORDER_1, 1);
+        RelayWorker worker = worker(outbox);
+        drain(worker);
+
+        insert(ORDER_1, 3);
+        drain(worker);
+
+        assertThat(publishedSeqs()).containsExactly(2L, 1L, 3L);
+        assertThat(metrics.orderViolations()).isEqualTo(1);
+    }
+
     /**
      * The false positive that got the first implementation of this detector reverted: an operator replay
      * re-publishes an event the relay already sent, which is indistinguishable from a reordered write on

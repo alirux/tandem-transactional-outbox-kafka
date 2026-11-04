@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
 import com.codingful.tandem.core.OutboxStatus;
+import com.codingful.tandem.core.exception.OutboxDispatchException;
+import com.codingful.tandem.core.port.OutboxDispatcher;
 import com.codingful.tandem.core.port.OutboxStore;
 import com.codingful.tandem.core.port.TandemMetrics;
 import com.codingful.tandem.test.ControllableClock;
@@ -18,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
@@ -177,6 +180,80 @@ class RelayWorkerTest {
         assertThat(worker.inFlight()).isZero();
         assertThat(worker.flushDone()).isEqualTo(3);
         assertThat(outbox.byStatus(OutboxStatus.DONE)).hasSize(3);
+    }
+
+    @Test
+    void GIVEN_the_in_flight_window_is_full_WHEN_the_relay_claims_again_THEN_nothing_more_is_claimed_until_an_ack_frees_room() {
+        cfg = RelayConfig.builder().bucketCount(BUCKETS).batchSize(2).maxAttempts(MAX_ATTEMPTS).build();
+        insert("order-1", 1);
+        insert("order-2", 1);
+        insert("order-3", 1);
+        dispatcher.manualCompletion();
+        RelayWorker worker = worker();
+
+        assertThat(worker.claimAndDispatch()).isEqualTo(2);
+        assertThat(worker.claimAndDispatch()).isZero();
+        assertThat(worker.inFlight()).isEqualTo(2);
+        assertThat(outbox.byStatus(OutboxStatus.PENDING)).hasSize(1);
+
+        dispatcher.completeNext();
+        assertThat(worker.claimAndDispatch()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_acked_rows_already_recorded_as_delivered_WHEN_the_next_cycle_has_no_new_acks_THEN_nothing_is_recorded_again() {
+        insert("order-1", 1);
+        RelayWorker worker = worker();
+        worker.claimAndDispatch();
+
+        assertThat(worker.flushDone()).isEqualTo(1);
+        assertThat(worker.flushDone()).isZero();
+    }
+
+    @Test
+    void GIVEN_metrics_enabled_WHEN_a_publish_fails_retriably_THEN_the_retry_is_counted() {
+        insert("order-1", 1);
+        dispatcher.failRecord(1, true, 1);
+        RecordingMetrics metrics = new RecordingMetrics();
+        RelayWorker worker = worker(attempts -> Duration.ofSeconds(10), metrics);
+
+        worker.claimAndDispatch();
+        worker.flushFailures();
+
+        assertThat(metrics.retries()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_dispatcher_failing_with_an_error_that_carries_no_verdict_WHEN_the_relay_handles_it_THEN_the_row_is_retried() {
+        insert("order-1", 1);
+        OutboxDispatcher unexpected = record -> CompletableFuture.failedFuture(new IllegalStateException("connection reset"));
+        RelayWorker worker = new RelayWorker(outbox, unexpected, cfg, attempts -> Duration.ofSeconds(10),
+                TandemMetrics.NOOP, clock, "worker-1", outbox::allBuckets);
+
+        worker.claimAndDispatch();
+        worker.flushFailures();
+
+        OutboxRecord row = outbox.byId(1);
+        assertThat(row.status()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(row.attempts()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_permanent_failure_reported_through_a_dependent_stage_WHEN_the_relay_handles_it_THEN_the_row_fails_without_a_retry() {
+        // A dependent stage of a failed future completes with the failure wrapped in a
+        // CompletionException: the verdict must still be read from the dispatcher's own exception.
+        insert("order-1", 1);
+        OutboxDispatcher wrapping = record -> CompletableFuture.<Void>failedFuture(
+                new OutboxDispatchException("rejected by the broker", false)).thenApply(ignored -> null);
+        RelayWorker worker = new RelayWorker(outbox, wrapping, cfg, attempts -> Duration.ofSeconds(10),
+                TandemMetrics.NOOP, clock, "worker-1", outbox::allBuckets);
+
+        worker.claimAndDispatch();
+        worker.flushFailures();
+
+        OutboxRecord row = outbox.byId(1);
+        assertThat(row.status()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(row.attempts()).isEqualTo(1);
     }
 
     @Test

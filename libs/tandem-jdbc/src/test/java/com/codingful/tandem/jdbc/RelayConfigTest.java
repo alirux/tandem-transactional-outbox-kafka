@@ -82,6 +82,46 @@ class RelayConfigTest {
     }
 
     @Test
+    void GIVEN_an_instance_id_exactly_at_the_owner_length_WHEN_built_THEN_it_is_accepted() {
+        String atTheLimit = "x".repeat(64);
+
+        assertThat(RelayConfig.builder().instanceId(atTheLimit).build().instanceId()).isEqualTo(atTheLimit);
+    }
+
+    @Test
+    void GIVEN_the_instance_id_reset_to_unset_WHEN_built_THEN_one_is_derived() {
+        RelayConfig cfg = RelayConfig.builder().instanceId("relay-a").instanceId(null).build();
+
+        assertThat(cfg.instanceId()).isNotBlank().isNotEqualTo("relay-a");
+    }
+
+    @Test
+    void GIVEN_a_blank_instance_id_WHEN_built_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> RelayConfig.builder().instanceId("  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("instanceId must not be blank");
+    }
+
+    @Test
+    void GIVEN_a_zero_or_negative_batch_size_WHEN_built_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> RelayConfig.builder().batchSize(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("batchSize must be positive");
+        assertThatThrownBy(() -> RelayConfig.builder().batchSize(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("batchSize must be positive");
+        assertThatCode(() -> RelayConfig.builder().batchSize(1)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void GIVEN_a_zero_bucket_count_WHEN_built_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> RelayConfig.builder().bucketCount(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bucketCount must be positive");
+        assertThatCode(() -> RelayConfig.builder().bucketCount(1)).doesNotThrowAnyException();
+    }
+
+    @Test
     void GIVEN_a_bucket_count_over_the_smallint_bound_WHEN_built_THEN_it_is_rejected() {
         // The bucket column is SMALLINT: a larger count would only fail later, at insert, with a
         // cryptic Postgres out-of-range error.
@@ -149,7 +189,9 @@ class RelayConfigTest {
                 .hasMessageContaining("rowLease")
                 .hasMessageContaining("delivery.timeout.ms")
                 .hasMessageContaining("20000")
-                .hasMessageContaining("30000");
+                .hasMessageContaining("30000")
+                // The recommendation is twice the delivery timeout.
+                .hasMessageContaining("60000");
         assertThat(metrics.configInvalidChecks()).containsExactly(RelayConfig.CHECK_ROW_LEASE);
     }
 
