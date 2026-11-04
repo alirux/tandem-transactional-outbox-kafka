@@ -39,6 +39,22 @@ class ReplayCriteriaTest {
     }
 
     @Test
+    void GIVEN_only_an_aggregate_WHEN_constructed_THEN_it_is_accepted_as_the_selector() {
+        AggregateId aggregateId = AggregateId.of("order-1");
+
+        ReplayCriteria criteria = new ReplayCriteria(aggregateId, null, null, null, Set.of(), false);
+
+        assertThat(criteria.aggregateId()).isEqualTo(aggregateId);
+    }
+
+    @Test
+    void GIVEN_only_a_lower_id_bound_WHEN_constructed_THEN_it_is_accepted_as_the_selector() {
+        ReplayCriteria criteria = new ReplayCriteria(null, null, 10L, null, Set.of(), false);
+
+        assertThat(criteria.fromId()).isEqualTo(10L);
+    }
+
+    @Test
     void GIVEN_a_status_set_WHEN_changed_after_construction_THEN_the_criteria_keep_the_original_statuses() {
         Set<OutboxStatus> statuses = new HashSet<>(Set.of(OutboxStatus.FAILED));
         ReplayCriteria criteria = new ReplayCriteria(null, null, null, null, statuses, false);
