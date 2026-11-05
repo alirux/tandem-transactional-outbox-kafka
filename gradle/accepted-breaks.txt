@@ -3,10 +3,4 @@
 # One entry per intentional break: gate | module | item | release-notes line
 # Entries are bound to the baseline line: when tandemBaseline moves, the entries are removed and the
 # baseline line set to the new release. An entry that matches no break a gate reports fails that gate.
-baseline 1.0.0-rc.2
-japicmp | tandem-core | com.codingful.tandem.core.OutboxMessage$Builder.managedSeq() | OutboxMessage.Builder.managedSeq() is removed: Tandem no longer assigns seq. Use seq(long) with a number the aggregate assigns to each event, or unsequenced() and deduplicate on ce_id.
-japicmp | tandem-core | com.codingful.tandem.core.SeqSource | SeqSource is removed: with one source of numbers left, OutboxMessage.hasSeq() and OutboxRecord.hasSeq() say all it did.
-japicmp | tandem-core | com.codingful.tandem.core.OutboxMessage.seqSource() | OutboxMessage.seqSource() is removed; use hasSeq().
-japicmp | tandem-core | com.codingful.tandem.core.OutboxRecord.seqSource() | OutboxRecord.seqSource() is removed; use hasSeq().
-japicmp | tandem-core | com.codingful.tandem.core.OutboxRecord$Builder.seqSource(com.codingful.tandem.core.SeqSource) | OutboxRecord.Builder.seqSource(SeqSource) is removed; whether a record has a number follows from its message.
-schema-compatibility | tandem-jdbc | * | Schema v6 drops the seq_source column, the seq column default and the tandem_seq sequence, and clears the seq of rows Tandem numbered. Stop every writer and relay of an earlier release before applying it.
+baseline 1.0.0-rc.3

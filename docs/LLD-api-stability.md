@@ -362,7 +362,7 @@ with its analytics off, so the test reaches nothing outside the container.
 2. **Baseline writes.** The baseline first runs a relay's startup steps (the bucket-count check, the
    control source's start, the `LEASE` validation and a heartbeat), so every `tandem_*` table holds rows
    at the upgrade. The adapter then writes in every `seq` mode the baseline offers (for
-   1.0.0-rc.2: `seq(long)`, `managedSeq()` and `unsequenced()`, each with and without `lockedWrite()`): one aggregate per combination, its first row
+   1.0.0-rc.3: `seq(long)` and `unsequenced()`, each with and without `lockedWrite()`): one aggregate per combination, its first row
    through `insert` and its second through one `insertAll` across the aggregates. It claims the head of
    each aggregate and completes half of them; the other half is still in flight at the upgrade.
 3. **Upgrade.** Liquibase updates the database with the current changelog, read from `tandem-jdbc`'s

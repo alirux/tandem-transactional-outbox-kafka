@@ -18,7 +18,6 @@ import com.codingful.tandem.core.RelayCoordinationMode;
 import com.codingful.tandem.core.RelayStatusView;
 import com.codingful.tandem.core.ReplayCriteria;
 import com.codingful.tandem.core.ReplayResult;
-import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.exception.TandemConfigurationException;
@@ -44,11 +43,9 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -149,12 +146,11 @@ class BaselineOnUpgradedSchemaTest {
     private DataSource dataSource;
     private JdbcOutboxRepository repository;
     private JdbcOutboxStore store;
-    private final Map<String, Long> firstSeqBefore = new HashMap<>();
     private final List<OutboxRecord> inFlightAtUpgrade = new ArrayList<>();
     private boolean upgraded;
 
-    /** An aggregate written in one {@code seq} mode, with or without the write-side lock. */
-    private record Case(String aggregate, SeqSource mode, boolean locked) {
+    /** An aggregate written with or without a {@code seq}, with or without the write-side lock. */
+    private record Case(String aggregate, boolean sequenced, boolean locked) {
     }
 
     @BeforeAll
@@ -185,7 +181,6 @@ class BaselineOnUpgradedSchemaTest {
         // flight when the upgrade runs, as a rolling upgrade leaves it.
         List<OutboxRecord> claimed = store.claimBatch(bucketsOf(writtenBefore), WORKER, LEASE, BATCH);
         assertThat(claimed).hasSameSizeAs(writtenBefore);
-        claimed.forEach(record -> firstSeqBefore.put(record.aggregateId().value(), record.hasSeq() ? record.seq() : 0));
         for (int i = 0; i < claimed.size(); i++) {
             if (i % 2 == 0) {
                 store.markDone(claimed.get(i));
@@ -225,7 +220,7 @@ class BaselineOnUpgradedSchemaTest {
         assertThat(inFlightAtUpgrade).allSatisfy(record -> assertThat(row(record.id()).status()).isEqualTo(OutboxStatus.DONE));
 
         List<OutboxRecord> behind = store.claimBatch(bucketsOf(writtenBefore), WORKER, LEASE, BATCH);
-        assertSecondRows(behind, writtenBefore, firstSeqBefore);
+        assertSecondRows(behind, writtenBefore);
         store.markDoneBatch(behind);
         assertThat(countWhere("aggregate_id = ANY(?) AND status <> ?",
                 aggregatesOf(writtenBefore).toArray(String[]::new), OutboxStatus.DONE.code())).isZero();
@@ -246,18 +241,14 @@ class BaselineOnUpgradedSchemaTest {
         List<OutboxRecord> heads = store.claimBatch(bucketsOf(writtenAfter), WORKER, LEASE, BATCH);
         assertThat(heads).extracting(record -> record.aggregateId().value())
                 .containsExactlyInAnyOrderElementsOf(aggregatesOf(writtenAfter));
-        Map<String, Long> firstSeq = new HashMap<>();
         for (OutboxRecord head : heads) {
-            Case written = caseOf(writtenAfter, head);
-            assertWrittenAs(head, written, 1);
-            firstSeq.put(written.aggregate(), head.hasSeq() ? head.seq() : 0);
+            assertWrittenAs(head, caseOf(writtenAfter, head), 1);
         }
         store.markDoneBatch(heads);
-        assertSecondRows(store.claimBatch(bucketsOf(writtenAfter), WORKER, LEASE, BATCH), writtenAfter, firstSeq);
+        assertSecondRows(store.claimBatch(bucketsOf(writtenAfter), WORKER, LEASE, BATCH), writtenAfter);
 
-        Case application = writtenAfter.stream().filter(written -> written.mode() == SeqSource.APPLICATION)
-                .findFirst().orElseThrow();
-        assertThatThrownBy(() -> repository.insert(message(application, 1))).isInstanceOf(DuplicateSeqException.class);
+        Case sequenced = writtenAfter.stream().filter(Case::sequenced).findFirst().orElseThrow();
+        assertThatThrownBy(() -> repository.insert(message(sequenced, 1))).isInstanceOf(DuplicateSeqException.class);
     }
 
     @Test
@@ -652,11 +643,10 @@ class BaselineOnUpgradedSchemaTest {
     private OutboxMessage message(Case written, long seq) {
         OutboxMessage.Builder builder = OutboxMessage.builder().aggregateId(written.aggregate())
                 .aggregateType(AGGREGATE_TYPE).type(EVENT_TYPE).payload(PAYLOAD).header(HEADER, HEADER_VALUE);
-        switch (written.mode()) {
-            case APPLICATION -> builder.seq(seq);
-            case MANAGED -> builder.managedSeq();
-            case NONE -> builder.unsequenced();
-            default -> throw new IllegalArgumentException("No writer for seq mode " + written.mode());
+        if (written.sequenced()) {
+            builder.seq(seq);
+        } else {
+            builder.unsequenced();
         }
         if (written.locked()) {
             builder.lockedWrite();
@@ -665,7 +655,7 @@ class BaselineOnUpgradedSchemaTest {
     }
 
     private OutboxMessage message(String aggregate, long seq) {
-        return message(new Case(aggregate, SeqSource.APPLICATION, false), seq);
+        return message(new Case(aggregate, true, false), seq);
     }
 
     private List<OutboxRecord> claim(String aggregate, Duration lease) {
@@ -682,30 +672,23 @@ class BaselineOnUpgradedSchemaTest {
     private static void assertWrittenAs(OutboxRecord record, Case written, long n) {
         assertThat(record.status()).isEqualTo(OutboxStatus.IN_FLIGHT);
         assertThat(record.lockedBy()).isEqualTo(WORKER);
-        assertThat(record.seqSource()).isEqualTo(written.mode());
+        assertThat(record.hasSeq()).isEqualTo(written.sequenced());
         assertThat(record.aggregateType()).isEqualTo(AGGREGATE_TYPE);
         assertThat(record.type()).isEqualTo(EVENT_TYPE);
         assertThat(record.payload()).isEqualTo(PAYLOAD);
         assertThat(record.headers()).containsEntry(HEADER, HEADER_VALUE);
         assertThat(record.attempts()).isZero();
-        switch (written.mode()) {
-            case APPLICATION -> assertThat(record.seq()).isEqualTo(n);
-            case MANAGED -> assertThat(record.hasSeq()).isTrue();
-            case NONE -> assertThat(record.hasSeq()).isFalse();
-            default -> throw new IllegalArgumentException("No expectation for seq mode " + written.mode());
+        if (written.sequenced()) {
+            assertThat(record.seq()).isEqualTo(n);
         }
     }
 
-    /** The second row of every case, claimed once the first is done; a managed number grows. */
-    private static void assertSecondRows(List<OutboxRecord> claimed, List<Case> cases, Map<String, Long> firstSeq) {
+    /** The second row of every case, claimed once the first is done. */
+    private static void assertSecondRows(List<OutboxRecord> claimed, List<Case> cases) {
         assertThat(claimed).extracting(record -> record.aggregateId().value())
                 .containsExactlyInAnyOrderElementsOf(aggregatesOf(cases));
         for (OutboxRecord record : claimed) {
-            Case written = caseOf(cases, record);
-            assertWrittenAs(record, written, 2);
-            if (written.mode() == SeqSource.MANAGED) {
-                assertThat(record.seq()).isGreaterThan(firstSeq.get(written.aggregate()));
-            }
+            assertWrittenAs(record, caseOf(cases, record), 2);
         }
     }
 
@@ -754,13 +737,13 @@ class BaselineOnUpgradedSchemaTest {
         Assumptions.assumeTrue(upgraded, "the current changelog did not apply to the baseline's database");
     }
 
-    /** One case per {@code seq} mode, each with and without the write-side lock. */
+    /** One case with a {@code seq} and one without, each with and without the write-side lock. */
     private List<Case> cases(String prefix) {
         List<Case> cases = new ArrayList<>();
-        for (SeqSource mode : List.of(SeqSource.APPLICATION, SeqSource.MANAGED, SeqSource.NONE)) {
+        for (boolean sequenced : List.of(true, false)) {
             for (boolean locked : List.of(false, true)) {
-                String name = prefix + "-" + mode.name().toLowerCase(Locale.ROOT) + (locked ? "-locked" : "");
-                cases.add(new Case(aggregate(name), mode, locked));
+                String name = prefix + (sequenced ? "-sequenced" : "-unsequenced") + (locked ? "-locked" : "");
+                cases.add(new Case(aggregate(name), sequenced, locked));
             }
         }
         return List.copyOf(cases);
