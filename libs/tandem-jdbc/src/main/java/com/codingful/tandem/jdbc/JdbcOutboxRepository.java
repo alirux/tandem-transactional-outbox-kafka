@@ -2,7 +2,6 @@ package com.codingful.tandem.jdbc;
 
 import com.codingful.tandem.core.BucketHash;
 import com.codingful.tandem.core.OutboxMessage;
-import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.exception.OutboxInsertException;
@@ -45,7 +44,7 @@ import javax.sql.DataSource;
  *
  * <p><b>Optional write-side lock:</b> a message built with {@link OutboxMessage.Builder#lockedWrite()}
  * makes {@link #insert}/{@link #insertAll} take a transaction-scoped {@code pg_advisory_xact_lock} on
- * the aggregate, on the same connection, before the row's INSERT (HLD-managed-seq §4.2). Within one
+ * the aggregate, on the same connection, before the row's INSERT (HLD-seq §4.2). Within one
  * {@link #insertAll} batch this adapter takes every such lock the batch needs in <b>sorted aggregate id
  * order</b> before inserting anything, which is the stated deadlock guard for a transaction that locks
  * several aggregates. It cannot enforce that ordering across separate {@link #insert} calls in one
@@ -79,23 +78,11 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private static final Pattern CONSTRAINT = Pattern.compile("constraint \"([^\"]+)\"");
 
     /**
-     * Carries {@code seq} explicitly, for an application-assigned number and for an
-     * {@link OutboxMessage.Builder#unsequenced()} row alike — the latter binds SQL {@code NULL}.
-     * Binding is what distinguishes them from a managed row: the column has a {@code DEFAULT}, so
-     * <b>omitting</b> it would silently draw a managed number instead of storing none.
+     * Carries {@code seq} for an application-assigned number and an
+     * {@link OutboxMessage.Builder#unsequenced()} row alike, the latter as SQL {@code NULL}.
      */
     private static final String INSERT_SQL =
-            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_source, payload, headers, correlation_id) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
-
-    /**
-     * The same insert with {@code seq} left out, for a message that leaves the number to Tandem
-     * ({@link OutboxMessage.Builder#managedSeq()}): omitting the column is what makes the
-     * {@code tandem_seq} default fire, and it is the entire mechanism — no extra statement, no round
-     * trip and no lock inside the caller's transaction (HLD-managed-seq §4.1).
-     */
-    private static final String INSERT_MANAGED_SEQ_SQL =
-            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source, payload, headers, correlation_id) "
+            "INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, headers, correlation_id) "
                     + "VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)";
 
     /**
@@ -111,7 +98,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private static final String SQLSTATE_UNIQUE_VIOLATION = "23505";
 
     /**
-     * Blocks until granted, serialising concurrent writers to the same aggregate (HLD-managed-seq
+     * Blocks until granted, serialising concurrent writers to the same aggregate (HLD-seq
      * §4.2); {@code hashtext} folds the id into the 32-bit key the single-argument form takes.
      * PostgreSQL releases it automatically at commit or rollback of the caller's transaction — there
      * is no corresponding unlock statement.
@@ -185,7 +172,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             if (message.lockedWrite()) {
                 lockAggregate(conn, message.aggregateId().value());
             }
-            Jdbc.exec(conn, sqlFor(message), ps -> {
+            Jdbc.exec(conn, INSERT_SQL, ps -> {
                 bind(ps, message);
                 ps.executeUpdate();
             });
@@ -208,18 +195,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         AtomicReference<List<OutboxMessage>> executing = new AtomicReference<>();
         Jdbc.exec(dataSource, conn -> {
             lockAggregatesInOrder(conn, messages);
-            // The two modes need different column lists, so they cannot share one batch. Split on
-            // CONSECUTIVE runs rather than partitioning by mode: the tiers promise rows land in the
-            // collection's order, and grouping all managed messages together would reorder them.
-            List<OutboxMessage> run = new ArrayList<>();
-            for (OutboxMessage message : messages) {
-                if (!run.isEmpty() && isManaged(message) != isManaged(run.get(0))) {
-                    insertBatch(conn, run, executing);
-                    run.clear();
-                }
-                run.add(message);
-            }
-            insertBatch(conn, run, executing);
+            insertBatch(conn, List.copyOf(messages), executing);
             signalWakeup(conn, bucketsOf(messages));
         }, e -> {
             traceFailure(e, executing.get());
@@ -251,7 +227,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
     private void insertBatch(Connection conn, List<OutboxMessage> batch,
                              AtomicReference<List<OutboxMessage>> executing) throws SQLException {
         executing.set(batch);
-        Jdbc.exec(conn, sqlFor(batch.get(0)), ps -> {
+        Jdbc.exec(conn, INSERT_SQL, ps -> {
             for (OutboxMessage message : batch) {
                 bind(ps, message);
                 ps.addBatch();
@@ -261,22 +237,10 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         executing.set(null);
     }
 
-    private static String sqlFor(OutboxMessage message) {
-        return isManaged(message) ? INSERT_MANAGED_SEQ_SQL : INSERT_SQL;
-    }
-
-    /**
-     * The only mode needing the other column list, and so the only split a batch has to make: an
-     * application-assigned and an unsequenced row share one statement and batch together freely.
-     */
-    private static boolean isManaged(OutboxMessage message) {
-        return message.seqSource() == SeqSource.MANAGED;
-    }
-
     /**
      * Takes every {@link OutboxMessage#lockedWrite()} lock the batch needs, in <b>sorted aggregate id
      * order</b>, before any row in the batch is inserted — the ordering that avoids a deadlock between
-     * two transactions locking the same two aggregates in different order (HLD-managed-seq §5).
+     * two transactions locking the same two aggregates in different order (HLD-seq §5).
      */
     private static void lockAggregatesInOrder(Connection conn, Collection<OutboxMessage> messages) throws SQLException {
         SortedSet<String> aggregateIds = new TreeSet<>();
@@ -342,9 +306,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
         });
     }
 
-    /** Parameter positions are walked rather than fixed: a managed-{@code seq} insert has one fewer. */
     private void bind(PreparedStatement ps, OutboxMessage message) throws SQLException {
-        SeqSource seqSource = message.seqSource();
         int index = 1;
         ps.setString(index++, message.aggregateId().value());
         ps.setString(index++, message.aggregateType());
@@ -354,16 +316,11 @@ public final class JdbcOutboxRepository implements OutboxRepository {
             ps.setString(index++, message.type());
         }
         ps.setInt(index++, BucketHash.bucketFor(message.aggregateId().value(), bucketCount));
-        // A managed row omits the column so its DEFAULT can fire; the other two bind it, an
-        // unsequenced row to NULL — which the column's CHECK ties to seq_source = NONE.
-        if (seqSource != SeqSource.MANAGED) {
-            if (message.hasSeq()) {
-                ps.setLong(index++, message.seq());
-            } else {
-                ps.setNull(index++, Types.BIGINT);
-            }
+        if (message.hasSeq()) {
+            ps.setLong(index++, message.seq());
+        } else {
+            ps.setNull(index++, Types.BIGINT);
         }
-        ps.setInt(index++, seqSource.code());
         ps.setString(index++, new String(message.payload(), StandardCharsets.UTF_8));
         Map<String, String> headers = effectiveHeaders(message);
         ps.setString(index++, MiniJson.writeObject(headers));
@@ -450,18 +407,18 @@ public final class JdbcOutboxRepository implements OutboxRepository {
 
     private static OutboxInsertException translate(SQLException e, OutboxMessage message) {
         String aggregate = message == null ? "?" : message.aggregateId().toString();
-        // Never a number for a managed message: it has none until this insert succeeds, and printing
-        // one would send whoever reads the failure looking for a row that does not exist. An
-        // unsequenced row renders as "none" for the same reason — there is nothing to point at.
-        String seq = message == null ? "?" : message.hasSeq()
-                ? Long.toString(message.seq())
-                : message.seqSource().toString();
+        // An unsequenced row renders as "none" rather than a number: there is nothing to point at.
+        String seq = message == null ? "?" : seqOf(message);
         if (SQLSTATE_UNIQUE_VIOLATION.equals(e.getSQLState())) {
             return new DuplicateSeqException(
                     "duplicate (aggregate_id, seq) = (" + aggregate + ", " + seq + ')' + sqlStateOf(e), withheld(e));
         }
         return new OutboxInsertException("failed to insert outbox row for (aggregate_id, seq) = ("
                 + aggregate + ", " + seq + ')' + sqlStateOf(e), withheld(e));
+    }
+
+    private static String seqOf(OutboxMessage message) {
+        return message.hasSeq() ? Long.toString(message.seq()) : "none";
     }
 
     private static String sqlStateOf(SQLException e) {
@@ -511,7 +468,7 @@ public final class JdbcOutboxRepository implements OutboxRepository {
                 OutboxMessage event = events.get(i);
                 lines.add("Outbox insert failed for event batchEntry:" + i
                         + ", aggregateId:" + event.aggregateId().value()
-                        + ", seq:" + (event.hasSeq() ? Long.toString(event.seq()) : event.seqSource().toString())
+                        + ", seq:" + seqOf(event)
                         + ", payloadBytes:" + event.payload().length
                         + ", headerNames:" + event.headers().keySet());
             }

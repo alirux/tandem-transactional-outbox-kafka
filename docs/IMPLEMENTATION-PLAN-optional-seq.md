@@ -3,11 +3,14 @@
 **Version:** 2.1
 **Status:** Implemented — all five phases done. A brownfield adoption guide, when one lands, needs the
 same treatment; tracked in §5.
+**Superseded in part:** the managed mode this plan kept as one of three was later removed, together
+with `SeqSource` and the `seq_source` column (schema v6); [HLD-seq.md](HLD-seq.md) §4.5 records why.
+The section numbers below refer to the design note as it stood when this plan was written.
 **Scope:** make `seq` one of three explicit per-message modes, and generalise the write-side ordering
 detector to key on whichever ordering the row declares. Spans `tandem-core`, `tandem-jdbc`,
 `tandem-kafka`, `tandem-test`, `tandem-spring-producer`, `tandem-admin`, `tandem-micrometer` and the
 PostgreSQL schema.
-**Design:** [HLD-managed-seq.md](HLD-managed-seq.md) §4.5 (the third mode), §4.6 (choosing one),
+**Design:** [HLD-seq.md](HLD-seq.md) §4.1 (the third mode), §4.6 (choosing one),
 §6.1 (which ordering key the detector holds).
 
 This document orders the work, fences the scope, and defines done-ness per phase. The *design* is
@@ -30,7 +33,7 @@ comment-only edit there would break an existing database.
 - `ALTER COLUMN seq DROP NOT NULL` — a message may now carry no number at all.
 - `seq_source SMALLINT` added, backfilled, then `SET NOT NULL` — three steps because the column must
   end with no `DEFAULT`, so an INSERT that forgets it cannot silently claim `APPLICATION`. The
-  discriminator of HLD-managed-seq §6.1, with its value enumeration and rationale in the changeset
+  discriminator of HLD-seq §6.1, with its value enumeration and rationale in the changeset
   comment, in the same idiom as the existing `status`.
 - `CONSTRAINT tandem_outbox_seq_source_agrees CHECK ((seq IS NULL) = (seq_source = 2))`.
 - `UNIQUE (aggregate_id, seq)` untouched — it simply becomes inert for a row with no `seq`, which the
@@ -55,8 +58,8 @@ only rows still awaiting delivery, so it drains with the backlog.
 
 | File | Change |
 |---|---|
-| `libs/tandem-core/.../SeqSource.java` *(new)* | `enum SeqSource { APPLICATION(0), MANAGED(1), NONE(2), UNKNOWN(-1) }` with an explicit `code` field and `fromCode(int)` — **matching `OutboxStatus`, not `ordinal()`**, so reordering the enum cannot silently change what is persisted. Unlike `OutboxStatus.fromCode`, it **must not throw** on an unrecognised code: it returns `UNKNOWN`, which the detector keys on `id` (HLD-managed-seq §4.5, §6.1). `UNKNOWN` is read-only and has `code = -1` so it can never round-trip to the column. Public — it appears on `OutboxRecord`. |
-| `libs/tandem-core/.../OutboxMessage.java` | Add `unsequenced()`. `seqSource()` replaces the `managedSeq()` accessor; the three builder calls stay as the fluent surface. Three-way exclusivity plus fail-fast on none, the message naming all three modes and what each is for (HLD-managed-seq §4.6). `seq()` throws unless `APPLICATION`; add `hasSeq()`. `toString` renders `seq=none` for `NONE`. |
+| `libs/tandem-core/.../SeqSource.java` *(new)* | `enum SeqSource { APPLICATION(0), MANAGED(1), NONE(2), UNKNOWN(-1) }` with an explicit `code` field and `fromCode(int)` — **matching `OutboxStatus`, not `ordinal()`**, so reordering the enum cannot silently change what is persisted. Unlike `OutboxStatus.fromCode`, it **must not throw** on an unrecognised code: it returns `UNKNOWN`, which the detector keys on `id` (HLD-seq §4.1, §6.1). `UNKNOWN` is read-only and has `code = -1` so it can never round-trip to the column. Public — it appears on `OutboxRecord`. |
+| `libs/tandem-core/.../OutboxMessage.java` | Add `unsequenced()`. `seqSource()` replaces the `managedSeq()` accessor; the three builder calls stay as the fluent surface. Three-way exclusivity plus fail-fast on none, the message naming all three modes and what each is for (HLD-seq §4.4). `seq()` throws unless `APPLICATION`; add `hasSeq()`. `toString` renders `seq=none` for `NONE`. |
 | `libs/tandem-core/.../OutboxRecord.java` | Add `seqSource()` and `hasSeq()`; `seq()` throws when absent. The guard at line 35 changes meaning: keep rejecting a message still *pending* a managed number, accept a genuinely unsequenced one. |
 | `libs/tandem-jdbc/.../JdbcOutboxRepository.java` | `bind()` at line 222: bind `seq` or `setNull(index++, Types.BIGINT)`, then always bind `seq_source`. Both INSERT statements gain the column; the batching key becomes `seqSource() == MANAGED`, the only mode that omits `seq`. |
 | `libs/tandem-jdbc/.../OutboxRowMapper.java` | Add `seq_source` to `COLUMNS` (it flows through the claim's `RETURNING`); read it via `SeqSource.fromCode`, and read `seq` with `wasNull()` so an absent value is absent rather than `0`. |
@@ -143,7 +146,7 @@ this change**: every current row is `seq`-keyed, so
 ```
 
 claims unserialised writers whenever the observation also admits an application numbering its events
-inconsistently with its own insert order. HLD-managed-seq §6.1 works through why the entitlement
+inconsistently with its own insert order. HLD-seq §6.1 works through why the entitlement
 differs by key. Two fixed messages, chosen on the key the watermark held:
 
 | Key | Message |
@@ -184,13 +187,13 @@ metric, the config key and the prose finally agree.
 - **`CommitOrderReorderIT` must pass unmodified.** Its rows are app-assigned, so they keep the `SEQ`
   key and the behaviour under test is unchanged. If it needs editing to stay green, the premise of
   this phase is wrong and the plan stops here.
-- **New IT:** an unsequenced aggregate driven through the commit-order reorder (HLD-managed-seq §3.1),
+- **New IT:** an unsequenced aggregate driven through the commit-order reorder (HLD-seq §3.1),
   asserting detection still fires — the case that proves the `ID` key earns its place.
 - **New:** an aggregate mixing `APPLICATION` and `MANAGED` rows, published in order, asserting
   **zero** violations — the false positive the discriminator removes.
 - **New:** a row whose `seq_source` holds a code this build does not know, asserting it is read as
   `UNKNOWN`, keyed on `id`, and never throws — the forward-compatibility contract of
-  HLD-managed-seq §4.5, and the one case a future schema version will actually exercise.
+  HLD-seq §4.1, and the one case a future schema version will actually exercise.
 - **New:** the two reports of §4.1 — an `ID`-keyed violation asserting the serialisation message, a
   `SEQ`-keyed one asserting the weaker disagreement message, both asserting the `lastPublished` value
   reaches the tail. `RecordingMetrics` counts one violation in each case, since the split is in the
@@ -213,12 +216,12 @@ Two things the file list above did not anticipate:
 
 ## 5. Phase 5 — Documentation · **done**
 
-The design already lives in [HLD-managed-seq.md](HLD-managed-seq.md) (§4.5, §4.6, §6.1) and did not
+The design already lives in [HLD-seq.md](HLD-seq.md) (§4.5, §4.6, §6.1) and did not
 need re-deriving. What this phase propagated to the documents that cited the old behaviour:
 
 | Document | What changes |
 |---|---|
-| [HLD.md](HLD.md) | §3.2 — `SINGLE` with several instances now also costs degraded ordering detection, the one consequence with no signal of its own (HLD-managed-seq §6). §4.2 — drop the "event-sourcing stream revision" framing that pushes adopters toward `@Version`; state that supplying `seq` buys stronger detection, which is the honest reason to. §5.1 — schema, `seq_source`, the `CHECK`. §7/§8 — the metric under its new name, what each key can and cannot see, and the full list of when a watermark is lost (the existing note names only restart and eviction). |
+| [HLD.md](HLD.md) | §3.2 — `SINGLE` with several instances now also costs degraded ordering detection, the one consequence with no signal of its own (HLD-seq §6). §4.2 — drop the "event-sourcing stream revision" framing that pushes adopters toward `@Version`; state that supplying `seq` buys stronger detection, which is the honest reason to. §5.1 — schema, `seq_source`, the `CHECK`. §7/§8 — the metric under its new name, what each key can and cannot see, and the full list of when a watermark is lost (the existing note names only restart and eviction). |
 | [LLD-jdbc.md](LLD-jdbc.md) | §3.9 detector, §6 schema |
 | [LLD-core.md](LLD-core.md) · [LLD-test.md](LLD-test.md) · [LLD-spring-producer.md](LLD-spring-producer.md) · [LLD-kafka.md](LLD-kafka.md) · [LLD-micrometer.md](LLD-micrometer.md) | `SeqSource`, `OutboxMessage`/`OutboxRecord` contract, `InMemoryOutbox` parity, collector overloads, encoder, metric name |
 | [LLD-spring-config.md](LLD-spring-config.md) | the renamed relay property |
@@ -277,7 +280,7 @@ New
   detection.
 - The choice costs nothing on the write path: the three modes land within 0.8%
   of each other, and managedSeq()'s shared sequence runs at 2.6% of its own
-  ceiling at the highest row rate measured. HLD-managed-seq 3.4 has the numbers.
+  ceiling at the highest row rate measured. HLD-seq 3.4 has the numbers.
 - The ordering-violation detector now judges each row on the ordering it
   declares — an app-assigned number where there is one, insert order otherwise —
   instead of always reading seq.

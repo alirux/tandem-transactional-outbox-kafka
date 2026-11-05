@@ -163,20 +163,6 @@ class OutboxMessageTest {
     }
 
     @Test
-    void GIVEN_an_aggregate_with_no_version_WHEN_the_number_is_left_to_tandem_THEN_reading_it_fails_instead_of_returning_a_fiction() {
-        OutboxMessage message = OutboxMessage.builder()
-                .aggregateId("order-1")
-                .aggregateType("Order")
-                .managedSeq()
-                .payload(new byte[] {1})
-                .build();
-
-        assertThat(message.seqSource()).isEqualTo(SeqSource.MANAGED);
-        assertThat(message.hasSeq()).isFalse();
-        assertThatThrownBy(message::seq).isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
     void GIVEN_a_row_that_carries_no_sequence_number_WHEN_reading_it_THEN_it_fails_instead_of_returning_zero() {
         OutboxMessage message = OutboxMessage.builder()
                 .aggregateId("order-1")
@@ -185,13 +171,12 @@ class OutboxMessageTest {
                 .payload(new byte[] {1})
                 .build();
 
-        assertThat(message.seqSource()).isEqualTo(SeqSource.NONE);
         assertThat(message.hasSeq()).isFalse();
         assertThatThrownBy(message::seq).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void GIVEN_no_choice_about_the_sequence_number_WHEN_built_THEN_it_is_refused_and_the_failure_names_the_three_options() {
+    void GIVEN_no_choice_about_the_sequence_number_WHEN_built_THEN_it_is_refused_and_the_failure_names_both_options() {
         assertThatThrownBy(() -> OutboxMessage.builder()
                 .aggregateId("order-1")
                 .aggregateType("Order")
@@ -199,74 +184,33 @@ class OutboxMessageTest {
                 .build())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("seq(long)")
-                .hasMessageContaining("managedSeq()")
                 .hasMessageContaining("unsequenced()");
     }
 
     @Test
-    void GIVEN_two_ways_of_choosing_the_sequence_number_WHEN_built_THEN_every_pairing_is_rejected() {
-        assertThatThrownBy(() -> validBuilder().managedSeq().build())
-                .isInstanceOf(IllegalStateException.class);
+    void GIVEN_a_number_both_supplied_and_refused_WHEN_built_THEN_it_is_rejected_whichever_came_last() {
         assertThatThrownBy(() -> validBuilder().unsequenced().build())
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> OutboxMessage.builder()
                 .aggregateId("order-1").aggregateType("Order")
-                .managedSeq().unsequenced()
+                .unsequenced().seq(1)
                 .payload(new byte[] {1})
                 .build())
                 .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void GIVEN_a_number_both_supplied_and_left_to_tandem_WHEN_built_THEN_it_is_rejected_whichever_came_last() {
-        assertThatThrownBy(() -> validBuilder().managedSeq().build())
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> OutboxMessage.builder()
-                .aggregateId("order-1")
-                .aggregateType("Order")
-                .managedSeq()
-                .seq(1)
-                .payload(new byte[] {1})
-                .build())
-                .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void GIVEN_a_number_left_to_tandem_WHEN_compared_with_one_supplied_as_zero_THEN_they_are_not_equal() {
-        OutboxMessage managed = OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").managedSeq()
-                .payload(new byte[] {1, 2, 3}).build();
-        OutboxMessage supplied = OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").seq(0)
-                .payload(new byte[] {1, 2, 3}).build();
-
-        assertThat(managed).isNotEqualTo(supplied);
     }
 
     @Test
     void GIVEN_an_event_with_no_number_WHEN_compared_with_one_numbered_zero_THEN_they_are_not_equal() {
-        // Same reason as the managed case above: "no number" and "the number zero" are different
-        // facts, and collapsing them is exactly what the primitive field would have done.
+        // "No number" and "the number zero" are different facts, and collapsing them is exactly what
+        // the primitive field would do.
         OutboxMessage unsequenced = OutboxMessage.builder()
                 .aggregateId("order-1").aggregateType("Order").unsequenced()
                 .payload(new byte[] {1, 2, 3}).build();
         OutboxMessage supplied = OutboxMessage.builder()
                 .aggregateId("order-1").aggregateType("Order").seq(0)
                 .payload(new byte[] {1, 2, 3}).build();
-        OutboxMessage managed = OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").managedSeq()
-                .payload(new byte[] {1, 2, 3}).build();
 
-        assertThat(unsequenced).isNotEqualTo(supplied).isNotEqualTo(managed);
-    }
-
-    @Test
-    void GIVEN_a_number_left_to_tandem_WHEN_toString_THEN_it_says_so_rather_than_showing_a_number() {
-        OutboxMessage message = OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").managedSeq()
-                .payload(new byte[] {1}).build();
-
-        assertThat(message.toString()).contains("seq=managed");
+        assertThat(unsequenced).isNotEqualTo(supplied);
     }
 
     @Test
@@ -286,20 +230,14 @@ class OutboxMessageTest {
     @Test
     void GIVEN_lockedWrite_WHEN_combined_with_either_seq_form_THEN_both_are_accepted() {
         OutboxMessage appAssigned = validBuilder().lockedWrite().build();
-        OutboxMessage managed = OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").managedSeq().lockedWrite()
-                .payload(new byte[] {1}).build();
-
         OutboxMessage unsequenced = OutboxMessage.builder()
                 .aggregateId("order-1").aggregateType("Order").unsequenced().lockedWrite()
                 .payload(new byte[] {1}).build();
 
         assertThat(appAssigned.lockedWrite()).isTrue();
-        assertThat(appAssigned.seqSource()).isEqualTo(SeqSource.APPLICATION);
-        assertThat(managed.lockedWrite()).isTrue();
-        assertThat(managed.seqSource()).isEqualTo(SeqSource.MANAGED);
+        assertThat(appAssigned.hasSeq()).isTrue();
         assertThat(unsequenced.lockedWrite()).isTrue();
-        assertThat(unsequenced.seqSource()).isEqualTo(SeqSource.NONE);
+        assertThat(unsequenced.hasSeq()).isFalse();
     }
 
     @Test

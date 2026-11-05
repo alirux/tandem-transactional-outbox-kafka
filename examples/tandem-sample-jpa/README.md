@@ -158,15 +158,13 @@ note through `getReference`, so the root is neither read nor locked:
 1. `lockedWrite()` makes Tandem take a transaction-scoped PostgreSQL advisory lock on
    the aggregate ID right before the outbox insert, held until commit. A concurrent
    writer to the same aggregate waits there, so commit order equals insert order.
-2. `managedSeq()` lets the database number the event at that insert, after the lock.
-   An application-assigned `seq` computed before the call would be read too early.
-   Tandem's sequence is shared by every managed stream, so the numbers increase per
-   aggregate but are not dense: consumers must not expect `1, 2, 3`.
+2. `unsequenced()` gives the event no number. These writers have no root row to count
+   events on, so there is nothing to number them with; consumers deduplicate on the
+   event id, and the relay publishes the events in commit order.
 
 It is opt-in per message, because it turns concurrent writers to one aggregate into
 waiters. Every writer of that aggregate must use it: one path without it is not
 serialized. Keep it on its own stream, as here: a stream takes one sequence contract.
-`unsequenced()` also combines with `lockedWrite()` when consumers need no `ce_seq`.
 
 ## Warnings made observable
 
@@ -181,7 +179,7 @@ serialized. Keep it on its own stream, as here: a stream takes one sequence cont
 | State change followed by a no-op | One row carries the flushed JPA version. |
 | **Unsafe:** two events read an unflushed version | `DuplicateSeqException`; business state and outbox roll back. |
 | **Unsafe:** only children are flushed, no root lock | The second writer commits `seq=2` while `seq=1` is invisible. A polling relay cannot wait for an invisible predecessor. |
-| Children only, with `lockedWrite()` and `managedSeq()` | PostgreSQL reports the second session blocked on the advisory lock; nothing is visible before the first commits; both numbers increase in insertion order. |
+| Children only, with `lockedWrite()` and `unsequenced()` | PostgreSQL reports the second session blocked on the advisory lock; nothing is visible before the first commits; both rows carry no number. |
 
 The negative examples live only in the test. The concurrency checks wait for
 `pg_blocking_pids`, with bounded deadlines, instead of assuming a sleep proves a
@@ -195,8 +193,7 @@ cannot repair concurrent writes that commit out of order. An optimistic `@Versio
 conflict requires retry; it does not make failed commands succeed automatically.
 Flushing only children locks their rows, not a shared aggregate root.
 
-`managedSeq()` and `unsequenced()` change the number contract, not write
-serialization. `lockedWrite()` serializes outbox writers, but it cannot refresh
+`unsequenced()` changes the number contract, not write serialization. `lockedWrite()` serializes outbox writers, but it cannot refresh
 business state read before its lock or fix numbers calculated before it. Do not mix
 root-first and advisory-first lock acquisition across paths; for multi-aggregate work
 acquire the complete lock set consistently. Root locks remain the default here;
@@ -204,7 +201,7 @@ acquire the complete lock set consistently. Root locks remain the default here;
 
 ## Further reading
 
-* [Sequence and concurrent write hazards](../../docs/HLD-managed-seq.md), especially §3 and §4.
+* [Sequence and concurrent write hazards](../../docs/HLD-seq.md), especially §3 and §4.
 * [Spring write tiers and JPA warnings](../../docs/LLD-spring-producer.md#7-the-seq--version-invariant-all-tiers).
 * [Spring JPA transaction integration](https://docs.spring.io/spring-framework/reference/data-access/orm/jpa.html).
 * [Hibernate flushing and locking](https://docs.hibernate.org/orm/7.4/userguide/html_single/).

@@ -368,9 +368,55 @@ val integrationTest = tasks.register<Test>("integrationTest") {
     launching(worktreeBootJar)
 }
 
+// pinnedTest runs against the database the pinned release defines, not the working tree's: an image built
+// on that release runs against its schema, and the test's own write side has to match it (LLD-relay §7.3).
+// So the write side comes from the pinned release, put ahead of the working tree's on the test's
+// classpath, and so does the schema, rebuilt from the changelog inside the pinned tandem-jdbc jar: each
+// changeset in the master's order, with only Liquibase's directive lines dropped, where the container
+// helper reads its baseline.
+val pinnedWriteSide by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
+dependencies {
+    pinnedWriteSide("com.codingful:tandem-core:$tandemPin")
+    pinnedWriteSide("com.codingful:tandem-jdbc:$tandemPin")
+}
+
+fun pinnedBaselineSql(jdbcJar: File): String = ZipFile(jdbcJar).use { zip ->
+    val changelog = "tandem/schema/postgres/changelog/"
+    fun read(name: String) = zip.getInputStream(zip.getEntry(changelog + name) ?: throw GradleException(
+            "${jdbcJar.name} carries no $changelog$name"))
+    val xml = DocumentBuilderFactory.newInstance().apply {
+        setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+    }.newDocumentBuilder()
+    val includes = read("db.changelog-master.xml").use { xml.parse(it) }.getElementsByTagName("include")
+    (0 until includes.length).joinToString("\n") { index ->
+        read((includes.item(index) as Element).getAttribute("file")).bufferedReader().readLines()
+                .filterNot { it.startsWith("--liquibase") || it.startsWith("--changeset") }
+                .joinToString("\n")
+    }
+}
+
+val pinnedBaseline = tasks.register("pinnedBaseline") {
+    description = "Writes the schema the pinned Tandem release ($tandemPin) ships, for pinnedTest."
+    val jar: FileCollection = pinnedWriteSide.filter { it.name.startsWith("tandem-jdbc-") }
+    val output = layout.buildDirectory.dir("pinned-schema")
+    inputs.files(jar)
+    outputs.dir(output)
+    doLast {
+        val baseline = output.get().file("tandem/schema/postgres/tandem-baseline.sql").asFile
+        baseline.parentFile.mkdirs()
+        baseline.writeText(pinnedBaselineSql(jar.singleFile))
+    }
+}
+
 val pinnedTest = tasks.register<Test>("pinnedTest") {
     description = "Runs the application built on the pinned Tandem release ($tandemPin) as a process (requires Docker)."
     launching(pinnedBootJar)
+    classpath = files(pinnedBaseline) + pinnedWriteSide + classpath
     shouldRunAfter(integrationTest)
 }
 

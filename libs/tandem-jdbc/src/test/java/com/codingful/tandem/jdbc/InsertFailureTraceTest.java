@@ -33,7 +33,7 @@ class InsertFailureTraceTest {
 
         assertThat(trace.get(0)).contains("sqlState:22P02").contains("vendorCode:7")
                 .contains("batchEntry:?").contains("constraint:?");
-        assertThat(trace.get(1)).contains("seq:" + event.seqSource()).contains("headerNames:[x-customer-email]");
+        assertThat(trace.get(1)).contains("seq:none").contains("headerNames:[x-customer-email]");
         assertThat(String.join("\n", trace)).doesNotContain(SENSITIVE_PAYLOAD).doesNotContain(SENSITIVE_HEADER);
     }
 

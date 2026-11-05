@@ -72,7 +72,7 @@ jobs:
 
       # The integration tests run the relay's jar; this runs its image (LLD-relay §8.3), so a broken
       # Dockerfile or compose example fails here rather than at release time. It packages the pinned jar
-      # `check` has already built, for the runner's architecture only and without pushing, then brings up
+      # `check` has already built, on the pinned release's schema that `check` has also written, for the runner's architecture only and without pushing, then brings up
       # the compose example: --wait returns once both replicas pass their healthcheck, which is the
       # readiness probe. That exercises the layer extraction, the entrypoint, the non-root user and the
       # example file, which nothing else runs.

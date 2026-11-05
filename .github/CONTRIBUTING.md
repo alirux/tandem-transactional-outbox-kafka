@@ -65,6 +65,19 @@ To also produce the aggregated coverage report CI publishes to Codecov:
 ./gradlew check :tandem-coverage:aggregatedCoverageReport
 ```
 
+Mutation testing with [PIT](https://pitest.org/) is an occasional audit, not part of `check` or CI.
+Run it when you write or rework pure logic in `tandem-core`, `tandem-jdbc` (the relay engine) or
+`tandem-test`; the init script that applies it lives outside the build:
+
+```bash
+./gradlew --init-script tools/pitest.init.gradle.kts :tandem-core:pitest
+```
+
+The report lands in `build/reports/pitest/` of the module. A surviving mutant is a question, not a
+verdict: many are equivalent (no input can tell them apart), so read the code and the tests covering
+it before adding a test, and add one only for a behaviour worth pinning. PIT runs the module's own
+unit tests only, so code that integration tests or other modules exercise shows as having no coverage.
+
 The Testcontainers suites start `postgres:16-alpine` by default. To run them against another
 PostgreSQL major (which is what the `postgres-majors` workflow does, and how the supported-version
 claim stays verified rather than asserted):
@@ -225,15 +238,16 @@ adapter modules depend on `tandem-core`, never the reverse. See
 | [HLD-load-testing.md](../docs/HLD-load-testing.md) · [LLD-benchmark.md](../docs/LLD-benchmark.md) | Throughput/latency verification plan + the `tandem-benchmark` harness that implements it |
 | [virtual-threads-decision.md](../docs/virtual-threads-decision.md) | Why the relay's workers stay platform threads, measured rather than argued, and what an application running on virtual threads needs to know (nothing) |
 | [HLD-causal-ordering.md](../docs/HLD-causal-ordering.md) | Cross-aggregate causal ordering (deep-dive) |
-| [HLD-managed-seq.md](../docs/HLD-managed-seq.md) | The three per-message `seq` modes — `seq(long)` (the aggregate's own version), `managedSeq()` (Tandem-assigned) and `unsequenced()` (no number at all) — what each one costs and detects, and how to choose. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
-| [HLD-write-side-sdks.md](../docs/HLD-write-side-sdks.md) | Writing to the outbox from languages other than Java: the write contract, the conformance vectors that pin it, and the SDKs that implement it, Go first. Designed, not implemented |
+| [HLD-seq.md](../docs/HLD-seq.md) | The two per-message `seq` modes, `seq(long)` (the aggregate's number for the event) and `unsequenced()` (no number at all): what each one costs and detects, how to choose, and why Tandem never assigns the number itself. Also the opt-in write-side advisory lock that serializes concurrent writers (`lockedWrite()`), independent of the mode |
+| [HLD-write-side-sdks.md](../docs/write-side-sdks/HLD-write-side-sdks.md) | Writing to the outbox from languages other than Java: the write contract, the conformance vectors that pin it, and the SDKs that implement it, Go first. Designed, not implemented |
+| [LLD-write-side-vectors.md](../docs/write-side-sdks/LLD-write-side-vectors.md) | The write contract's test vectors: the files under `schema/write-side/`, their JSON format, how the Java build generates and verifies them, and how an SDK reads them. Draft, not implemented |
 | [HLD-adoption-skill.md](../docs/HLD-adoption-skill.md) | An agent skill that integrates Tandem into a new or existing application: discovery, the adoption decisions, what it never does, and references generated from the user guide. Proposed, not implemented |
 | [dispatch-latency.md](../docs/dispatch-latency.md) | Commit-to-publish latency: where it comes from, the adaptive idle backoff, and the opt-in post-commit wakeup |
 | [comparison.md](../docs/comparison.md) | Comparison with Debezium, Eventuate Tram, Spring Modulith, a hand-rolled outbox, and the stream processors (Kafka Streams, Flink) |
 | [open-questions-lld.md](../docs/open-questions-lld.md) | Tracked gaps to resolve before the LLDs |
 | [IMPLEMENTATION-PLAN-basic-round.md](../docs/IMPLEMENTATION-PLAN-basic-round.md) | Execution plan, scope fence, and per-module done-ness for the first milestone |
 | [IMPLEMENTATION-PLAN-embedded-lease.md](../docs/IMPLEMENTATION-PLAN-embedded-lease.md) | Plan for the `LEASE` multi-instance coordination opt-in (embedded-multi-replica or standalone) |
-| [IMPLEMENTATION-PLAN-optional-seq.md](../docs/IMPLEMENTATION-PLAN-optional-seq.md) | Plan for making `seq` one of three explicit per-message modes, and for judging each row on the ordering it declares |
+| [IMPLEMENTATION-PLAN-optional-seq.md](../docs/IMPLEMENTATION-PLAN-optional-seq.md) | Plan for making `seq` an explicit per-message mode, and for judging each row on the ordering it declares (its managed mode was later removed) |
 
 ## Making a change
 

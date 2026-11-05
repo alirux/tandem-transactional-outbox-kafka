@@ -63,11 +63,11 @@ val springMetadataModules = setOf("tandem-spring-producer", "tandem-spring-relay
 // metadata keeps the declared floor. Applied in every project, not only in the connector, because a
 // module depending on the connector (tandem-benchmark) inherits the coordinates transitively. The
 // exempt configurations are the ones whose whole point is to resolve from Maven Central: the connector's
-// floorTest classpath, the classpath of the relay application's pinned jar (LLD-relay §7.3), and the
-// configurations that resolve the compatibility baseline (LLD-api-stability §2.2). A configuration missing
-// from this set is substituted like any other, and the gate built on it then passes while testing the
-// working tree.
-val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath") +
+// floorTest classpath, the classpath of the relay application's pinned jar and the write side its
+// pinnedTest writes with (LLD-relay §7.3), and the configurations that resolve the compatibility baseline
+// (LLD-api-stability §2.2). A configuration missing from this set is substituted like any other, and the
+// gate built on it then passes while testing the working tree.
+val centralClasspaths = setOf("floorTestRuntimeClasspath", "pinnedRuntimeClasspath", "pinnedWriteSide") +
         CompatibilityBaseline.CONFIGURATIONS
 val siblingPaths = subprojects.filter { it.name !in unpublishedModules }.associate { it.name to it.path }
 

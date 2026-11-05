@@ -361,8 +361,8 @@ with its analytics off, so the test reaches nothing outside the container.
    Liquibase at its published classpath path, `tandem/schema/postgres/changelog/db.changelog-master.xml`.
 2. **Baseline writes.** The baseline first runs a relay's startup steps (the bucket-count check, the
    control source's start, the `LEASE` validation and a heartbeat), so every `tandem_*` table holds rows
-   at the upgrade. The adapter then writes in every `seq` mode (`seq(long)`, `managedSeq()`,
-   `unsequenced()`, each with and without `lockedWrite()`): one aggregate per combination, its first row
+   at the upgrade. The adapter then writes in every `seq` mode the baseline offers (for
+   1.0.0-rc.2: `seq(long)`, `managedSeq()` and `unsequenced()`, each with and without `lockedWrite()`): one aggregate per combination, its first row
    through `insert` and its second through one `insertAll` across the aggregates. It claims the head of
    each aggregate and completes half of them; the other half is still in flight at the upgrade.
 3. **Upgrade.** Liquibase updates the database with the current changelog, read from `tandem-jdbc`'s
@@ -376,7 +376,7 @@ with its analytics off, so the test reaches nothing outside the container.
 | Step | What the baseline does, and what the step asserts |
 |---|---|
 | Rows claimed before the upgrade | Completes them; the rows behind them are claimed with what was written (`seq` and its source, type, payload, headers) |
-| Writes in every `seq` mode | Writes again as in phase 2; the backlog grows by the rows written, each is claimed as written, a managed number grows, and a number an aggregate already used is refused (`DuplicateSeqException`) |
+| Writes in every `seq` mode | Writes again as in phase 2; the backlog grows by the rows written, each is claimed as written, a managed number grows where the baseline still offers one, and a number an aggregate already used is refused (`DuplicateSeqException`) |
 | Retry | A retry with no delay is claimed again at once, with its attempt and error; one with a delay is not claimed before it is due |
 | Failure | The row is `FAILED` with its error, its aggregate's later rows are held back, and the failed and blocked counts grow by one and two |
 | Lease reclaim | An expired lease returns the row to `PENDING` with one more attempt, until the last attempt makes it `FAILED` |

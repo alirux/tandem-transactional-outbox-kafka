@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.codingful.tandem.core.AggregateId;
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
-import com.codingful.tandem.core.SeqSource;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -43,18 +42,6 @@ class PublishOrderWatermarksTest {
                 .build();
     }
 
-    /** A row Tandem numbered: it has a seq, but insert order is all that number says. */
-    private static OutboxRecord managed(AggregateId aggregateId, long seq, long id) {
-        return OutboxRecord.builder()
-                .id(id)
-                .message(OutboxMessage.builder()
-                        .aggregateId(aggregateId).aggregateType("Order").seq(seq)
-                        .payload(new byte[] {1}).build())
-                .seqSource(SeqSource.MANAGED)
-                .createdAt(NOW)
-                .build();
-    }
-
     // --- which ordering a row is judged on -------------------------------------------------------
 
     @Test
@@ -66,40 +53,12 @@ class PublishOrderWatermarksTest {
     }
 
     @Test
-    void GIVEN_a_row_tandem_numbered_WHEN_it_is_judged_THEN_its_id_is_the_ordering_not_the_number() {
-        // Its seq is insert order restated, so reading it would only import the sequence's own
-        // hazards - a cached range, a botched restart - as violations that never happened.
-        OutboxRecord record = managed(ORDER_1, 8347283, 99);
-
-        assertThat(PublishOrderWatermarks.keyFor(record)).isEqualTo(PublishOrderWatermarks.Key.ID);
-        assertThat(PublishOrderWatermarks.valueFor(record)).isEqualTo(99);
-    }
-
-    @Test
     void GIVEN_a_row_with_no_number_WHEN_it_is_judged_THEN_its_id_is_the_ordering() {
         OutboxRecord record = unsequenced(ORDER_1, 99);
 
         assertThat(PublishOrderWatermarks.keyFor(record)).isEqualTo(PublishOrderWatermarks.Key.ID);
         assertThat(PublishOrderWatermarks.valueFor(record)).isEqualTo(99);
     }
-
-    @Test
-    void GIVEN_a_row_whose_provenance_this_build_predates_WHEN_it_is_judged_THEN_it_falls_back_to_the_id() {
-        OutboxRecord record = OutboxRecord.builder()
-                .id(99)
-                .message(OutboxMessage.builder()
-                        .aggregateId(ORDER_1).aggregateType("Order").seq(7)
-                        .payload(new byte[] {1}).build())
-                .seqSource(SeqSource.UNKNOWN)
-                .createdAt(NOW)
-                .build();
-
-        // The safe reading: under-reports, never invents. Trusting an unknown provenance's number as a
-        // declared ordering is the one thing that could produce a violation that never happened.
-        assertThat(PublishOrderWatermarks.keyFor(record)).isEqualTo(PublishOrderWatermarks.Key.ID);
-    }
-
-    // --- verdicts on the application's own numbering ----------------------------------------------
 
     @Test
     void GIVEN_an_aggregate_never_published_before_WHEN_its_first_event_goes_out_THEN_nothing_is_suspected() {
@@ -190,12 +149,12 @@ class PublishOrderWatermarksTest {
     }
 
     @Test
-    void GIVEN_an_aggregate_mixing_its_own_numbering_with_tandems_WHEN_published_in_order_THEN_nothing_is_suspected() {
-        // A large managed number against a small application one would look like a wild jump, and the
-        // reverse like a regression, if the two were ever compared with each other.
+    void GIVEN_an_aggregate_mixing_numbered_and_unnumbered_events_WHEN_published_in_order_THEN_nothing_is_suspected() {
+        // A small number against a large id would look like a regression, and the reverse like a wild
+        // jump, if the two were ever compared with each other.
         watermarks.record(numbered(ORDER_1, 3, 100));
 
-        assertThat(watermarks.record(managed(ORDER_1, 8347283, 101)))
+        assertThat(watermarks.record(unsequenced(ORDER_1, 101)))
                 .isEqualTo(PublishOrderWatermarks.Verdict.ADVANCED);
         assertThat(watermarks.record(numbered(ORDER_1, 4, 102)))
                 .isEqualTo(PublishOrderWatermarks.Verdict.ADVANCED);

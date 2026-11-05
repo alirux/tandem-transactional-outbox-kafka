@@ -140,26 +140,21 @@ flowchart TD
 
 Independent of the tier, and independent of *each other*: two separate decisions, not one axis.
 
-**Decision one: where the sequence number comes from.** Every message states one of three modes
+**Decision one: whether the event carries a sequence number.** Every message states one of two modes
 and there is no default, because the choice fixes what your consumers read and cannot be changed
 later without breaking them:
 
 | Mode | Use it when | What it costs |
 |---|---|---|
 | `unsequenced()` | **Start here when undecided.** Your consumers deduplicate on the event id and never read the aggregate's version, the common case. | Nothing. The row stores no number and publishes no `ce_seq`. |
-| `seq(long)` | Consumers genuinely read the number as your aggregate's version, **or** you want the strongest ordering detection: only a number *you* assigned is an order independent of the one rows were inserted in. | You must keep the version in step with your ORM's flush; the §1 case-2 trap above is exactly this. |
-| `managedSeq()` | Consumers want *a* monotonic number but attach no domain meaning to it, and your aggregate has no version to give. | Nothing on the write path: a database sequence default supplies it. |
+| `seq(long)` | Consumers genuinely read a number your aggregate assigns to each event, **or** you want the strongest ordering detection: only a number *you* assigned is an order independent of the one rows were inserted in. | You must keep the number in step with your ORM's flush (the §1 case-2 trap above is exactly this), and number events rather than states: a version that two events share gives them the same number. |
 
-Two questions settle it:
-
-1. Do consumers need your aggregate's **domain version**? → `seq(long)`.
-2. If not, do they need **any** number at all? → `managedSeq()` if yes, `unsequenced()` if no.
-
-`managedSeq()` and `unsequenced()` give **identical** ordering detection; they differ only in
-whether a number reaches the consumer.
+One question settles it: do consumers need a number your aggregate assigns to each event? If yes,
+`seq(long)`; otherwise `unsequenced()`. Tandem never assigns one for you
+([HLD-seq §4.5](https://github.com/alirux/tandem-transactional-outbox-kafka/blob/main/docs/HLD-seq.md)).
 
 **Decision two: whether Tandem serializes your writers.** `lockedWrite()` is a separate per-message
-flag that combines freely with any of the three modes above. Reach for it when writers to one
+flag that combines freely with either mode above. Reach for it when writers to one
 aggregate don't reliably serialize (§1 case 3 or 4) and you'd rather Tandem's advisory lock
 enforce the precondition than establish it yourself.
 
@@ -174,7 +169,7 @@ another keeps its app-assigned `seq` and no lock, in the same application.
 
 ## 4. Applying the schema to a database that already has data in it
 
-Tandem's schema is additive-only by design and lives as a normal Liquibase changelog, not
+Tandem's schema is additive within a major version and lives as a normal Liquibase changelog, not
 something the library applies itself: you (or your existing migration tool) run it, exactly like
 every other table in your schema.
 
@@ -270,10 +265,7 @@ built into Tandem; the mechanism gives a clear answer once you know what you act
   bucket/worker forever, exactly like any other single-aggregate hot spot: fine for a low-volume
   stream, a bottleneck if that "stream" is actually your whole system's event volume in disguise.
   `unsequenced()` again: the ordering here comes from Tandem's per-aggregate guarantee, not from a
-  number on the event. Reach for `managedSeq()` instead only if a downstream consumer wants *some*
-  number to carry on the event, **not** to detect gaps: its counter is drawn from one sequence
-  shared by every aggregate, so it is sparse by construction and a gap in it says nothing about a
-  missing event. Detection strength is identical to `unsequenced()` either way (§3.2 above).
+  number on the event.
 
 Don't invent a large number of synthetic ids hoping it "spreads the load better than one" unless
 the events under each id genuinely need relative ordering: a fresh random id per unrelated event

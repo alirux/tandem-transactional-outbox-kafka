@@ -5,7 +5,7 @@
 [LLD-api-stability.md](LLD-api-stability.md) specifies.  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.4; [HLD-admin-api.md](HLD-admin-api.md);
 [HLD-cloudevents.md](HLD-cloudevents.md); [LLD-jdbc.md](LLD-jdbc.md) §6;
-[LLD-spring-config.md](LLD-spring-config.md); [HLD-write-side-sdks.md](HLD-write-side-sdks.md) §4
+[LLD-spring-config.md](LLD-spring-config.md); [HLD-write-side-sdks.md](write-side-sdks/HLD-write-side-sdks.md) §4
 
 This note decides what Tandem 1.0.0 freezes, how each frozen contract may change without a new major
 version, and how the build checks it.
@@ -33,7 +33,7 @@ version, and how the build checks it.
 | Contract | What it covers | Design owner |
 |---|---|---|
 | Java API | The public types of the published library modules, as defined in §3 | this note |
-| Database schema | The `tandem_*` tables; the Liquibase changelog and its classpath location `tandem/schema/postgres/changelog/`; the write contract of [HLD-write-side-sdks.md](HLD-write-side-sdks.md) §4 | HLD §1.4, LLD-jdbc §6 |
+| Database schema | The `tandem_*` tables; the Liquibase changelog and its classpath location `tandem/schema/postgres/changelog/`; the write contract of [HLD-write-side-sdks.md](write-side-sdks/HLD-write-side-sdks.md) §4 | HLD §1.4, LLD-jdbc §6 |
 | Published message | The CloudEvents envelope and the raw passthrough envelope: record key, headers and their names, body | HLD-cloudevents, HLD-alternative-envelope |
 | Admin API | The `/v1` contract in [admin-api.openapi.yaml](admin-api.openapi.yaml), including every problem `type` slug | HLD-admin-api |
 | Spring properties | Every `tandem.*` key, its type and its default | LLD-spring-config |
@@ -144,7 +144,7 @@ Tandem record with a record pattern is outside the promise: a new component chan
 
 A public enum may gain constants in a minor version, since the readers of every contract tolerate
 values they do not know (HLD §1.4). Code that switches over a Tandem enum keeps a `default` branch,
-and the enum's javadoc says so. The public enums are `OutboxStatus`, `SeqSource` and
+and the enum's javadoc says so. The public enums are `OutboxStatus` and
 `RelayCoordinationMode` (core), `Coordination` and `Wakeup` (jdbc).
 
 ### 4.3 Construction

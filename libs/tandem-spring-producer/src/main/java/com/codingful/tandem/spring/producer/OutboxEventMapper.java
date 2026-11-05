@@ -22,7 +22,8 @@ public interface OutboxEventMapper<T> {
      *
      * @param event the published domain event
      * @return the rows to insert — usually one; an empty collection emits nothing; never {@code null}.
-     *         Each message's {@code seq} must come from the aggregate's {@code version} (HLD §4.2)
+     *         Each message carries the number the aggregate gave that event, or none (HLD §4.2,
+     *         HLD-seq §4.4)
      */
     Collection<OutboxMessage> map(T event);
 }

@@ -102,6 +102,9 @@ class MessageEncoderContractTest {
                 new LinkedHashMap<>(Map.of(ID_HEADER, utf8(String.valueOf(record.id())))));
 
         assertFailsOnly(MessageEncoderContract.of(dropping, EVENT_ID), 6);
+        assertThatThrownBy(MessageEncoderContract.of(dropping, EVENT_ID)::verify)
+                .hasMessageNotContaining("missing:[]")
+                .hasMessageContaining("altered:[]");
     }
 
     @Test
@@ -147,11 +150,10 @@ class MessageEncoderContractTest {
             return new EncodedMessage("orders-" + call, message.key() + call, new byte[] {(byte) call}, message.headers());
         };
 
+        // The key also breaks check 5, whose report names it too: only the determinism list proves check 2 saw it.
         assertThatThrownBy(MessageEncoderContract.of(drifting, EVENT_ID)::verify)
                 .hasMessageContaining("Check 2 ")
-                .hasMessageContaining("destination")
-                .hasMessageContaining("key")
-                .hasMessageContaining("body");
+                .hasMessageContaining("differing:[body, destination, key]");
     }
 
     @Test
@@ -162,6 +164,7 @@ class MessageEncoderContractTest {
 
         assertThatThrownBy(MessageEncoderContract.of(MessageEncoderContractTest::compliant, broken)::verify)
                 .hasMessageContaining("Check 3 ")
+                .hasMessageNotContaining("event id is blank")
                 .satisfies(failure -> assertThat(failure.getSuppressed())
                         .isNotEmpty()
                         .allMatch(IllegalStateException.class::isInstance));
@@ -188,6 +191,9 @@ class MessageEncoderContractTest {
                 rowHeaders(record));
 
         assertFailsOnly(MessageEncoderContract.of(anonymous, EVENT_ID), 3);
+        assertThatThrownBy(MessageEncoderContract.of(anonymous, EVENT_ID)::verify)
+                .hasMessageContaining("event id is missing")
+                .hasMessageNotContaining("extractor threw");
     }
 
     @Test
@@ -235,6 +241,16 @@ class MessageEncoderContractTest {
     @Test
     void GIVEN_an_encoder_returning_nothing_WHEN_it_is_held_to_the_contract_THEN_the_acceptance_check_fails() {
         assertFailsOnly(MessageEncoderContract.of(record -> null, EVENT_ID), 1);
+    }
+
+    @Test
+    void GIVEN_an_encoder_returning_nothing_on_one_of_two_encodes_WHEN_it_is_held_to_the_contract_THEN_the_acceptance_check_fails() {
+        for (int nullOnCall : new int[] {0, 1}) {
+            AtomicInteger calls = new AtomicInteger();
+            MessageEncoder flaky = record -> calls.getAndIncrement() % 2 == nullOnCall ? null : compliant(record);
+
+            assertFailsOnly(MessageEncoderContract.of(flaky, EVENT_ID), 1);
+        }
     }
 
     @Test
@@ -290,6 +306,14 @@ class MessageEncoderContractTest {
         MessageEncoderContract contract = MessageEncoderContract.of(MessageEncoderContractTest::compliant, EVENT_ID);
 
         assertThatThrownBy(() -> contract.declaresOwnOrderingKey(" "))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GIVEN_no_reason_WHEN_an_encoder_declares_its_own_ordering_key_THEN_the_declaration_is_refused() {
+        MessageEncoderContract contract = MessageEncoderContract.of(MessageEncoderContractTest::compliant, EVENT_ID);
+
+        assertThatThrownBy(() -> contract.declaresOwnOrderingKey(null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

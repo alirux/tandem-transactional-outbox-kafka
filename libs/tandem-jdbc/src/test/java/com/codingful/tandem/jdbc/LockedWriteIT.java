@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Proves {@link OutboxMessage.Builder#lockedWrite()} closes the exact hazard
- * {@link CommitOrderReorderIT} pins for an unserialised write side (HLD-managed-seq §4.2): a
+ * {@link CommitOrderReorderIT} pins for an unserialised write side (HLD-seq §4.2): a
  * concurrent writer to the same aggregate is made to wait, rather than being allowed to commit ahead
  * of a write that started first.
  */

@@ -92,8 +92,8 @@ carries `bucket`.
 Runs inside the caller's transaction (the client's `@Transactional`); never opens its own.
 
 ```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_source, payload, headers, correlation_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, headers, correlation_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 ```
 - `bucket` is computed in Java from `aggregate_id` (§1).
 - `payload` is the `byte[]` from the `PayloadSerializer`, bound as JSON text into the `JSONB` column; a `BYTEA` column is not supported (HLD §5.2).
@@ -125,32 +125,13 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
   buckets this call wrote (`Wakeup.PG_NOTIFY`, §3.10). Off by default; when on it is one statement per
   call, over the distinct buckets, so a batch costs the same round trip as a single row.
 - `insertAll` batches multiple messages via JDBC batch in the same transaction.
-- **`seq_source` is always bound**, and `seq` is bound to SQL `NULL` for an `unsequenced()` message.
-  Binding is what distinguishes that from a managed row: the column has a `DEFAULT`, so *omitting* it
-  would draw a managed number instead of storing none.
-
-**A message built with `managedSeq()` uses a second INSERT with the `seq` column left out**
-([HLD-managed-seq](HLD-managed-seq.md) §4.1), so the `tandem_seq` default supplies the number:
-
-```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source, payload, headers, correlation_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-```
-
-Omitting the column *is* the whole mechanism — no extra statement, no round trip, no lock added to
-the caller's transaction. Two consequences the adapter carries:
-
-- **The mode is per message, so one `insertAll` can hold all three.** Managed is the only one needing
-  the second column list, so it is the only split a batch makes — application-assigned and unsequenced
-  rows share one statement and batch together freely. The split is on **consecutive runs** rather than
-  partitioned by mode: grouping all managed messages together would reorder the collection, and every
-  write-side tier promises rows land in the order they were collected.
-- **A failure reports `seq` as `MANAGED` or `NONE`, never a number, where the message has none.**
-  There is none until the insert succeeds (managed) or ever (unsequenced), and printing `0` or `-1`
-  would send whoever reads the failure looking for a row that does not exist.
+- **`seq` is always bound**, to SQL `NULL` for an `unsequenced()` message ([HLD-seq](HLD-seq.md) §4.1).
+  Both modes share the one statement, so one `insertAll` batches them together in the collection's
+  order. A failure reports the `seq` of such a message as `none`, never a number: printing `0` would
+  send whoever reads the failure looking for a row that does not exist.
 
 **A message built with `lockedWrite()` makes `insert`/`insertAll` take `pg_advisory_xact_lock(hashtext(aggregate_id))`
-on the same connection, right before the row's INSERT** ([HLD-managed-seq](HLD-managed-seq.md) §4.2):
+on the same connection, right before the row's INSERT** ([HLD-seq](HLD-seq.md) §4.2):
 
 ```sql
 SELECT pg_advisory_xact_lock(hashtext(?));
@@ -741,10 +722,10 @@ HLD §4.2 makes "writers to one aggregate are serialised" a precondition Tandem 
 enforce. When it is violated the relay publishes an aggregate's events out of the order they were
 meant to go in, and this is where that becomes visible — the only place it ever is.
 
-**Which ordering each row is judged on comes from its `seq_source`** (HLD-managed-seq §6.1). A row the
+**Which ordering each row is judged on depends on whether it has a `seq`** (HLD-seq §6.1). A row the
 application numbered is checked against that number, the one ordering independent of the order rows
-were physically inserted. Every other row — one Tandem numbered, one written `unsequenced()`, one whose
-provenance this build predates — is checked on its `id`, the only ordering it has. A watermark records
+were physically inserted. A row written `unsequenced()` is checked on its `id`, the only ordering it
+has. A watermark records
 which of the two it holds, and a change resets the entry rather than comparing a `seq` against an `id`,
 so the row on which an aggregate switches modes is not judged at all.
 
@@ -793,7 +774,7 @@ life of the process. Eviction degrades detection exactly as a relay restart alre
 design accepts: this under-reports and never over-reports. A `LEASE` rebalance moving buckets to
 another instance loses the watermarks for their aggregates the same way, and `SINGLE` with several
 instances splits one aggregate's history across peers with nothing marking the division — the full list
-of when the memory is lost, and when it survives, is in HLD-managed-seq §6. Set
+of when the memory is lost, and when it survives, is in HLD-seq §6. Set
 `RelayConfig.orderViolationDetection` to
 `false` (Spring: `tandem.relay.order-violation-detection`) where writers are serialised by construction
 and the signal is not wanted — nothing is then allocated at all.

@@ -212,7 +212,7 @@ OutboxMessage.builder()
 **The sequence mode is a required choice.** A message that states none fails to build, because the
 choice fixes what consumers read and cannot be changed later without breaking them. When in doubt,
 use `unsequenced()`: nothing is asked of your domain, and consumers deduplicate on the event id,
-which is always present. The two alternatives, `seq(long)` and `managedSeq()`, are compared in the
+which is always present. The alternative, `seq(long)`, is compared with it in the
 [Adoption Guide](adoption.md#32-where-seq-comes-from-and-whether-you-need-tandems-lock).
 
 ### 5.2 Insert it inside your transaction

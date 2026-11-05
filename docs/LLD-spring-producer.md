@@ -30,8 +30,10 @@ Carried in from the HLD as constraints, not re-opened:
 - **The Spring-events listener is synchronous** (`@EventListener`, inline in the publisher's thread and
   transaction) — **never** `@TransactionalEventListener(AFTER_COMMIT)`, which would insert in a
   separate transaction and break atomicity.
-- **`seq` always comes from the aggregate's `version`** (HLD §4.2). Tandem reads it, never invents it —
-  every tier below takes `seq` from the caller/aggregate and passes it through unchanged.
+- **`seq` always comes from the caller or the aggregate** (HLD §4.2): the number the aggregate gave the
+  event, or none (`unsequenced()`). Tandem reads it, never invents it: every tier below passes it
+  through unchanged. It numbers events, not states, so it equals a `version` only while each version
+  produces one event (HLD-seq §2).
 
 This LLD pins the **signatures and mechanics** that realise those decisions.
 
@@ -106,13 +108,13 @@ public interface OutboxCollector {
     void add(OutboxMessage message);
 
     /** Object payload: serialized via the configured PayloadSerializer, then built into an OutboxMessage.
-     *  seq MUST be the aggregate's version (HLD §4.2). */
+     *  seq is the number the aggregate gave the event (HLD §4.2). */
     void record(String aggregateType, AggregateId aggregateId, long seq, Object payload);
 
     /** As record(...), with a String aggregate id. */
     void record(String aggregateType, String aggregateId, long seq, Object payload);
 
-    /** Same, for an aggregate that publishes no sequence number: the row stores none (HLD-managed-seq §4.5). */
+    /** Same, for an aggregate that publishes no sequence number: the row stores none (HLD-seq §4.1). */
     void record(String aggregateType, AggregateId aggregateId, Object payload);
     void record(String aggregateType, String aggregateId, Object payload);
 }
@@ -190,7 +192,7 @@ Usage:
 @TransactionalOutbox                                 // = @Transactional + outbox extraction
 public Order place(OrderId id) {
     Order o = orderRepository.findById(id);
-    o.place();                                        // records its own event + seq = version
+    o.place();                                        // records its own event and its seq
     return orderRepository.save(o);                   // Order implements TandemAggregate
 }
 ```
@@ -337,16 +339,13 @@ reads it from the messages the aggregate built; the events tier reads it from th
 **The alternatives are explicit at the call site**, never inferred from a missing argument. The
 `record(...)` overloads *without* `seq` mean **`unsequenced()`** — the row stores no number and no
 `ce_seq` reaches consumers, which is the usual answer when nothing downstream reads the aggregate's
-version ([HLD-managed-seq](HLD-managed-seq.md) §4.6). `managedSeq()`, where Tandem draws the number
-from its own sequence, has no overload here and is reached by building the message and passing it to
-`add(OutboxMessage)`, as `lockedWrite()` already is: a third pair would double this method's
-already-doubled surface for a mode most callers never reach for (Pareto). All of it stays per message
-— one aggregate type can differ from the rest — and a message stating no mode at all fails to build,
+number per event ([HLD-seq](HLD-seq.md) §4.4). It stays per message (one aggregate type can
+differ from the rest), and a message stating no mode at all fails to build,
 so a caller who merely *forgot* keeps failing loudly instead of silently changing what consumers
 read.
 
 **A caller can also ask Tandem to serialise concurrent writers, independent of where `seq` comes
-from** ([HLD-managed-seq](HLD-managed-seq.md) §4.2): `OutboxMessage.Builder.lockedWrite()`. The
+from** ([HLD-seq](HLD-seq.md) §4.2): `OutboxMessage.Builder.lockedWrite()`. The
 annotation and application-events tiers reach it with no new API — both already carry a whole
 `OutboxMessage` the caller built. The Template tier reaches it only through `OutboxCollector.add(...)`,
 not a `record(...)` argument: combined with the two `seq` forms that would double an already-doubled
@@ -361,11 +360,11 @@ method surface for a mechanism most callers, per §3.3 below, do not need.
 > a mutation that dirties no persistent field advances no version at all, so the *next* transaction
 > reuses the stale `seq`. Measured across all three Spring tiers plus the plain `OutboxRepository`
 > path, identically: [HLD.md](HLD.md#42-ordering-established-at-write-time) §4.2,
-> [HLD-managed-seq.md](HLD-managed-seq.md) §3.2. Two workarounds, neither tier-specific: build the
-> outbox row after an explicit flush, or take `seq` from a source that advances per *event* rather
-> than per entity state change — which is what the `seq`-less `record(...)` overloads above do
-> ([HLD-managed-seq.md](HLD-managed-seq.md) §4.1), at the cost of `seq` no longer carrying the
-> aggregate's version to consumers.
+> [HLD-seq.md](HLD-seq.md) §3.2. Two workarounds, neither tier-specific: build the
+> outbox row after an explicit flush, or write the event with no number, which is what the `seq`-less
+> `record(...)` overloads above do ([HLD-seq.md](HLD-seq.md) §4.1), at the cost of no number
+> reaching consumers. A version also numbers states, not events: one state change that emits two
+> events needs two numbers ([HLD-seq.md](HLD-seq.md) §2).
 
 > **Of those two workarounds the flush is the stronger one, because it also fixes something else.**
 > HLD §4.2 makes per-aggregate write serialization a hard precondition, and the flush is what decides

@@ -10,7 +10,6 @@ import com.codingful.tandem.core.OutboxSearchCriteria;
 import com.codingful.tandem.core.OutboxStatus;
 import com.codingful.tandem.core.ReplayCriteria;
 import com.codingful.tandem.core.ReplayResult;
-import com.codingful.tandem.core.SeqSource;
 import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import com.codingful.tandem.core.port.DiscardService;
@@ -47,11 +46,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * computed with the <b>same core {@link BucketHash}</b> the DB path uses, {@code claimBatch} returns
  * the <b>head of each aggregate's pending chain</b> (the head-of-chain predicate that subsumes the
  * poison gate), the lease reclaim <b>counts as an attempt</b> and quarantines to {@code FAILED} at
- * {@code maxAttempts}, {@code content-type} is folded into {@code headers} at insert, and all three
- * {@code seq} modes behave as they do in the database (HLD-managed-seq §4.5): a {@code managedSeq()}
- * message is numbered from an outbox-wide counter as {@code tandem_seq} numbers it, and an
- * {@code unsequenced()} one stores no number and stays outside the uniqueness check, mirroring
- * PostgreSQL treating NULLs as distinct in {@code UNIQUE (aggregate_id, seq)}.
+ * {@code maxAttempts}, {@code content-type} is folded into {@code headers} at insert, and both
+ * {@code seq} modes behave as they do in the database (HLD-seq §4.1): an {@code unsequenced()}
+ * message stores no number and stays outside the uniqueness check, mirroring PostgreSQL treating
+ * NULLs as distinct in {@code UNIQUE (aggregate_id, seq)}.
  *
  * <p>The {@link Clock} is injectable so backoff/lease/retention are deterministic.
  *
@@ -99,10 +97,6 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     private final Object lock = new Object();
     private final AtomicLong idSeq = new AtomicLong();
-    // Stands in for the tandem_seq sequence the JDBC adapter's managed-seq insert reads (HLD-managed-seq
-    // §4.1): one counter for the whole outbox, not one per aggregate, so the numbers it hands out are
-    // sparse per aggregate exactly as the database's are.
-    private final AtomicLong managedSeq = new AtomicLong();
     // id -> entry, ordered by id so head-of-chain scans are deterministic.
     private final TreeMap<Long, Entry> rows = new TreeMap<>();
     // Enforces UNIQUE(aggregate_id, seq).
@@ -168,7 +162,6 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
     }
 
     private void doInsert(OutboxMessage message) {
-        SeqSource seqSource = message.seqSource();
         OutboxMessage stored = asPersisted(message);
         // An unsequenced row stays out of the uniqueness check, mirroring PostgreSQL's NULLS DISTINCT:
         // UNIQUE (aggregate_id, seq) rejects a duplicate number, and such a row has none.
@@ -184,9 +177,6 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
         OutboxRecord record = OutboxRecord.builder()
                 .id(id)
                 .message(stored)
-                // The mode the caller stated, not the rebuilt message's: a managed message has had its
-                // number resolved above and now looks application-assigned, exactly as a stored row does.
-                .seqSource(seqSource)
                 .status(OutboxStatus.PENDING)
                 .createdAt(clock.instant())
                 .build();
@@ -195,10 +185,9 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
 
     /**
      * The message as the row holds it: {@code contentType} serialized into
-     * {@code headers["content-type"]}, and a number in place of a request to assign one — the two
-     * things the write side does on the way to storage (LLD-jdbc §2, HLD-managed-seq §4.1).
+     * {@code headers["content-type"]}, what the write side does on the way to storage (LLD-jdbc §2).
      * {@code lockedWrite} carries no storage effect of its own (there is no column for it — a real
-     * insert only consumes it to decide whether to take the advisory lock, HLD-managed-seq §4.2), but
+     * insert only consumes it to decide whether to take the advisory lock, HLD-seq §4.2), but
      * this rebuild still copies it across so the stored message keeps every flag the caller set.
      *
      * <p>The typed field is the single source of truth for the media type, exactly as in the JDBC
@@ -206,8 +195,7 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
      * (LLD-jdbc §2).
      */
     private OutboxMessage asPersisted(OutboxMessage message) {
-        boolean managed = message.seqSource() == SeqSource.MANAGED;
-        if (message.contentType() == null && !managed) {
+        if (message.contentType() == null) {
             return message;
         }
         OutboxMessage.Builder b = OutboxMessage.builder()
@@ -217,9 +205,7 @@ public final class InMemoryOutbox implements OutboxRepository, OutboxStore, Outb
                 .payload(message.payload())
                 .contentType(message.contentType())
                 .headers(message.headers());
-        if (managed) {
-            b.seq(managedSeq.incrementAndGet());
-        } else if (message.hasSeq()) {
+        if (message.hasSeq()) {
             b.seq(message.seq());
         } else {
             b.unsequenced();

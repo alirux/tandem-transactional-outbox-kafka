@@ -14,6 +14,7 @@ import com.codingful.tandem.core.TandemHeaders;
 import com.codingful.tandem.core.exception.DuplicateSeqException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,16 +45,6 @@ class InMemoryOutboxTest {
                 .build();
     }
 
-    /** An event of an aggregate with no version to number it — Tandem assigns the number instead. */
-    private static OutboxMessage unnumberedMessage(String aggregateId) {
-        return OutboxMessage.builder()
-                .aggregateId(aggregateId)
-                .aggregateType("Order")
-                .managedSeq()
-                .payload(("payload-" + aggregateId).getBytes())
-                .build();
-    }
-
     /** An event whose aggregate publishes no sequence number at all — the row stores none. */
     private static OutboxMessage unsequencedMessage(String aggregateId) {
         return OutboxMessage.builder()
@@ -75,6 +66,15 @@ class InMemoryOutboxTest {
         outbox.insert(unsequencedMessage("order-1"));
 
         assertThat(outbox.all()).hasSize(3).allSatisfy(r -> assertThat(r.hasSeq()).isFalse());
+    }
+
+    @Test
+    void GIVEN_an_event_with_a_sequence_number_WHEN_read_back_through_the_admin_view_THEN_the_number_is_shown() {
+        outbox.insert(message("order-1", 7));
+
+        assertThat(outbox.search(OutboxSearchCriteria.builder().build()))
+                .singleElement()
+                .satisfies(row -> assertThat(row.seq()).isEqualTo(7L));
     }
 
     @Test
@@ -138,28 +138,25 @@ class InMemoryOutboxTest {
     }
 
     @Test
-    void GIVEN_an_aggregate_with_no_version_WHEN_its_events_are_inserted_THEN_tandem_numbers_them_in_write_order() {
-        outbox.insert(unnumberedMessage("order-1"));
-        outbox.insert(unnumberedMessage("order-1"));
-
-        assertThat(outbox.all()).extracting(OutboxRecord::seq).hasSize(2).isSorted().doesNotHaveDuplicates();
-    }
-
-    @Test
-    void GIVEN_an_event_tandem_numbers_that_also_carries_a_content_type_WHEN_inserted_THEN_it_gets_both_the_number_and_the_header() {
+    void GIVEN_a_content_type_WHEN_inserted_THEN_the_sequence_number_and_write_mode_are_kept_as_given() {
         outbox.insert(OutboxMessage.builder()
-                .aggregateId("order-1").aggregateType("Order").managedSeq()
+                .aggregateId("order-1").aggregateType("Order").seq(7)
+                .payload(new byte[] {1}).contentType("application/json").build());
+        outbox.insert(OutboxMessage.builder()
+                .aggregateId("order-2").aggregateType("Order").unsequenced()
                 .payload(new byte[] {1}).contentType("application/json").build());
 
-        OutboxRecord stored = outbox.all().get(0);
-        assertThat(stored.seq()).isPositive();
-        assertThat(stored.headers()).containsEntry(TandemHeaders.CONTENT_TYPE, "application/json");
+        OutboxMessage numbered = outbox.byId(1).message();
+        assertThat(numbered.hasSeq()).isTrue();
+        assertThat(numbered.seq()).isEqualTo(7);
+        assertThat(numbered.lockedWrite()).isFalse();
+        assertThat(outbox.byId(2).message().hasSeq()).isFalse();
     }
 
     @Test
-    void GIVEN_events_numbered_by_the_application_and_by_tandem_WHEN_inserted_together_THEN_both_are_stored_in_order() {
+    void GIVEN_numbered_and_unnumbered_events_WHEN_inserted_together_THEN_both_are_stored_in_order() {
         outbox.insertAll(List.of(
-                message("order-1", 1), unnumberedMessage("order-2"), message("order-1", 2)));
+                message("order-1", 1), unsequencedMessage("order-2"), message("order-1", 2)));
 
         assertThat(outbox.all()).extracting(r -> r.aggregateId().value())
                 .containsExactly("order-1", "order-2", "order-1");
@@ -519,6 +516,121 @@ class InMemoryOutboxTest {
 
         // Only what follows the failure in chain order counts; the delivered row ahead of it is not
         // waiting for anything.
+        assertThat(outbox.blockedCount()).hasValue(1);
+    }
+
+    @Test
+    void GIVEN_a_non_positive_bucket_count_or_attempt_ceiling_WHEN_the_outbox_is_created_THEN_it_is_rejected() {
+        assertThatThrownBy(() -> new InMemoryOutbox(0, MAX_ATTEMPTS, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bucketCount must be positive");
+        assertThatThrownBy(() -> new InMemoryOutbox(BUCKETS, 0, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("maxAttempts must be positive");
+
+        assertThat(new InMemoryOutbox(1, 1, clock).allBuckets()).containsExactly(0);
+    }
+
+    @Test
+    void GIVEN_a_bucket_count_WHEN_every_bucket_is_requested_THEN_exactly_that_many_are_returned_from_zero() {
+        assertThat(new InMemoryOutbox(4, MAX_ATTEMPTS, clock).allBuckets()).containsExactlyInAnyOrder(0, 1, 2, 3);
+    }
+
+    @Test
+    void GIVEN_an_id_no_row_has_WHEN_it_is_looked_up_or_forced_THEN_it_is_absent_or_refused() {
+        assertThat(outbox.byId(42)).isNull();
+        assertThatThrownBy(() -> outbox.bucketOf(42)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> outbox.forceDone(42)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(outbox.replaysOf(42)).isEmpty();
+
+        outbox.insert(message("order-1", 1));
+        assertThat(outbox.replaysOf(1)).hasValue(0);
+    }
+
+    @Test
+    void GIVEN_rows_in_several_statuses_WHEN_filtered_by_one_status_THEN_only_those_rows_come_back() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-2", 1));
+        outbox.insert(message("order-3", 1));
+        outbox.forceDone(1);
+        outbox.forceFailed(3, "boom");
+
+        assertThat(outbox.byStatus(OutboxStatus.PENDING)).extracting(OutboxRecord::id).containsExactly(2L);
+        assertThat(outbox.byStatus(OutboxStatus.FAILED)).extracting(OutboxRecord::id).containsExactly(3L);
+    }
+
+    @Test
+    void GIVEN_failed_and_other_rows_WHEN_the_failed_count_is_read_THEN_only_failed_rows_are_counted() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-2", 1));
+        outbox.insert(message("order-3", 1));
+        outbox.forceFailed(1, "boom");
+        outbox.forceFailed(2, "boom");
+        outbox.forceDone(3);
+
+        assertThat(outbox.failedCount()).hasValue(2);
+    }
+
+    @Test
+    void GIVEN_rows_in_some_buckets_WHEN_the_occupied_buckets_are_read_THEN_exactly_their_buckets_come_back() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-2", 1));
+
+        assertThat(outbox.occupiedBuckets()).containsExactlyInAnyOrderElementsOf(
+                new HashSet<>(List.of(outbox.bucketOf(1), outbox.bucketOf(2))));
+    }
+
+    @Test
+    void GIVEN_pending_rows_not_created_in_id_order_WHEN_the_lag_is_read_THEN_the_oldest_pending_row_sets_its_age() {
+        Instant start = clock.instant();
+        clock.set(start.minus(Duration.ofHours(2)));
+        outbox.insert(message("order-0", 1));   // id 1 — the oldest of all, but delivered: not lag
+        outbox.forceDone(1);
+        clock.set(start);
+        outbox.insert(message("order-1", 1));   // id 2 — pending, neither first nor last in age
+        clock.set(start.minus(Duration.ofHours(1)));
+        outbox.insert(message("order-2", 1));   // id 3 — the oldest pending row
+        clock.set(start.plus(Duration.ofHours(1)));
+        outbox.insert(message("order-3", 1));   // id 4 — the newest
+
+        assertThat(outbox.lag().orElseThrow().pending()).isEqualTo(3);
+        assertThat(outbox.lag().orElseThrow().oldestSince()).hasValue(start.minus(Duration.ofHours(1)));
+    }
+
+    @Test
+    void GIVEN_old_discarded_and_failed_rows_WHEN_housekeeping_runs_THEN_the_discarded_row_goes_and_the_failed_one_stays() {
+        outbox.insert(message("order-1", 1));
+        outbox.insert(message("order-2", 1));
+        outbox.forceFailed(1, "boom");
+        outbox.discard(1, "safe to skip");
+        outbox.forceFailed(2, "boom");
+        clock.advance(Duration.ofDays(1));
+
+        assertThat(outbox.cleanup(clock.instant(), 10)).isEqualTo(1);
+        assertThat(outbox.byId(1)).isNull();
+        assertThat(outbox.byId(2).status()).isEqualTo(OutboxStatus.FAILED);
+    }
+
+    @Test
+    void GIVEN_a_delivered_row_removed_by_housekeeping_WHEN_an_event_with_its_aggregate_and_sequence_number_is_inserted_THEN_it_is_accepted() {
+        outbox.insert(message("order-1", 1));
+        outbox.forceDone(1);
+        clock.advance(Duration.ofDays(1));
+        outbox.cleanup(clock.instant(), 10);
+
+        outbox.insert(message("order-1", 1));
+
+        assertThat(outbox.size()).isEqualTo(1);
+    }
+
+    @Test
+    void GIVEN_a_failed_head_WHEN_a_later_row_of_its_aggregate_is_not_pending_THEN_that_row_is_not_counted_as_blocked() {
+        outbox.insert(message("order-1", 1));   // id 1 — fails
+        outbox.insert(message("order-1", 2));   // id 2 — pending behind it: blocked
+        outbox.insert(message("order-1", 3));   // id 3 — delivered by an operator: not waiting for anything
+        outbox.forceFailed(1, "poison");
+        outbox.forceDone(3);
+
         assertThat(outbox.blockedCount()).hasValue(1);
     }
 }

@@ -1,13 +1,15 @@
 # The split relay of the Tandem image, runnable on one machine (LLD-relay §6): PostgreSQL holding the
 # outbox, a single-node Kafka, and two relay replicas sharing the work under LEASE coordination.
 #
-# Build the image first, then start everything and wait until both relays report ready:
+# Build the image and the schema it runs on first, then start everything and wait until both relays
+# report ready:
 #
-#   ./gradlew :tandem-relay:pinnedBootJar
+#   ./gradlew :tandem-relay:pinnedBootJar :tandem-relay:pinnedBaseline
 #   docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local apps/tandem-relay
 #   docker compose -f apps/tandem-relay/docker-compose.example.yml up --wait
 #
-# To run a released image instead, set TANDEM_RELAY_IMAGE (ghcr.io/alirux/tandem-relay:<version>).
+# To run a released image instead, set TANDEM_RELAY_IMAGE (ghcr.io/alirux/tandem-relay:<version>), and
+# TANDEM_RELAY_SCHEMA to the tandem-baseline.sql of the library release that image contains.
 # Readiness and the Prometheus scrape of each replica are published on the host's loopback only:
 # relay-1 on 8081, relay-2 on 8082. Stop with `docker compose -f ... down -v`.
 #
@@ -66,8 +68,9 @@ services:
       POSTGRES_USER: tandem
       POSTGRES_PASSWORD: tandem
     volumes:
-      # The database applies the schema on its first start; the relay never does (LLD-relay §6.4).
-      - ../../schema/postgres/tandem-baseline.sql:/docker-entrypoint-initdb.d/tandem-baseline.sql:ro
+      # The database applies the schema on its first start; the relay never does (LLD-relay §6.4). It is
+      # the schema of the library release inside the image, not the working tree's.
+      - ${TANDEM_RELAY_SCHEMA:-./build/pinned-schema/tandem/schema/postgres/tandem-baseline.sql}:/docker-entrypoint-initdb.d/tandem-baseline.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready --username tandem --dbname orders"]
       interval: 5s

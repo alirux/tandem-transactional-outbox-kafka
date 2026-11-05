@@ -36,8 +36,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>{@code seq} is the per-aggregate event sequence number. It must be monotonically increasing
  * for each {@code aggregateId}. Typical sources: an optimistic-lock version counter, a dedicated
- * event counter column, or a simple in-memory counter as used here. The relay uses {@code seq} to
- * enforce in-order delivery: it will not publish seq N+1 until seq N is acknowledged by Kafka.
+ * event counter column, or a simple in-memory counter as used here. The relay delivers each
+ * aggregate's events in the order they were written; {@code seq} is the order the application
+ * declared, which consumers can read and the relay checks the published order against.
  */
 public final class OrderService {
 

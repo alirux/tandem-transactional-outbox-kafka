@@ -28,5 +28,6 @@
     <include file="v3-managed-seq.sql" relativeToChangelogFile="true"/>
     <include file="v4-optional-seq.sql" relativeToChangelogFile="true"/>
     <include file="v5-claim-under-backlog.sql" relativeToChangelogFile="true"/>
+    <include file="v6-drop-managed-seq.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

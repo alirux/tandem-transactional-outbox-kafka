@@ -1,10 +1,10 @@
 # Tandem: Write-side SDKs for Other Languages
 
-**Version:** 0.1  
+**Version:** 0.3  
 **Status:** Accepted. Designed, not implemented.  
-**Companion to:** [HLD.md](HLD.md) §1.3, §1.4, §3.2, §4.2, §4.3, §5;
-[HLD-managed-seq.md](HLD-managed-seq.md); [LLD-jdbc.md](LLD-jdbc.md) §2;
-[LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [../guide/relay-image.md](../guide/relay-image.md)
+**Companion to:** [HLD.md](../HLD.md) §1.3, §1.4, §3.2, §4.2, §4.3, §5;
+[HLD-seq.md](../HLD-seq.md); [LLD-jdbc.md](../LLD-jdbc.md) §2;
+[LLD-bucket-count-guard.md](../LLD-bucket-count-guard.md); [../guide/relay-image.md](../../guide/relay-image.md)
 
 This note decides how a service written in a language other than Java writes to the Tandem outbox:
 what the write contract is, how an implementation proves it honours it, which languages come first,
@@ -18,7 +18,7 @@ and what stays Java-only.
   image (`ghcr.io/alirux/tandem-relay`), the Admin API is HTTP, the CLI is a native binary. The write
   side is the INSERT into `tandem_outbox` that runs inside the application's own transaction, and it
   must run in the application's process and language.
-- That INSERT is small and fully determined by data: a 64-bit FNV-1a hash, nine columns, three
+- That INSERT is small and fully determined by data: a 64-bit FNV-1a hash, eight columns, two
   `seq` modes, a header map, and two optional statements (an advisory lock and a wakeup signal).
 - Decided: the write side becomes a **published contract** of its own (§4), checked by
   **conformance vectors** that the Java implementation verifies in its own build (§6), and
@@ -52,8 +52,9 @@ and what stays Java-only.
 - Framework integrations (an equivalent of the template, annotation or application-event tiers).
   An SDK is a function call inside a transaction the caller already holds.
 - Any change to the schema, the relay or the published message. The contract below is what the Java
-  write side already does, apart from the unit in which it counts lengths, which it aligns with the
-  database (§4.1); this design writes the contract down and makes it checkable.
+  write side does, written down and made checkable. Where Java delegates a check to a library whose
+  exact behaviour is not specified (the `dataschema` URI, §4.4), the contract states a rule that never
+  accepts more than Java does, so a row an SDK writes is always one Java could have written.
 
 ---
 
@@ -103,12 +104,11 @@ A writer names its columns explicitly, never relies on column position, and sets
 
 | Column | Writer supplies | Rule |
 |---|---|---|
-| `aggregate_id` | always | Non-blank, at most 255 characters. Hashed into `bucket` (§4.2). |
-| `aggregate_type` | always | Non-blank, at most 255 characters. |
+| `aggregate_id` | always | Non-blank, at most 255 characters (below). Hashed into `bucket` (§4.2). |
+| `aggregate_type` | always | Non-blank, at most 255 characters (below). |
 | `type` | optional | The CloudEvents `type`; at most 255 characters. `NULL` makes the relay fall back to `aggregate_type`. |
 | `bucket` | always | Computed by the writer (§4.2). |
-| `seq` | depends on mode | See §4.3: bound to a value, bound to `NULL`, or **omitted**. |
-| `seq_source` | always | `0` APPLICATION, `1` MANAGED, `2` NONE (§4.3). |
+| `seq` | always | See §4.3: bound to the caller's value, or to `NULL`. |
 | `payload` | always | UTF-8 JSON text, cast to `jsonb` (§4.4). |
 | `headers` | always | A JSON object of string to string, `{}` when empty (§4.4). |
 | `correlation_id` | when present | Copy of `headers["correlation-id"]`, truncated (§4.4); `NULL` otherwise. |
@@ -124,8 +124,21 @@ counting differently would disagree on the same message. The Java writer bounds 
 three places, and all follow this rule: `AggregateId` limits the identifier to 255 code points,
 `OutboxMessage` limits `aggregate_type` and `type` the same way, and the `correlation_id` copy keeps
 the first 255 code points (§4.4). Counting UTF-16 code units there would refuse identifiers the
-column accepts and could cut a character in half at the truncation point. The rule only ever accepts more than UTF-16 counting does, so it rejects no message a Java
-caller can write today.
+column accepts and could cut a character in half at the truncation point.
+
+**Blank means made of whitespace only, and whitespace is a closed set**: the code points U+0009 to
+U+000D, U+001C to U+0020, U+1680, U+2000 to U+2006, U+2008 to U+200A, U+2028, U+2029, U+205F and
+U+3000. An empty value is blank. This is the set of Java's `Character.isWhitespace`, which
+`String.isBlank()` applies. It is not Unicode's `White_Space` property, which most languages'
+"trim" functions use: U+0085, U+00A0, U+2007 and U+202F are whitespace there and not here, and
+U+001C to U+001F the reverse. A value made of U+00A0 alone is therefore not blank, and a writer
+accepts it.
+
+**Text is Unicode text.** `aggregate_id`, `aggregate_type`, `type` and every header name and value are
+sequences of Unicode scalar values without U+0000, which PostgreSQL refuses in `text`. A writer whose
+strings can hold anything else (bytes that are not UTF-8, in Go, for example) refuses such a value
+before computing the bucket, so that the failure names the field instead of surfacing as a database
+error.
 
 ### 4.2 The bucket
 
@@ -153,23 +166,19 @@ A misrouted row is not lost, but it lands in a bucket owned by the wrong worker,
 per-aggregate exclusivity the relay's ordering rests on (HLD §4.3) whenever a Java writer and the
 port write the same aggregate.
 
-### 4.3 The three `seq` modes
+### 4.3 The two `seq` modes
 
-A message states exactly one mode; there is no default (HLD-managed-seq §4.6). The mode decides what
-the writer does with two columns:
+A message states exactly one mode; there is no default (HLD-seq §4.4). The mode decides what the
+writer binds to `seq`:
 
-| Mode | `seq` | `seq_source` | Meaning |
-|---|---|---|---|
-| APPLICATION | bound to the caller's value | `0` | The aggregate's own number, usually its version. |
-| MANAGED | **omitted from the column list** | `1` | The column default (`nextval('tandem_seq')`) assigns it. |
-| NONE | bound to SQL `NULL` | `2` | No number; consumers deduplicate on the event id. |
+| Mode | `seq` | Meaning |
+|---|---|---|
+| sequenced (`seq(n)`) | bound to the caller's value | The number the aggregate gave the event, increasing within the aggregate. |
+| unsequenced | bound to SQL `NULL` | No number; consumers deduplicate on the event id. |
 
-Omitting and binding `NULL` are different instructions, and the difference is the whole mechanism:
-omitting fires the default, binding `NULL` stores none. The table's check constraint
-(`(seq IS NULL) = (seq_source = 2)`) rejects a MANAGED row bound to `NULL` and a NONE row that drew a
-number. It cannot catch one mistake: an APPLICATION row with `seq` omitted draws a managed number and
-still claims APPLICATION. An SDK must therefore build the statement from the mode, never from
-whether a value happens to be present.
+The column has no default, and Tandem never assigns a number (HLD-seq §4.5). The writer always binds
+`seq`, so the statement states the mode it means; a mode is never inferred from whether a value
+happens to be present.
 
 ### 4.4 Payload and headers
 
@@ -188,38 +197,46 @@ whether a value happens to be present.
   | `traceparent`, `tracestate` | W3C Trace Context, passthrough |
   | `causation_id` | reserved; nothing writes it today |
 
-  An SDK offers typed setters for `content-type` and `dataschema`; a value set through them
-  overrides an entry of the same name in the caller's header map, as in Java.
+  An SDK offers a typed setter for `content-type`, as Java does; a value set through it overrides
+  an entry of the same name in the caller's header map. `dataschema` is set as a header.
+- **Header names and values** are any text (§4.1), the empty string included, as in Java; a value is
+  never absent (`NULL`), only empty. The writer does not otherwise check them.
+- **`dataschema`**, when present, must be a URI the relay can build the CloudEvent with. A value it
+  cannot parse would make every publication of the row fail, leaving the row `FAILED` and its
+  aggregate blocked behind it, so the writer refuses it before any statement. The accepted values are
+  the RFC 3986 `URI-reference` grammar, narrowed by three rules:
+  - a scheme is followed by at least one character before the end or the `#` (`mailto:` and
+    `x:#f` are refused);
+  - an authority that is empty is followed by at least one character before the end or the `#`
+    (`//` and `http://` are refused, `file:///schema.json` is accepted);
+  - a host in brackets is an IPv6 address (the `IPvFuture` form is refused).
+
+  That grammar accepts only ASCII, valid `%XX` escapes and at most one `#`, so it refuses, among
+  others, `http://example.com/a b`, `http://example.com/{v}` and `C:\schemas\order.json`. It is
+  narrower than the Java writer's own check (`java.net.URI`), which also accepts some values outside
+  RFC 3986, such as a non-ASCII path; an SDK refusing those is the safe direction, since every value
+  it accepts is one the relay publishes. The vectors pin the rule from both sides (§6).
 - **`correlation_id`** repeats `headers["correlation-id"]` so the Admin API can search by it. The
   value usually comes from outside the application, so it is untrusted: the column copy is truncated
   to its first 255 code points (§4.1); the header keeps the full value.
 
 ### 4.5 The statements
 
-A row in APPLICATION or NONE mode:
+Every row, in either mode:
 
 ```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, seq_source,
-                           payload, headers, correlation_id)
-VALUES ($1, $2, $3, $4, $5, $6, CAST($7 AS jsonb), CAST($8 AS jsonb), $9)
-```
-
-A row in MANAGED mode, the same statement without `seq`:
-
-```sql
-INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq_source,
+INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq,
                            payload, headers, correlation_id)
 VALUES ($1, $2, $3, $4, $5, CAST($6 AS jsonb), CAST($7 AS jsonb), $8)
 ```
 
-A batch may mix modes; it then runs one statement shape per run of consecutive rows sharing a shape,
-in the order given, so insert order, and with it commit order within one transaction, is the order the
-caller supplied.
+A batch may mix modes and runs the rows in the order given, so insert order, and with it commit order
+within one transaction, is the order the caller supplied.
 
 ### 4.6 Serialising writers: `lockedWrite`
 
 A message may ask for concurrent writers to the same aggregate to be serialised
-(HLD-managed-seq §4.2). The writer then runs, on the same connection and inside the caller's
+(HLD-seq §4.2). The writer then runs, on the same connection and inside the caller's
 transaction, before the insert:
 
 ```sql
@@ -228,10 +245,14 @@ SELECT pg_advisory_xact_lock(hashtext($1))   -- $1 = aggregate_id
 
 - The lock key is computed **by this SQL expression, never in the SDK**. That is what makes a Java
   writer and a Go writer to the same aggregate wait for each other.
-- In a batch, every lock the batch needs is taken **before any row is inserted**, in ascending order
-  of `aggregate_id` compared by UTF-16 code units (the Java order). For identifiers without
-  characters above U+FFFF this equals byte order. A writer that orders differently costs at worst a
-  deadlock, which PostgreSQL detects and aborts; it never produces a wrong row.
+- In a batch, every lock the batch needs is taken **before any row is inserted**, once per distinct
+  `aggregate_id`, in ascending order compared by **UTF-16 code units** (the Java order). It differs
+  from the byte order of the UTF-8 text, and from code point order, as soon as an identifier holds a
+  character above U+FFFF and another one in U+E000 to U+FFFF: `"😀"` sorts before `"\uE000"` in
+  UTF-16 and after it in bytes. A writer must use this order even in a language whose strings compare
+  otherwise: two writers taking the same locks in different orders deadlock, and although PostgreSQL
+  detects the deadlock and aborts one transaction, an application sees it as a failure it did nothing
+  to cause.
 - The lock is released by the commit or rollback of the caller's transaction; there is no unlock
   statement.
 
@@ -271,8 +292,9 @@ before building it. The behaviour is the same; only where the check sits differs
 
 ### 4.8 The optional wakeup
 
-When the caller opts in, the writer signals the relay once per insert call, after its rows and in the
-same transaction, with the distinct buckets it wrote:
+When the writer is configured with the wakeup, a setting chosen when the writer is built and not per
+call (as in Java), it signals the relay once per insert call, after its rows and in the same
+transaction, with the distinct buckets it wrote:
 
 ```sql
 SELECT pg_notify('tandem_wakeup', bucket::text) FROM unnest($1::int[]) AS bucket
@@ -287,16 +309,23 @@ notify fails the transaction.
 
 | Condition | Detected by | SDK reports |
 |---|---|---|
-| Invalid message: blank `aggregate_id` or `aggregate_type`, `aggregate_id` over 255 characters, no payload, no `seq` mode or more than one | the SDK, before any statement | a validation error |
+| Invalid message: blank `aggregate_id` or `aggregate_type` (§4.1), `aggregate_id`, `aggregate_type` or `type` over 255 characters, a value that is not Unicode text, a `dataschema` outside the grammar of §4.4, no payload, no `seq` mode or more than one | the SDK, before any statement; in a batch, for every message before the first | a validation error |
 | `(aggregate_id, seq)` already exists | SQLSTATE `23505` | a duplicate-seq error |
 | Payload is not JSON | SQLSTATE `22P02` | an insert error |
-| `aggregate_type` or `type` longer than its column | SQLSTATE `22001` | an insert error |
 | Configured bucket count differs from the stored one | construction (§4.7) | a configuration error |
 | Any other database error | the driver | an insert error wrapping the driver's |
 
-Every error carries `aggregate_type`, `aggregate_id` and the `seq` value or mode, and never the
-payload or a header value (the logging rules apply to error text as they do to `toString()`). A MANAGED
-message has no number until its insert succeeds, so its error names the mode, not a number.
+Every error carries `aggregate_type`, `aggregate_id` and the `seq` value, or `none` for an unsequenced
+message, and never the payload or a header value (the logging rules apply to error text as they do to
+`toString()`).
+
+**The driver's text stays out of the SDK's error text.** A driver may quote bound values in its
+error, in the message or in detail fields (PostgreSQL's `DETAIL` names the duplicate key, and its
+context of a JSON error quotes the payload), so an SDK error that rendered it would print event data
+wherever an application logs the failure. The SDK's error states the SQLSTATE and the identifiers
+above. Java withholds the driver's text from the cause it attaches. A language with an error chain
+may keep the driver's error reachable through it (in Go, `errors.As`), so a caller who wants it takes
+it knowingly, provided rendering the SDK's error never includes it.
 
 ---
 
@@ -333,15 +362,14 @@ waits for the optional `pgx` package, which follows when there is demand for it.
 ### 5.3 The same message model as Java
 
 An SDK exposes the message the way `OutboxMessage` does, in the language's idiom: required
-`aggregate_id`, `aggregate_type` and payload; optional `type`, `content-type`, `dataschema` and
-headers; exactly one of the three `seq` modes, with no default and an error naming all three when
-none is stated; an optional `lockedWrite`. Two SDKs presenting the same concepts under the same names
+`aggregate_id`, `aggregate_type` and payload; optional `type`, `content-type` and headers; exactly one of the two `seq` modes, with no default and an error naming both when neither is
+stated; an optional `lockedWrite`. Two SDKs presenting the same concepts under the same names
 let documentation, examples and support answers carry over between languages.
 
 ### 5.4 No logging
 
 An SDK does not log. It returns errors (§4.9) and leaves routing them to the application, which is
-the same posture as the library, which ships no logging configuration ([HLD-logging.md](HLD-logging.md)).
+the same posture as the library, which ships no logging configuration ([HLD-logging.md](../HLD-logging.md)).
 
 ---
 
@@ -360,16 +388,33 @@ published artifact.
   four-byte UTF-8 characters, a 255-character identifier, hashes with the top bit set, and bucket
   counts that are not powers of two (1, 7, 100, 1000, 32767) as well as the default 256;
 - **row vectors:** a message, a bucket count and the expected stored row: `bucket`, `seq`,
-  `seq_source`, `type`, `headers` compared as a JSON object, and `correlation_id`, including every
+  `type`, `headers` compared as a JSON object, and `correlation_id`, including every
   `seq` mode, a truncated correlation id, and one whose 255th code point lies above U+FFFF;
 - **rejection vectors:** messages an SDK must refuse before any statement, and rows the database
   must refuse (a duplicate `seq`, a non-JSON payload). The length unit of §4.1 is pinned from both
   sides: an `aggregate_id` of 255 code points that is longer than 255 in UTF-16 code units and in
-  bytes is accepted, and one of 256 code points is refused.
+  bytes is accepted, and one of 256 code points is refused. The blank rule is pinned on the code
+  points where the whitespace sets of §4.1 differ, text that is not Unicode on raw bytes (encoded in
+  hex, since JSON cannot hold them), and an empty header name as accepted;
+- **`dataschema` vectors:** values the grammar of §4.4 accepts and values it refuses, among them
+  values `java.net.URI` accepts and the grammar refuses;
+- **lock order vectors:** a batch of identifiers and the order its locks are taken in, with a pair on
+  which UTF-16 and byte order disagree (§4.6);
+- **envelope vectors:** a message and the CloudEvent the relay publishes for it, attributes and
+  headers, without `id` and `time`, which differ on every publication.
 
-**The Java build verifies them.** `tandem-core`'s tests run every bucket vector through `BucketHash`,
-and `tandem-jdbc`'s integration tests insert every row vector with `JdbcOutboxRepository` and compare
-the row read back. A change to the Java write side that alters the contract fails the build that made
+The expected values are generated by the Java build through the mechanism of its reference files
+(LLD-api-stability §8) and reviewed as a diff, and every change to a case is also reviewed against
+this specification by someone who does not read the Java writer, so that a Java bug cannot become the
+contract (LLD-write-side-vectors §6). A bucket vector never changes once committed: the
+bucket is stored for the life of the data, so a diff there is a breaking change by definition.
+
+**The Java build verifies them.** `tandem-jdbc`'s tests run every bucket vector through `BucketHash`,
+every lock order vector through the writer's own ordering, and every `dataschema` value through the
+writer's own check, failing on a value the grammar accepts and Java refuses; its integration tests
+insert every row vector with `JdbcOutboxRepository` and compare the row read back; `tandem-kafka`'s
+integration tests encode every envelope vector's stored row and compare the CloudEvent. The files,
+their format and their generation are specified in [LLD-write-side-vectors.md](LLD-write-side-vectors.md). A change to the Java write side that alters the contract fails the build that made
 it, so the vectors cannot drift from the reference implementation.
 
 **Each SDK verifies them too**, in three layers:
@@ -378,8 +423,9 @@ it, so the vectors cannot drift from the reference implementation.
 2. the row vectors, inserted into a real PostgreSQL built from `schema/postgres/tandem-baseline.sql`
    (the generated current schema) and, separately, from the schema at the SDK's declared floor (§8.3);
 3. one end-to-end test: the SDK writes, the latest released `tandem-relay` image publishes to Kafka,
-   and the test checks that the CloudEvent it reads is the one the same message produces when written
-   by Java. The latest release, not a pinned one, because it is what an adopter runs. A contract
+   and the test checks that the CloudEvent it reads is the one the envelope vector expects, the one the
+   same message produces when written by Java. The vector carries that expectation as data, so an
+   SDK's CI needs no JVM. The latest release, not a pinned one, because it is what an adopter runs. A contract
    change ships in a library release first and reaches the image after it, so an SDK adopts the change
    once the image carrying it is out.
 
@@ -425,8 +471,13 @@ CLI's is.
 
 ### 8.2 Go module and tags
 
-- Module path: `github.com/alirux/tandem-transactional-outbox-kafka/sdks/go`, matching the directory,
-  which is what lets `go get` resolve it.
+- Module path: `tandem.codingful.com/sdks/go`. The import path is the module's identity, written in
+  every import of every caller, so it is not tied to the repository's name or host: renaming or moving
+  the repository would otherwise be a breaking change of the SDK. `tandem.codingful.com` answers
+  `go get` with a `go-import` meta tag pointing at the repository, at the module's path and at the path
+  of each of its packages. Those pages are part of the contract and stay reachable, like the problem
+  type pages the site already serves. The path below the host mirrors the module's directory in the
+  repository, which keeps the tag form below.
 - Versions are tags of the form `sdks/go/vX.Y.Z`, the form Go requires for a module in a subdirectory.
   They do not match the library's `v*` release trigger, the CLI's `cli-v*` or the relay's `relay-v*`,
   so no release path fires on another's tag.
@@ -442,11 +493,11 @@ Every SDK is versioned independently of the library, with semantic versioning, l
 - **its own API** in its language;
 - **its schema floor:** the oldest Tandem schema it can write to, stated as a changeset and the
   library release that first shipped it. For an SDK written against today's contract the floor is
-  `v4-optional-seq` (first released in library v0.8.0), because `seq_source` exists and is required
-  from that changeset on.
+  `v6-drop-managed-seq` (first released in library 1.0.0): before it, `seq_source` is required and the
+  `seq` default draws a number for an INSERT that leaves it out.
 
 Raising the floor is a minor version of the SDK, never a patch, and the release notes state the floor
-of every release. A newer schema never breaks an SDK, by the additive rule of HLD §1.4.
+of every release. Within a major version a newer schema never breaks an SDK, by the additive rule of HLD §1.4.
 
 ---
 
@@ -473,7 +524,7 @@ of every release. A newer schema never breaks an SDK, by the additive rule of HL
 ## 10. Rejected alternatives
 
 - **Publish the contract, ship no SDKs.** Rejected because the contract has sharp edges that fail
-  silently: an APPLICATION row with `seq` omitted (§4.3), an unsigned bucket reduction (§4.2), a
+  silently: a mode inferred from whether a value is present (§4.3), an unsigned bucket reduction (§4.2), a
   bucket count used without being reconciled with the stored one (§4.7). Every adopter would meet them
   alone. The contract is still published, for languages that have no SDK yet, and the SDK is the
   recommended path wherever one exists.

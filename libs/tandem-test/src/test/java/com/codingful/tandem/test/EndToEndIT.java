@@ -39,8 +39,8 @@ class EndToEndIT {
     private static final int PER_AGGREGATE = 20;
     private static final int TOTAL = AGGREGATES * PER_AGGREGATE;
     private static final int BUCKETS = 256;
-    /** An aggregate with no version field — Tandem numbers its events (HLD-managed-seq §4.1). */
-    private static final String UNNUMBERED_AGGREGATE = "order-managed";
+    /** An aggregate whose events carry no sequence number (HLD-seq §4.1). */
+    private static final String UNNUMBERED_AGGREGATE = "order-unsequenced";
     /** The topic the worked example routes {@code Order} to: Debezium's default route. */
     private static final String EXAMPLE_TOPIC = "outbox.event.Order";
     private static final String CORRELATION_ID = "corr-e2e";
@@ -50,6 +50,8 @@ class EndToEndIT {
      */
     private static final Pattern PAYLOAD_SEQ = Pattern.compile("\"seq\"\\s*:\\s*(\\d+)");
     private static final Pattern PAYLOAD_AGGREGATE = Pattern.compile("\"agg\"\\s*:\\s*\"([^\"]+)\"");
+    /** Reads the unnumbered fixture payload {@code {"event":n}}, n being the event's write position. */
+    private static final Pattern PAYLOAD_EVENT = Pattern.compile("\"event\"\\s*:\\s*(\\d+)");
 
     @Test
     void GIVEN_events_inserted_across_aggregates_WHEN_the_relay_runs_THEN_each_aggregate_lands_on_the_topic_in_order_with_no_loss() {
@@ -127,13 +129,13 @@ class EndToEndIT {
     }
 
     @Test
-    void GIVEN_an_aggregate_with_no_version_WHEN_its_events_are_relayed_THEN_they_arrive_in_write_order_carrying_the_number_tandem_assigned() {
+    void GIVEN_an_aggregate_whose_events_carry_no_number_WHEN_they_are_relayed_THEN_they_arrive_in_write_order_with_no_seq_published() {
         try (TandemTestContainer tandem = new TandemTestContainer()) {
             tandem.start();
             tandem.newRepository(BUCKETS).insertAll(buildUnnumberedMessages());
             tandem.createTopic(TOPIC, 4);
 
-            try (KafkaConsumer<String, byte[]> consumer = tandem.newConsumer("e2e-managed", TOPIC)) {
+            try (KafkaConsumer<String, byte[]> consumer = tandem.newConsumer("e2e-unsequenced", TOPIC)) {
                 consumer.poll(Duration.ofMillis(200));
 
                 WorkerPool relay = tandem.newRelay(
@@ -143,14 +145,13 @@ class EndToEndIT {
                         KafkaRelayConfig.of("/tandem/orders"));
                 relay.start();
                 try {
-                    Map<String, List<Long>> delivered =
-                            ordersByAggregate(pollAll(consumer, PER_AGGREGATE), EndToEndIT::seqHeader);
+                    List<ConsumerRecord<String, byte[]>> records = pollAll(consumer, PER_AGGREGATE);
+                    Map<String, List<Long>> delivered = ordersByAggregate(records, EndToEndIT::payloadEvent);
 
                     assertThat(delivered).containsOnlyKeys(UNNUMBERED_AGGREGATE);
-                    // The numbers are Tandem's, so nothing here knows what they are — only that every
-                    // event carries one and that they reach the consumer in the order they were written.
-                    assertThat(delivered.get(UNNUMBERED_AGGREGATE))
-                            .hasSize(PER_AGGREGATE).isSorted().doesNotHaveDuplicates();
+                    assertThat(delivered.get(UNNUMBERED_AGGREGATE)).isEqualTo(eventIndexes());
+                    assertThat(records).allSatisfy(record ->
+                            assertThat(headerText(record, CloudEventsHeaders.CE_SEQ)).isNull());
                 } finally {
                     relay.stop();
                 }
@@ -201,7 +202,7 @@ class EndToEndIT {
         for (int event = 0; event < PER_AGGREGATE; event++) {
             messages.add(OutboxMessage.builder()
                     .aggregateId(UNNUMBERED_AGGREGATE).aggregateType("Order").type("com.acme.order.changed")
-                    .managedSeq()
+                    .unsequenced()
                     .payload(("{\"event\":" + event + '}').getBytes(StandardCharsets.UTF_8))
                     .contentType("application/json").build());
         }
@@ -260,9 +261,18 @@ class EndToEndIT {
         return ordersByAggregate;
     }
 
-    /** The number Tandem published in the CloudEvents envelope. */
-    private static long seqHeader(ConsumerRecord<String, byte[]> record) {
-        return Long.parseLong(headerText(record, CloudEventsHeaders.CE_SEQ));
+    /** The write position the test put in an unnumbered event's payload. */
+    private static long payloadEvent(ConsumerRecord<String, byte[]> record) {
+        return Long.parseLong(payloadField(record, PAYLOAD_EVENT));
+    }
+
+    /** The write positions of the unnumbered fixture, in the order it writes them. */
+    private static List<Long> eventIndexes() {
+        List<Long> indexes = new ArrayList<>(PER_AGGREGATE);
+        for (long event = 0; event < PER_AGGREGATE; event++) {
+            indexes.add(event);
+        }
+        return indexes;
     }
 
     /** The number the test wrote into the payload, readable whatever envelope carried it. */

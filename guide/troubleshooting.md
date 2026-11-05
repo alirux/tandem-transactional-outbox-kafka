@@ -146,7 +146,7 @@ If the application starts but the relay does not, and there is no error, go back
 
 | You see | Cause | Fix |
 |---|---|---|
-| `IllegalStateException: no seq mode stated ...` | The message states none of `seq(long)`, `managedSeq()` and `unsequenced()`. | State one; `unsequenced()` is the usual answer. |
+| `IllegalStateException: no seq mode stated ...` | The message states neither `seq(long)` nor `unsequenced()`. | State one; `unsequenced()` is the usual answer. |
 | `IllegalArgumentException: aggregateId exceeds 255 chars` | The aggregate id is too long. | Use a shorter identifier. |
 | `OutboxInsertException: failed to insert outbox row ...`, caused by `relation "tandem_outbox" does not exist` | The schema has not been applied. | Apply it. |
 | `OutboxInsertException: failed to insert outbox row ...`, cause with SQLSTATE `22P02` | The payload is not valid JSON. | The column stores JSON: send JSON bytes. |

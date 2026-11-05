@@ -7,7 +7,7 @@ import java.sql.Statement;
 
 /**
  * Fills {@code tandem_outbox} with a named starting state, so a probe measures against a table that
- * looks like something real rather than an empty one (LLD-benchmark §6.6).
+ * looks like something real rather than an empty one (LLD-benchmark §6.5).
  *
  * <p>"A claim that finds nothing" is not one thing, and the difference is the partial index
  * {@code idx_tandem_outbox_dispatch} ({@code WHERE status = 0}). On an {@link State#EMPTY} table the
@@ -62,23 +62,23 @@ public final class OutboxStateSeeder {
         try (Connection conn = env.dataSource().getConnection();
              Statement stmt = conn.createStatement()) {
             // DONE bulk: excluded from the partial index, present in the table and the aggregate index.
-            stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
+            stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status) "
                     + "SELECT 'probe-done-' || (i % 5000), 'Probe', 'probe.done', (i % " + bucketCount + "), "
-                    + "i, '{\"p\":1}'::jsonb, 2, 0 FROM generate_series(1, " + doneRows + ") AS i");
+                    + "i, '{\"p\":1}'::jsonb, 2 FROM generate_series(1, " + doneRows + ") AS i");
             if (state == State.BLOCKED) {
                 // Half backing off: excluded by the next_attempt_at predicate, but still index entries
                 // the bucket scan walks on every poll.
                 stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, "
-                        + "status, seq_source, next_attempt_at) SELECT 'probe-backoff-' || i, 'Probe', 'probe.retry', "
-                        + "(i % " + bucketCount + "), 1000000 + i, '{\"p\":1}'::jsonb, 0, 0, now() + interval '1 hour' "
+                        + "status, next_attempt_at) SELECT 'probe-backoff-' || i, 'Probe', 'probe.retry', "
+                        + "(i % " + bucketCount + "), 1000000 + i, '{\"p\":1}'::jsonb, 0, now() + interval '1 hour' "
                         + "FROM generate_series(1, " + (blockedRows / 2) + ") AS i");
                 // Half behind a FAILED head, which is what makes the claim run its NOT EXISTS per row.
-                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
+                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status) "
                         + "SELECT 'probe-poison-' || i, 'Probe', 'probe.poison', (i % " + bucketCount + "), "
-                        + "2000000 + i, '{\"p\":1}'::jsonb, 3, 0 FROM generate_series(1, " + poisonAggregates + ") AS i");
-                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status, seq_source) "
+                        + "2000000 + i, '{\"p\":1}'::jsonb, 3 FROM generate_series(1, " + poisonAggregates + ") AS i");
+                stmt.execute("INSERT INTO tandem_outbox (aggregate_id, aggregate_type, type, bucket, seq, payload, status) "
                         + "SELECT 'probe-poison-' || j, 'Probe', 'probe.blocked', (j % " + bucketCount + "), "
-                        + "3000000 + i, '{\"p\":1}'::jsonb, 0, 0 FROM generate_series(1, " + (blockedRows / 2) + ") AS i, "
+                        + "3000000 + i, '{\"p\":1}'::jsonb, 0 FROM generate_series(1, " + (blockedRows / 2) + ") AS i, "
                         + "LATERAL (SELECT ((i - 1) % " + poisonAggregates + ") + 1 AS j) x");
             }
         }

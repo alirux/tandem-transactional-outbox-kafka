@@ -211,6 +211,20 @@ class InMemoryOutboxQueryTest {
     }
 
     @Test
+    void GIVEN_only_a_created_to_bound_WHEN_searched_THEN_rows_after_that_point_are_left_out() {
+        clock.set(Instant.parse("2020-01-01T00:00:00Z"));
+        insert("order-1", "Order", null, 1);   // before the bound
+        clock.set(Instant.parse("2026-06-01T00:00:00Z"));
+        insert("order-2", "Order", null, 1);   // after the bound, no lower bound set
+
+        List<OutboxRowView> rows = outbox.search(OutboxSearchCriteria.builder()
+                .createdTo(Instant.parse("2026-01-01T00:00:00Z"))
+                .build());
+
+        assertThat(rows).extracting(OutboxRowView::aggregateId).containsExactly(AggregateId.of("order-1"));
+    }
+
+    @Test
     void GIVEN_combined_filters_WHEN_searched_THEN_only_rows_matching_all_of_them_are_returned() {
         insert("order-1", "Order", "com.acme.order.placed", 1);
         insert("order-2", "Order", "com.acme.order.cancelled", 1);

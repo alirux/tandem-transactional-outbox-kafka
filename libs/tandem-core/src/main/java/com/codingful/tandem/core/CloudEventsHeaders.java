@@ -36,7 +36,7 @@ public final class CloudEventsHeaders {
 
     /**
      * Per-aggregate sequence. Extension {@code seq} → header {@code ce_seq}. Present only when the row
-     * carries a number; a row written unsequenced publishes none (HLD-managed-seq §4.5).
+     * carries a number; a row written unsequenced publishes none (HLD-seq §4.1).
      */
     public static final String EXT_SEQ = "seq";
     public static final String CE_SEQ = BINARY_PREFIX + EXT_SEQ;

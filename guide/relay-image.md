@@ -61,12 +61,12 @@ the image takes: the image is that jar on Eclipse Temurin's Java runtime.
 From a clone of the repository, with Docker running:
 
 ```bash
-./gradlew :tandem-relay:pinnedBootJar
+./gradlew :tandem-relay:pinnedBootJar :tandem-relay:pinnedBaseline
 docker build $(./gradlew -q :tandem-relay:imageBuildArgs) --tag tandem-relay:local apps/tandem-relay
 ```
 
 The first command builds the jar on the library release the image is pinned to (§11.1), taken from
-Maven Central. The second packages it for your machine's architecture. `imageBuildArgs` prints the two
+Maven Central, and writes the schema that release defines, which the Compose file below applies. The second packages it for your machine's architecture. `imageBuildArgs` prints the two
 values the image is labelled with, its own version and the library release inside it, and the build
 refuses a jar that says otherwise.
 
@@ -84,7 +84,8 @@ docker compose -f apps/tandem-relay/docker-compose.example.yml down -v
 ```
 
 `--wait` returns once both replicas report ready. It uses the image you built in §2.2; to run a
-released one instead, set `TANDEM_RELAY_IMAGE=ghcr.io/alirux/tandem-relay:<version>` first. The example
+released one instead, set `TANDEM_RELAY_IMAGE=ghcr.io/alirux/tandem-relay:<version>` first, and
+`TANDEM_RELAY_SCHEMA` to the `tandem-baseline.sql` of the library release that image contains. The example
 publishes neither PostgreSQL nor Kafka on your machine. To watch events go through, publish the
 `postgres` service's port, point an application's write side at that database, and read the topic from
 inside the broker's container:
@@ -360,7 +361,9 @@ owns the database applies the schema, before the first start, with the same file
 ([Getting Started](getting-started.md#4-step-2-create-the-schema)):
 
 - a **new database**: `schema/postgres/tandem-baseline.sql`, the whole schema in one script, or the
-  Liquibase changelog `schema/postgres/changelog/db.changelog-master.xml`;
+  Liquibase changelog `schema/postgres/changelog/db.changelog-master.xml`, both **as of the library
+  release the image contains** (its `v<version>` tag), never from a later one: a newer schema can drop
+  what that release reads;
 - an **existing database**, before an image with a newer library release: the changesets you do not
   have yet, as [Testing and Upgrades](testing-and-upgrades.md#22-upgrading-step-by-step) describes.
   The release notes of the image say when the library release it moves to brings one.

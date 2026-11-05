@@ -1,6 +1,7 @@
 package com.codingful.tandem.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codingful.tandem.core.OutboxMessage;
 import com.codingful.tandem.core.OutboxRecord;
@@ -111,5 +112,28 @@ class RecordingDispatcherTest {
             assertThat(e.getCause()).isInstanceOf(OutboxDispatchException.class);
             return (OutboxDispatchException) e.getCause();
         }
+    }
+
+    @Test
+    void GIVEN_failures_forced_on_single_records_WHEN_every_failure_is_cleared_THEN_those_records_succeed() {
+        RecordingDispatcher dispatcher = new RecordingDispatcher().failRecord(1, true).failRecord(2, false, 3);
+
+        assertThat(dispatcher.succeedAll().dispatch(record(1))).isCompleted();
+        assertThat(dispatcher.dispatch(record(2))).isCompleted();
+    }
+
+    @Test
+    void GIVEN_a_number_of_forced_failures_that_is_not_positive_WHEN_configured_THEN_it_is_refused() {
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+
+        assertThatThrownBy(() -> dispatcher.failRecord(1, true, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(dispatcher.failRecord(1, true, 1).dispatch(record(1))).isCompletedExceptionally();
+    }
+
+    @Test
+    void GIVEN_manual_mode_with_nothing_in_flight_WHEN_the_next_send_is_completed_THEN_it_is_refused() {
+        RecordingDispatcher dispatcher = new RecordingDispatcher().manualCompletion();
+
+        assertThatThrownBy(dispatcher::completeNext).isInstanceOf(IllegalStateException.class);
     }
 }
