@@ -422,8 +422,8 @@ is `KafkaRelay.builder(producerConfig, encoder)`. The existing overload delegate
   (`{"agg":"…","seq":n}`); `consumeAll` takes a `Function<ConsumerRecord<String, byte[]>, Long>`
   that reads the order, and the numbered test passes a payload reader (a pattern match on the fixed
   fixture shape: no JSON library is on that classpath, and the test writes the payload itself), so its ordering assertion no
-  longer depends on `ce_seq`. The managed-seq test keeps reading `ce_seq`: what it asserts is the
-  number Tandem assigned, which exists only in the CloudEvents envelope.
+  longer depends on `ce_seq`. The unsequenced test reads the write position its fixture puts in the
+  payload, and asserts that no `ce_seq` is published.
 - **New test**,
   `GIVEN_an_application_encoder_WHEN_the_relay_publishes_through_it_THEN_each_aggregate_arrives_in_order_with_its_row_headers_and_its_own_id`:
   inserts the numbered fixture with a `correlation-id` row header, creates the topic
