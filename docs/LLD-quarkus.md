@@ -1,8 +1,8 @@
 # Tandem LLD: Quarkus write-side extension (`quarkus-tandem-producer`)
 
-**Version:** 0.1  
-**Status:** Designed, not implemented. First release scope only: the plain and template tiers.  
-**Implements:** [HLD-quarkus.md](HLD-quarkus.md) v0.4  
+**Version:** 0.2  
+**Status:** Designed, not released. First release scope only: the plain and template tiers.  
+**Implements:** [HLD-quarkus.md](HLD-quarkus.md) v0.5  
 **Companion to:** [LLD-spring-producer.md](LLD-spring-producer.md); [LLD-spring-config.md](LLD-spring-config.md) §2;
 [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [LLD-rabbitmq.md](LLD-rabbitmq.md) §9;
 [LLD-relay.md](LLD-relay.md); [HLD-tracing.md](HLD-tracing.md); [HLD-logging.md](HLD-logging.md)
@@ -272,8 +272,8 @@ Package-private, `final`, one instance per `execute` call, an `ArrayList` of `Ou
 - Without a serializer, every `record` throws `PayloadSerializationException` (M4) at the call, before
   anything is collected. `add` keeps working: a pre-built message needs no serializer (HLD §5.7).
 
-A managed number (`managedSeq()`) and the writer lock (`lockedWrite()`) are reached by building the
-message and passing it to `add`, as with the Spring collector.
+The writer lock (`lockedWrite()`) is reached by building the message and passing it to `add`, as with
+the Spring collector.
 
 ---
 
@@ -779,7 +779,13 @@ one aggregate's events through the template, and a plain `KafkaConsumer` (a test
 module only) reads them: same count, same order, CloudEvents `id` equal to each outbox id. JVM only:
 native mode adds nothing to a test whose subject is the row shape and the relay.
 
-The tag is the latest `relay-v*` release when the extension releases; moving it is a step of the release
+**The relay is on the floor's release line, never older.** The test migrates the schema of the floor,
+and a relay of an earlier library release is not guaranteed to run on it: schema v6, for one, requires
+every relay of an earlier release to be stopped before it is applied. The image's pinned library
+release is therefore the floor or later, and the test says nothing about older relays.
+
+The tag is the latest `relay-v*` release whose pinned library release is the floor or later, a
+pre-release while the floor is a release candidate; moving it is a step of the release
 checklist (§15.4), not a Dependabot update, since a Maven property naming an image is invisible to it.
 
 ---
@@ -924,7 +930,5 @@ or §5.6 requires.
 
 ## 18. Open points
 
-- **When to file the Quarkiverse extension proposal** (HLD §14). This document and the HLD are what it
-  describes.
 - **Whether `tandem.tracing.publish-span` needs a declaration** in the tracing mapping (§8.2). Settled
   by `OtherRoleKeysTest` in the first implementation step; either outcome is decided above.

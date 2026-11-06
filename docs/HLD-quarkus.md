@@ -1,12 +1,12 @@
 # Tandem: Quarkus Extension
 
-**Version:** 0.4  
-**Status:** Accepted. Designed and prototyped on Quarkus 3.40, not implemented.  
+**Version:** 0.5  
+**Status:** Accepted. Designed and prototyped on Quarkus 3.40, not released.  
 **Detailed in:** [LLD-quarkus.md](LLD-quarkus.md)  
 **Companion to:** [HLD.md](HLD.md) §1.1, §1.3, §1.4, §3.2, §4.2;
 [LLD-spring-producer.md](LLD-spring-producer.md); [LLD-spring-config.md](LLD-spring-config.md) §2, §3;
 [LLD-bucket-count-guard.md](LLD-bucket-count-guard.md); [LLD-rabbitmq.md](LLD-rabbitmq.md) §9;
-[LLD-relay.md](LLD-relay.md); [HLD-managed-seq.md](HLD-managed-seq.md); [HLD-tracing.md](HLD-tracing.md)
+[LLD-relay.md](LLD-relay.md); [HLD-seq.md](HLD-seq.md); [HLD-tracing.md](HLD-tracing.md)
 
 This note decides how a Quarkus application writes to the Tandem outbox: what the extension contains
 and in which order its parts ship, what it guarantees and under which conditions, how each write-side
@@ -343,17 +343,17 @@ not guess. The guide states the rule and its two ways out: annotate the payload 
 
 ### 5.8 Ordering: the preconditions restated
 
-The extension changes nothing in how order is established, so HLD §4.2 and HLD-managed-seq apply as
+The extension changes nothing in how order is established, so HLD §4.2 and HLD-seq apply as
 written. Two hazards are worth repeating because Quarkus applications run on Hibernate ORM:
 
 - **Concurrent writers to one aggregate.** Tandem publishes an aggregate's rows in the order they were
   written, which is only the business order if writers to that aggregate are serialized. Two
   transactions that both insert, the first committing second, publish in the wrong order whatever
-  `seq` mode they use, a database-assigned number included (HLD-managed-seq §3.1, §3.3). Serializing them is
+  `seq` mode they use (HLD-seq §3.1, §3.3). Serializing them is
   the application's precondition: a lock on the aggregate row taken before the outbox insert, or
   `lockedWrite()` on the message, which takes a transaction-scoped lock on the aggregate id itself.
 - **`@Version` before the flush.** Hibernate advances the version at flush, so a version read before
-  it is the previous one (LLD-spring-producer §7, HLD-managed-seq §3.2). The remedies are the
+  it is the previous one (LLD-spring-producer §7, HLD-seq §3.2). The remedies are the
   application's: flush before building the message, or use a `seq` mode that does not depend on the
   version. The extension never flushes on the application's behalf: that would change when the
   application's own statements run.
@@ -446,6 +446,11 @@ are the infrastructure and conventions the hub provides ready-made (release auto
 documentation site, the ecosystem CI that builds every hub extension against Quarkus snapshots) and
 the visibility of sitting among the community extensions. The cost is a second repository with its
 own Maven build, release and documentation to maintain.
+
+**The code starts there.** The Quarkiverse extension proposal is filed once this design is on `main`,
+so the proposal links the reviewed version, and the extension's code is first committed in the
+repository the hub creates for it. Nothing of the extension is built in this repository, not even
+while that repository is being created.
 
 **Versioned independently, with a floor**, on the model of `tandem-rabbitmq` (LLD-rabbitmq §9). The
 extension's compatibility contract is the published library API it builds on, not the library's
@@ -624,6 +629,9 @@ extension wrote to, and checks the events arrive on the broker.
   appears by itself in dev and not in production is a surprise at the worst moment.
 - **A module in this repository, with this repository's build.** It keeps the library's conventions
   and gates, without the hub's ready-made release pipeline, documentation site and ecosystem CI.
+- **Staging the code in this repository until the Quarkiverse repository exists.** It would add a
+  second build, its CI and its commit scopes here, all to be removed at the move, to save the days
+  the proposal takes.
 - **Configuration under `quarkus.tandem.*`.** Idiomatic, but it would give the same contract two names
   depending on which process reads it (§6.2).
 - **Quarkus 4 first.** It would make the first release wait for Quarkus 4's general availability and
@@ -638,5 +646,4 @@ extension wrote to, and checks the events arrive on the broker.
 
 ## 14. Open points
 
-- **When to file the Quarkiverse extension proposal.** A public step; this document is what it would
-  describe.
+None. When the Quarkiverse proposal is filed is decided in §7.
