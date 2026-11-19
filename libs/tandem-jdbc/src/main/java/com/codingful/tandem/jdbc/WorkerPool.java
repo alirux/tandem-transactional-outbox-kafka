@@ -362,7 +362,7 @@ public final class WorkerPool {
                 }
             }
         } catch (Exception e) {
-            LOG.log(Level.ERROR, "Lease reclaim failed", e);
+            LOG.log(Level.ERROR, "Lease reclaim failed instanceId:" + instanceId, e);
         }
     }
 
@@ -381,7 +381,7 @@ public final class WorkerPool {
                 deleted = store.cleanup(doneBefore, chunk);
             } while (running && deleted >= chunk);
         } catch (Exception e) {
-            LOG.log(Level.ERROR, "Cleanup failed", e);
+            LOG.log(Level.ERROR, "Cleanup failed instanceId:" + instanceId, e);
         }
     }
 
@@ -452,7 +452,7 @@ public final class WorkerPool {
         try {
             bucketSource.heartbeat();
         } catch (Exception e) {
-            LOG.log(Level.ERROR, "Bucket heartbeat failed", e);
+            LOG.log(Level.ERROR, "Bucket heartbeat failed instanceId:" + instanceId, e);
         }
         refreshOwnedBuckets();
     }
@@ -501,7 +501,7 @@ public final class WorkerPool {
             controlSource.refresh();
             controlSource.heartbeat();
         } catch (Exception e) {
-            LOG.log(Level.ERROR, "Relay control refresh failed", e);
+            LOG.log(Level.ERROR, "Relay control refresh failed instanceId:" + instanceId, e);
         }
     }
 
@@ -517,7 +517,7 @@ public final class WorkerPool {
             try {
                 bucketSource.release();
             } catch (Exception e) {
-                LOG.log(Level.ERROR, "Releasing buckets failed", e);
+                LOG.log(Level.ERROR, "Releasing buckets failed instanceId:" + instanceId, e);
             }
             LOG.log(Level.INFO, "Relay stopped instanceId:" + instanceId);
         } finally {
