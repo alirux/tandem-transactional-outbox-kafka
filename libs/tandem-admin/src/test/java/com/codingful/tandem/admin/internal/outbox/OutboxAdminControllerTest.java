@@ -371,6 +371,17 @@ class OutboxAdminControllerTest {
     }
 
     @Test
+    @Tag("boot3-only")
+    void GIVEN_a_null_status_selector_WHEN_bulk_replay_is_requested_THEN_a_problem_json_400_is_returned() throws Exception {
+        mockMvc.perform(post("/tandem/admin/v1/outbox/replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"statuses\":[\"DONE\",null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://tandem.codingful.com/problems/invalid-parameter"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
     void GIVEN_an_unexpected_failure_WHEN_summary_is_requested_THEN_a_problem_json_500_is_returned() throws Exception {
         OutboxAdminService brokenService =
                 new OutboxAdminService(new BrokenOutboxQuery(), outbox, outbox, outbox, Clock.systemUTC());

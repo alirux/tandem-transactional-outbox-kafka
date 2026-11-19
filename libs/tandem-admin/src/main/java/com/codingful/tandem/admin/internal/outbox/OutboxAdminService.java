@@ -184,6 +184,9 @@ final class OutboxAdminService {
         }
         Set<OutboxStatus> parsed = new LinkedHashSet<>();
         for (String status : statuses) {
+            if (status == null) {
+                throw new InvalidRequestException("Invalid status: null", null);
+            }
             try {
                 parsed.add(OutboxStatus.valueOf(status));
             } catch (IllegalArgumentException e) {
