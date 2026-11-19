@@ -140,6 +140,17 @@ class OutboxAdminControllerTest {
     }
 
     @Test
+    void GIVEN_an_event_whose_payload_is_a_json_array_WHEN_an_operator_reads_it_THEN_the_response_keeps_to_the_contract() throws Exception {
+        insert("order-1", "[1,2]");
+        long id = outbox.all().get(0).id();
+
+        mockMvc.perform(get("/tandem/admin/v1/outbox/messages/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload").value("[1,2]"))
+                .andExpect(OpenApiConformance.conformsToOpenApi());
+    }
+
+    @Test
     void GIVEN_a_missing_id_WHEN_the_message_is_fetched_THEN_a_problem_json_404_is_returned() throws Exception {
         mockMvc.perform(get("/tandem/admin/v1/outbox/messages/{id}", 999_999))
                 .andExpect(status().isNotFound())

@@ -22,6 +22,12 @@ class PayloadJsonTest {
         assertThat(render(stored)).isEqualTo(stored);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"[1,2]", "42", "true", "null"})
+    void GIVEN_a_json_value_that_is_not_an_object_or_string_WHEN_rendered_THEN_it_becomes_a_json_string(String stored) {
+        assertThat(render(stored)).isEqualTo(PayloadJson.quote(stored));
+    }
+
     @Test
     void GIVEN_a_payload_that_is_not_json_WHEN_rendered_THEN_it_becomes_a_quoted_json_string() {
         assertThat(render("not-json-at-all")).isEqualTo("\"not-json-at-all\"");

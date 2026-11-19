@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
  * necessarily UTF-8. A
  * cheaper heuristic ("starts with <code>{</code>") would emit a malformed response body for a binary
  * payload whose first byte happens to be {@code 0x7B}, so the check is a real, strict scan and its
- * failure direction is the safe one: anything not provably a JSON value is rendered as a JSON
+ * failure direction is the safe one: anything not provably a JSON object or string is rendered as a JSON
  * string, matching the contract's {@code oneOf: [object, string]}.
  */
 final class PayloadJson {
@@ -36,11 +36,13 @@ final class PayloadJson {
 
     /**
      * The stored payload as a JSON text fragment: the bytes verbatim when they are a complete JSON
-     * value, otherwise their UTF-8 decoding wrapped and escaped as a JSON string.
+     * object or string, otherwise their UTF-8 decoding wrapped and escaped as a JSON string.
      */
     static String render(byte[] payload) {
         String text = new String(payload, StandardCharsets.UTF_8);
-        return isJsonValue(text) ? text : quote(text);
+        String trimmed = text.stripLeading();
+        return isJsonValue(text) && (trimmed.startsWith("{") || trimmed.startsWith("\""))
+                ? text : quote(text);
     }
 
     /** Whether {@code text} is exactly one complete JSON value, with nothing but whitespace around it. */
