@@ -80,7 +80,7 @@ Read by the relay only. Every property is optional.
 
 | Property | Default | Meaning | Plain Java |
 |---|---|---|---|
-| `tandem.relay.retention` | `14d` | How long `DONE` and `DISCARDED` rows are kept before cleanup, counted from when they were created. `FAILED` rows are never removed. | `.retention(...)` |
+| `tandem.relay.retention` | `14d` | How long `DONE` and `DISCARDED` rows are kept before cleanup, counted from when they were created. Must not be negative; `0` keeps no completed rows. `FAILED` rows are never removed. | `.retention(...)` |
 | `tandem.relay.cleanup-interval` | `15m` | How often cleanup runs. | `.cleanupInterval(...)` |
 | `tandem.relay.cleanup-batch-size` | `1000` | Rows deleted per statement. One cleanup pass repeats the statement until no row past retention is left, so it bounds how long each statement holds its locks, not how many rows a pass deletes. | `.cleanupBatchSize(...)` |
 
@@ -99,7 +99,7 @@ How the relay looks for work and how much it takes at a time. The defaults suit 
 | Property | Default | Meaning | Plain Java |
 |---|---|---|---|
 | `tandem.relay.workers-per-instance` | twice the number of available processors | Worker threads in this instance. The buckets the instance owns are split across them. | `.workersPerInstance(...)` |
-| `tandem.relay.poll-interval` | `100ms` | The ceiling of the wait between polls while the outbox is idle. The relay polls quickly while rows are flowing and backs off toward this value when a claim finds nothing, so it is both what the first row after a quiet stretch can wait and what bounds the idle query rate. | `.pollInterval(...)` |
+| `tandem.relay.poll-interval` | `100ms` | The ceiling of the wait between polls while the outbox is idle. Must be positive. The relay polls quickly while rows are flowing and backs off toward this value when a claim finds nothing, so it is both what the first row after a quiet stretch can wait and what bounds the idle query rate. | `.pollInterval(...)` |
 | `tandem.relay.poll-interval-floor` | `10ms` | Where that wait restarts after a poll that found rows, so what a row of a live stream waits. Set it equal to `poll-interval` for a fixed interval. | `.pollIntervalFloor(...)` |
 | `tandem.relay.poll-backoff-factor` | `2.0` | How fast the wait climbs from the floor to `poll-interval`, one step per empty poll. Must be greater than 1. | `.pollBackoffFactor(...)` |
 | `tandem.relay.batch-size` | `100` | How many rows a worker claims and keeps in flight at once for its share of the buckets. | `.batchSize(...)` |

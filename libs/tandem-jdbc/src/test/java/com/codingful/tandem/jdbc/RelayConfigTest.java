@@ -150,6 +150,27 @@ class RelayConfigTest {
     }
 
     @Test
+    void GIVEN_a_negative_retention_WHEN_built_THEN_it_is_rejected_but_zero_is_accepted() {
+        assertThatThrownBy(() -> RelayConfig.builder().retention(Duration.ofMillis(-1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("retention must not be negative");
+        assertThatCode(() -> RelayConfig.builder().retention(Duration.ZERO).build())
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void GIVEN_a_non_positive_poll_interval_WHEN_built_THEN_it_is_rejected_but_positive_is_accepted() {
+        assertThatThrownBy(() -> RelayConfig.builder().pollInterval(Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollInterval must be positive");
+        assertThatThrownBy(() -> RelayConfig.builder().pollInterval(Duration.ofMillis(-1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pollInterval must be positive");
+        assertThatCode(() -> RelayConfig.builder().pollInterval(Duration.ofMillis(1)).build())
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void GIVEN_a_backoff_factor_that_would_never_climb_WHEN_built_THEN_it_is_rejected() {
         // At 1.0 the wait would sit on the floor for ever and the configured interval would stop
         // bounding the idle query load, which is the guarantee an operator sizes against.

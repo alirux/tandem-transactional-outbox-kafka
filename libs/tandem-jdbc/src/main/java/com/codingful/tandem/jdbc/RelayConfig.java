@@ -354,8 +354,12 @@ public final class RelayConfig {
          * (§3.1). Also the first delay after a failed cycle, from which the relay backs off
          * exponentially up to {@link #reclaimInterval}. Default 100ms.
          */
+        /** Must be positive; zero or negative values would busy-loop the relay. */
         public Builder pollInterval(Duration pollInterval) {
             this.pollInterval = Objects.requireNonNull(pollInterval, "pollInterval");
+            if (pollInterval.isNegative() || pollInterval.isZero()) {
+                throw new IllegalArgumentException("pollInterval must be positive");
+            }
             return this;
         }
 
@@ -416,9 +420,12 @@ public final class RelayConfig {
             return this;
         }
 
-        /** How long a {@code DONE} row is kept before {@code cleanup} deletes it. Default 14 days. */
+        /** Must not be negative; zero means finished rows are eligible for immediate cleanup. Default 14 days. */
         public Builder retention(Duration retention) {
             this.retention = Objects.requireNonNull(retention, "retention");
+            if (retention.isNegative()) {
+                throw new IllegalArgumentException("retention must not be negative");
+            }
             return this;
         }
 
