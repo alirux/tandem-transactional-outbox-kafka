@@ -98,6 +98,14 @@ class CloudEventFactoryTest {
     }
 
     @Test
+    void GIVEN_a_row_that_stored_a_blank_content_type_WHEN_the_envelope_is_built_THEN_the_configured_default_applies() {
+        OutboxRecord record = recordOf(orderMessage()
+                .header(TandemHeaders.CONTENT_TYPE, "").contentType("").build());
+
+        assertThat(factory.build(record).getDataContentType()).isEqualTo(DEFAULT_CONTENT_TYPE);
+    }
+
+    @Test
     void GIVEN_a_row_that_stored_a_schema_WHEN_the_envelope_is_built_THEN_it_becomes_the_data_schema_attribute() {
         OutboxRecord record = recordOf(orderMessage().header(TandemHeaders.DATA_SCHEMA, STORED_SCHEMA).build());
 
@@ -110,6 +118,22 @@ class CloudEventFactoryTest {
         CloudEventFactory withDefault = new CloudEventFactory(SOURCE, DEFAULT_CONTENT_TYPE, configured);
 
         assertThat(withDefault.build(recordOf(orderMessage().build())).getDataSchema()).isEqualTo(configured);
+    }
+
+    @Test
+    void GIVEN_a_row_that_stored_a_blank_schema_WHEN_the_envelope_is_built_THEN_the_configured_default_schema_applies() {
+        URI configured = URI.create(STORED_SCHEMA);
+        CloudEventFactory withDefault = new CloudEventFactory(SOURCE, DEFAULT_CONTENT_TYPE, configured);
+        OutboxRecord record = recordOf(orderMessage().header(TandemHeaders.DATA_SCHEMA, "").build());
+
+        assertThat(withDefault.build(record).getDataSchema()).isEqualTo(configured);
+    }
+
+    @Test
+    void GIVEN_a_row_that_stored_a_blank_schema_and_no_default_WHEN_the_envelope_is_built_THEN_the_event_has_no_schema() {
+        OutboxRecord record = recordOf(orderMessage().header(TandemHeaders.DATA_SCHEMA, "").build());
+
+        assertThat(factory.build(record).getDataSchema()).isNull();
     }
 
     @Test

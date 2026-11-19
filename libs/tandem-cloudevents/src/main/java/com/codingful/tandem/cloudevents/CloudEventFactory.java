@@ -106,15 +106,16 @@ public final class CloudEventFactory {
 
     private String contentTypeOf(OutboxRecord record) {
         String stored = record.headers().get(TandemHeaders.CONTENT_TYPE);
-        if (stored != null) {
+        if (stored != null && !stored.isBlank()) {
             return stored;
         }
-        return record.contentType() != null ? record.contentType() : defaultContentType;
+        return record.contentType() != null && !record.contentType().isBlank()
+                ? record.contentType() : defaultContentType;
     }
 
     private URI dataSchemaOf(OutboxRecord record) {
         String stored = record.headers().get(TandemHeaders.DATA_SCHEMA);
-        if (stored != null) {
+        if (stored != null && !stored.isBlank()) {
             return URI.create(stored);
         }
         return defaultDataSchema;
