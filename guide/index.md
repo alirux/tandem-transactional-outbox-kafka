@@ -51,7 +51,7 @@ First use, what consumers receive, what to check before adopting, and publishing
 ### Run in production
 
 What happens under failure, running the prebuilt relay, how to see it, how to size it, how to test
-and upgrade.
+and upgrade, and how to handle personal data.
 
 | Chapter | Topics |
 |---|---|
@@ -60,6 +60,7 @@ and upgrade.
 | [Observability](observability.md) | Logs (where they go, how a line is built, the lines worth knowing), metrics (turning them on, every meter, the alerts to build and their limits) and distributed traces (propagation, the relay publish span, the correlation id, reading a trace), then how the three join in an incident. |
 | [Performance and Sizing](performance-and-sizing.md) | What to expect (latency, throughput, recovery), how the poll settings really behave, what polling costs your database, sizing for more throughput, what quietly costs capacity, the cost on the write path, and measuring it on your own hardware. |
 | [Testing and Upgrades](testing-and-upgrades.md) | Testing with the in-memory outbox, the recording dispatcher and real containers, the tests only you can write, why mixed versions are safe, and a step-by-step upgrade. |
+| [Personal Data and GDPR](personal-data.md) | Where personal data goes (table, broker, Admin API, logs, traces), what to keep out of aggregate ids, headers and payloads, how long the outbox keeps it, handling an erasure request, who can read it. |
 
 ### Operate
 

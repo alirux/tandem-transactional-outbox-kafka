@@ -534,6 +534,13 @@ Need to see a stuck outbox, replay or discard a failed event, or pause the relay
 curl, Python, JavaScript and Java examples, and the
 [command line guide](https://tandem-codingful.readthedocs.io/cli/) does the same for `tandem-cli`.
 
+### Personal data and GDPR
+
+Tandem runs entirely in your infrastructure and sends data nowhere but your database and your broker.
+It never logs payloads or header values, deletes delivered events after a configurable retention, and
+documents where personal data goes and how to erase it:
+[Personal Data and GDPR](https://tandem-codingful.readthedocs.io/personal-data/).
+
 ### API reference
 
 Javadoc for every published module, served from the artifacts on Maven Central. `latest` follows
