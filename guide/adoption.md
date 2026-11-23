@@ -271,6 +271,10 @@ Don't invent a large number of synthetic ids hoping it "spreads the load better 
 the events under each id genuinely need relative ordering: a fresh random id per unrelated event
 already gets you the full spread with none of the pinning cost.
 
+Either way the event still needs an aggregate type, which picks its topic. Give it one that names the
+stream (`Notification`, `ScheduledReport`), not the id
+([Advanced Integration](advanced-integration.md#21-which-topic)).
+
 **The same lever works for an event that does have an aggregate but does not depend on its order**
 (an audit entry about an order, a notification that an order shipped). Tandem orders by `aggregate_id`
 and by nothing else, and has no per-message switch: writing such an event under a fresh random id

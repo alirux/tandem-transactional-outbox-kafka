@@ -484,7 +484,7 @@ would need a generated-column workaround (§5.4, LLD-jdbc §5).
 | `bucket` | Virtual bucket `Math.floorMod(fnv1a64(aggregate_id), B)`, computed **in Java** by `tandem-jdbc` at insert (engine-independent; §4.3); the unit of worker ownership. All events of an aggregate share a bucket |
 | `seq` | The application's number for the event, or `NULL` where the row declares none (§4.2); enforced by `UNIQUE(aggregate_id, seq)`, which a `NULL` sits outside. No default: an INSERT that leaves it out stores `NULL` |
 | `payload` | Event data. The core treats it as `byte[]` produced by a pluggable `PayloadSerializer` (no JSON library forced on the client, §1.3). Stored as `JSONB` (readable/inspectable), so it must be valid JSON: a binary format (Avro/Protobuf) is encoded into JSON by the application, for instance as a base64 string. A `BYTEA` column is not supported, since the bundled adapters bind and read the column as JSON; the `BYTEA` mention in the comment of the `v1` changeset is immutable with that changeset and does not describe a supported option. Becomes CloudEvents `data`. |
-| `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers |
+| `headers` | Optional Kafka headers (e.g. `correlation-id`, `traceparent`); merged alongside the CloudEvents `ce_*` headers. Also where the payload's content type is stored: the `content-type` entry becomes CloudEvents `datacontenttype`, `application/json` when absent. The reserved names are listed in HLD-write-side-sdks §4.4 |
 | `status` | State machine: `PENDING → IN_FLIGHT → DONE` / `FAILED`; `FAILED → DISCARDED` (admin only). See §5.3 |
 | `locked_by` | Worker identity (e.g. `worker-0@hostname`); enables lease-based failover. A long instance id is shortened (its tail is kept) to fit the column |
 | `locked_until` | Lease expiry timestamp; if elapsed, another worker can reclaim the row |
@@ -880,7 +880,7 @@ source of truth, defined and reviewed before implementation; full design in
 Replay resets DONE or FAILED rows back to PENDING, causing the relay to re-process and re-publish them. Safe because:
 1. The event itself is immutable — replay rewrites only *delivery* state (`status`, `attempts`, the lease, the retry schedule); `payload`, `headers`, `seq` and the aggregate identity are never touched, and rows are never deleted during normal operation
 2. The same worker handles the same aggregate, preserving order
-3. Consumers must be idempotent on `(aggregate_id, seq)` — replay is an expected, documented scenario
+3. Consumers must be idempotent on the event identity `(ce_source, ce_id)`, which a replay keeps unchanged: replay is an expected, documented scenario
 
 ```sql
 -- Replay a specific aggregate, optional ID range

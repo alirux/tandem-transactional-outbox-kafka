@@ -101,6 +101,12 @@ The router receives the whole stored row, but routes by **aggregate type**, not 
 type, on purpose: the topic is a property of the kind of thing, not of what happened to it. A router
 that throws makes the row fail permanently.
 
+An event that belongs to no aggregate still needs an aggregate type, since the column is required and
+the topic comes from it. Name the stream the event belongs to: `Notification`, `ScheduledReport`,
+`AuditEntry`. Events of one such type share a topic, as `Order` events do, whatever id each one carries
+(§2.3). If those events should land on a topic that already exists, route that type there with a
+`TopicRouter`.
+
 ### 2.2 The key, and what it means for partitions
 
 The Kafka **key is always the aggregate id**. That is what puts all events of one aggregate on one
@@ -112,6 +118,55 @@ partition, in order, while different aggregates spread over the partitions. Two 
   something Tandem controls: after the change, an aggregate's new events can land on a different
   partition from its old ones, and a consumer reading in parallel may see the two interleaved. Choose
   the partition count with room to grow, or plan the change.
+
+### 2.3 The aggregate id is the ordering key
+
+Despite its name, `aggregate_id` is more than the id of a domain aggregate: it is **the ordering key**.
+Everything Tandem orders, it orders by that value and by nothing else. Events sharing it go out one at
+a time, in the order they were written, through one bucket and onto one Kafka partition; events with
+different values have no order between them. So the question to ask is not "which aggregate is this
+about?" but "**which events must this one never overtake?**"
+
+| What the events need | Key to use | What follows |
+|---|---|---|
+| Ordered with the other events of one domain object | The object's id (`order-7`) | The common case. One object's events form one chain. |
+| Ordered with each other, with no domain object behind them (successive runs of one job) | One **stable synthetic id** per stream (`scheduled-report:daily-close`) | The whole stream is one chain, on one bucket and one partition: fine at low volume, a bottleneck if the stream carries much of your traffic. |
+| No order at all (unrelated notifications) | A **fresh random id** per event (a UUID) | Full parallelism. The id says nothing to the consumer, so carry any real id in the payload or a header. |
+
+The last two cases are written `unsequenced()`: with no domain object, there is no version to number
+the events with. The
+[Adoption Guide](adoption.md#6-events-with-no-natural-aggregate-batch-jobs-notifications-fire-and-forget)
+goes through the three cases in detail, including an event about an aggregate that does not need the
+aggregate's order.
+
+### 2.4 Hot keys and the partition count
+
+One key is one lane, end to end: one bucket in the relay, one partition in Kafka, one consumer thread
+behind it. A key that carries much of the volume caps throughput at that lane however many workers,
+partitions or consumers you add ([Performance and Sizing](performance-and-sizing.md#4-when-you-need-more-throughput)).
+
+- **A constant key is the extreme case.** A key that is the same for every event (a fixed string, the
+  service name, a tenant id when there is one tenant) turns the whole outbox into one chain and one
+  partition. Use a constant only for a stream that genuinely needs total order and is small.
+- **Recognising a hot key.** The symptom is a backlog that grows on a few buckets while the others stay
+  empty. Under `LEASE`, `tandem-cli relay buckets` (or `GET /relay/buckets`) shows the pending count per
+  bucket. To see which keys are behind it, count the waiting rows per key in the database:
+
+    ```sql
+    SELECT aggregate_id, count(*) AS pending
+      FROM tandem_outbox
+     WHERE status = 0          -- PENDING
+     GROUP BY aggregate_id
+     ORDER BY pending DESC
+     LIMIT 10;
+    ```
+
+    On the Kafka side, the same key shows as one partition whose consumer lag grows while the others
+    keep up.
+- **The partition count.** Tandem does not choose it. It bounds how many consumers of one group can
+  work in parallel, so size it from the consumer parallelism you expect to need, with room to grow,
+  since raising it later moves keys between partitions (§2.2). More partitions do not help a hot key:
+  its events stay on one partition whatever the count.
 
 ---
 
